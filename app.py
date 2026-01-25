@@ -1103,7 +1103,7 @@ def get_all_downloads():
         
         for status in ['active', 'queued', 'completed', 'failed']:
             for item in dm.get_all_downloads().get(status, []):
-                live.append({
+                live_item = {
                     'download_id': item.download_id,
                     'video_id': item.video_id,
                     'title': item.title,
@@ -1119,8 +1119,31 @@ def get_all_downloads():
                     'created_at': item.download_id.split('_')[1] if '_' in item.download_id else str(int(time.time())),
                     'detected_bpm': getattr(item, 'detected_bpm', None),
                     'detected_key': getattr(item, 'detected_key', None),
-                    'analysis_confidence': getattr(item, 'analysis_confidence', None)
-                })
+                    'analysis_confidence': getattr(item, 'analysis_confidence', None),
+                    # Initialize extraction fields (will be populated from DB for completed downloads)
+                    'extracted': False,
+                    'stems_paths': None,
+                    'extraction_model': None
+                }
+
+                # For completed downloads, check database for extraction status
+                # This ensures extraction data is included even if download is still in live session
+                if status == 'completed' and item.video_id:
+                    try:
+                        db_data = db_list_downloads(current_user.id)
+                        for db_item in db_data:
+                            if db_item.get('video_id') == item.video_id:
+                                live_item['extracted'] = db_item.get('extracted', False)
+                                live_item['stems_paths'] = db_item.get('stems_paths')
+                                live_item['extraction_model'] = db_item.get('extraction_model')
+                                live_item['global_download_id'] = db_item.get('global_download_id')
+                                # Use database ID for completed items to match extraction API
+                                live_item['download_id'] = db_item['id']
+                                break
+                    except Exception as e:
+                        logger.warning(f"Could not fetch extraction data for {item.video_id}: {e}")
+
+                live.append(live_item)
                 live_video_ids.add(item.video_id)
         
         # Get historical downloads from database (excluding those in live session)
