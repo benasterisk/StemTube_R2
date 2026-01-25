@@ -1,0 +1,37 @@
+{
+  "name": "StemTube",
+  "short_name": "StemTube",
+  "description": "Separate stems, detect chords, and explore music",
+  "start_url": "/mobile",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1a1a2e",
+  "theme_color": "#6c5ce7",
+  "icons": [
+    {
+      "src": "/static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["music", "entertainment"],
+  "shortcuts": [
+    {
+      "name": "Search",
+      "url": "/mobile?tab=search",
+      "icon": "/static/icons/icon-192.png"
+    },
+    {
+      "name": "My Library",
+      "url": "/mobile?tab=library",
+      "icon": "/static/icons/icon-192.png"
+    }
+  ]
+}

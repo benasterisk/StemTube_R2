@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">
+  <rect width="320" height="180" fill="#1a1a1a"/>
+  <g transform="translate(160, 90)">
+    <!-- Music note icon -->
+    <path d="M-20,-30 L-20,20 C-20,28 -12,35 0,35 C12,35 20,28 20,20 C20,12 12,5 0,5 L0,-30 L40,-20 L40,25 C40,33 48,40 60,40 C72,40 80,33 80,25 C80,17 72,10 60,10 L60,-20 Z"
+          fill="#4a9eff"
+          opacity="0.8"/>
+  </g>
+  <text x="160" y="155" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#888">
+    No Thumbnail
+  </text>
+</svg>

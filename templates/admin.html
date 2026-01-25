@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StemTube Web - Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>StemTube Web - Admin</h1>
+            <div class="admin-nav">
+                <a href="{{ url_for('index') }}" class="nav-link">
+                    <i class="fas fa-home"></i> Home
+                </a>
+                <a href="{{ url_for('logout') }}" class="nav-link">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </header>
+        
+        <main class="admin-main">
+            <div class="admin-sidebar">
+                <div class="admin-user-info">
+                    <div class="user-avatar">
+                        <i class="fas fa-user-shield"></i>
+                    </div>
+                    <div class="user-details">
+                        <span class="user-name">{{ current_user.username }}</span>
+                        <span class="user-role">Administrator</span>
+                    </div>
+                </div>
+                
+                <nav class="admin-menu">
+                    <a href="#" class="admin-menu-item active" data-section="users">
+                        <i class="fas fa-users"></i> User Management
+                    </a>
+                </nav>
+            </div>
+            
+            <div class="admin-content">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="admin-alert {{ 'error' if category == 'error' else 'success' }}">
+                                <i class="fas {{ 'fa-exclamation-circle' if category == 'error' else 'fa-check-circle' }}"></i> {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                <div class="admin-section active" id="users-section">
+                    <div class="section-header">
+                        <h2>User Management</h2>
+                        <button id="addUserBtn" class="admin-button">
+                            <i class="fas fa-user-plus"></i> Add User
+                        </button>
+                    </div>
+                    
+                    <div class="users-table-container">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Username</th>
+                                    <th>Email</th>
+                                    <th>Admin</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in users %}
+                                <tr>
+                                    <td>{{ user.id }}</td>
+                                    <td>{{ user.username }}</td>
+                                    <td>{{ user.email or 'N/A' }}</td>
+                                    <td>
+                                        {% if user.is_admin %}
+                                        <span class="badge admin">Yes</span>
+                                        {% else %}
+                                        <span class="badge user">No</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ user.created_at }}</td>
+                                    <td class="actions">
+                                        <button class="action-btn edit-user" data-id="{{ user.id }}" title="Edit User">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="action-btn reset-password" data-id="{{ user.id }}" title="Reset Password">
+                                            <i class="fas fa-key"></i>
+                                        </button>
+                                        {% if not user.is_admin or current_user.id != user.id %}
+                                        <button class="action-btn delete-user" data-id="{{ user.id }}" title="Delete User">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add User Modal -->
+    <div class="modal" id="addUserModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New User</h2>
+                <span class="close-button">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addUserForm" method="post" action="{{ url_for('admin_add_user') }}">
+                    <!-- CSRF protection is disabled for this application -->
+                    
+                    <div class="form-group">
+                        <label for="new-username">Username</label>
+                        <input type="text" id="new-username" name="username" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="new-password">Password</label>
+                        <input type="password" id="new-password" name="password" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="new-email">Email (optional)</label>
+                        <input type="email" id="new-email" name="email">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="is_admin" id="new-is-admin">
+                            <span class="checkmark"></span>
+                            Admin User
+                        </label>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="admin-button">Create User</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit User Modal -->
+    <div class="modal" id="editUserModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit User</h2>
+                <span class="close-button">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="editUserForm" method="post" action="{{ url_for('admin_edit_user') }}">
+                    <!-- CSRF protection is disabled for this application -->
+                    <input type="hidden" id="edit-user-id" name="user_id">
+                    
+                    <div class="form-group">
+                        <label for="edit-username">Username</label>
+                        <input type="text" id="edit-username" name="username" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-email">Email (optional)</label>
+                        <input type="email" id="edit-email" name="email">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="is_admin" id="edit-is-admin">
+                            <span class="checkmark"></span>
+                            Admin User
+                        </label>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="admin-button">Update User</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Reset Password Modal -->
+    <div class="modal" id="resetPasswordModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Reset Password</h2>
+                <span class="close-button">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="resetPasswordForm" method="post" action="{{ url_for('admin_reset_password') }}">
+                    <!-- CSRF protection is disabled for this application -->
+                    <input type="hidden" id="reset-user-id" name="user_id">
+                    
+                    <div class="form-group">
+                        <label for="new-password">New Password</label>
+                        <input type="password" id="reset-password" name="password" required>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="admin-button">Reset Password</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Delete User Confirmation Modal -->
+    <div class="modal" id="deleteUserModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Delete User</h2>
+                <span class="close-button">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this user? This action cannot be undone.</p>
+                
+                <form id="deleteUserForm" method="post" action="{{ url_for('admin_delete_user') }}">
+                    <!-- CSRF protection is disabled for this application -->
+                    <input type="hidden" id="delete-user-id" name="user_id">
+                    
+                    <div class="form-actions">
+                        <button type="button" class="admin-button cancel-button" id="cancelDeleteBtn">Cancel</button>
+                        <button type="submit" class="admin-button delete-button">Delete</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Modal handling
+            const modals = {
+                addUser: document.getElementById('addUserModal'),
+                editUser: document.getElementById('editUserModal'),
+                resetPassword: document.getElementById('resetPasswordModal'),
+                deleteUser: document.getElementById('deleteUserModal')
+            };
+            
+            // Open modals
+            document.getElementById('addUserBtn').addEventListener('click', function() {
+                modals.addUser.classList.add('active');
+            });
+            
+            // Close modals
+            document.querySelectorAll('.close-button, .cancel-button').forEach(button => {
+                button.addEventListener('click', function() {
+                    Object.values(modals).forEach(modal => {
+                        modal.classList.remove('active');
+                    });
+                });
+            });
+            
+            // Edit user button
+            document.querySelectorAll('.edit-user').forEach(button => {
+                button.addEventListener('click', function() {
+                    const userId = this.getAttribute('data-id');
+                    const row = this.closest('tr');
+                    
+                    document.getElementById('edit-user-id').value = userId;
+                    document.getElementById('edit-username').value = row.cells[1].textContent;
+                    document.getElementById('edit-email').value = row.cells[2].textContent === 'N/A' ? '' : row.cells[2].textContent;
+                    document.getElementById('edit-is-admin').checked = row.cells[3].querySelector('.badge').textContent === 'Yes';
+                    
+                    modals.editUser.classList.add('active');
+                });
+            });
+            
+            // Reset password button
+            document.querySelectorAll('.reset-password').forEach(button => {
+                button.addEventListener('click', function() {
+                    const userId = this.getAttribute('data-id');
+                    document.getElementById('reset-user-id').value = userId;
+                    modals.resetPassword.classList.add('active');
+                });
+            });
+            
+            // Delete user button
+            document.querySelectorAll('.delete-user').forEach(button => {
+                button.addEventListener('click', function() {
+                    const userId = this.getAttribute('data-id');
+                    document.getElementById('delete-user-id').value = userId;
+                    modals.deleteUser.classList.add('active');
+                });
+            });
+        });
+    </script>
+</body>
+</html>

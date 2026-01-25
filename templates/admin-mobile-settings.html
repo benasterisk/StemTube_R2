@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Settings - StemTube Admin</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #121212;
+            color: #ffffff;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #b3b3b3;
+            margin-bottom: 30px;
+        }
+
+        .settings-group {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .setting-item:last-child {
+            border-bottom: none;
+        }
+
+        .setting-info {
+            flex: 1;
+        }
+
+        .setting-title {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .setting-description {
+            font-size: 13px;
+            color: #b3b3b3;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 28px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #333;
+            transition: 0.4s;
+            border-radius: 28px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: 0.4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+            background-color: #1DB954;
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(22px);
+        }
+
+        .btn {
+            background: #1DB954;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #1ed760;
+        }
+
+        .btn-secondary {
+            background: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #444;
+        }
+
+        .info-box {
+            background: #1e3a5f;
+            border: 1px solid #2196f3;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .info-box h3 {
+            color: #2196f3;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .info-box p {
+            font-size: 13px;
+            color: #b3d9ff;
+            line-height: 1.6;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: 10px;
+        }
+
+        .status.enabled {
+            background: #1DB954;
+            color: white;
+        }
+
+        .status.disabled {
+            background: #333;
+            color: #b3b3b3;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .success-message,
+        .error-message {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .success-message {
+            background: #1a4d2e;
+            border: 1px solid #4caf50;
+            color: #4caf50;
+        }
+
+        .error-message {
+            background: #4d1a1a;
+            border: 1px solid #ff5252;
+            color: #ff5252;
+        }
+
+        .code {
+            background: #282828;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #1DB954;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            Mobile Settings
+            <span class="status" id="statusBadge">Loading...</span>
+        </h1>
+        <p class="subtitle">Configure mobile-optimized interface for your users</p>
+
+        <div class="info-box">
+            <h3>📱 About Mobile Mode</h3>
+            <p>
+                The mobile-optimized interface provides a cleaner, faster experience for smartphone users.
+                It features simplified navigation, touch-optimized controls, and fixes iOS audio synchronization issues.
+            </p>
+            <div class="code">
+                Mobile URL: <span id="mobileUrl">Loading...</span>
+            </div>
+        </div>
+
+        <div class="success-message" id="successMessage"></div>
+        <div class="error-message" id="errorMessage"></div>
+
+        <div class="settings-group">
+            <h2 style="margin-bottom: 20px;">Mobile Interface Settings</h2>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <div class="setting-title">Enable Mobile Optimized Mode</div>
+                    <div class="setting-description">
+                        Activate the mobile-optimized interface. Users on mobile devices will be redirected automatically.
+                    </div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="mobileOptimizedMode">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <div class="setting-title">Force Single Audio Stream (iOS Fix)</div>
+                    <div class="setting-description">
+                        Use single audio element instead of multiple stems for perfect iOS synchronization.
+                        <strong>Recommended for iOS users.</strong>
+                    </div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="mobileForceSingleAudio">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <div class="setting-title">Hide Waveforms on Mobile</div>
+                    <div class="setting-description">
+                        Disable waveform rendering for better mobile performance on slower devices.
+                    </div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="mobileHideWaveforms">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <div class="setting-title">Simplified Mixer Interface</div>
+                    <div class="setting-description">
+                        Use tab-based navigation instead of complex multi-panel layout on mobile.
+                    </div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="mobileSimplifiedMixer">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button class="btn" id="saveBtn">Save Settings</button>
+            <button class="btn btn-secondary" onclick="window.close()">Close</button>
+        </div>
+    </div>
+
+    <script>
+        // Load current settings
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/mobile/config');
+                const data = await response.json();
+
+                document.getElementById('mobileOptimizedMode').checked = data.mobile_optimized_mode;
+                document.getElementById('mobileForceSingleAudio').checked = data.mobile_force_single_audio;
+                document.getElementById('mobileHideWaveforms').checked = data.mobile_hide_waveforms;
+                document.getElementById('mobileSimplifiedMixer').checked = data.mobile_simplified_mixer;
+
+                updateStatus(data.mobile_optimized_mode);
+                updateMobileUrl();
+            } catch (error) {
+                showError('Failed to load settings: ' + error.message);
+            }
+        }
+
+        // Save settings
+        async function saveSettings() {
+            const settings = {
+                mobile_optimized_mode: document.getElementById('mobileOptimizedMode').checked,
+                mobile_force_single_audio: document.getElementById('mobileForceSingleAudio').checked,
+                mobile_hide_waveforms: document.getElementById('mobileHideWaveforms').checked,
+                mobile_simplified_mixer: document.getElementById('mobileSimplifiedMixer').checked
+            };
+
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+
+                const data = await response.json();
+
+                if (data.success || response.ok) {
+                    showSuccess('Settings saved successfully!');
+                    updateStatus(settings.mobile_optimized_mode);
+                } else {
+                    throw new Error(data.error || 'Failed to save settings');
+                }
+            } catch (error) {
+                showError('Failed to save settings: ' + error.message);
+            }
+        }
+
+        function updateStatus(enabled) {
+            const badge = document.getElementById('statusBadge');
+            badge.textContent = enabled ? 'Enabled' : 'Disabled';
+            badge.className = 'status ' + (enabled ? 'enabled' : 'disabled');
+        }
+
+        function updateMobileUrl() {
+            const url = window.location.origin + '/mobile';
+            document.getElementById('mobileUrl').textContent = url;
+        }
+
+        function showSuccess(message) {
+            const el = document.getElementById('successMessage');
+            el.textContent = message;
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 5000);
+        }
+
+        function showError(message) {
+            const el = document.getElementById('errorMessage');
+            el.textContent = message;
+            el.style.display = 'block';
+        }
+
+        // Event listeners
+        document.getElementById('saveBtn').addEventListener('click', saveSettings);
+
+        // Load settings on page load
+        loadSettings();
+    </script>
+</body>
+</html>

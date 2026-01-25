@@ -1,0 +1,47 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments and deps
+venv/
+.venv/
+env/
+.env
+!.env.example
+
+# Local tooling
+.claude/
+
+# Runtime data, logs, and PIDs
+logs/*.log
+flask_session/
+*.log
+*.pid
+
+# Databases and backups
+*.db
+*.db.backup-*
+!*.db.example
+
+# Downloads, generated media, and runtime binaries
+core/downloads/*
+!core/downloads/.gitkeep
+core/ffmpeg/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+temp/
+temp_files/

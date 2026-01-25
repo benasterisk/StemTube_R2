@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StemTubes Mixer</title>
+    <!-- CSS principal de StemTubes -->
+    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- CSS spécifique au mixeur (modulaire) -->
+    <link rel="stylesheet" href="/static/css/mixer/mixer.css">
+    <!-- CSS mobile pour les diagrammes d'accords -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-style.css') }}?v={{ cache_buster }}">
+    <!-- Font Awesome pour les icônes -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="mixer-app" id="mixer-app" style="display: none;" data-active-tab="mixer">
+        <!-- Tab Navigation -->
+        <div class="mixer-tabs">
+            <button id="mixer-tab-btn" class="tab-btn active" data-tab="mixer">
+                <i class="fas fa-sliders-h"></i> Mixer
+            </button>
+            <button id="chords-tab-btn" class="tab-btn" data-tab="chords">
+                <i class="fas fa-music"></i> Chords
+            </button>
+            <button id="lyrics-tab-btn" class="tab-btn" data-tab="lyrics">
+                <i class="fas fa-microphone"></i> Lyrics
+            </button>
+        </div>
+
+        <!-- Song Title Display -->
+        <div class="song-title-bar">
+            <span class="song-title" id="song-title-display">Loading...</span>
+        </div>
+
+        <!-- Fixed header containing transport controls and timeline -->
+        <div class="fixed-header">
+            <!-- Barre de transport avec contrôles de lecture (SHARED) -->
+            <div class="transport-container">
+                <div class="transport-controls">
+                    <button id="play-btn" class="transport-btn play">
+                        <i class="fas fa-play"></i> Play
+                    </button>
+                    <button id="stop-btn" class="transport-btn stop">
+                        <i class="fas fa-stop"></i> Stop
+                    </button>
+                    <div class="time-display" id="time-display">00:00</div>
+
+                    <!-- Contrôles BPM/Key simples (SHARED) -->
+                    <div class="bpm-key-controls">
+                        <div class="bpm-control">
+                            <span>BPM:</span>
+                            <button id="bpm-down" class="control-btn">-</button>
+                            <input id="current-bpm" class="bpm-input" type="number" min="50" max="300" step="1" value="120" aria-label="Current tempo (BPM)">
+                            <button id="bpm-up" class="control-btn">+</button>
+                            <button id="bpm-reset" class="control-btn reset-btn" title="Reset BPM to original">⟲</button>
+                        </div>
+                        <div class="key-control">
+                            <span>Key:</span>
+                            <button id="key-down" class="control-btn">-</button>
+                            <span id="current-key">C</span>
+                            <button id="key-up" class="control-btn">+</button>
+                            <button id="key-reset" class="control-btn reset-btn" title="Reset Key to original">⟲</button>
+                        </div>
+                    </div>
+
+                    <div class="chords-transport-controls" data-tab-visible="chords" data-tab-display="flex">
+                        <button class="chord-mode-toggle" id="regenerateChordsBtn" title="Re-detect chords with improved templates">
+                            <i class="fas fa-sync-alt"></i>
+                            <span>Regenerate Chords</span>
+                        </button>
+                        <button class="chord-mode-toggle" id="chord-grid-view-btn" title="Open chord grid view">
+                            <i class="fas fa-th"></i>
+                            <span>Grid View</span>
+                        </button>
+                    </div>
+
+                    <div class="lyrics-transport-controls" data-tab-visible="lyrics" data-tab-display="flex">
+                        <button class="chord-mode-toggle" id="karaoke-lrclib-btn" title="Fetch lyrics from LrcLib (fast, crowdsourced)">
+                            <i class="fas fa-cloud-download-alt"></i>
+                            <span id="lrclib-btn-label">LrcLib</span>
+                        </button>
+                        <button class="chord-mode-toggle" id="karaoke-generate-btn" title="Generate lyrics with Whisper AI (slow, any audio)">
+                            <i class="fas fa-microphone"></i>
+                            <span id="karaoke-btn-label">Whisper</span>
+                        </button>
+                        <button class="visibility-toggle" id="lyrics-visibility-toggle" data-section="lyrics" title="Show/hide lyrics">
+                            <i class="fas fa-eye-slash"></i>
+                            <span>Hide Lyrics</span>
+                        </button>
+                        <button class="chord-mode-toggle" id="lyrics-popup-open" title="Open focused lyrics view">
+                            <i class="fas fa-expand"></i>
+                            <span>Focus Lyrics</span>
+                        </button>
+                    </div>
+
+                    <!-- Export Mix Button -->
+                    <div class="export-controls" data-tab-visible="mixer" data-tab-display="flex">
+                        <button class="transport-btn export" id="export-mix-btn" title="Export current mix to MP3">
+                            <i class="fas fa-file-export"></i> Export Mix
+                        </button>
+                    </div>
+
+                </div>
+
+                <!-- Zoom controls (MIXER MODE ONLY) -->
+                <div class="zoom-controls" data-tab-visible="mixer" data-tab-display="flex">
+                    <div class="zoom-group">
+                        <span class="zoom-label">H:</span>
+                        <button id="zoom-out-h" class="zoom-btn" title="Réduire zoom horizontal">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                        <button id="zoom-in-h" class="zoom-btn" title="Augmenter zoom horizontal">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                    <div class="zoom-group">
+                        <span class="zoom-label">V:</span>
+                        <button id="zoom-out-v" class="zoom-btn" title="Réduire zoom vertical">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                        <button id="zoom-in-v" class="zoom-btn" title="Augmenter zoom vertical">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                    <button id="zoom-reset" class="zoom-btn" title="Réinitialiser zoom">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Timeline avec marqueurs de temps et tête de lecture (shown in both modes) -->
+            <div class="timeline-container">
+                <div class="timeline" id="timeline">
+                    <div id="timeline-playhead" class="playhead"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scrollable content area -->
+        <div class="scrollable-content">
+            <!-- MIXER TAB: All stem tracks -->
+            <div class="tracks-container" id="tracks-container" data-tab-visible="mixer" data-tab-display="flex">
+                <!-- Les pistes seront générées dynamiquement ici -->
+            </div>
+
+            <!-- PRACTICE TABS -->
+            <div class="practice-mode-content" data-tab-visible="chords lyrics" data-tab-display="flex">
+                <!-- Master Track (Full Mix Waveform) - Chords tab only -->
+                <div class="master-track" id="master-track" data-tab-visible="chords" data-tab-display="block">
+                    <div class="master-track-header">
+                        <span class="master-track-title">Master Mix</span>
+                        <span class="track-status active" id="master-status"></span>
+                    </div>
+                    <div class="waveform-container" id="master-waveform-container">
+                        <canvas class="waveform" id="master-waveform"></canvas>
+                        <div class="track-playhead" id="master-playhead"></div>
+                    </div>
+                </div>
+
+                <!-- Chords practice tab -->
+                <div class="practice-panel chords-panel" data-tab-visible="chords" data-tab-display="flex">
+                    <!-- Chord Timeline (Mobile-style) -->
+                    <div class="mobile-chord-timeline" id="mobileChordTimeline">
+                        <!-- Chord timeline will be rendered here by chord-display.js -->
+                    </div>
+
+                    <!-- Chord Diagram Panel (Mobile-style) -->
+                    <div class="mobile-chord-diagram-panel">
+                        <div class="mobile-chord-diagram-header">
+                            <span>Accords</span>
+                            <div class="mobile-chord-instrument-toggle">
+                                <button type="button" class="active" data-chord-instrument="guitar">Guitar</button>
+                                <button type="button" data-chord-instrument="piano">Piano</button>
+                            </div>
+                        </div>
+                        <div class="mobile-chord-diagram-carousel">
+                            <div class="mobile-chord-diagram mobile-chord-diagram-prev" id="mobileChordDiagramPrev">
+                                <p class="mobile-text-muted">—</p>
+                            </div>
+                            <div class="mobile-chord-diagram mobile-chord-diagram-current" id="mobileChordDiagram">
+                                <p class="mobile-text-muted">Select a chord to view the diagram.</p>
+                            </div>
+                            <div class="mobile-chord-diagram mobile-chord-diagram-next" id="mobileChordDiagramNext">
+                                <p class="mobile-text-muted">—</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="structure-controls">
+                        <button class="visibility-toggle" id="structure-visibility-toggle" data-section="structure" title="Show/hide structure display">
+                            <i class="fas fa-eye-slash"></i>
+                            <span>Hide Structure</span>
+                        </button>
+                    </div>
+
+                    <!-- Structure Display (Song Sections) -->
+                    <div id="structure-container" style="display: none;">
+                        <!-- Structure sections will be rendered here by structure-display.js -->
+                    </div>
+                </div>
+
+                <!-- Lyrics practice tab -->
+                <div class="practice-panel lyrics-panel" data-tab-visible="lyrics" data-tab-display="flex">
+                    <!-- Karaoke/Lyrics Section -->
+                    <div id="karaoke-container-lyrics" class="karaoke-in-content">
+                        <div class="karaoke-lyrics">
+                            <!-- Karaoke lyrics will be rendered here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lyrics Focus Popup -->
+    <div class="lyrics-popup-overlay" id="lyrics-popup" aria-hidden="true">
+        <div class="lyrics-popup-dialog">
+            <div class="lyrics-popup-header">
+                <h3>Lyrics Focus</h3>
+                <button class="lyrics-popup-close" id="lyrics-popup-close">
+                    <i class="fas fa-times"></i>
+                    <span>Back to Mixer</span>
+                </button>
+            </div>
+            <!-- Control bar for Lyrics Focus -->
+            <div class="popup-controls-bar">
+                <div class="popup-playback-controls">
+                    <button id="lyricsPopupPlayBtn" class="popup-control-btn popup-play-sync">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button id="lyricsPopupStopBtn" class="popup-control-btn popup-stop-sync">
+                        <i class="fas fa-stop"></i>
+                    </button>
+                    <div class="popup-time-display">
+                        <span id="lyricsPopupCurrentTime" class="popup-time-sync">0:00</span> / <span id="lyricsPopupDuration" class="popup-duration-sync">0:00</span>
+                    </div>
+                </div>
+                <div class="popup-sliders">
+                    <div class="popup-slider-group">
+                        <span class="popup-slider-label">Tempo</span>
+                        <input type="range" id="lyricsPopupTempoSlider" min="0.5" max="2.0" value="1.0" step="0.05" class="popup-slider popup-tempo-sync">
+                        <span id="lyricsPopupTempoValue" class="popup-slider-value popup-tempo-value-sync">1.0x</span>
+                    </div>
+                    <div class="popup-slider-group">
+                        <span class="popup-slider-label">Pitch</span>
+                        <input type="range" id="lyricsPopupPitchSlider" min="-12" max="12" value="0" step="1" class="popup-slider popup-pitch-sync">
+                        <span id="lyricsPopupPitchValue" class="popup-slider-value popup-pitch-value-sync">0</span>
+                    </div>
+                    <div class="popup-slider-group">
+                        <span class="popup-slider-label">Size</span>
+                        <input type="range" id="lyrics-popup-slider" min="0.8" max="1.6" step="0.05" value="1" class="popup-slider">
+                        <span id="lyrics-popup-size-value" class="popup-slider-value">1.0x</span>
+                    </div>
+                </div>
+            </div>
+            <div class="lyrics-popup-body">
+                <div class="lyrics-popup-content" id="lyrics-popup-lyrics">
+                    <!-- Karaoke lyrics element will be moved here dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chords Grid Popup -->
+    <div class="chords-grid-popup-overlay" id="chords-grid-popup" aria-hidden="true">
+        <div class="chords-grid-popup-dialog">
+            <div class="chords-grid-popup-header">
+                <h3>Chords Grid View</h3>
+                <button class="chords-grid-popup-close" id="chords-grid-popup-close">
+                    <i class="fas fa-times"></i>
+                    <span>Back to Mixer</span>
+                </button>
+            </div>
+            <!-- Control bar for Grid View -->
+            <div class="popup-controls-bar">
+                <div class="popup-playback-controls">
+                    <button id="gridPlayBtn" class="popup-control-btn popup-play-sync">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button id="gridStopBtn" class="popup-control-btn popup-stop-sync">
+                        <i class="fas fa-stop"></i>
+                    </button>
+                    <div class="popup-time-display">
+                        <span id="gridCurrentTime" class="popup-time-sync">0:00</span> / <span id="gridDuration" class="popup-duration-sync">0:00</span>
+                    </div>
+                </div>
+                <div class="popup-sliders">
+                    <div class="popup-slider-group">
+                        <span class="popup-slider-label">Tempo</span>
+                        <input type="range" id="gridTempoSlider" min="0.5" max="2.0" value="1.0" step="0.05" class="popup-slider popup-tempo-sync">
+                        <span id="gridTempoValue" class="popup-slider-value popup-tempo-value-sync">1.0x</span>
+                    </div>
+                    <div class="popup-slider-group">
+                        <span class="popup-slider-label">Pitch</span>
+                        <input type="range" id="gridPitchSlider" min="-12" max="12" value="0" step="1" class="popup-slider popup-pitch-sync">
+                        <span id="gridPitchValue" class="popup-slider-value popup-pitch-value-sync">0</span>
+                    </div>
+                </div>
+            </div>
+            <div class="chords-grid-popup-body">
+                <div class="chords-grid-container" id="chords-grid-container">
+                    <!-- Chords grid will be rendered here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Écran de chargement -->
+    <div class="loading-container" id="loading-container">
+        <div class="loading-spinner"></div>
+        <h2>Chargement des stems audio...</h2>
+        <p>Veuillez patienter pendant le chargement des pistes</p>
+    </div>
+    
+    <!-- Initialisation des variables pour le mixeur -->
+    <script>
+        // Informations d'extraction
+        const EXTRACTION_ID = "{{ extraction_id }}";
+        // Encoder correctement l'ID pour les URLs
+        const ENCODED_EXTRACTION_ID = encodeURIComponent(EXTRACTION_ID);
+        // Information d'extraction complète
+        const EXTRACTION_INFO = {{ extraction_info | tojson | safe }};
+
+        // Debug: Log what we received
+        console.log('[MIXER INIT] EXTRACTION_INFO:', EXTRACTION_INFO);
+        console.log('[MIXER INIT] BPM:', EXTRACTION_INFO?.detected_bpm);
+        console.log('[MIXER INIT] Key:', EXTRACTION_INFO?.detected_key);
+        console.log('[MIXER INIT] Chords:', EXTRACTION_INFO?.chords_data);
+        console.log('[MIXER INIT] Lyrics:', EXTRACTION_INFO?.lyrics_data);
+
+        // Initialize song title display
+        const songTitleElement = document.getElementById('song-title-display');
+        if (songTitleElement && EXTRACTION_INFO?.title) {
+            songTitleElement.textContent = EXTRACTION_INFO.title;
+            songTitleElement.title = EXTRACTION_INFO.title; // Full title on hover
+
+            // Send title to parent window (index.html)
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'mixer_song_title',
+                    title: EXTRACTION_INFO.title
+                }, '*');
+            }
+        } else if (songTitleElement) {
+            songTitleElement.textContent = 'Unknown Track';
+        }
+    </script>
+
+    <!-- Export Mix Modal -->
+    <div class="export-modal-overlay" id="export-modal" aria-hidden="true">
+        <div class="export-modal-dialog">
+            <div class="export-modal-header">
+                <h3>Export Mix</h3>
+                <button class="export-modal-close" id="export-modal-close">&times;</button>
+            </div>
+            <div class="export-modal-body">
+                <div class="export-field">
+                    <label for="export-filename">Filename</label>
+                    <div class="export-filename-row">
+                        <input type="text" id="export-filename" class="export-input" placeholder="my_mix">
+                        <span class="export-extension">.mp3</span>
+                    </div>
+                </div>
+                <div class="export-info">
+                    <div class="export-info-row">
+                        <span>Format:</span>
+                        <span>MP3 192 kbps</span>
+                    </div>
+                    <div class="export-info-row">
+                        <span>Active stems:</span>
+                        <span id="export-stems-count">-</span>
+                    </div>
+                    <div class="export-info-row">
+                        <span>Tempo:</span>
+                        <span id="export-tempo">100%</span>
+                    </div>
+                    <div class="export-info-row">
+                        <span>Pitch:</span>
+                        <span id="export-pitch">0 st</span>
+                    </div>
+                </div>
+                <div class="export-progress" id="export-progress" style="display: none;">
+                    <div class="export-progress-bar">
+                        <div class="export-progress-fill" id="export-progress-fill"></div>
+                    </div>
+                    <div class="export-status" id="export-status">Preparing...</div>
+                </div>
+            </div>
+            <div class="export-modal-footer">
+                <button class="export-btn-secondary" id="export-cancel">Cancel</button>
+                <button class="export-btn-primary" id="export-start">
+                    <i class="fas fa-download"></i> Export
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts modulaires -->
+    <script src="/static/js/lib/lame.min.js"></script>
+    <script src="/static/wasm/soundtouch.js"></script>
+    <script src="/static/js/mixer/mix-exporter.js"></script>
+    <script src="/static/js/mixer/export-handler.js"></script>
+    <script src="/static/js/mixer/timeline.js"></script>
+    <script src="/static/js/mixer/waveform.js"></script>
+    <script src="/static/js/mixer/track-controls.js"></script>
+    <script src="/static/js/mixer/chord-display.js"></script>
+    <script src="/static/js/mixer/structure-display.js"></script>
+    <script src="/static/js/mixer/karaoke-display.js"></script>
+    <script src="/static/js/mixer/tab-manager.js"></script>
+    <script src="/static/js/mixer/audio-engine.js"></script>
+    <script src="/static/js/mixer/mobile-audio-engine.js"></script>
+    <script src="/static/js/mixer/mobile-debug-fix.js"></script>
+    <script src="/static/js/mixer/mixer-persistence.js"></script>
+    <script src="/static/js/mixer/simple-pitch-tempo.js"></script>
+    <script src="/static/js/mixer/lyrics-popup.js"></script>
+    <script src="/static/js/mixer/core.js"></script>
+</body>
+</html>

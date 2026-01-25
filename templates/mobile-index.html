@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- PWA Support -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#6c5ce7">
+    <title>StemTube Mobile</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-style.css') }}?v={{ cache_buster }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="mobile-body">
+    <!-- Top Navigation Bar -->
+    <header class="mobile-header">
+        <div class="mobile-header-content">
+            <h1 class="mobile-logo">🎵 StemTube</h1>
+            <div class="mobile-header-actions">
+                <span class="mobile-username">{{ current_username }}</span>
+                <button id="mobileLogoutBtn" class="mobile-icon-btn">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="mobile-main" id="mobileMainContent">
+        {% if enable_youtube %}
+        <!-- Search Page (YouTube features enabled) -->
+        <div class="mobile-page" id="mobileSearchPage">
+            <div class="mobile-search-container">
+                <div class="mobile-search-box">
+                    <input type="text" id="mobileSearchInput" placeholder="Search YouTube..." class="mobile-input">
+                    <button id="mobileSearchBtn" class="mobile-btn mobile-btn-primary">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+                <div class="mobile-search-results" id="mobileSearchResults">
+                    <!-- Results will be populated here -->
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Library Page (with My/Global sub-tabs) -->
+        <div class="mobile-page active" id="mobileLibraryPage">
+            <div class="mobile-section-header">
+                <h2>Libraries</h2>
+                <button id="mobileRefreshLibrary" class="mobile-icon-btn">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+
+            <!-- Library Sub-tabs -->
+            <div class="mobile-library-tabs">
+                <button class="mobile-library-tab active" data-library-tab="my">
+                    <i class="fas fa-folder"></i>
+                    <span>My Library</span>
+                </button>
+                <button class="mobile-library-tab" data-library-tab="global">
+                    <i class="fas fa-globe"></i>
+                    <span>Global Library</span>
+                </button>
+            </div>
+
+            <!-- My Library Content -->
+            <div class="mobile-library-content active" id="mobileMyLibraryContent">
+                <!-- Upload Section -->
+                <div class="mobile-upload-section" id="mobileUploadSection">
+                    <div class="mobile-upload-area" id="mobileUploadArea">
+                        <input type="file" id="mobileFileInput" accept="audio/*,video/*,.mp3,.wav,.flac,.m4a,.aac,.ogg,.wma,.mp4,.avi,.mkv,.mov,.webm" style="display: none;">
+                        <button class="mobile-btn mobile-btn-primary mobile-upload-btn" id="mobileUploadBtn">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <span>Upload Audio/Video</span>
+                        </button>
+                    </div>
+                    <div class="mobile-upload-progress" id="mobileUploadProgress" style="display: none;">
+                        <div class="mobile-progress-bar">
+                            <div class="mobile-progress-fill" id="mobileUploadProgressFill"></div>
+                        </div>
+                        <p id="mobileUploadProgressText">Uploading...</p>
+                    </div>
+                </div>
+                <div class="mobile-library-list" id="mobileLibraryList">
+                    <!-- My library items will be populated here -->
+                </div>
+            </div>
+
+            <!-- Global Library Content -->
+            <div class="mobile-library-content" id="mobileGlobalLibraryContent">
+                <div class="mobile-library-list" id="mobileGlobalList">
+                    <!-- Global library items will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Mixer Page (loaded when opening a track) -->
+        <div class="mobile-page" id="mobileMixerPage">
+            <div class="mobile-mixer-header">
+                <button id="mobileMixerBack" class="mobile-icon-btn">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h2 id="mobileMixerTitle" class="mobile-mixer-title">Loading...</h2>
+                <button id="mobileMixerExport" class="mobile-icon-btn mobile-export-btn" title="Export Mix">
+                    <i class="fas fa-file-export"></i>
+                </button>
+            </div>
+
+            <!-- Mixer Sub-Navigation -->
+            <div class="mobile-mixer-tabs">
+                <button class="mobile-mixer-tab active" data-mixer-tab="controls">
+                    <i class="fas fa-sliders-h"></i>
+                    <span>Mix</span>
+                </button>
+                <button class="mobile-mixer-tab" data-mixer-tab="chords">
+                    <i class="fas fa-music"></i>
+                    <span>Chords</span>
+                </button>
+                <button class="mobile-mixer-tab" data-mixer-tab="lyrics">
+                    <i class="fas fa-microphone"></i>
+                    <span>Lyrics</span>
+                </button>
+            </div>
+
+            <!-- Mixer Controls Tab -->
+            <div class="mobile-mixer-content active" id="mobileMixerControls">
+                <!-- Unified Control Bar (Play/Pause/Stop + Tempo/Pitch) -->
+                <div class="mobile-unified-controls">
+                    <div class="mobile-playback-row">
+                        <button id="mobilePlayBtn" class="mobile-control-btn mobile-play-sync">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button id="mobileStopBtn" class="mobile-control-btn mobile-stop-sync">
+                            <i class="fas fa-stop"></i>
+                        </button>
+                        <div class="mobile-time-display">
+                            <span id="mobileCurrentTime">0:00</span> / <span id="mobileDuration">0:00</span>
+                        </div>
+                    </div>
+                    <div class="standard-trigger-row">
+                        <button id="mobileTempoTrigger" class="standard-trigger tempo-popup-trigger">
+                            <span class="trigger-label">Tempo</span>
+                            <span id="mobileTempoValueMain" class="trigger-value tempo-bpm-display">120 BPM</span>
+                        </button>
+                        <button id="mobilePitchTrigger" class="standard-trigger pitch-popup-trigger">
+                            <span class="trigger-label">Key</span>
+                            <span class="trigger-value key-display">C</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Single Global Waveform -->
+                <div class="mobile-waveform-container">
+                    <div class="mobile-waveform-timeline" id="mobileWaveformTimeline">
+                        <!-- Timeline markers will be generated here -->
+                    </div>
+                    <canvas id="mobileWaveformCanvas" class="mobile-waveform"></canvas>
+
+                    <!-- Playhead vertical (position indicator) -->
+                    <div class="mobile-playhead" id="mobilePlayhead">
+                        <div class="mobile-playhead-line"></div>
+                        <div class="mobile-playhead-handle"></div>
+                    </div>
+
+                    <!-- Seek bar at bottom -->
+                    <div class="mobile-seek-bar" id="mobileSeekBar">
+                        <div class="mobile-seek-progress" id="mobileSeekProgress"></div>
+                        <div class="mobile-seek-handle" id="mobileSeekHandle"></div>
+                    </div>
+                </div>
+
+                <!-- Stem Controls (Solo/Mute/Volume/Pan per stem) -->
+                <div class="mobile-tracks-container" id="mobileTracksContainer">
+                    <!-- Track controls will be populated here -->
+                </div>
+            </div>
+
+            <!-- Chords Tab -->
+            <div class="mobile-mixer-content" id="mobileMixerChords">
+                <!-- Unified Control Bar (same as Mix tab) -->
+                <div class="mobile-unified-controls">
+                    <div class="mobile-playback-row">
+                        <button id="mobilePlayBtnChords" class="mobile-control-btn mobile-play-sync">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button id="mobileStopBtnChords" class="mobile-control-btn mobile-stop-sync">
+                            <i class="fas fa-stop"></i>
+                        </button>
+                        <div class="mobile-time-display">
+                            <span id="mobileCurrentTimeChords" class="mobile-time-sync">0:00</span> / <span id="mobileDurationChords" class="mobile-duration-sync">0:00</span>
+                        </div>
+                    </div>
+                    <div class="standard-trigger-row">
+                        <button class="standard-trigger tempo-popup-trigger">
+                            <span class="trigger-label">Tempo</span>
+                            <span class="trigger-value tempo-bpm-display">120 BPM</span>
+                        </button>
+                        <button class="standard-trigger pitch-popup-trigger">
+                            <span class="trigger-label">Key</span>
+                            <span class="trigger-value key-display">C</span>
+                        </button>
+                    </div>
+                    <div class="mobile-chord-action-row">
+                        <button id="mobileRegenerateChords" class="mobile-btn mobile-btn-ghost">
+                            <i class="fas fa-sync-alt"></i> Regenerate Chords
+                        </button>
+                        <button id="mobileGridView2Btn" class="mobile-btn mobile-btn-ghost">
+                            <i class="fas fa-th"></i> Grid View
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Chord Timeline -->
+                <div class="mobile-chord-timeline" id="mobileChordTimeline">
+                    <!-- Chord timeline will be rendered here -->
+                </div>
+
+                <div class="mobile-chord-diagram-panel">
+                    <div class="mobile-chord-diagram-header">
+                        <span>Accords</span>
+                        <div class="mobile-chord-instrument-toggle">
+                            <button type="button" class="active" data-chord-instrument="guitar">Guitar</button>
+                            <button type="button" data-chord-instrument="piano">Piano</button>
+                        </div>
+                    </div>
+                    <div class="mobile-chord-diagram-carousel">
+                        <div class="mobile-chord-diagram mobile-chord-diagram-prev" id="mobileChordDiagramPrev">
+                            <p class="mobile-text-muted">—</p>
+                        </div>
+                        <div class="mobile-chord-diagram mobile-chord-diagram-current" id="mobileChordDiagram">
+                            <p class="mobile-text-muted">Select a chord to view the diagram.</p>
+                        </div>
+                        <div class="mobile-chord-diagram mobile-chord-diagram-next" id="mobileChordDiagramNext">
+                            <p class="mobile-text-muted">—</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lyrics Tab -->
+            <div class="mobile-mixer-content" id="mobileMixerLyrics">
+                <!-- Unified Control Bar (same as Mix tab) -->
+                <div class="mobile-unified-controls">
+                    <div class="mobile-playback-row">
+                        <button id="mobilePlayBtnLyrics" class="mobile-control-btn mobile-play-sync">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button id="mobileStopBtnLyrics" class="mobile-control-btn mobile-stop-sync">
+                            <i class="fas fa-stop"></i>
+                        </button>
+                        <div class="mobile-time-display">
+                            <span id="mobileCurrentTimeLyrics" class="mobile-time-sync">0:00</span> / <span id="mobileDurationLyrics" class="mobile-duration-sync">0:00</span>
+                        </div>
+                    </div>
+                    <div class="standard-trigger-row">
+                        <button class="standard-trigger tempo-popup-trigger">
+                            <span class="trigger-label">Tempo</span>
+                            <span class="trigger-value tempo-bpm-display">120 BPM</span>
+                        </button>
+                        <button class="standard-trigger pitch-popup-trigger">
+                            <span class="trigger-label">Key</span>
+                            <span class="trigger-value key-display">C</span>
+                        </button>
+                    </div>
+                    <div class="mobile-lyrics-action-row">
+                        <button id="mobileLrcLibLyrics" class="mobile-btn mobile-btn-ghost">
+                            <i class="fas fa-cloud-download-alt"></i>
+                            <span>LrcLib</span>
+                        </button>
+                        <button id="mobileGenerateLyrics" class="mobile-btn mobile-btn-ghost">
+                            <i class="fas fa-microphone"></i>
+                            <span>Whisper</span>
+                        </button>
+                        <button id="mobileFullScreenLyrics" class="mobile-btn mobile-btn-ghost">
+                            <i class="fas fa-expand-arrows-alt"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mobile-lyrics-display" id="mobileLyricsDisplay">
+                    <p class="mobile-lyrics-placeholder">No lyrics available. Generate lyrics to see them here.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Settings Page -->
+        <div class="mobile-page" id="mobileSettingsPage">
+            <div class="mobile-section-header">
+                <h2>Settings</h2>
+            </div>
+
+            <div class="mobile-settings-content">
+                <!-- Offline Storage Section -->
+                <div class="mobile-settings-card">
+                    <div class="mobile-settings-card-header">
+                        <h3><i class="fas fa-download"></i> Offline Storage</h3>
+                    </div>
+
+                    <div class="mobile-settings-card-body">
+                        <!-- Enable/Disable Cache -->
+                        <div class="mobile-settings-row">
+                            <label for="cacheEnabled">Enable offline cache</label>
+                            <label class="mobile-toggle">
+                                <input type="checkbox" id="cacheEnabled" checked>
+                                <span class="mobile-toggle-slider"></span>
+                            </label>
+                        </div>
+
+                        <!-- Max Cache Size -->
+                        <div class="mobile-settings-row">
+                            <label for="maxCacheSize">Max storage</label>
+                            <select id="maxCacheSize" class="mobile-select">
+                                <option value="100">100 MB (~2 songs)</option>
+                                <option value="250">250 MB (~4 songs)</option>
+                                <option value="500" selected>500 MB (~9 songs)</option>
+                                <option value="1000">1 GB (~18 songs)</option>
+                                <option value="2000">2 GB (~36 songs)</option>
+                            </select>
+                        </div>
+
+                        <!-- Cache Usage -->
+                        <div class="mobile-settings-row cache-usage">
+                            <div class="cache-usage-header">
+                                <span>Storage used</span>
+                                <span id="cacheUsageText">0 MB / 500 MB</span>
+                            </div>
+                            <div class="cache-progress-bar">
+                                <div class="cache-progress-fill" id="cacheProgressFill" style="width: 0%"></div>
+                            </div>
+                            <div class="cache-usage-detail">
+                                <span id="cacheSongCount">0 songs cached</span>
+                            </div>
+                        </div>
+
+                        <!-- Cached Songs List -->
+                        <div class="mobile-settings-row">
+                            <div class="cached-songs-header">
+                                <span>Cached Songs</span>
+                                <button class="mobile-btn-small" id="refreshCacheList">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                            </div>
+                            <div class="cached-songs-list" id="cachedSongsList">
+                                <div class="cached-songs-empty">No songs cached yet</div>
+                            </div>
+                        </div>
+
+                        <!-- Clear Cache Button -->
+                        <div class="mobile-settings-actions">
+                            <button class="mobile-btn mobile-btn-danger" id="clearCacheBtn">
+                                <i class="fas fa-trash"></i> Clear All Cache
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- App Info Section -->
+                <div class="mobile-settings-card">
+                    <div class="mobile-settings-card-header">
+                        <h3><i class="fas fa-info-circle"></i> App Info</h3>
+                    </div>
+                    <div class="mobile-settings-card-body">
+                        <div class="mobile-settings-row">
+                            <span>Version</span>
+                            <span>1.3.0 PWA</span>
+                        </div>
+                        <div class="mobile-settings-row">
+                            <span>Storage quota</span>
+                            <span id="storageQuota">Checking...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if current_user.is_admin %}
+        <!-- Admin Page -->
+        <div class="mobile-page" id="mobileAdminPage">
+            <div class="mobile-section-header">
+                <h2>Administration</h2>
+            </div>
+
+            <!-- Admin Sub-tabs -->
+            <div class="mobile-admin-tabs">
+                <button class="mobile-admin-tab active" data-admin-tab="users">
+                    <i class="fas fa-users"></i>
+                    <span>Users</span>
+                </button>
+                <button class="mobile-admin-tab" data-admin-tab="logs">
+                    <i class="fas fa-file-alt"></i>
+                    <span>Logs</span>
+                </button>
+                <button class="mobile-admin-tab" data-admin-tab="cleanup">
+                    <i class="fas fa-broom"></i>
+                    <span>Cleanup</span>
+                </button>
+                <button class="mobile-admin-tab" data-admin-tab="settings">
+                    <i class="fas fa-cogs"></i>
+                    <span>Settings</span>
+                </button>
+            </div>
+
+            <!-- Users Section -->
+            <div class="mobile-admin-content active" id="mobileAdminUsers">
+                <div class="mobile-users-header">
+                    <h3>User Management</h3>
+                    <button class="mobile-btn mobile-btn-primary mobile-btn-sm" id="mobileAddUserBtn">
+                        <i class="fas fa-user-plus"></i> Add
+                    </button>
+                </div>
+                <div class="mobile-users-list" id="mobileUsersList">
+                    <div class="mobile-loading">
+                        <div class="mobile-spinner-small"></div>
+                        <span>Loading users...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Browser Logs Section -->
+            <div class="mobile-admin-content" id="mobileAdminLogs">
+                <div class="mobile-admin-card">
+                    <div class="mobile-admin-card-header">
+                        <h3>Browser Logs</h3>
+                    </div>
+
+                    <!-- Warning -->
+                    <div class="mobile-admin-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span>Keep disabled with Ngrok (600 req/min limit)</span>
+                    </div>
+
+                    <!-- Preset Buttons -->
+                    <div class="mobile-logs-presets">
+                        <button class="mobile-logs-preset active" data-preset="disabled" id="mobilePresetDisabled">
+                            <i class="fas fa-ban"></i>
+                            <span>Disabled</span>
+                        </button>
+                        <button class="mobile-logs-preset" data-preset="production" id="mobilePresetProduction">
+                            <i class="fas fa-check"></i>
+                            <span>Production</span>
+                        </button>
+                        <button class="mobile-logs-preset" data-preset="development" id="mobilePresetDevelopment">
+                            <i class="fas fa-code"></i>
+                            <span>Development</span>
+                        </button>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="mobile-logs-status">
+                        <span class="mobile-logs-indicator" id="mobileLogsIndicator"></span>
+                        <span id="mobileLogsStatusText">Logs Disabled</span>
+                    </div>
+
+                    <!-- Advanced Settings -->
+                    <details class="mobile-admin-details">
+                        <summary><i class="fas fa-cog"></i> Advanced Settings</summary>
+                        <div class="mobile-admin-form">
+                            <label class="mobile-checkbox-label">
+                                <input type="checkbox" id="mobileLoggingEnabled">
+                                <span>Enable Server Logging</span>
+                            </label>
+
+                            <div class="mobile-form-group">
+                                <label>Log Level</label>
+                                <select id="mobileLogLevel" class="mobile-input">
+                                    <option value="debug">Debug</option>
+                                    <option value="info">Info</option>
+                                    <option value="warn">Warnings</option>
+                                    <option value="error">Errors only</option>
+                                </select>
+                            </div>
+
+                            <div class="mobile-form-group">
+                                <label>Flush Interval: <span id="mobileFlushValue">60</span>s</label>
+                                <input type="range" id="mobileFlushInterval" min="10" max="300" step="10" value="60">
+                            </div>
+
+                            <div class="mobile-form-group">
+                                <label>Buffer Size: <span id="mobileBufferValue">50</span></label>
+                                <input type="range" id="mobileBufferSize" min="50" max="500" step="50" value="50">
+                            </div>
+
+                            <button class="mobile-btn mobile-btn-primary" id="mobileSaveLogsConfig">
+                                <i class="fas fa-save"></i> Save
+                            </button>
+                        </div>
+                    </details>
+                </div>
+            </div>
+
+            <!-- System Cleanup Section -->
+            <div class="mobile-admin-content" id="mobileAdminCleanup">
+                <!-- Header -->
+                <div class="mobile-cleanup-header">
+                    <h3>System Cleanup</h3>
+                    <button class="mobile-btn mobile-btn-ghost mobile-btn-sm" id="mobileRefreshCleanup">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+
+                <!-- Stats Dashboard -->
+                <div class="mobile-cleanup-stats" id="mobileCleanupStats">
+                    <div class="mobile-stat">
+                        <span class="mobile-stat-value" id="mobileStatTotalFiles">-</span>
+                        <span class="mobile-stat-label">Files</span>
+                    </div>
+                    <div class="mobile-stat">
+                        <span class="mobile-stat-value" id="mobileStatTotalSize">-</span>
+                        <span class="mobile-stat-label">Total Size</span>
+                    </div>
+                    <div class="mobile-stat">
+                        <span class="mobile-stat-value" id="mobileStatExtracted">-</span>
+                        <span class="mobile-stat-label">Extracted</span>
+                    </div>
+                </div>
+
+                <!-- Selection Controls -->
+                <div class="mobile-cleanup-selection">
+                    <label class="mobile-checkbox-label mobile-select-all">
+                        <input type="checkbox" id="mobileCleanupSelectAll">
+                        <span>Select All</span>
+                        <span class="mobile-selection-count" id="mobileSelectionCount"></span>
+                    </label>
+                </div>
+
+                <!-- Bulk Actions -->
+                <div class="mobile-cleanup-actions">
+                    <button class="mobile-btn mobile-btn-danger mobile-btn-sm" id="mobileDeleteSelected" disabled>
+                        <i class="fas fa-trash"></i> Delete Selected
+                    </button>
+                    <button class="mobile-btn mobile-btn-warning mobile-btn-sm" id="mobileResetSelected" disabled>
+                        <i class="fas fa-undo"></i> Reset Selected
+                    </button>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="mobile-cleanup-progress" id="mobileCleanupProgress" style="display: none;">
+                    <div class="mobile-progress-bar">
+                        <div class="mobile-progress-fill" id="mobileProgressFill"></div>
+                    </div>
+                    <span class="mobile-progress-text" id="mobileProgressText">0%</span>
+                </div>
+
+                <!-- Downloads List -->
+                <div class="mobile-cleanup-list" id="mobileCleanupList">
+                    <div class="mobile-loading">
+                        <div class="mobile-spinner-small"></div>
+                        <span>Loading...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Settings Section -->
+            <div class="mobile-admin-content" id="mobileAdminSettings">
+                <div class="mobile-admin-card">
+                    <div class="mobile-admin-card-header">
+                        <h3>System Settings</h3>
+                    </div>
+
+                    <!-- System Status -->
+                    <div class="mobile-system-status">
+                        <div class="mobile-status-badge" id="mobileGpuStatus">
+                            <i class="fas fa-microchip"></i>
+                            <span class="mobile-status-label">GPU</span>
+                            <span class="mobile-status-value" id="mobileGpuStatusText">Checking...</span>
+                        </div>
+                        <div class="mobile-status-badge" id="mobileFfmpegStatus">
+                            <i class="fas fa-film"></i>
+                            <span class="mobile-status-label">FFmpeg</span>
+                            <span class="mobile-status-value" id="mobileFfmpegStatusText">Checking...</span>
+                        </div>
+                    </div>
+
+                    <!-- Settings Form -->
+                    <div class="mobile-admin-form" id="mobileSystemSettingsForm">
+                        <div class="mobile-form-group">
+                            <label>Downloads Directory</label>
+                            <input type="text" id="mobileDownloadsDirectory" class="mobile-input" placeholder="/path/to/downloads">
+                            <small class="mobile-form-hint">Requires restart</small>
+                        </div>
+
+                        <div class="mobile-form-group">
+                            <label>Max Concurrent Downloads</label>
+                            <input type="number" id="mobileMaxDownloads" class="mobile-input" min="1" max="10" value="3">
+                        </div>
+
+                        <div class="mobile-form-group">
+                            <label>Max Concurrent Extractions</label>
+                            <input type="number" id="mobileMaxExtractions" class="mobile-input" min="1" max="5" value="1">
+                        </div>
+
+                        <div class="mobile-form-group">
+                            <label class="mobile-checkbox-label">
+                                <input type="checkbox" id="mobileUseGpu" checked>
+                                <span>Use GPU for Extraction</span>
+                            </label>
+                        </div>
+
+                        <div class="mobile-form-group">
+                            <label>Whisper Model (Lyrics)</label>
+                            <select id="mobileLyricsModel" class="mobile-input">
+                                <option value="tiny">tiny (fastest)</option>
+                                <option value="base">base</option>
+                                <option value="small">small</option>
+                                <option value="medium">medium</option>
+                                <option value="large">large</option>
+                                <option value="large-v2">large-v2</option>
+                                <option value="large-v3" selected>large-v3 (best)</option>
+                            </select>
+                        </div>
+
+                        <div class="mobile-form-group">
+                            <label>Default Stem Model</label>
+                            <select id="mobileStemModel" class="mobile-input">
+                                <option value="htdemucs" selected>htdemucs</option>
+                                <option value="htdemucs_ft">htdemucs_ft</option>
+                                <option value="htdemucs_6s">htdemucs_6s</option>
+                                <option value="mdx_extra">mdx_extra</option>
+                            </select>
+                        </div>
+
+                        <div class="mobile-settings-actions">
+                            <button class="mobile-btn mobile-btn-primary" id="mobileSaveSystemSettings">
+                                <i class="fas fa-save"></i> Save Settings
+                            </button>
+                            <button class="mobile-btn mobile-btn-warning" id="mobileRestartServer">
+                                <i class="fas fa-redo"></i> Restart Server
+                            </button>
+                        </div>
+
+                        <!-- Restart Warning -->
+                        <div class="mobile-restart-warning" id="mobileRestartWarning" style="display: none;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span>Server restart required for changes to take effect.</span>
+                        </div>
+                    </div>
+
+                    <!-- YouTube Cookies Section -->
+                    <div class="mobile-admin-card-header" style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+                        <h3><i class="fas fa-cookie-bite"></i> YouTube Cookies</h3>
+                    </div>
+
+                    <div id="mobileCookiesStatus" class="mobile-status-badge" style="margin-bottom: 15px; padding: 10px;">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Checking...</span>
+                    </div>
+
+                    <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 0.85rem;">
+                        <p style="margin: 0 0 8px 0;"><strong>For restricted videos:</strong></p>
+                        <ol style="margin: 0; padding-left: 20px;">
+                            <li>Generate the bookmarklet</li>
+                            <li>Add it to your bookmarks</li>
+                            <li>On youtube.com, click it</li>
+                        </ol>
+                    </div>
+
+                    <div class="mobile-settings-actions">
+                        <button class="mobile-btn mobile-btn-primary" id="mobileGenerateBookmarkletBtn">
+                            <i class="fas fa-magic"></i> Generate Bookmarklet
+                        </button>
+                        <button class="mobile-btn mobile-btn-danger" id="mobileDeleteCookiesBtn" disabled>
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+
+                    <div id="mobileBookmarkletContainer" style="display: none; margin-top: 15px; padding: 12px; background: var(--bg-secondary); border-radius: 8px; border: 2px dashed var(--accent-color);">
+                        <p style="margin: 0 0 10px 0;"><strong>Drag to your bookmarks:</strong></p>
+                        <a id="mobileBookmarkletLink" href="#"
+                           style="display: inline-block; padding: 10px 16px; background: linear-gradient(135deg, #ff0000, #cc0000); color: white; text-decoration: none; border-radius: 6px; font-weight: bold;"
+                           onclick="alert('Drag this link to your bookmarks!'); return false;">
+                            📥 StemTube Cookies
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </main>
+
+    <!-- Full Screen Lyrics Popup -->
+    <div class="fullscreen-lyrics-overlay" id="fullscreen-lyrics-popup" aria-hidden="true">
+        <div class="fullscreen-lyrics-dialog">
+            <div class="fullscreen-lyrics-header">
+                <h3>Full Screen Lyrics</h3>
+                <button class="fullscreen-lyrics-close" id="fullscreen-lyrics-popup-close">
+                    <i class="fas fa-times"></i>
+                    <span>Close</span>
+                </button>
+            </div>
+            <!-- Control bar -->
+            <div class="fullscreen-controls-bar">
+                <div class="fullscreen-playback-controls">
+                    <button id="fullscreenLyricsPlayBtn" class="fullscreen-control-btn popup-play-sync">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button id="fullscreenLyricsStopBtn" class="fullscreen-control-btn popup-stop-sync">
+                        <i class="fas fa-stop"></i>
+                    </button>
+                    <div class="fullscreen-time-display">
+                        <span id="fullscreenLyricsCurrentTime" class="popup-time-sync">0:00</span>
+                        <span class="fullscreen-time-separator">/</span>
+                        <span id="fullscreenLyricsDuration" class="popup-duration-sync">0:00</span>
+                    </div>
+                </div>
+                <div class="popup-trigger-row">
+                    <button class="popup-standard-trigger tempo-popup-trigger">
+                        <span class="trigger-value tempo-bpm-display">120</span>
+                        <span class="trigger-label">BPM</span>
+                    </button>
+                    <button class="popup-standard-trigger pitch-popup-trigger">
+                        <span class="trigger-value key-display">C</span>
+                        <span class="trigger-label">Key</span>
+                    </button>
+                </div>
+                <div class="fullscreen-size-control">
+                    <span class="fullscreen-slider-label">Size</span>
+                    <input type="range" id="fullscreenLyricsSizeSlider" min="0.8" max="1.6" step="0.05" value="1" class="fullscreen-slider">
+                    <span id="fullscreenLyricsSizeValue" class="fullscreen-slider-value">1.0x</span>
+                </div>
+            </div>
+            <div class="fullscreen-lyrics-body">
+                <div class="fullscreen-lyrics-content" id="fullscreen-lyrics-content">
+                    <!-- Lyrics will be rendered here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grid View 2 Popup - Modern Chords Grid -->
+    <div class="gridview2-overlay" id="gridview2-popup" aria-hidden="true">
+        <div class="gridview2-dialog">
+            <div class="gridview2-header">
+                <h3>Chords Grid</h3>
+                <button class="gridview2-close" id="gridview2-popup-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <!-- Transport bar -->
+            <div class="gridview2-transport">
+                <div class="gridview2-playback">
+                    <button id="gridview2PlayBtn" class="gridview2-control-btn popup-play-sync">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button id="gridview2StopBtn" class="gridview2-control-btn popup-stop-sync">
+                        <i class="fas fa-stop"></i>
+                    </button>
+                    <div class="gridview2-time">
+                        <span id="gridview2CurrentTime" class="popup-time-sync">0:00</span>
+                        <span class="gridview2-time-sep">/</span>
+                        <span id="gridview2Duration" class="popup-duration-sync">0:00</span>
+                    </div>
+                </div>
+                <div class="popup-trigger-row">
+                    <button class="popup-standard-trigger tempo-popup-trigger">
+                        <span class="trigger-value tempo-bpm-display">120</span>
+                        <span class="trigger-label">BPM</span>
+                    </button>
+                    <button class="popup-standard-trigger pitch-popup-trigger">
+                        <span class="trigger-value key-display">C</span>
+                        <span class="trigger-label">Key</span>
+                    </button>
+                </div>
+            </div>
+            <div class="gridview2-body">
+                <div class="gridview2-content" id="gridview2-content">
+                    <!-- Chords grid will be rendered here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="mobile-bottom-nav">
+        {% if enable_youtube %}
+        <button class="mobile-nav-btn" data-page="search">
+            <i class="fas fa-search"></i>
+            <span>Search</span>
+        </button>
+        {% endif %}
+        <button class="mobile-nav-btn active" data-page="library">
+            <i class="fas fa-book"></i>
+            <span>Libraries</span>
+        </button>
+        <button class="mobile-nav-btn" data-page="mixer" id="mobileNavMixer" style="display: none;">
+            <i class="fas fa-sliders-h"></i>
+            <span>Mixer</span>
+        </button>
+        <button class="mobile-nav-btn" data-page="settings">
+            <i class="fas fa-cog"></i>
+            <span>Settings</span>
+        </button>
+        {% if current_user.is_admin %}
+        <button class="mobile-nav-btn" data-page="admin">
+            <i class="fas fa-user-shield"></i>
+            <span>Admin</span>
+        </button>
+        {% endif %}
+    </nav>
+
+    <!-- Loading Overlay -->
+    <div class="mobile-loading-overlay" id="mobileLoadingOverlay">
+        <div class="mobile-spinner"></div>
+        <p id="mobileLoadingText">Loading...</p>
+    </div>
+
+    <!-- Extraction Modal -->
+    <div class="mobile-modal" id="mobileExtractionModal">
+        <div class="mobile-modal-content">
+            <div class="mobile-modal-header">
+                <h2>Extraction Options</h2>
+                <button class="mobile-modal-close" id="mobileExtractionClose">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="mobile-modal-body">
+                <div class="mobile-modal-section">
+                    <h3 id="mobileExtractionTitle">Track title</h3>
+                    <p id="mobileExtractionPath" class="mobile-modal-path">/path/to/audio.mp3</p>
+                </div>
+
+                <div class="mobile-modal-section">
+                    <label for="mobileExtractionModel">Stem model</label>
+                    <select id="mobileExtractionModel" class="mobile-input">
+                        <option value="htdemucs" data-stems="vocals,drums,bass,other" selected>htdemucs (recommended)</option>
+                        <option value="htdemucs_ft" data-stems="vocals,drums,bass,other">htdemucs_ft (fine-tuned)</option>
+                        <option value="htdemucs_6s" data-stems="vocals,drums,bass,guitar,piano,other">htdemucs_6s (6 stems)</option>
+                        <option value="mdx_extra" data-stems="vocals,drums,bass,other">mdx_extra (vocal focus)</option>
+                        <option value="mdx_extra_q" data-stems="vocals,drums,bass,other" disabled>mdx_extra_q (requires diffq)</option>
+                    </select>
+                    <p id="mobileExtractionModelDescription" class="mobile-modal-hint"></p>
+                </div>
+
+                <div class="mobile-modal-section">
+                    <label>Select stems to extract</label>
+                    <div class="mobile-stem-checkboxes" id="mobileExtractionStems"></div>
+                </div>
+
+                    <div class="mobile-modal-section mobile-two-stem-row">
+                        <label class="mobile-switch">
+                            <input type="checkbox" id="mobileTwoStemMode">
+                            <span>Two-stem mode (one stem vs the rest)</span>
+                        </label>
+                    </div>
+
+                <div class="mobile-modal-section" id="mobilePrimaryStemContainer" style="display: none;">
+                    <label for="mobilePrimaryStem">Primary stem</label>
+                    <select id="mobilePrimaryStem" class="mobile-input">
+                        <option value="vocals" selected>Vocals</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mobile-modal-footer">
+                <button class="mobile-btn mobile-btn-primary mobile-modal-action" id="mobileExtractionStartBtn">Start Extraction</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Download Bottom Sheet -->
+    <div class="mobile-bottom-sheet" id="mobileDownloadSheet">
+        <div class="mobile-bottom-sheet-backdrop"></div>
+        <div class="mobile-bottom-sheet-content">
+            <div class="mobile-bottom-sheet-header">
+                <div class="mobile-bottom-sheet-handle"></div>
+                <h3 id="mobileDownloadTitle">Download</h3>
+            </div>
+            <div class="mobile-bottom-sheet-body">
+                <!-- Original Audio -->
+                <button class="mobile-download-option" id="mobileDownloadOriginal">
+                    <i class="fas fa-music"></i>
+                    <span>Original Audio (MP3)</span>
+                </button>
+
+                <!-- All Stems ZIP -->
+                <button class="mobile-download-option" id="mobileDownloadZip">
+                    <i class="fas fa-file-archive"></i>
+                    <span>All Stems (ZIP)</span>
+                </button>
+
+                <div class="mobile-download-divider">
+                    <span>Individual Stems</span>
+                </div>
+
+                <!-- Individual stems container -->
+                <div class="mobile-stems-list" id="mobileDownloadStemsList">
+                    <!-- Stems will be populated dynamically -->
+                </div>
+
+                <div class="mobile-download-divider">
+                    <span>Library</span>
+                </div>
+
+                <!-- Remove from library -->
+                <button class="mobile-download-option mobile-download-danger" id="mobileRemoveFromLibrary">
+                    <i class="fas fa-trash-alt"></i>
+                    <span>Remove from My Library</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Mix Modal -->
+    <div class="mobile-modal" id="mobileExportModal">
+        <div class="mobile-modal-content mobile-export-modal">
+            <div class="mobile-modal-header">
+                <h2>Export Mix</h2>
+                <button class="mobile-modal-close" id="mobileExportClose">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="mobile-modal-body">
+                <div class="mobile-modal-section">
+                    <label for="mobileExportFilename">Filename</label>
+                    <div class="mobile-export-filename-row">
+                        <input type="text" id="mobileExportFilename" class="mobile-input" placeholder="my_mix">
+                        <span class="mobile-export-extension">.mp3</span>
+                    </div>
+                </div>
+                <div class="mobile-modal-section">
+                    <div class="mobile-export-info">
+                        <div class="mobile-export-info-row">
+                            <span>Format:</span>
+                            <span>MP3 192 kbps</span>
+                        </div>
+                        <div class="mobile-export-info-row">
+                            <span>Stems:</span>
+                            <span id="mobileExportStemsCount">-</span>
+                        </div>
+                        <div class="mobile-export-info-row">
+                            <span>Tempo:</span>
+                            <span id="mobileExportTempo">100%</span>
+                        </div>
+                        <div class="mobile-export-info-row">
+                            <span>Pitch:</span>
+                            <span id="mobileExportPitch">0 st</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="mobile-export-progress" id="mobileExportProgress" style="display: none;">
+                    <div class="mobile-progress-track">
+                        <div class="mobile-progress-fill" id="mobileExportProgressBar" style="width: 0%"></div>
+                    </div>
+                    <div class="mobile-export-status" id="mobileExportStatus">Preparing...</div>
+                </div>
+            </div>
+            <div class="mobile-modal-footer">
+                <button class="mobile-btn mobile-btn-secondary" id="mobileExportCancel">Cancel</button>
+                <button class="mobile-btn mobile-btn-primary" id="mobileExportStart">
+                    <i class="fas fa-download"></i> Export
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tempo Popup -->
+    <div class="standard-popup-overlay" id="mobileTempoPopup" aria-hidden="true">
+        <div class="standard-popup">
+            <div class="standard-popup-header">
+                <span class="standard-popup-title">Tempo</span>
+                <button class="standard-close-btn" id="tempoPopupClose">&times;</button>
+            </div>
+            <div class="standard-dial-container">
+                <div class="standard-dial" id="tempoDialControl" data-min="40" data-max="300" data-step="1" data-value="120">
+                    <div class="dial-indicator"></div>
+                    <span class="dial-value" id="tempoDialValue">120 BPM</span>
+                </div>
+            </div>
+            <button class="standard-reset-btn" id="tempoResetBtn">Reset</button>
+        </div>
+    </div>
+
+    <!-- Key/Pitch Popup -->
+    <div class="standard-popup-overlay" id="mobilePitchPopup" aria-hidden="true">
+        <div class="standard-popup">
+            <div class="standard-popup-header">
+                <span class="standard-popup-title">Key</span>
+                <button class="standard-close-btn" id="pitchPopupClose">&times;</button>
+            </div>
+            <div class="standard-dial-container">
+                <div class="standard-dial" id="pitchDialControl" data-min="-12" data-max="12" data-step="1" data-value="0">
+                    <div class="dial-indicator"></div>
+                    <span class="dial-value key-display" id="pitchDialValue">C</span>
+                </div>
+            </div>
+            <button class="standard-reset-btn" id="pitchResetBtn">Reset</button>
+        </div>
+    </div>
+
+    {% if current_user.is_admin %}
+    <!-- Add User Modal -->
+    <div class="mobile-modal mobile-admin-modal" id="mobileAddUserModal">
+        <div class="mobile-admin-modal-header">
+            <h2>Add User</h2>
+            <button class="mobile-modal-close" id="mobileAddUserClose">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="mobile-admin-modal-body">
+            <div class="mobile-form-group">
+                <label>Username</label>
+                <input type="text" id="mobileNewUsername" class="mobile-input" required>
+            </div>
+            <div class="mobile-form-group">
+                <label>Password</label>
+                <input type="password" id="mobileNewPassword" class="mobile-input" required>
+            </div>
+            <div class="mobile-form-group">
+                <label>Email (optional)</label>
+                <input type="email" id="mobileNewEmail" class="mobile-input">
+            </div>
+            <label class="mobile-checkbox-label">
+                <input type="checkbox" id="mobileNewIsAdmin">
+                <span>Admin privileges</span>
+            </label>
+            <label class="mobile-checkbox-label">
+                <input type="checkbox" id="mobileNewYoutubeEnabled">
+                <span>YouTube Access</span>
+            </label>
+        </div>
+        <div class="mobile-admin-modal-footer">
+            <button class="mobile-btn mobile-btn-primary" id="mobileCreateUserBtn">
+                <i class="fas fa-user-plus"></i> Create User
+            </button>
+        </div>
+    </div>
+
+    <!-- Edit User Modal -->
+    <div class="mobile-modal mobile-admin-modal" id="mobileEditUserModal">
+        <div class="mobile-admin-modal-header">
+            <h2>Edit User</h2>
+            <button class="mobile-modal-close" id="mobileEditUserClose">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="mobile-admin-modal-body">
+            <input type="hidden" id="mobileEditUserId">
+            <div class="mobile-form-group">
+                <label>Username</label>
+                <input type="text" id="mobileEditUsername" class="mobile-input" required>
+            </div>
+            <div class="mobile-form-group">
+                <label>Email (optional)</label>
+                <input type="email" id="mobileEditEmail" class="mobile-input">
+            </div>
+            <label class="mobile-checkbox-label">
+                <input type="checkbox" id="mobileEditIsAdmin">
+                <span>Admin privileges</span>
+            </label>
+            <label class="mobile-checkbox-label">
+                <input type="checkbox" id="mobileEditYoutubeEnabled">
+                <span>YouTube Access</span>
+            </label>
+        </div>
+        <div class="mobile-admin-modal-footer">
+            <button class="mobile-btn mobile-btn-primary" id="mobileUpdateUserBtn">
+                <i class="fas fa-save"></i> Update User
+            </button>
+        </div>
+    </div>
+
+    <!-- Reset Password Modal -->
+    <div class="mobile-modal mobile-admin-modal" id="mobileResetPasswordModal">
+        <div class="mobile-admin-modal-header">
+            <h2>Reset Password</h2>
+            <button class="mobile-modal-close" id="mobileResetPasswordClose">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="mobile-admin-modal-body">
+            <input type="hidden" id="mobileResetUserId">
+            <p id="mobileResetUserName" class="mobile-admin-modal-subtitle"></p>
+            <div class="mobile-form-group">
+                <label>New Password</label>
+                <input type="password" id="mobileResetNewPassword" class="mobile-input" required>
+            </div>
+        </div>
+        <div class="mobile-admin-modal-footer">
+            <button class="mobile-btn mobile-btn-primary" id="mobileResetPasswordBtn">
+                <i class="fas fa-key"></i> Reset Password
+            </button>
+        </div>
+    </div>
+
+    <!-- Delete User Confirmation Modal -->
+    <div class="mobile-modal mobile-admin-modal" id="mobileDeleteUserModal">
+        <div class="mobile-admin-modal-header">
+            <h2>Delete User</h2>
+            <button class="mobile-modal-close" id="mobileDeleteUserClose">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="mobile-admin-modal-body">
+            <input type="hidden" id="mobileDeleteUserId">
+            <p>Are you sure you want to delete <strong id="mobileDeleteUserName"></strong>?</p>
+            <p class="mobile-admin-modal-warning">This action cannot be undone.</p>
+        </div>
+        <div class="mobile-admin-modal-footer mobile-admin-modal-footer-flex">
+            <button class="mobile-btn mobile-btn-ghost" id="mobileCancelDeleteBtn">Cancel</button>
+            <button class="mobile-btn mobile-btn-danger" id="mobileConfirmDeleteBtn">
+                <i class="fas fa-trash"></i> Delete
+            </button>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Scripts -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/lib/lame.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='wasm/soundtouch.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/mixer/mix-exporter.js') }}?v={{ cache_buster }}"></script>
+    <script>
+        // YouTube features flag (disabled by default, enable in config.json)
+        const enableYoutube = {% if enable_youtube %}true{% else %}false{% endif %};
+        // Admin flag
+        const isAdmin = {% if current_user.is_admin %}true{% else %}false{% endif %};
+    </script>
+    <script src="{{ url_for('static', filename='js/mobile-app.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/pwa-init.js') }}?v={{ cache_buster }}"></script>
+</body>
+</html>
