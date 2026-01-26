@@ -194,8 +194,7 @@ class KaraokeDisplay {
                         'X-CSRF-Token': getCsrfToken()
                     },
                     body: JSON.stringify({
-                        model_size: 'large-v3-int8', // Quantized large model for better accuracy
-                        language: null // Auto-detect
+                        language: null // Auto-detect - model uses server setting
                     })
                 });
 

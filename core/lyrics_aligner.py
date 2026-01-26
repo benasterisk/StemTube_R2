@@ -328,7 +328,7 @@ def enrich_lrclib_with_whisper(
     lrclib_lyrics: List[Dict],
     audio_path: str,
     use_gpu: bool = False,
-    model_size: str = "large-v3-int8"
+    model_size: str = "medium"
 ) -> List[Dict]:
     """
     High-level function: fetch Whisper timestamps and align with LrcLib

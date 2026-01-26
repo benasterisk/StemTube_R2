@@ -728,7 +728,7 @@ class DownloadManager:
 
                             lyrics_data = detect_song_lyrics(
                                 audio_for_lyrics,
-                                model_size="large-v3-int8",
+                                model_size=get_setting('lyrics_model_size', 'medium'),
                                 language=None,  # Auto-detect
                                 use_gpu=use_gpu
                             )

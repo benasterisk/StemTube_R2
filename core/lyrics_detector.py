@@ -54,12 +54,12 @@ class LyricsDetector:
     Detects and transcribes lyrics from audio using Faster-Whisper
     """
 
-    def __init__(self, model_size: str = "large-v3-int8", device: str = "cuda", compute_type: str = "int8_float16"):
+    def __init__(self, model_size: str = "medium", device: str = "cuda", compute_type: str = "int8_float16"):
         """
         Initialize Whisper model
 
         Args:
-            model_size: Whisper model size/path (tiny, base, small, medium, large-v3-int8)
+            model_size: Whisper model size/path (tiny, base, small, medium, large, large-v3)
             device: Device to use (cuda, cpu)
             compute_type: Computation type (int8_float16 for GPU, int8 for CPU)
         """
@@ -74,7 +74,7 @@ class LyricsDetector:
         Normalize shorthand aliases (e.g., large-v3-int8) and signal quantized intent.
         """
         if not name:
-            return "large-v3", False
+            return "medium", False
         normalized = name.strip()
         if normalized.endswith("-int8"):
             normalized = normalized[:-5]
@@ -238,7 +238,7 @@ class LyricsDetector:
 
 def detect_song_lyrics(
     audio_path: str,
-    model_size: str = "large-v3-int8",
+    model_size: str = "medium",
     language: Optional[str] = None,
     use_gpu: bool = True
 ) -> Optional[List[Dict]]:
@@ -247,22 +247,20 @@ def detect_song_lyrics(
 
     Args:
         audio_path: Path to audio file
-        model_size: Whisper model size/path (tiny, base, small, medium, large-v3-int8)
+        model_size: Whisper model size (tiny, base, small, medium, large, large-v3)
         language: Language code (None for auto-detection)
         use_gpu: Use GPU if available
 
     Returns:
         List of lyrics segments with timestamps or None
     """
-    requested_model = model_size or "large-v3-int8"
+    requested_model = model_size or "medium"
     device = "cuda" if use_gpu else "cpu"
     compute_type = "int8_float16" if use_gpu else "int8"
 
-    # Prefer the full precision large model when a GPU is available
-    if use_gpu and requested_model.endswith("-int8"):
-        logger = logging.getLogger(__name__)
-        logger.info(f"[LYRICS] GPU detected – upgrading {requested_model} to large-v3 for maximum accuracy.")
-        requested_model = "large-v3"
+    # Respect admin model choice - no auto-upgrade
+    logger = logging.getLogger(__name__)
+    logger.info(f"[LYRICS] Model: {requested_model}, Device: {device}")
 
     detector = LyricsDetector(
         model_size=requested_model,

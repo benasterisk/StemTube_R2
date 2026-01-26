@@ -65,7 +65,7 @@ DEFAULT_SETTINGS = {
     "use_gpu_for_extraction": True,
     "default_stem_model": "htdemucs",
     "max_concurrent_extractions": 1,
-    "lyrics_model_size": "large-v3",
+    "lyrics_model_size": "medium",
     "ffmpeg_path": "",
     "auto_check_updates": True,
     "extraction_timeout_minutes": 30,

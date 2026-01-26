@@ -2325,7 +2325,7 @@ def generate_extraction_lyrics(extraction_id):
             logger.warning(f"[LYRICS] Failed to parse request JSON, using defaults: {e}")
             data = {}
 
-        default_model = config.get('lyrics_model_size', 'large-v3-int8')
+        default_model = get_setting('lyrics_model_size', 'medium')
         model_size = data.get('model_size') or default_model
         language = data.get('language')  # None = auto-detect
         use_gpu = config.get('use_gpu_for_extraction', False)
@@ -2478,7 +2478,7 @@ def fetch_lrclib_lyrics(extraction_id):
             if audio_for_alignment:
                 config = load_config()
                 use_gpu = config.get('use_gpu_for_extraction', False)
-                model_size = config.get('lyrics_model_size', 'large-v3-int8')
+                model_size = get_setting('lyrics_model_size', 'medium')
 
                 lyrics_data = enrich_lrclib_with_whisper(
                     lrclib_lyrics=lyrics_data,
@@ -3561,7 +3561,7 @@ def get_system_settings():
         max_concurrent_downloads = get_setting('max_concurrent_downloads', 3)
         max_concurrent_extractions = get_setting('max_concurrent_extractions', 1)
         use_gpu_for_extraction = get_setting('use_gpu_for_extraction', True)
-        lyrics_model_size = get_setting('lyrics_model_size', 'large-v3')
+        lyrics_model_size = get_setting('lyrics_model_size', 'medium')
         default_stem_model = get_setting('default_stem_model', 'htdemucs')
 
         # Check GPU availability

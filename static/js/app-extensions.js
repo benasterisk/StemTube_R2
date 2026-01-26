@@ -552,7 +552,7 @@ async function loadSystemSettings() {
             if (maxDownloads) maxDownloads.value = settings.max_concurrent_downloads || 3;
             if (maxExtractions) maxExtractions.value = settings.max_concurrent_extractions || 1;
             if (useGpu) useGpu.checked = settings.use_gpu_for_extraction !== false;
-            if (lyricsModel) lyricsModel.value = settings.lyrics_model_size || 'large-v3';
+            if (lyricsModel) lyricsModel.value = settings.lyrics_model_size || 'medium';
             if (stemModel) stemModel.value = settings.default_stem_model || 'htdemucs';
 
             // Update GPU status
@@ -612,7 +612,7 @@ async function saveSystemSettings() {
         max_concurrent_downloads: parseInt(document.getElementById('adminMaxDownloads')?.value) || 3,
         max_concurrent_extractions: parseInt(document.getElementById('adminMaxExtractions')?.value) || 1,
         use_gpu_for_extraction: document.getElementById('adminUseGpu')?.checked ?? true,
-        lyrics_model_size: document.getElementById('adminLyricsModel')?.value || 'large-v3',
+        lyrics_model_size: document.getElementById('adminLyricsModel')?.value || 'medium',
         default_stem_model: document.getElementById('adminStemModel')?.value || 'htdemucs'
     };
 
