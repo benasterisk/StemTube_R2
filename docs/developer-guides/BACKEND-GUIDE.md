@@ -35,7 +35,7 @@ Complete guide to the Python backend architecture and modules.
 - faster-whisper (lyrics transcription)
 - MSAF (structure analysis)
 - SQLite3 (database)
-- yt-dlp + Deno (audio source retrieval)
+- aiotube + yt-dlp (YouTube download)
 
 **Python Version**: 3.12+
 
@@ -50,7 +50,7 @@ core/
 ├── config.py                   # Configuration management
 ├── config.json                 # JSON configuration
 │
-├── aiotube_client.py           # Audio source integration (yt-dlp + Deno)
+├── aiotube_client.py           # YouTube integration (no API key)
 ├── download_manager.py         # Download queue management
 ├── file_cleanup.py             # File management
 │
@@ -86,16 +86,15 @@ core/
 
 #### 1. aiotube_client.py
 
-**Purpose**: Audio source retrieval with yt-dlp and Deno runtime
+**Purpose**: YouTube integration without API key
 
 **Size**: ~570 lines
 
 **Key Features**:
-- Search for audio sources
-- Get video/audio metadata
-- yt-dlp with Deno runtime for challenge solving
-- Cookie.txt support for authentication
-- Automatic yt-dlp updates at startup
+- Search YouTube videos
+- Get video metadata
+- No API key required (uses aiotube)
+- YouTube cache database
 
 **Main Functions**:
 
@@ -103,34 +102,62 @@ core/
 ```python
 async def search_youtube(query, max_results=10):
     """
-    Search for audio sources.
+    Search YouTube for videos.
 
     Args:
         query: Search query string
         max_results: Maximum number of results
 
     Returns:
-        list: List of source metadata dicts
+        list: List of video metadata dicts
     """
-    # Uses yt-dlp search functionality
+    from aiotube import Search
+
+    search = Search(query)
     results = []
-    # ... search implementation
+
+    for video in search.videos[:max_results]:
+        results.append({
+            'id': video.video_id,
+            'title': video.title,
+            'author': video.author,
+            'duration': video.length,  # In seconds
+            'thumbnails': video.thumbnails
+        })
+
     return results
 ```
 
-**Download with Deno**:
-- Deno JavaScript runtime handles YouTube's challenge solving
-- Automatically installed via setup_dependencies.py
-- Falls back to standard yt-dlp if Deno unavailable
+**Get Video Info**:
+```python
+def get_video_info(video_id):
+    """
+    Get detailed video information.
 
-**Cookie System**:
-- Admin can upload cookies.txt for authentication
-- Exported from browser extensions (e.g., "Get cookies.txt")
-- Stored in `core/youtube_cookies.txt`
+    Args:
+        video_id: YouTube video ID
 
-**Auto-Update**:
-- yt-dlp nightly builds checked at startup
-- Ensures compatibility with latest YouTube changes
+    Returns:
+        dict: Video metadata
+    """
+    from aiotube import YouTube
+
+    yt = YouTube(f'https://www.youtube.com/watch?v={video_id}')
+
+    return {
+        'id': video_id,
+        'title': yt.title,
+        'author': yt.author,
+        'duration': yt.length,
+        'thumbnails': yt.thumbnails,
+        'description': yt.description
+    }
+```
+
+**Cache System**:
+- SQLite database: `youtube_cache.db`
+- Caches video metadata to reduce YouTube requests
+- Automatic expiry (30 days)
 
 **File**: core/aiotube_client.py
 

@@ -2947,13 +2947,9 @@ class MobileApp {
         // Setup neumorphic tempo/pitch popups (replaces all tempo/pitch sliders)
         this.setupNeumorphicDialControls();
 
-        // Lyrics generation (Whisper)
-        const lyrics = document.getElementById('mobileGenerateLyrics');
-        if (lyrics) lyrics.addEventListener('click', () => this.generateLyrics());
-
-        // LrcLib lyrics fetch
-        const lrclib = document.getElementById('mobileLrcLibLyrics');
-        if (lrclib) lrclib.addEventListener('click', () => this.fetchLrcLibLyrics());
+        // Lyrics regeneration (LrcLib -> Whisper fallback)
+        const regenerateLyrics = document.getElementById('mobileRegenerateLyrics');
+        if (regenerateLyrics) regenerateLyrics.addEventListener('click', () => this.regenerateLyrics());
 
         // Fullscreen Lyrics popup
         const fullscreenLyricsBtn = document.getElementById('mobileFullScreenLyrics');
@@ -4966,32 +4962,35 @@ class MobileApp {
         }
     }
 
-    async generateLyrics() {
+    /**
+     * Regenerate lyrics using unified endpoint (LrcLib -> Whisper fallback)
+     */
+    async regenerateLyrics() {
         if (!this.currentExtractionId) {
             console.error('[Lyrics] No extraction ID');
             return alert('No track loaded');
         }
 
-        const btn = document.getElementById('mobileGenerateLyrics');
+        const btn = document.getElementById('mobileRegenerateLyrics');
         if (!btn) {
             console.error('[Lyrics] Button not found');
             return;
         }
 
-        console.log('[Lyrics] Starting generation for extraction:', this.currentExtractionId);
+        console.log('[Lyrics] Regenerating lyrics for extraction:', this.currentExtractionId);
 
         const orig = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Regenerating...';
         btn.disabled = true;
 
         try {
-            const url = '/api/extractions/' + this.currentExtractionId + '/lyrics/generate';
+            const url = '/api/extractions/' + this.currentExtractionId + '/lyrics/regenerate';
             console.log('[Lyrics] Fetching:', url);
 
             const res = await fetch(url, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({})  // Send empty JSON body
+                body: JSON.stringify({})
             });
 
             console.log('[Lyrics] Response status:', res.status);
@@ -5005,114 +5004,25 @@ class MobileApp {
 
             if (data.error) throw new Error(data.error);
 
-            // Backend can return either 'lyrics' or 'lyrics_data'
             const lyricsData = data.lyrics || data.lyrics_data;
 
             if (lyricsData) {
                 this.lyrics = typeof lyricsData === 'string' ? JSON.parse(lyricsData) : lyricsData;
-                console.log('[Lyrics] Parsed', this.lyrics.length, 'lyrics segments');
+                console.log('[Lyrics] Loaded', this.lyrics.length, 'segments from source:', data.source);
                 this.displayLyrics();
-                alert('Lyrics generated successfully!');
+
+                // Show success message with source info
+                const sourceLabel = data.source === 'lrclib+whisper' ? 'LrcLib + Whisper' :
+                                   data.source === 'lrclib' ? 'LrcLib' :
+                                   data.source === 'whisper' ? 'Whisper AI' : data.source;
+                alert(`Lyrics loaded (${sourceLabel}): ${this.lyrics.length} segments`);
             } else {
                 console.warn('[Lyrics] No lyrics data in response');
-                alert('Lyrics generation completed but no data returned');
+                alert('Lyrics regeneration completed but no data returned');
             }
         } catch (error) {
-            console.error('[Lyrics] Generation failed:', error);
-            alert('Lyrics generation failed: ' + error.message);
-        } finally {
-            btn.innerHTML = orig;
-            btn.disabled = false;
-        }
-    }
-
-    async fetchLrcLibLyrics() {
-        if (!this.currentExtractionId) {
-            console.error('[LrcLib] No extraction ID');
-            return alert('No track loaded');
-        }
-
-        const btn = document.getElementById('mobileLrcLibLyrics');
-        if (!btn) {
-            console.error('[LrcLib] Button not found');
-            return;
-        }
-
-        console.log('[LrcLib] Fetching lyrics for extraction:', this.currentExtractionId);
-
-        const orig = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching...';
-        btn.disabled = true;
-
-        try {
-            // First try without providing artist/track (auto-extract from metadata)
-            const url = '/api/extractions/' + this.currentExtractionId + '/lyrics/lrclib';
-            console.log('[LrcLib] Fetching:', url);
-
-            let res = await fetch(url, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    duration: this.duration
-                })
-            });
-
-            let data = await res.json();
-            console.log('[LrcLib] Response:', data);
-
-            // If artist is needed, prompt user
-            if (data.need_artist || (res.status === 400 && data.error?.includes('Artist'))) {
-                const track = data.extracted_track || this.currentExtractionData?.title || '';
-                const artist = prompt(`Enter artist name for "${track}":`, '');
-
-                if (!artist) {
-                    console.log('[LrcLib] User cancelled artist input');
-                    return;
-                }
-
-                // Retry with artist
-                res = await fetch(url, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        artist_name: artist.trim(),
-                        track_name: track,
-                        duration: this.duration
-                    })
-                });
-
-                data = await res.json();
-                console.log('[LrcLib] Retry response:', data);
-            }
-
-            if (data.error) {
-                if (res.status === 404) {
-                    const useWhisper = confirm(
-                        `Lyrics not found on LrcLib for "${data.artist} - ${data.track}".\n\n` +
-                        'Would you like to generate lyrics using Whisper AI instead?'
-                    );
-                    if (useWhisper) {
-                        this.generateLyrics();
-                    }
-                    return;
-                }
-                throw new Error(data.error);
-            }
-
-            // Success!
-            const lyricsData = data.lyrics;
-            if (lyricsData) {
-                this.lyrics = typeof lyricsData === 'string' ? JSON.parse(lyricsData) : lyricsData;
-                console.log('[LrcLib] Found', this.lyrics.length, 'lyrics lines');
-                this.displayLyrics();
-                alert(`Found ${this.lyrics.length} lyrics lines from LrcLib!`);
-            } else {
-                alert('No lyrics data returned');
-            }
-
-        } catch (error) {
-            console.error('[LrcLib] Fetch failed:', error);
-            alert('LrcLib fetch failed: ' + error.message);
+            console.error('[Lyrics] Regeneration failed:', error);
+            alert('Lyrics regeneration failed: ' + error.message);
         } finally {
             btn.innerHTML = orig;
             btn.disabled = false;
@@ -7947,8 +7857,15 @@ class MobileAdmin {
     // ========== YouTube Cookies Management ==========
     initCookiesManagement() {
         console.log('[MobileAdmin] Initializing cookies management');
+        const uploadBtn = document.getElementById('mobileUploadCookiesFileBtn');
+        const fileInput = document.getElementById('mobileCookiesFileInput');
         const generateBtn = document.getElementById('mobileGenerateBookmarkletBtn');
         const deleteBtn = document.getElementById('mobileDeleteCookiesBtn');
+
+        if (uploadBtn && fileInput) {
+            uploadBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', () => this.uploadCookiesFile());
+        }
 
         if (generateBtn) {
             generateBtn.addEventListener('click', () => this.generateBookmarklet());
@@ -7977,16 +7894,23 @@ class MobileAdmin {
 
             if (data.exists) {
                 const freshIcon = data.is_fresh ? '✅' : '⚠️';
-                const freshText = data.is_fresh ? 'Valid' : 'Expired';
+                const freshText = data.is_fresh ? 'Valid' : 'Expired (> 48h)';
+                const authInfo = data.has_auth_cookies
+                    ? `🔑 Auth: ${data.auth_cookies_found.join(', ')}`
+                    : '⚠️ No auth cookies - re-upload while logged in';
+                const authColor = data.has_auth_cookies ? '#28a745' : '#ffc107';
                 statusDiv.innerHTML = `
-                    <i class="fas fa-check-circle" style="color: ${data.is_fresh ? '#28a745' : '#ffc107'}"></i>
-                    <span>${freshIcon} ${data.cookie_count} cookies - ${freshText}</span>
+                    <div>
+                        <div><i class="fas fa-check-circle" style="color: ${data.is_fresh ? '#28a745' : '#ffc107'}"></i>
+                        <span>${freshIcon} ${data.cookie_count} cookies - ${freshText}</span></div>
+                        <div style="font-size: 0.8rem; margin-top: 4px; color: ${authColor};">${authInfo}</div>
+                    </div>
                 `;
                 if (deleteBtn) deleteBtn.disabled = false;
             } else {
                 statusDiv.innerHTML = `
                     <i class="fas fa-exclamation-triangle" style="color: #ffc107"></i>
-                    <span>⚠️ No cookies configured</span>
+                    <span>⚠️ No cookies - upload cookies.txt</span>
                 `;
                 if (deleteBtn) deleteBtn.disabled = true;
             }
@@ -7996,6 +7920,56 @@ class MobileAdmin {
                 <i class="fas fa-times-circle" style="color: #dc3545"></i>
                 <span>❌ Error</span>
             `;
+        }
+    }
+
+    async uploadCookiesFile() {
+        const fileInput = document.getElementById('mobileCookiesFileInput');
+        const uploadBtn = document.getElementById('mobileUploadCookiesFileBtn');
+
+        if (!fileInput || !fileInput.files.length) return;
+
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const originalText = uploadBtn.innerHTML;
+        uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+        uploadBtn.disabled = true;
+
+        try {
+            const response = await fetch('/api/admin/cookies/upload-file', {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: formData
+            });
+
+            if (!response.ok) {
+                let errorMsg = `HTTP ${response.status}`;
+                try {
+                    const errData = await response.json();
+                    errorMsg = errData.message || errData.error || errorMsg;
+                } catch (e) {
+                    // Response is not JSON
+                }
+                window.mobileApp?.showToast('Upload error: ' + errorMsg, 'error');
+                return;
+            }
+
+            const data = await response.json();
+            if (data.success) {
+                window.mobileApp?.showToast(data.message, data.has_auth_cookies ? 'success' : 'warning');
+                this.loadCookiesStatus();
+            } else {
+                window.mobileApp?.showToast(data.message || 'Upload failed', 'error');
+            }
+        } catch (error) {
+            console.error('[MobileAdmin] Error uploading cookies file:', error);
+            window.mobileApp?.showToast('Upload error: ' + error.message, 'error');
+        } finally {
+            uploadBtn.innerHTML = originalText;
+            uploadBtn.disabled = false;
+            fileInput.value = '';
         }
     }
 

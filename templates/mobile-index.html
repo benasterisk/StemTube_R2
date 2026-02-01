@@ -266,13 +266,9 @@
                         </button>
                     </div>
                     <div class="mobile-lyrics-action-row">
-                        <button id="mobileLrcLibLyrics" class="mobile-btn mobile-btn-ghost">
-                            <i class="fas fa-cloud-download-alt"></i>
-                            <span>LrcLib</span>
-                        </button>
-                        <button id="mobileGenerateLyrics" class="mobile-btn mobile-btn-ghost">
-                            <i class="fas fa-microphone"></i>
-                            <span>Whisper</span>
+                        <button id="mobileRegenerateLyrics" class="mobile-btn mobile-btn-ghost">
+                            <i class="fas fa-sync-alt"></i>
+                            <span>Regenerate Lyrics</span>
                         </button>
                         <button id="mobileFullScreenLyrics" class="mobile-btn mobile-btn-ghost">
                             <i class="fas fa-expand-arrows-alt"></i>
@@ -649,31 +645,46 @@
                     </div>
 
                     <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 0.85rem;">
-                        <p style="margin: 0 0 8px 0;"><strong>For restricted videos:</strong></p>
+                        <p style="margin: 0 0 8px 0;"><strong>Upload cookies.txt file:</strong></p>
                         <ol style="margin: 0; padding-left: 20px;">
-                            <li>Generate the bookmarklet</li>
-                            <li>Add it to your bookmarks</li>
-                            <li>On youtube.com, click it</li>
+                            <li>Install extension: <strong>"Get cookies.txt LOCALLY"</strong> (Chrome) or <strong>"cookies.txt"</strong> (Firefox)</li>
+                            <li>Go to <a href="https://youtube.com" target="_blank">youtube.com</a> (logged in)</li>
+                            <li>Export cookies with the extension</li>
+                            <li>Upload the file below</li>
                         </ol>
                     </div>
 
                     <div class="mobile-settings-actions">
-                        <button class="mobile-btn mobile-btn-primary" id="mobileGenerateBookmarkletBtn">
-                            <i class="fas fa-magic"></i> Generate Bookmarklet
+                        <input type="file" id="mobileCookiesFileInput" accept=".txt" style="display: none;">
+                        <button class="mobile-btn mobile-btn-primary" id="mobileUploadCookiesFileBtn">
+                            <i class="fas fa-upload"></i> Upload cookies.txt
                         </button>
                         <button class="mobile-btn mobile-btn-danger" id="mobileDeleteCookiesBtn" disabled>
                             <i class="fas fa-trash"></i> Delete
                         </button>
                     </div>
 
-                    <div id="mobileBookmarkletContainer" style="display: none; margin-top: 15px; padding: 12px; background: var(--bg-secondary); border-radius: 8px; border: 2px dashed var(--accent-color);">
-                        <p style="margin: 0 0 10px 0;"><strong>Drag to your bookmarks:</strong></p>
-                        <a id="mobileBookmarkletLink" href="#"
-                           style="display: inline-block; padding: 10px 16px; background: linear-gradient(135deg, #ff0000, #cc0000); color: white; text-decoration: none; border-radius: 6px; font-weight: bold;"
-                           onclick="alert('Drag this link to your bookmarks!'); return false;">
-                            📥 StemTube Cookies
-                        </a>
-                    </div>
+                    <!-- Bookmarklet (secondary, collapsed) -->
+                    <details style="margin-top: 12px;">
+                        <summary style="cursor: pointer; font-size: 0.8rem; color: var(--text-muted);">
+                            Alternative: Bookmarklet (limited)
+                        </summary>
+                        <div style="margin-top: 8px; padding: 10px; background: var(--bg-secondary); border-radius: 8px; border-left: 3px solid #f0ad4e;">
+                            <p style="margin: 0 0 8px 0; font-size: 0.75rem; color: #f0ad4e;">
+                                Cannot capture HttpOnly auth cookies. Use file upload for reliable results.
+                            </p>
+                            <button class="mobile-btn mobile-btn-secondary" id="mobileGenerateBookmarkletBtn" style="font-size: 0.8rem;">
+                                <i class="fas fa-magic"></i> Generate Bookmarklet
+                            </button>
+                            <div id="mobileBookmarkletContainer" style="display: none; margin-top: 8px;">
+                                <a id="mobileBookmarkletLink" href="#"
+                                   style="display: inline-block; padding: 8px 14px; background: linear-gradient(135deg, #ff0000, #cc0000); color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 0.8rem;"
+                                   onclick="alert('Drag this link to your bookmarks!'); return false;">
+                                    StemTube Cookies
+                                </a>
+                            </div>
+                        </div>
+                    </details>
                 </div>
             </div>
         </div>

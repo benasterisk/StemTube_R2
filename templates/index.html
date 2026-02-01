@@ -428,39 +428,50 @@
                                     </div>
                                 </div>
 
+                                <!-- Primary method: File upload -->
                                 <div class="cookies-instructions" style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
                                     <p style="margin: 0 0 10px 0; font-size: 0.9rem; color: var(--text-secondary);">
-                                        <strong>To download restricted videos:</strong><br>
-                                        Works with Chrome, Edge, Firefox, Safari, Opera.
+                                        <strong>Upload cookies.txt file:</strong>
                                     </p>
                                     <ol style="margin: 0; padding-left: 20px; font-size: 0.85rem; color: var(--text-secondary);">
-                                        <li>Click "Generate Bookmarklet"</li>
-                                        <li>Drag the link to your bookmarks bar</li>
-                                        <li>Go to <a href="https://youtube.com" target="_blank">youtube.com</a> (logged in)</li>
-                                        <li>Click the bookmarklet</li>
+                                        <li>Install browser extension: <strong>"Get cookies.txt LOCALLY"</strong> (Chrome/Edge) or <strong>"cookies.txt"</strong> (Firefox)</li>
+                                        <li>Go to <a href="https://youtube.com" target="_blank">youtube.com</a> and <strong>log in</strong> to your Google account</li>
+                                        <li>Click the extension to export cookies (select "Current Site" or youtube.com)</li>
+                                        <li>Upload the exported file below</li>
                                     </ol>
                                 </div>
 
-                                <div class="settings-actions" style="gap: 10px;">
-                                    <button type="button" class="btn btn-primary" id="generateBookmarkletBtn">
-                                        <i class="fas fa-magic"></i> Generate Bookmarklet
+                                <div class="settings-actions" style="gap: 10px; flex-wrap: wrap;">
+                                    <input type="file" id="cookiesFileInput" accept=".txt" style="display: none;">
+                                    <button type="button" class="btn btn-primary" id="uploadCookiesFileBtn">
+                                        <i class="fas fa-upload"></i> Upload cookies.txt
                                     </button>
                                     <button type="button" class="btn btn-danger" id="deleteCookiesBtn" disabled>
                                         <i class="fas fa-trash"></i> Delete
                                     </button>
                                 </div>
 
-                                <div id="bookmarklet-container" style="display: none; margin-top: 15px; padding: 15px; background: var(--bg-tertiary); border-radius: 8px; border: 2px dashed var(--accent-color);">
-                                    <p style="margin: 0 0 10px 0;"><i class="fas fa-hand-pointer"></i> <strong>Drag this link to your bookmarks bar:</strong></p>
-                                    <a id="bookmarklet-link" href="#"
-                                       style="display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #ff0000, #cc0000); color: white; text-decoration: none; border-radius: 8px; font-weight: bold;"
-                                       onclick="alert('Drag this link to your bookmarks bar!'); return false;">
-                                        📥 StemTube Cookies
-                                    </a>
-                                    <p style="margin: 10px 0 0 0; font-size: 0.8rem; color: var(--text-muted);">
-                                        <i class="fas fa-info-circle"></i> One-time token - regenerate if needed.
-                                    </p>
-                                </div>
+                                <!-- Secondary method: Bookmarklet (collapsed) -->
+                                <details style="margin-top: 15px;">
+                                    <summary style="cursor: pointer; font-size: 0.85rem; color: var(--text-muted);">
+                                        <i class="fas fa-chevron-right"></i> Alternative: Bookmarklet (limited)
+                                    </summary>
+                                    <div style="margin-top: 10px; padding: 12px; background: var(--bg-tertiary); border-radius: 8px; border-left: 3px solid #f0ad4e;">
+                                        <p style="margin: 0 0 10px 0; font-size: 0.8rem; color: #f0ad4e;">
+                                            <i class="fas fa-exclamation-triangle"></i> The bookmarklet cannot capture HttpOnly cookies required for YouTube authentication. Use the file upload method above for reliable results.
+                                        </p>
+                                        <button type="button" class="btn btn-secondary" id="generateBookmarkletBtn" style="font-size: 0.85rem;">
+                                            <i class="fas fa-magic"></i> Generate Bookmarklet
+                                        </button>
+                                        <div id="bookmarklet-container" style="display: none; margin-top: 10px;">
+                                            <a id="bookmarklet-link" href="#"
+                                               style="display: inline-block; padding: 8px 16px; background: linear-gradient(135deg, #ff0000, #cc0000); color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 0.85rem;"
+                                               onclick="alert('Drag this link to your bookmarks bar!'); return false;">
+                                                StemTube Cookies
+                                            </a>
+                                        </div>
+                                    </div>
+                                </details>
                             </div>
                         </div>
                     </div>

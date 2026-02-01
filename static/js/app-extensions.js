@@ -767,8 +767,16 @@ function initSystemSettingsListeners() {
 function initCookiesManagement() {
     console.log('[Cookies] Initializing cookies management...');
 
+    const uploadBtn = document.getElementById('uploadCookiesFileBtn');
+    const fileInput = document.getElementById('cookiesFileInput');
     const generateBtn = document.getElementById('generateBookmarkletBtn');
     const deleteBtn = document.getElementById('deleteCookiesBtn');
+
+    if (uploadBtn && fileInput) {
+        uploadBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', uploadCookiesFile);
+        console.log('[Cookies] Upload button listener attached');
+    }
 
     if (generateBtn) {
         generateBtn.addEventListener('click', generateBookmarklet);
@@ -799,8 +807,13 @@ async function loadCookiesStatus() {
 
         if (data.exists) {
             const freshIcon = data.is_fresh ? '✅' : '⚠️';
-            const freshText = data.is_fresh ? 'Valid' : 'Expired (> 24h)';
+            const freshText = data.is_fresh ? 'Valid' : 'Expired (> 48h)';
             const freshClass = data.is_fresh ? 'available' : 'unavailable';
+            const authIcon = data.has_auth_cookies ? '🔑' : '⚠️';
+            const authText = data.has_auth_cookies
+                ? `Auth cookies: ${data.auth_cookies_found.join(', ')}`
+                : 'No auth cookies found - re-upload while logged into YouTube';
+            const authClass = data.has_auth_cookies ? '' : 'color: #f0ad4e;';
             statusDiv.innerHTML = `
                 <div class="info-card-body">
                     <div class="status-indicator">
@@ -808,6 +821,7 @@ async function loadCookiesStatus() {
                         <span class="status-text">${freshIcon} Cookies present - ${freshText}</span>
                     </div>
                     <p class="info-detail">${data.cookie_count} cookies • Modified: ${new Date(data.modified).toLocaleString()}</p>
+                    <p class="info-detail" style="${authClass}">${authIcon} ${authText}</p>
                 </div>
             `;
             if (deleteBtn) deleteBtn.disabled = false;
@@ -818,7 +832,7 @@ async function loadCookiesStatus() {
                         <span class="status-dot unavailable"></span>
                         <span class="status-text">⚠️ No cookies configured</span>
                     </div>
-                    <p class="info-detail">Some YouTube downloads may fail</p>
+                    <p class="info-detail">YouTube downloads will fail - upload cookies.txt file</p>
                 </div>
             `;
             if (deleteBtn) deleteBtn.disabled = true;
@@ -834,6 +848,56 @@ async function loadCookiesStatus() {
                 <p class="info-detail">${error.message}</p>
             </div>
         `;
+    }
+}
+
+async function uploadCookiesFile() {
+    const fileInput = document.getElementById('cookiesFileInput');
+    const uploadBtn = document.getElementById('uploadCookiesFileBtn');
+
+    if (!fileInput || !fileInput.files.length) return;
+
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const originalText = uploadBtn.innerHTML;
+    uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+    uploadBtn.disabled = true;
+
+    try {
+        const response = await fetch('/api/admin/cookies/upload-file', {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData
+        });
+
+        if (!response.ok) {
+            let errorMsg = `HTTP ${response.status}`;
+            try {
+                const errData = await response.json();
+                errorMsg = errData.message || errData.error || errorMsg;
+            } catch (e) {
+                // Response is not JSON
+            }
+            showToast('Upload error: ' + errorMsg, 'error');
+            return;
+        }
+
+        const data = await response.json();
+        if (data.success) {
+            showToast(data.message, data.has_auth_cookies ? 'success' : 'warning');
+            loadCookiesStatus();
+        } else {
+            showToast(data.message || 'Upload failed', 'error');
+        }
+    } catch (error) {
+        console.error('[Cookies] Error uploading file:', error);
+        showToast('Upload error: ' + error.message, 'error');
+    } finally {
+        uploadBtn.innerHTML = originalText;
+        uploadBtn.disabled = false;
+        fileInput.value = '';
     }
 }
 

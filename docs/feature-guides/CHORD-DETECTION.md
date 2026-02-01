@@ -48,7 +48,7 @@ StemTube provides **3 chord detection backends** with automatic fallback:
 
 **Model**: Deep learning Transformer architecture
 
-**Location**: `external/BTC-ISMIR19` (included in release)
+**External Dependency**: `../essentiatest/BTC-ISMIR19`
 
 **Chord Types**:
 - Major: C, C#, D, ..., B (12 types)
@@ -476,15 +476,14 @@ extract_stems(
 
 **Solution**:
 ```bash
-# BTC is included in external/BTC-ISMIR19
-# Verify the directory exists:
-ls external/BTC-ISMIR19/test/*.pt
-
-# Install BTC dependencies:
-pip install torch librosa mir_eval pretty_midi pyyaml
+# Install BTC (external dependency)
+cd ../essentiatest
+git clone https://github.com/jayg996/BTC-ISMIR19.git
+cd BTC-ISMIR19
+# Follow BTC installation instructions
 
 # Verify installation
-python -c "from core.btc_chord_detector import is_available; print('BTC available:', is_available())"
+python -c "from core.btc_chord_detector import BTCChordDetector; print('BTC available')"
 ```
 
 **Fallback**: StemTube automatically uses madmom if BTC unavailable
@@ -928,18 +927,8 @@ preventManualHorizontalScroll(scrollContainer) {
 
 ---
 
-**Chord Detection Version**: 2.2
-**Last Updated**: January 2026
+**Chord Detection Version**: 2.0
+**Last Updated**: December 2025
 **Backends**: 3 (BTC, madmom, hybrid)
 **Vocabulary**: Up to 170 chord types (BTC)
 **UI**: Linear + Grid views with fixed reading focus
-
----
-
-## Credits
-
-**BTC (Bi-directional Transformer for Chord Recognition)**
-- Paper: "A Bi-directional Transformer for Musical Chord Recognition" (ISMIR 2019)
-- Authors: Jonggwon Park, Kyoyun Choi, Sungwook Jeon, Dooyong Kim, Taegyun Kwon
-- Repository: https://github.com/jayg996/BTC-ISMIR19
-- License: MIT

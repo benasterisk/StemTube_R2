@@ -76,17 +76,9 @@
                     </div>
 
                     <div class="lyrics-transport-controls" data-tab-visible="lyrics" data-tab-display="flex">
-                        <button class="chord-mode-toggle" id="karaoke-lrclib-btn" title="Fetch lyrics from LrcLib (fast, crowdsourced)">
-                            <i class="fas fa-cloud-download-alt"></i>
-                            <span id="lrclib-btn-label">LrcLib</span>
-                        </button>
-                        <button class="chord-mode-toggle" id="karaoke-generate-btn" title="Generate lyrics with Whisper AI (slow, any audio)">
-                            <i class="fas fa-microphone"></i>
-                            <span id="karaoke-btn-label">Whisper</span>
-                        </button>
-                        <button class="visibility-toggle" id="lyrics-visibility-toggle" data-section="lyrics" title="Show/hide lyrics">
-                            <i class="fas fa-eye-slash"></i>
-                            <span>Hide Lyrics</span>
+                        <button class="chord-mode-toggle" id="karaoke-regenerate-btn" title="Regenerate lyrics (LrcLib + Whisper fallback)">
+                            <i class="fas fa-sync-alt"></i>
+                            <span id="regenerate-btn-label">Regenerate Lyrics</span>
                         </button>
                         <button class="chord-mode-toggle" id="lyrics-popup-open" title="Open focused lyrics view">
                             <i class="fas fa-expand"></i>
@@ -397,6 +389,7 @@
     </div>
 
     <!-- Scripts modulaires -->
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
     <script src="/static/js/lib/lame.min.js"></script>
     <script src="/static/wasm/soundtouch.js"></script>
     <script src="/static/js/mixer/mix-exporter.js"></script>

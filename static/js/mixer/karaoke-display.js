@@ -55,40 +55,38 @@ class KaraokeDisplay {
         loadingOverlay.style.display = 'none';
         loadingOverlay.innerHTML = `
             <div class="karaoke-loading-content">
-                <div class="karaoke-spinner"></div>
-                <div class="karaoke-loading-text">Generating lyrics...</div>
-                <div class="karaoke-loading-subtext">Using Whisper "medium" model with GPU</div>
+                <div class="karaoke-loading-header">
+                    <div class="karaoke-spinner"></div>
+                    <div class="karaoke-loading-text">Generating lyrics...</div>
+                </div>
+                <div class="karaoke-loading-steps"></div>
             </div>
         `;
         this.container.appendChild(loadingOverlay);
         this.loadingOverlay = loadingOverlay;
+        this.loadingText = loadingOverlay.querySelector('.karaoke-loading-text');
+        this.loadingSteps = loadingOverlay.querySelector('.karaoke-loading-steps');
+        this.progressSteps = [];
 
-        // Get generate button from HTML
-        this.generateButton = document.getElementById('karaoke-generate-btn');
+        // Listen for SocketIO progress events
+        this.setupSocketListeners();
 
-        // Generate button event (Whisper)
-        if (this.generateButton) {
-            this.generateButton.addEventListener('click', () => {
-                this.fetchOrGenerateLyrics();
-            });
-        }
+        // Get regenerate button from HTML (single unified button)
+        this.regenerateButton = document.getElementById('karaoke-regenerate-btn');
 
-        // Get LrcLib button from HTML
-        this.lrcLibButton = document.getElementById('karaoke-lrclib-btn');
-
-        // LrcLib button event
-        if (this.lrcLibButton) {
-            this.lrcLibButton.addEventListener('click', () => {
-                this.fetchLrcLibLyrics();
+        // Regenerate button event (LrcLib -> Whisper fallback)
+        if (this.regenerateButton) {
+            this.regenerateButton.addEventListener('click', () => {
+                this.regenerateLyrics();
             });
         }
 
         // Try to load existing lyrics from EXTRACTION_INFO first
         this.loadLyricsFromExtractionInfo();
 
-        // If no lyrics loaded from initial data, try fetching
+        // If no lyrics loaded from initial data, try fetching cached
         if (!this.lyricsData) {
-            this.fetchOrGenerateLyrics(false); // false = don't generate, just check if exists
+            this.checkCachedLyrics();
         }
 
         // Listen for tempo changes from pitch/tempo controller
@@ -118,6 +116,154 @@ class KaraokeDisplay {
     }
 
     /**
+     * Setup SocketIO listeners for lyrics progress updates
+     */
+    setupSocketListeners() {
+        // Check if socket.io is available
+        if (typeof io === 'undefined') {
+            console.warn('[KaraokeDisplay] SocketIO not available, progress updates disabled');
+            return;
+        }
+
+        // Create socket connection
+        const socket = window.mixerSocket || io();
+        window.mixerSocket = socket;
+
+        socket.on('connect', () => {
+            console.log('[KaraokeDisplay] Socket connected');
+        });
+
+        socket.on('lyrics_progress', (data) => {
+            // Accept events when generating (overlay is shown)
+            if (!this.isGenerating) return;
+
+            console.log(`[KaraokeDisplay] Progress: ${data.step} - ${data.message}`);
+            this.updateLoadingProgress(data);
+        });
+
+        console.log('[KaraokeDisplay] Socket listeners configured');
+    }
+
+    /**
+     * Add a step to the progress log
+     */
+    addProgressStep(icon, text, status = 'running') {
+        if (!this.loadingSteps) return;
+
+        const stepEl = document.createElement('div');
+        stepEl.className = `karaoke-step karaoke-step-${status}`;
+        stepEl.innerHTML = `
+            <span class="karaoke-step-icon">${icon}</span>
+            <span class="karaoke-step-text">${text}</span>
+        `;
+        this.loadingSteps.appendChild(stepEl);
+        this.progressSteps.push(stepEl);
+
+        // Auto-scroll to bottom
+        this.loadingSteps.scrollTop = this.loadingSteps.scrollHeight;
+
+        return stepEl;
+    }
+
+    /**
+     * Update the last step status
+     */
+    updateLastStep(status, newText = null) {
+        if (this.progressSteps.length === 0) return;
+        const lastStep = this.progressSteps[this.progressSteps.length - 1];
+        lastStep.className = `karaoke-step karaoke-step-${status}`;
+        if (newText) {
+            lastStep.querySelector('.karaoke-step-text').textContent = newText;
+        }
+    }
+
+    /**
+     * Clear all progress steps
+     */
+    clearProgressSteps() {
+        if (this.loadingSteps) {
+            this.loadingSteps.innerHTML = '';
+        }
+        this.progressSteps = [];
+    }
+
+    /**
+     * Update loading overlay with progress information
+     */
+    updateLoadingProgress(data) {
+        if (!this.loadingText) return;
+
+        const step = data.step || '';
+        const message = data.message || '';
+        const model = data.model || 'medium';
+        const gpu = data.gpu ? 'GPU' : 'CPU';
+
+        // Update main text and add step to log
+        switch (step) {
+            case 'metadata':
+                this.loadingText.textContent = 'Extracting metadata...';
+                this.addProgressStep('📋', 'Extracting metadata...', 'running');
+                break;
+            case 'syncedlyrics':
+                this.updateLastStep('done');
+                this.loadingText.textContent = 'Searching Musixmatch...';
+                this.addProgressStep('🔍', `Searching: ${message.replace('Searching word-level lyrics for: ', '')}`, 'running');
+                break;
+            case 'syncedlyrics_found':
+                this.updateLastStep('done', `Musixmatch: ${message}`);
+                this.loadingText.textContent = 'Lyrics found!';
+                break;
+            case 'syncedlyrics_not_found':
+            case 'syncedlyrics_skip':
+                this.updateLastStep('warning', 'Musixmatch: No word-level lyrics');
+                this.loadingText.textContent = 'Falling back to Whisper...';
+                break;
+            case 'syncedlyrics_error':
+                this.updateLastStep('error', `Musixmatch: ${message}`);
+                this.loadingText.textContent = 'Falling back to Whisper...';
+                break;
+            case 'onset_sync':
+                this.loadingText.textContent = 'Syncing with vocals...';
+                this.addProgressStep('🎤', 'Analyzing vocal track...', 'running');
+                break;
+            case 'onset_sync_done':
+                this.updateLastStep('done', `Vocal sync: ${message}`);
+                this.loadingText.textContent = 'Sync complete!';
+                break;
+            case 'onset_sync_error':
+                this.updateLastStep('warning', `Vocal sync failed: ${message}`);
+                break;
+            case 'whisper_fallback':
+                this.loadingText.textContent = 'Transcribing with Whisper...';
+                this.addProgressStep('🤖', `Loading Whisper ${model} (${gpu})...`, 'running');
+                break;
+            case 'whisper_transcribing':
+                this.updateLastStep('done');
+                this.addProgressStep('📝', 'Transcribing audio...', 'running');
+                break;
+            case 'whisper_done':
+                this.updateLastStep('done', `Transcription: ${message}`);
+                this.loadingText.textContent = 'Transcription complete!';
+                break;
+            case 'aligned':
+                this.updateLastStep('done');
+                this.loadingText.textContent = 'Alignment complete!';
+                this.addProgressStep('✅', message, 'done');
+                break;
+            case 'whisper_error':
+            case 'failed':
+                this.updateLastStep('error', `Error: ${message}`);
+                this.loadingText.textContent = 'Error';
+                break;
+            default:
+                // For unknown steps, just log them
+                if (message) {
+                    this.addProgressStep('ℹ️', message, 'info');
+                }
+        }
+    }
+
+    /**
      * Load lyrics from EXTRACTION_INFO global variable if available
      */
     loadLyricsFromExtractionInfo() {
@@ -138,16 +284,199 @@ class KaraokeDisplay {
             if (lyrics && lyrics.length > 0) {
                 this.loadLyrics(lyrics);
                 this.showControls(true);
-                this.updateGenerateButton('Regenerate Lyrics', false);
+                this.updateRegenerateButton('Regenerate Lyrics', false);
             }
         }
     }
 
     /**
-     * Fetch existing lyrics or generate new ones
-     * @param {boolean} forceGenerate - If true, always generate new lyrics
+     * Check for cached lyrics without generating
      */
-    async fetchOrGenerateLyrics(forceGenerate = true) {
+    async checkCachedLyrics() {
+        if (!this.extractionId) return;
+
+        try {
+            console.log('[KaraokeDisplay] Checking for existing lyrics...');
+            const response = await fetch(`/api/extractions/${this.extractionId}/lyrics`, {
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+
+            if (data.success && data.lyrics) {
+                console.log('[KaraokeDisplay] Found cached lyrics');
+                this.loadLyrics(data.lyrics);
+                this.showControls(true);
+                this.updateRegenerateButton('Regenerate Lyrics', false);
+            }
+        } catch (error) {
+            console.log('[KaraokeDisplay] No cached lyrics found');
+        }
+    }
+
+    /**
+     * Parse title to extract artist and track
+     * Handles "Artist - Track" format and various YouTube suffixes
+     */
+    parseTitle(title) {
+        if (!title) return { artist: '', track: '' };
+
+        let cleanTitle = title;
+
+        // Remove common YouTube suffixes
+        const patterns = [
+            /\s*[\(\[]\s*(Official\s*)?(Music\s*)?(Video|Audio|Lyrics?|Visualizer|Clip)\s*[\)\]]/gi,
+            /\s*[\(\[]\s*(HD|HQ|4K|1080p|720p)\s*[\)\]]/gi,
+            /\s*[\(\[]\s*(Live|Acoustic|Remix|Cover|Version)\s*[\)\]]/gi,
+            /\s*[\(\[]\s*\d{4}\s*[\)\]]/gi
+        ];
+
+        for (const pattern of patterns) {
+            cleanTitle = cleanTitle.replace(pattern, '');
+        }
+
+        cleanTitle = cleanTitle.trim();
+
+        // Split on " - "
+        if (cleanTitle.includes(' - ')) {
+            const parts = cleanTitle.split(' - ', 2);
+            return {
+                artist: parts[0].trim(),
+                track: parts[1].trim()
+            };
+        }
+
+        // No separator - return full title as track
+        return { artist: '', track: cleanTitle };
+    }
+
+    /**
+     * Show dialog to edit artist/track before regenerating lyrics
+     */
+    showLyricsDialog() {
+        return new Promise((resolve) => {
+            // Get current title from EXTRACTION_INFO
+            const title = (typeof EXTRACTION_INFO !== 'undefined' && EXTRACTION_INFO?.title) || '';
+            const parsed = this.parseTitle(title);
+
+            // Create dialog overlay
+            const overlay = document.createElement('div');
+            overlay.className = 'lyrics-dialog-overlay';
+            overlay.innerHTML = `
+                <div class="lyrics-dialog">
+                    <h3>Regenerate Lyrics</h3>
+                    <p class="lyrics-dialog-hint">Edit artist and track for Musixmatch search:</p>
+
+                    <div class="lyrics-dialog-field">
+                        <label for="lyrics-artist">Artist</label>
+                        <input type="text" id="lyrics-artist" value="${this.escapeHtml(parsed.artist)}" placeholder="e.g. The Police">
+                    </div>
+
+                    <div class="lyrics-dialog-field">
+                        <label for="lyrics-track">Track</label>
+                        <input type="text" id="lyrics-track" value="${this.escapeHtml(parsed.track)}" placeholder="e.g. So Lonely">
+                    </div>
+
+                    <div class="lyrics-dialog-buttons">
+                        <button class="lyrics-dialog-btn lyrics-dialog-cancel">Cancel</button>
+                        <button class="lyrics-dialog-btn lyrics-dialog-whisper">Whisper Only</button>
+                        <button class="lyrics-dialog-btn lyrics-dialog-musixmatch">Musixmatch Only</button>
+                        <button class="lyrics-dialog-btn lyrics-dialog-submit primary">Musixmatch + Sync</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+
+            // Prevent keyboard events from propagating (space bar, etc.)
+            const stopPropagation = (e) => {
+                e.stopPropagation();
+            };
+            overlay.addEventListener('keydown', stopPropagation);
+            overlay.addEventListener('keyup', stopPropagation);
+            overlay.addEventListener('keypress', stopPropagation);
+
+            // Focus on artist field
+            setTimeout(() => {
+                const artistInput = overlay.querySelector('#lyrics-artist');
+                if (artistInput) artistInput.focus();
+            }, 100);
+
+            // Handle buttons
+            const cancelBtn = overlay.querySelector('.lyrics-dialog-cancel');
+            const whisperBtn = overlay.querySelector('.lyrics-dialog-whisper');
+            const musixmatchBtn = overlay.querySelector('.lyrics-dialog-musixmatch');
+            const submitBtn = overlay.querySelector('.lyrics-dialog-submit');
+
+            const cleanup = () => {
+                overlay.removeEventListener('keydown', stopPropagation);
+                overlay.removeEventListener('keyup', stopPropagation);
+                overlay.removeEventListener('keypress', stopPropagation);
+                overlay.remove();
+            };
+
+            cancelBtn.addEventListener('click', () => {
+                cleanup();
+                resolve(null);
+            });
+
+            whisperBtn.addEventListener('click', () => {
+                cleanup();
+                resolve({ artist: '', track: '', forceWhisper: true, skipOnsetSync: false });
+            });
+
+            musixmatchBtn.addEventListener('click', () => {
+                const artist = overlay.querySelector('#lyrics-artist').value.trim();
+                const track = overlay.querySelector('#lyrics-track').value.trim();
+                cleanup();
+                resolve({ artist, track, forceWhisper: false, skipOnsetSync: true });
+            });
+
+            submitBtn.addEventListener('click', () => {
+                const artist = overlay.querySelector('#lyrics-artist').value.trim();
+                const track = overlay.querySelector('#lyrics-track').value.trim();
+                cleanup();
+                resolve({ artist, track, forceWhisper: false, skipOnsetSync: false });
+            });
+
+            // Close on overlay click
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    cleanup();
+                    resolve(null);
+                }
+            });
+
+            // Handle Enter/Escape keys (after stopPropagation)
+            const handleKeydown = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const artist = overlay.querySelector('#lyrics-artist').value.trim();
+                    const track = overlay.querySelector('#lyrics-track').value.trim();
+                    cleanup();
+                    resolve({ artist, track, forceWhisper: false, skipOnsetSync: false });
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cleanup();
+                    resolve(null);
+                }
+            };
+            overlay.addEventListener('keydown', handleKeydown);
+        });
+    }
+
+    /**
+     * Escape HTML to prevent XSS
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
+     * Regenerate lyrics using unified endpoint (LrcLib -> Whisper fallback)
+     */
+    async regenerateLyrics() {
         if (!this.extractionId) {
             console.warn('[KaraokeDisplay] No extraction ID provided');
             return;
@@ -158,192 +487,121 @@ class KaraokeDisplay {
             return;
         }
 
-        try {
-            // First, check if lyrics already exist
-            if (!forceGenerate) {
-                console.log('[KaraokeDisplay] Checking for existing lyrics...');
-                const response = await fetch(`/api/extractions/${this.extractionId}/lyrics`, {
-                    credentials: 'same-origin'
-                });
-                const data = await response.json();
-
-                if (data.success && data.lyrics) {
-                    console.log('[KaraokeDisplay] Found cached lyrics');
-                    this.loadLyrics(data.lyrics);
-                    this.showControls(true);
-                    // Update button to show "Regenerate" since lyrics already exist
-                    this.updateGenerateButton('Regenerate Lyrics', false);
-                    return;
-                }
-            }
-
-            // Generate lyrics if not found or forced
-            if (forceGenerate) {
-                console.log('[KaraokeDisplay] Generating lyrics...');
-                this.isGenerating = true;
-                this.updateGenerateButton('Generating...', true);
-
-                // Show loading overlay
-                this.showLoadingOverlay(true);
-
-                const response = await fetch(`/api/extractions/${this.extractionId}/lyrics/generate`, {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': getCsrfToken()
-                    },
-                    body: JSON.stringify({
-                        language: null // Auto-detect - model uses server setting
-                    })
-                });
-
-                // Hide loading overlay
-                this.showLoadingOverlay(false);
-
-                // Check HTTP status
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('[KaraokeDisplay] HTTP error:', response.status, errorText);
-                    throw new Error(`HTTP ${response.status}: ${errorText}`);
-                }
-
-                const data = await response.json();
-
-                if (data.success && data.lyrics) {
-                    console.log(`[KaraokeDisplay] Generated ${data.segments_count} lyric segments`);
-                    this.loadLyrics(data.lyrics);
-                    this.showControls(true);
-                } else {
-                    console.error('[KaraokeDisplay] Failed to generate lyrics:', data.error);
-                    alert(`Failed to generate lyrics: ${data.error || 'Unknown error'}`);
-                }
-
-                this.isGenerating = false;
-                this.updateGenerateButton('Regenerate Lyrics', false);
-            }
-
-        } catch (error) {
-            console.error('[KaraokeDisplay] Error fetching/generating lyrics:', error);
-
-            // Hide loading overlay on error
-            this.showLoadingOverlay(false);
-
-            this.isGenerating = false;
-            this.updateGenerateButton('Generate Lyrics', false);
-            alert(`Error: ${error.message}`);
-        }
-    }
-
-    /**
-     * Fetch lyrics from LrcLib API (crowdsourced synchronized lyrics)
-     */
-    async fetchLrcLibLyrics() {
-        if (!this.extractionId) {
-            console.warn('[KaraokeDisplay] No extraction ID for LrcLib fetch');
+        // Show dialog to get artist/track
+        const dialogResult = await this.showLyricsDialog();
+        if (!dialogResult) {
+            console.log('[KaraokeDisplay] Dialog cancelled');
             return;
         }
 
-        console.log(`[KaraokeDisplay] Fetching LrcLib lyrics for: ${this.extractionId}`);
-        this.updateLrcLibButton('Fetching...', true);
+        console.log('[KaraokeDisplay] Regenerating lyrics with:', dialogResult);
+        this.isGenerating = true;
+        this.updateRegenerateButton('Regenerating...', true);
+        this.showLoadingOverlay(true);
 
         try {
-            // First try without providing artist/track (auto-extract from metadata)
-            let response = await fetch(`/api/extractions/${this.extractionId}/lyrics/lrclib`, {
+            const response = await fetch(`/api/extractions/${this.extractionId}/lyrics/regenerate`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({})
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': getCsrfToken()
+                },
+                body: JSON.stringify({
+                    artist: dialogResult.artist,
+                    track: dialogResult.track,
+                    force_whisper: dialogResult.forceWhisper,
+                    skip_onset_sync: dialogResult.skipOnsetSync
+                })
             });
 
-            let data = await response.json();
-            console.log('[KaraokeDisplay] LrcLib response:', data);
+            this.showLoadingOverlay(false);
 
-            // If artist is needed, prompt user
-            if (data.need_artist || (response.status === 400 && data.error?.includes('Artist'))) {
-                const track = data.extracted_track || window.EXTRACTION_INFO?.title || '';
-                const artist = prompt(`Enter artist name for "${track}":`, '');
-
-                if (!artist) {
-                    console.log('[KaraokeDisplay] User cancelled artist input');
-                    this.updateLrcLibButton('LrcLib', false);
-                    return;
-                }
-
-                // Retry with artist
-                response = await fetch(`/api/extractions/${this.extractionId}/lyrics/lrclib`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        artist_name: artist.trim(),
-                        track_name: track
-                    })
-                });
-
-                data = await response.json();
-                console.log('[KaraokeDisplay] LrcLib retry response:', data);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
             }
 
-            if (data.error) {
-                if (response.status === 404) {
-                    const useWhisper = confirm(
-                        `Lyrics not found on LrcLib for "${data.artist} - ${data.track}".\n\n` +
-                        'Would you like to generate lyrics using Whisper AI instead?'
-                    );
-                    if (useWhisper) {
-                        this.fetchOrGenerateLyrics(true);
-                    }
-                    this.updateLrcLibButton('LrcLib', false);
-                    return;
-                }
-                throw new Error(data.error);
-            }
+            const data = await response.json();
 
-            // Success!
-            if (data.lyrics) {
-                console.log(`[KaraokeDisplay] LrcLib found ${data.lyrics.length} lyrics lines`);
+            if (data.success && data.lyrics) {
+                const source = data.source || 'unknown';
+                console.log(`[KaraokeDisplay] Lyrics regenerated (${source}): ${data.segments_count} segments`);
                 this.loadLyrics(data.lyrics);
                 this.showControls(true);
-                this.updateGenerateButton('Regenerate', false);
-                alert(`Found ${data.lyrics.length} lyrics lines from LrcLib!`);
+
+                // Update source tag display
+                this.updateSourceTag(source);
+
+                // Build success message with source info and alignment stats
+                const sourceLabel = this.getSourceLabel(source);
+                let message = `Lyrics loaded (${sourceLabel}): ${data.segments_count} segments`;
+
+                // Add alignment stats if available
+                const stats = data.alignment_stats;
+                if (stats && stats.match_rate !== undefined) {
+                    message += `\n\nSync statistics:`;
+                    message += `\n- Words matched: ${stats.matched_words}/${stats.total_words} (${stats.match_rate}%)`;
+                    if (stats.global_offset_sec !== undefined) {
+                        message += `\n- Global offset: ${stats.global_offset_sec}s`;
+                    }
+                }
+
+                alert(message);
+            } else {
+                console.error('[KaraokeDisplay] Failed to regenerate lyrics:', data.error);
+                alert(`Failed to regenerate lyrics: ${data.error || 'Unknown error'}`);
             }
 
         } catch (error) {
-            console.error('[KaraokeDisplay] LrcLib fetch error:', error);
-            alert(`LrcLib error: ${error.message}`);
+            console.error('[KaraokeDisplay] Error regenerating lyrics:', error);
+            this.showLoadingOverlay(false);
+            alert(`Error: ${error.message}`);
         } finally {
-            this.updateLrcLibButton('LrcLib', false);
+            this.isGenerating = false;
+            this.updateRegenerateButton('Regenerate Lyrics', false);
         }
     }
 
     /**
-     * Update LrcLib button state
+     * Get human-readable source label
      */
-    updateLrcLibButton(text, disabled) {
-        if (this.lrcLibButton) {
-            const label = this.lrcLibButton.querySelector('span');
-            if (label) {
-                label.textContent = text;
-            }
-            this.lrcLibButton.disabled = disabled;
-            this.lrcLibButton.style.opacity = disabled ? '0.5' : '1';
-            this.lrcLibButton.style.cursor = disabled ? 'not-allowed' : 'pointer';
-        }
+    getSourceLabel(source) {
+        const labels = {
+            'musixmatch+onset': 'Musixmatch + Vocal Sync',
+            'musixmatch': 'Musixmatch',
+            'syncedlyrics': 'Musixmatch (word-level)',
+            'lrclib+whisper': 'LrcLib + Whisper',
+            'lrclib': 'LrcLib',
+            'whisper': 'Whisper AI'
+        };
+        return labels[source] || source;
     }
 
     /**
-     * Update generate button state
+     * Update the source tag display
+     */
+    updateSourceTag(source) {
+        // Emit event for parent to update UI
+        window.dispatchEvent(new CustomEvent('lyricsSourceChanged', {
+            detail: { source, label: this.getSourceLabel(source) }
+        }));
+    }
+
+    /**
+     * Update regenerate button state
      * @param {string} text - Button text
      * @param {boolean} disabled - Whether button is disabled
      */
-    updateGenerateButton(text, disabled) {
-        if (this.generateButton) {
-            const label = this.generateButton.querySelector('span');
+    updateRegenerateButton(text, disabled) {
+        if (this.regenerateButton) {
+            const label = this.regenerateButton.querySelector('span');
             if (label) {
                 label.textContent = text;
             }
-            this.generateButton.disabled = disabled;
-            this.generateButton.style.opacity = disabled ? '0.5' : '1';
-            this.generateButton.style.cursor = disabled ? 'not-allowed' : 'pointer';
+            this.regenerateButton.disabled = disabled;
+            this.regenerateButton.style.opacity = disabled ? '0.5' : '1';
+            this.regenerateButton.style.cursor = disabled ? 'not-allowed' : 'pointer';
         }
     }
 
@@ -353,6 +611,11 @@ class KaraokeDisplay {
      */
     showLoadingOverlay(show) {
         if (this.loadingOverlay) {
+            if (show) {
+                // Clear previous steps when showing
+                this.clearProgressSteps();
+                this.loadingText.textContent = 'Generating lyrics...';
+            }
             this.loadingOverlay.style.display = show ? 'flex' : 'none';
         }
     }
@@ -386,6 +649,16 @@ class KaraokeDisplay {
 
         console.log(`[KaraokeDisplay] Loading ${lyrics.length} lyric segments`);
         this.lyricsData = lyrics;
+
+        // Debug: log first segment's word timestamps to verify data structure
+        if (lyrics[0] && lyrics[0].words && lyrics[0].words.length > 0) {
+            const seg = lyrics[0];
+            const words = seg.words.slice(0, 3);
+            console.log(`[KaraokeDisplay] Sample segment: start=${seg.start}s, end=${seg.end}s`);
+            words.forEach((w, i) => {
+                console.log(`  Word ${i}: "${w.word}" [${w.start}s - ${w.end}s] (${((w.end || 0) - (w.start || 0)).toFixed(2)}s)`);
+            });
+        }
 
         this.render();
 
@@ -635,6 +908,17 @@ class KaraokeDisplay {
         if (segmentIndex !== this.currentSegmentIndex) {
             this.currentSegmentIndex = segmentIndex;
             this.highlightCurrentLine(segmentIndex);
+
+            // Debug: log segment change with word timestamps
+            if (segmentIndex >= 0) {
+                const seg = this.lyricsData[segmentIndex];
+                const firstWord = seg.words?.[0];
+                console.log(`[KaraokeSync] Segment ${segmentIndex} active at ${adjustedTime.toFixed(2)}s`);
+                console.log(`  Segment: ${seg.start}s - ${seg.end}s "${seg.text.substring(0, 30)}..."`);
+                if (firstWord) {
+                    console.log(`  First word: "${firstWord.word}" [${firstWord.start}s - ${firstWord.end}s]`);
+                }
+            }
         }
 
         // Highlight words within current line
@@ -685,9 +969,36 @@ class KaraokeDisplay {
         // Get all word spans in the current line
         const wordSpans = currentLine.querySelectorAll('.karaoke-word');
 
+        // Debug: one-time log when entering a new segment to show word states
+        if (this._lastDebugSegment !== segmentIndex) {
+            this._lastDebugSegment = segmentIndex;
+            console.log(`[KaraokeHighlight] Segment ${segmentIndex} at time=${currentTime.toFixed(2)}s`);
+            let futureCount = 0, currentCount = 0, pastCount = 0;
+            wordSpans.forEach((ws, idx) => {
+                const start = parseFloat(ws.dataset.start);
+                const end = parseFloat(ws.dataset.end);
+                if (currentTime < start) futureCount++;
+                else if (currentTime >= start && currentTime <= end) currentCount++;
+                else pastCount++;
+                if (idx < 3) {
+                    console.log(`  Word ${idx}: "${ws.textContent.trim()}" [${start}s-${end}s] → ${currentTime < start ? 'FUTURE' : (currentTime <= end ? 'CURRENT' : 'PAST')}`);
+                }
+            });
+            console.log(`  Summary: ${futureCount} future, ${currentCount} current, ${pastCount} past (total: ${wordSpans.length})`);
+        }
+
         wordSpans.forEach((wordSpan) => {
             const wordStart = parseFloat(wordSpan.dataset.start);
-            const wordEnd = parseFloat(wordSpan.dataset.end);
+            let wordEnd = parseFloat(wordSpan.dataset.end);
+
+            // Safeguard: ensure minimum word duration to prevent instant display
+            // and division by zero in progress calculation
+            const minDuration = 0.15; // 150ms minimum
+            if (isNaN(wordEnd) || wordEnd <= wordStart) {
+                wordEnd = wordStart + minDuration;
+            } else if (wordEnd - wordStart < minDuration) {
+                wordEnd = wordStart + minDuration;
+            }
 
             // Remove all previous states
             wordSpan.classList.remove('word-past', 'word-current', 'word-future');
@@ -700,7 +1011,8 @@ class KaraokeDisplay {
                 wordSpan.classList.add('word-current');
 
                 // Calculate fill percentage for smooth animation
-                const progress = (currentTime - wordStart) / (wordEnd - wordStart);
+                const duration = wordEnd - wordStart;
+                const progress = (currentTime - wordStart) / duration;
                 const fillPercent = Math.min(100, Math.max(0, progress * 100));
 
                 // Apply gradient fill effect

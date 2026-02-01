@@ -17,42 +17,42 @@ def extract_metadata(file_path: str = None, db_title: str = None) -> Tuple[str, 
     Extract artist and track name from multiple sources
 
     Priority:
-    1. ID3 tags from file (most reliable for YouTube downloads)
-    2. Parse database title "Artist - Title (extra)"
+    1. Parse title "Artist - Track" format (most reliable for YouTube music videos)
+    2. ID3 tags from file (often contains YouTube channel name, less reliable)
     3. Fallback: use full title as track name
 
     Args:
         file_path: Path to audio file (MP3, etc.)
-        db_title: Title from database
+        db_title: Title from database (YouTube video title)
 
     Returns:
         Tuple of (artist, track_name)
     """
     artist, track = None, None
 
-    # 1. Try ID3 tags via ffprobe
-    if file_path:
+    # 1. FIRST try parsing the title (YouTube music videos are usually "Artist - Track")
+    # This is more reliable than ID3 tags which often contain the uploader name
+    if db_title and ' - ' in db_title:
+        parsed_artist, parsed_track = parse_artist_title(db_title)
+        if parsed_artist:
+            artist = parsed_artist
+            track = parsed_track
+            logger.info(f"[METADATA] Parsed from title: artist='{artist}', track='{track}'")
+
+    # 2. Try ID3 tags as fallback (yt-dlp often puts channel name as artist)
+    if file_path and not artist:
         tags = get_id3_tags(file_path)
         if tags:
-            # ID3 artist tag (set by yt-dlp for YouTube downloads)
+            # ID3 artist tag - use only if we couldn't parse from title
             if tags.get('artist'):
                 artist = tags['artist']
                 logger.info(f"[METADATA] Found artist from ID3 tags: {artist}")
 
-            # ID3 title - try to extract track name
-            if tags.get('title'):
+            # ID3 title - try to extract track name if not already set
+            if not track and tags.get('title'):
                 _, parsed_track = parse_artist_title(tags['title'])
                 if parsed_track:
                     track = parsed_track
-
-    # 2. Parse database title if artist not found
-    if not artist and db_title:
-        parsed_artist, parsed_track = parse_artist_title(db_title)
-        if parsed_artist:
-            artist = parsed_artist
-            logger.info(f"[METADATA] Parsed artist from title: {artist}")
-        if not track and parsed_track:
-            track = parsed_track
 
     # 3. Fallback
     if not artist:

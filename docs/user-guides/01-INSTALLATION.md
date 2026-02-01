@@ -508,7 +508,7 @@ python3.12 setup_dependencies.py
 ```bash
 # Don't use sudo with setup script
 # Ensure you own the directory
-sudo chown -R $USER:$USER /path/to/stemtube
+sudo chown -R $USER:$USER /home/michael/Documents/Dev/stemtube_dev_v1.2
 
 # Run without sudo
 python3.12 setup_dependencies.py

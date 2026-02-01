@@ -670,6 +670,56 @@ class UserSessionManager:
                     print(f"[CALLBACK DEBUG] ERROR: Failed to persist extraction to database: {e}")
                     import traceback
                     traceback.print_exc()
+
+                # AUTO-DETECT LYRICS after stems are ready (using vocals.mp3)
+                try:
+                    vocals_path = item.output_paths.get('vocals') if item.output_paths else None
+                    if vocals_path and os.path.exists(vocals_path):
+                        logger.info(f"[LYRICS] Auto-detecting lyrics using vocals stem: {vocals_path}")
+                        socketio.emit('lyrics_progress', {
+                            'extraction_id': item_id,
+                            'step': 'auto_start',
+                            'message': 'Auto-detecting lyrics...',
+                            'video_id': video_id
+                        }, room=room_key or self._key())
+
+                        from core.lyrics_detector import detect_lyrics_unified
+                        from core.downloads_db import update_download_lyrics
+                        from core.config import get_setting
+
+                        model_size = get_setting('lyrics_model_size') or 'medium'
+                        use_gpu = get_setting('use_gpu_for_extraction', False)
+
+                        result = detect_lyrics_unified(
+                            audio_path=vocals_path,
+                            title=title,
+                            model_size=model_size,
+                            use_gpu=use_gpu,
+                            progress_callback=lambda step, msg: socketio.emit('lyrics_progress', {
+                                'extraction_id': item_id,
+                                'step': step,
+                                'message': msg,
+                                'video_id': video_id
+                            }, room=room_key or self._key())
+                        )
+
+                        if result.get('lyrics'):
+                            update_download_lyrics(video_id, result['lyrics'])
+                            logger.info(f"[LYRICS] Auto-detected: {len(result['lyrics'])} segments ({result.get('source')})")
+                            socketio.emit('lyrics_progress', {
+                                'extraction_id': item_id,
+                                'step': 'auto_complete',
+                                'message': f"Lyrics ready: {len(result['lyrics'])} segments",
+                                'video_id': video_id,
+                                'source': result.get('source')
+                            }, room=room_key or self._key())
+                        else:
+                            logger.warning("[LYRICS] Auto-detection failed - no lyrics found")
+                    else:
+                        logger.debug("[LYRICS] No vocals stem available for auto-detection")
+                except Exception as lyrics_error:
+                    logger.warning(f"[LYRICS] Auto-detection error (non-fatal): {lyrics_error}")
+
         else:
             print(f"[CALLBACK DEBUG] Missing user_id, video_id, or item data")
 
@@ -2246,35 +2296,48 @@ def regenerate_extraction_chords(extraction_id):
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/extractions/<extraction_id>/lyrics/generate', methods=['POST'])
+@app.route('/api/extractions/<extraction_id>/lyrics/regenerate', methods=['POST'])
 @api_login_required
-def generate_extraction_lyrics(extraction_id):
-    """Generate lyrics for an extraction using faster-whisper"""
+def regenerate_extraction_lyrics(extraction_id):
+    """
+    Unified lyrics regeneration: Musixmatch first, then Whisper fallback.
+
+    This is the single endpoint for all lyrics regeneration requests.
+    Flow: Musixmatch (word-level) -> Whisper fallback (if Musixmatch fails)
+    Emits SocketIO 'lyrics_progress' events for real-time UI updates.
+
+    Request JSON (optional):
+        - artist: Override artist name for Musixmatch search
+        - track: Override track name for Musixmatch search
+        - force_whisper: Skip Musixmatch and use Whisper directly
+    """
     try:
         from core.downloads_db import get_download_by_id, update_download_lyrics, list_extractions_for
-        from core.lyrics_detector import detect_song_lyrics
-        from core.config import load_config
+        from core.lyrics_detector import detect_lyrics_unified
 
-        # Find download using same logic as get_extraction_status
+        # Get request parameters
+        req_data = request.get_json(silent=True) or {}
+        override_artist = req_data.get('artist', '').strip()
+        override_track = req_data.get('track', '').strip()
+        force_whisper = req_data.get('force_whisper', False)
+        skip_onset_sync = req_data.get('skip_onset_sync', False)
+
+        # Find download
         download = None
         if extraction_id.startswith('download_'):
             download_id = extraction_id.replace('download_', '')
             download = get_download_by_id(current_user.id, download_id)
         else:
-            # Search by video_id or filename
             db_extractions = list_extractions_for(current_user.id)
             for db_extraction in db_extractions:
                 video_id = db_extraction.get('video_id', '')
                 file_path = db_extraction.get('file_path', '')
                 filename = os.path.basename(file_path) if file_path else ''
 
-                # Normalize extraction_id for comparison (strip timestamp suffix like _1760135361)
                 normalized_extraction_id = extraction_id.rsplit('_', 1)[0] if '_' in extraction_id else extraction_id
-                # Also strip .mp3 extension if present in extraction_id for comparison
                 normalized_extraction_id = normalized_extraction_id.replace('.mp3', '')
                 normalized_filename = filename.replace('.mp3', '')
 
-                # Match by video_id or filename (with/without .mp3 extension)
                 matches = (
                     video_id == extraction_id or
                     filename == extraction_id or
@@ -2283,235 +2346,116 @@ def generate_extraction_lyrics(extraction_id):
 
                 if matches:
                     download = db_extraction
-                    logger.info(f"[LYRICS] Found extraction by matching {extraction_id} with video_id={video_id} or filename={filename}")
                     break
 
         if not download:
             return jsonify({'error': 'Extraction not found'}), 404
 
-        # Get video_id for database update
         video_id = download.get('video_id')
         if not video_id:
             return jsonify({'error': 'Video ID not found'}), 400
 
-        # Get audio path (prefer vocals stem for better accuracy)
-        audio_path = None
+        # Get file paths
+        file_path = download.get('file_path')
+        db_title = download.get('title', '')
 
-        # Try to use vocals stem if available
-        if download.get('stems_paths'):
-            stems_paths_json = download['stems_paths']
-            stems_paths = json.loads(stems_paths_json) if isinstance(stems_paths_json, str) else stems_paths_json
-            if 'vocals' in stems_paths:
-                vocals_path = stems_paths['vocals']
-                if os.path.exists(vocals_path):
-                    audio_path = vocals_path
-                    logger.info(f"[LYRICS] Using vocals stem: {vocals_path}")
-
-        # Fallback to original audio
-        if not audio_path:
-            audio_path = download.get('file_path')
-            logger.info(f"[LYRICS] Using original audio: {audio_path}")
+        # Use vocals stem if available for better quality
+        audio_path = file_path
+        if file_path:
+            vocals_stem_path = os.path.join(os.path.dirname(file_path), "stems", "vocals.mp3")
+            if os.path.exists(vocals_stem_path):
+                audio_path = vocals_stem_path
+                logger.info(f"[LYRICS] Using vocals stem: {vocals_stem_path}")
 
         if not audio_path or not os.path.exists(audio_path):
             return jsonify({'error': 'Audio file not found'}), 404
 
-        # Get configuration
-        config = load_config()
+        # Get settings (single source of truth)
+        model_size = get_setting('lyrics_model_size')
+        use_gpu = get_setting('use_gpu_for_extraction', False)
 
-        # Safely parse JSON body (may be empty or malformed)
-        try:
-            data = request.get_json(silent=True) or {}
-        except Exception as e:
-            logger.warning(f"[LYRICS] Failed to parse request JSON, using defaults: {e}")
-            data = {}
+        logger.info(f"[LYRICS] Regenerating lyrics for: {db_title}")
+        if override_artist or override_track:
+            logger.info(f"[LYRICS] User override: artist='{override_artist}', track='{override_track}'")
+        if force_whisper:
+            logger.info(f"[LYRICS] Force Whisper mode enabled")
+        if skip_onset_sync:
+            logger.info(f"[LYRICS] Skip onset sync mode enabled")
+        logger.info(f"[LYRICS] Model: {model_size}, GPU: {use_gpu}")
 
-        default_model = get_setting('lyrics_model_size', 'medium')
-        model_size = data.get('model_size') or default_model
-        language = data.get('language')  # None = auto-detect
-        use_gpu = config.get('use_gpu_for_extraction', False)
+        # Progress callback to emit SocketIO events
+        def progress_callback(step, message):
+            try:
+                socketio.emit('lyrics_progress', {
+                    'extraction_id': extraction_id,
+                    'step': step,
+                    'message': message,
+                    'model': model_size,
+                    'gpu': use_gpu
+                }, namespace='/')
+            except Exception as e:
+                logger.warning(f"[LYRICS] Failed to emit progress: {e}")
 
-        # Try to use vocals stem for better transcription quality
-        audio_for_lyrics = audio_path
-        vocals_stem_path = os.path.join(os.path.dirname(audio_path), "stems", "vocals.mp3")
-
-        # If we already have a vocals stem from the DB path, keep using it
-        if audio_path and audio_path.endswith("stems/vocals.mp3") and os.path.exists(audio_path):
-            logger.info(f"[LYRICS] Using vocals stem for transcription: {audio_path}")
-        elif os.path.exists(vocals_stem_path):
-            logger.info(f"[LYRICS] Using vocals stem for transcription: {vocals_stem_path}")
-            audio_for_lyrics = vocals_stem_path
-        else:
-            logger.info(f"[LYRICS] Vocals stem not found, using original audio")
-
-        logger.info(f"[LYRICS] Starting transcription for {extraction_id}")
-        logger.info(f"[LYRICS] Model: {model_size}, GPU: {use_gpu}, Language: {language or 'auto'}")
-
-        # Detect lyrics
-        lyrics_data = detect_song_lyrics(
-            audio_path=audio_for_lyrics,
+        # Unified detection: Musixmatch -> Whisper fallback
+        result = detect_lyrics_unified(
+            audio_path=audio_path,
+            title=db_title,
             model_size=model_size,
-            language=language,
-            use_gpu=use_gpu
+            use_gpu=use_gpu,
+            progress_callback=progress_callback,
+            override_artist=override_artist if override_artist else None,
+            override_track=override_track if override_track else None,
+            force_whisper=force_whisper,
+            skip_onset_sync=skip_onset_sync
         )
 
+        lyrics_data = result.get('lyrics')
+        source = result.get('source')
+        alignment_stats = result.get('alignment_stats')
+
         if not lyrics_data:
-            return jsonify({'error': 'Failed to detect lyrics'}), 500
+            return jsonify({
+                'error': 'Failed to detect lyrics (LrcLib and Whisper both failed)',
+                'artist': result.get('artist'),
+                'track': result.get('track')
+            }), 500
 
         # Save lyrics to database
         update_download_lyrics(video_id, lyrics_data)
 
-        logger.info(f"[LYRICS] Successfully generated {len(lyrics_data)} segments")
+        logger.info(f"[LYRICS] Success ({source}): {len(lyrics_data)} segments")
 
         return jsonify({
             'success': True,
             'lyrics': lyrics_data,
-            'segments_count': len(lyrics_data)
+            'source': source,
+            'artist': result.get('artist'),
+            'track': result.get('track'),
+            'segments_count': len(lyrics_data),
+            'has_word_timestamps': any('words' in seg for seg in lyrics_data),
+            'alignment_stats': alignment_stats
         })
 
     except Exception as e:
-        logger.error(f"Error generating lyrics: {e}", exc_info=True)
+        logger.error(f"Error regenerating lyrics: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+
+# Legacy routes - redirect to unified endpoint
+@app.route('/api/extractions/<extraction_id>/lyrics/generate', methods=['POST'])
+@api_login_required
+def generate_extraction_lyrics(extraction_id):
+    """DEPRECATED: Use /lyrics/regenerate instead. Redirects to unified endpoint."""
+    logger.warning(f"[LYRICS] Deprecated /generate endpoint called, redirecting to /regenerate")
+    return regenerate_extraction_lyrics(extraction_id)
 
 
 @app.route('/api/extractions/<extraction_id>/lyrics/lrclib', methods=['POST'])
 @api_login_required
 def fetch_lrclib_lyrics(extraction_id):
-    """Fetch lyrics from LrcLib API (crowdsourced synchronized lyrics)"""
-    try:
-        from core.downloads_db import get_download_by_id, update_download_lyrics, list_extractions_for
-        from core.lrclib_client import fetch_lyrics
-        from core.metadata_extractor import extract_metadata
-
-        # Find download using same logic as other endpoints
-        download = None
-        if extraction_id.startswith('download_'):
-            download_id = extraction_id.replace('download_', '')
-            download = get_download_by_id(current_user.id, download_id)
-        else:
-            db_extractions = list_extractions_for(current_user.id)
-            for db_extraction in db_extractions:
-                video_id = db_extraction.get('video_id', '')
-                file_path = db_extraction.get('file_path', '')
-                filename = os.path.basename(file_path) if file_path else ''
-
-                normalized_extraction_id = extraction_id.rsplit('_', 1)[0] if '_' in extraction_id else extraction_id
-                normalized_extraction_id = normalized_extraction_id.replace('.mp3', '')
-                normalized_filename = filename.replace('.mp3', '')
-
-                matches = (
-                    video_id == extraction_id or
-                    filename == extraction_id or
-                    (normalized_filename and normalized_extraction_id.startswith(normalized_filename))
-                )
-
-                if matches:
-                    download = db_extraction
-                    break
-
-        if not download:
-            return jsonify({'error': 'Extraction not found'}), 404
-
-        video_id = download.get('video_id')
-        if not video_id:
-            return jsonify({'error': 'Video ID not found'}), 400
-
-        # Get request data (optional artist/track override)
-        data = request.get_json(silent=True) or {}
-
-        # Extract metadata from file and title
-        file_path = download.get('file_path')
-        db_title = download.get('title', '')
-
-        # Use provided values or extract from metadata
-        artist = data.get('artist_name')
-        track = data.get('track_name')
-
-        if not artist or not track:
-            extracted_artist, extracted_track = extract_metadata(file_path, db_title)
-            if not artist:
-                artist = extracted_artist
-            if not track:
-                track = extracted_track
-
-        logger.info(f"[LRCLIB] Fetching lyrics for: {artist} - {track}")
-
-        if not artist:
-            return jsonify({
-                'error': 'Artist name required',
-                'extracted_track': track,
-                'need_artist': True
-            }), 400
-
-        # Fetch from LrcLib
-        lyrics_data = fetch_lyrics(
-            track_name=track,
-            artist_name=artist,
-            duration=data.get('duration')
-        )
-
-        if not lyrics_data:
-            return jsonify({
-                'error': 'Lyrics not found on LrcLib',
-                'artist': artist,
-                'track': track
-            }), 404
-
-        logger.info(f"[LRCLIB] Fetched {len(lyrics_data)} lyrics lines, enriching with word timestamps...")
-
-        # Enrich LrcLib lyrics with Whisper word-level timestamps
-        # This enables word-by-word karaoke highlighting and accurate chord placement
-        try:
-            from core.lyrics_aligner import enrich_lrclib_with_whisper
-            from core.config import load_config
-
-            # Find vocals stem for better transcription quality
-            audio_for_alignment = None
-            if file_path:
-                vocals_stem_path = os.path.join(os.path.dirname(file_path), "stems", "vocals.mp3")
-                if os.path.exists(vocals_stem_path):
-                    audio_for_alignment = vocals_stem_path
-                    logger.info(f"[LRCLIB] Using vocals stem for alignment: {vocals_stem_path}")
-                elif os.path.exists(file_path):
-                    audio_for_alignment = file_path
-                    logger.info(f"[LRCLIB] Using original audio for alignment: {file_path}")
-
-            if audio_for_alignment:
-                config = load_config()
-                use_gpu = config.get('use_gpu_for_extraction', False)
-                model_size = get_setting('lyrics_model_size', 'medium')
-
-                lyrics_data = enrich_lrclib_with_whisper(
-                    lrclib_lyrics=lyrics_data,
-                    audio_path=audio_for_alignment,
-                    use_gpu=use_gpu,
-                    model_size=model_size
-                )
-                logger.info(f"[LRCLIB] Enrichment complete with word timestamps")
-            else:
-                logger.warning("[LRCLIB] No audio file found, skipping word alignment")
-
-        except Exception as align_error:
-            logger.warning(f"[LRCLIB] Word alignment failed, using line-level timestamps: {align_error}")
-            # Continue with original LrcLib data (line-level only)
-
-        # Save lyrics to database
-        update_download_lyrics(video_id, lyrics_data)
-
-        logger.info(f"[LRCLIB] Successfully processed {len(lyrics_data)} lyrics lines")
-
-        return jsonify({
-            'success': True,
-            'lyrics': lyrics_data,
-            'source': 'lrclib',
-            'artist': artist,
-            'track': track,
-            'segments_count': len(lyrics_data),
-            'has_word_timestamps': any('words' in seg for seg in lyrics_data)
-        })
-
-    except Exception as e:
-        logger.error(f"Error fetching LrcLib lyrics: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+    """DEPRECATED: Use /lyrics/regenerate instead. Redirects to unified endpoint."""
+    logger.warning(f"[LYRICS] Deprecated /lrclib endpoint called, redirecting to /regenerate")
+    return regenerate_extraction_lyrics(extraction_id)
 
 
 # ------------------------------------------------------------------
@@ -3708,20 +3652,32 @@ def get_cookies_status():
             modified_time = datetime.fromtimestamp(stat.st_mtime)
             age_hours = (datetime.now() - modified_time).total_seconds() / 3600
 
-            # Count cookies in file
+            # Count cookies and check for auth cookies
             cookie_count = 0
+            has_auth_cookies = False
+            auth_cookie_names = {'__Secure-3PAPISID', 'SID', 'SAPISID', '__Secure-3PSID', 'HSID', 'SSID'}
+            found_auth_cookies = []
             with open(COOKIES_FILE_PATH, 'r') as f:
                 for line in f:
-                    if line.strip() and not line.startswith('#'):
+                    line = line.strip()
+                    if line and not line.startswith('#'):
                         cookie_count += 1
+                        parts = line.split('\t')
+                        if len(parts) >= 6:
+                            cookie_name = parts[5]
+                            if cookie_name in auth_cookie_names:
+                                has_auth_cookies = True
+                                found_auth_cookies.append(cookie_name)
 
             return jsonify({
                 'success': True,
                 'exists': True,
                 'cookie_count': cookie_count,
+                'has_auth_cookies': has_auth_cookies,
+                'auth_cookies_found': found_auth_cookies,
                 'modified': modified_time.isoformat(),
                 'age_hours': round(age_hours, 1),
-                'is_fresh': age_hours < 24,  # Consider fresh if less than 24h old
+                'is_fresh': age_hours < 48,
                 'file_size': stat.st_size
             })
         else:
@@ -3804,6 +3760,77 @@ def upload_cookies():
         response = jsonify({'success': False, 'message': str(e)})
         response.headers['Access-Control-Allow-Origin'] = '*'
         return response, 500
+
+@app.route('/api/admin/cookies/upload-file', methods=['POST'])
+@api_login_required
+@api_admin_required
+def upload_cookies_file():
+    """Upload a Netscape-format cookies.txt file exported from a browser extension."""
+    try:
+        logger.info(f"[Cookies] Upload file request received. Files: {list(request.files.keys())}, Content-Type: {request.content_type}")
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': 'No file provided'}), 400
+
+        file = request.files['file']
+        if not file.filename:
+            return jsonify({'success': False, 'message': 'No file selected'}), 400
+
+        content = file.read().decode('utf-8', errors='ignore')
+
+        # Validate Netscape cookie file format
+        first_line = content.strip().split('\n')[0].strip()
+        if not (first_line.startswith('# Netscape HTTP Cookie File') or
+                first_line.startswith('# HTTP Cookie File')):
+            return jsonify({
+                'success': False,
+                'message': 'Invalid format. File must be a Netscape HTTP Cookie File (exported with browser extension like "Get cookies.txt LOCALLY")'
+            }), 400
+
+        # Check for YouTube domain cookies
+        has_youtube = False
+        cookie_count = 0
+        auth_cookie_names = {'__Secure-3PAPISID', 'SID', 'SAPISID', '__Secure-3PSID', 'HSID', 'SSID'}
+        found_auth_cookies = []
+
+        for line in content.split('\n'):
+            line = line.strip()
+            if line and not line.startswith('#'):
+                cookie_count += 1
+                if '.youtube.com' in line or 'youtube.com' in line or '.google.com' in line:
+                    has_youtube = True
+                parts = line.split('\t')
+                if len(parts) >= 6:
+                    cookie_name = parts[5]
+                    if cookie_name in auth_cookie_names:
+                        found_auth_cookies.append(cookie_name)
+
+        if not has_youtube:
+            return jsonify({
+                'success': False,
+                'message': 'No YouTube cookies found in file. Export cookies while on youtube.com'
+            }), 400
+
+        # Save the file
+        with open(COOKIES_FILE_PATH, 'w') as f:
+            f.write(content)
+
+        has_auth = len(found_auth_cookies) > 0
+        logger.info(f"[Cookies] Uploaded {cookie_count} cookies from file (auth cookies: {found_auth_cookies})")
+
+        message = f'{cookie_count} cookies uploaded successfully!'
+        if not has_auth:
+            message += ' WARNING: No authentication cookies found (like __Secure-3PAPISID). Make sure you are logged into YouTube when exporting cookies.'
+
+        return jsonify({
+            'success': True,
+            'message': message,
+            'cookie_count': cookie_count,
+            'has_auth_cookies': has_auth,
+            'auth_cookies_found': found_auth_cookies
+        })
+    except Exception as e:
+        logger.error(f"[Cookies] Error uploading file: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/admin/cookies/generate-token', methods=['POST'])
 @api_login_required

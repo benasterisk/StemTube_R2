@@ -32,7 +32,7 @@ def find_best_match(
     target_word: str,
     whisper_words: List[Dict],
     start_idx: int,
-    window_size: int = 5
+    window_size: int = 15
 ) -> Optional[Tuple[Dict, int]]:
     """
     Find the best matching Whisper word for a target LrcLib word
@@ -199,7 +199,8 @@ def align_line(
             aligned.append({
                 'word': lrc_word,  # Keep LrcLib text
                 'start': matched_word.get('start'),
-                'end': matched_word.get('end')
+                'end': matched_word.get('end'),
+                '_matched': True  # Track for stats
             })
             current_whisper_idx = matched_idx + 1
         else:
@@ -207,7 +208,8 @@ def align_line(
             aligned.append({
                 'word': lrc_word,
                 'start': None,
-                'end': None
+                'end': None,
+                '_matched': False  # Track for stats
             })
 
     # Interpolate missing timestamps
@@ -218,30 +220,50 @@ def align_line(
 
 def align_lyrics_with_whisper(
     lrclib_lyrics: List[Dict],
-    whisper_lyrics: List[Dict]
-) -> List[Dict]:
+    whisper_lyrics: List[Dict],
+    return_stats: bool = False
+) -> Dict:
     """
     Main alignment function: combine LrcLib text with Whisper timestamps
 
     Args:
         lrclib_lyrics: Lyrics from LrcLib (line-level timestamps, no words array)
         whisper_lyrics: Lyrics from Whisper (word-level timestamps)
+        return_stats: If True, return dict with lyrics and alignment stats
 
     Returns:
-        Enriched lyrics with LrcLib text + Whisper word timestamps
+        If return_stats=False: List of enriched lyrics segments
+        If return_stats=True: Dict with 'lyrics', 'stats' keys
     """
+    def make_result(lyrics, stats):
+        """Helper to return results in the correct format"""
+        if return_stats:
+            return {'lyrics': lyrics, 'stats': stats}
+        return lyrics
+
+    empty_stats = {
+        'total_words': 0,
+        'matched_words': 0,
+        'interpolated_words': 0,
+        'match_rate': 0.0,
+        'whisper_words_available': 0
+    }
+
     if not lrclib_lyrics:
-        return lrclib_lyrics
+        return make_result(lrclib_lyrics, empty_stats)
 
     if not whisper_lyrics:
         # No Whisper data - return LrcLib as-is with estimated word timestamps
         logger.warning("[ALIGNER] No Whisper data available, estimating word timestamps")
         result = []
+        total_words = 0
         for segment in lrclib_lyrics:
             words = segment.get('text', '').split()
             if not words:
                 result.append(segment)
                 continue
+
+            total_words += len(words)
 
             # Create word timestamps by estimation
             aligned_words = interpolate_timestamps(
@@ -257,7 +279,14 @@ def align_lyrics_with_whisper(
                 'words': aligned_words
             })
 
-        return result
+        stats = {
+            'total_words': total_words,
+            'matched_words': 0,
+            'interpolated_words': total_words,
+            'match_rate': 0.0,
+            'whisper_words_available': 0
+        }
+        return make_result(result, stats)
 
     # Flatten all Whisper words into a single list with absolute timestamps
     all_whisper_words = []
@@ -268,68 +297,154 @@ def align_lyrics_with_whisper(
     if not all_whisper_words:
         logger.warning("[ALIGNER] Whisper data has no word-level timestamps")
         # Fallback to estimation
-        return align_lyrics_with_whisper(lrclib_lyrics, None)
+        return align_lyrics_with_whisper(lrclib_lyrics, None, return_stats=return_stats)
 
     logger.info(f"[ALIGNER] Aligning {len(lrclib_lyrics)} LrcLib lines with {len(all_whisper_words)} Whisper words")
 
-    # Align each LrcLib line
-    result = []
+    # PHASE 1: Match all LrcLib words with Whisper words (no interpolation yet)
+    all_lrclib_words = []  # Flat list of all words with line references
     whisper_idx = 0
+
+    for line_idx, segment in enumerate(lrclib_lyrics):
+        text = segment.get('text', '')
+        lrclib_words = text.split()
+
+        for word in lrclib_words:
+            # Try to find matching Whisper word
+            match = find_best_match(word, all_whisper_words, whisper_idx, window_size=15)
+
+            if match:
+                matched_word, matched_idx = match
+                all_lrclib_words.append({
+                    'word': word,
+                    'line_idx': line_idx,
+                    'start': matched_word.get('start'),
+                    'end': matched_word.get('end'),
+                    '_matched': True
+                })
+                whisper_idx = matched_idx + 1
+            else:
+                all_lrclib_words.append({
+                    'word': word,
+                    'line_idx': line_idx,
+                    'start': None,
+                    'end': None,
+                    '_matched': False
+                })
+
+    # PHASE 2: Interpolate unmatched words between matched anchors
+    # Find all matched words as anchors
+    anchors = []  # (global_word_idx, start, end)
+    for i, w in enumerate(all_lrclib_words):
+        if w['_matched'] and w['start'] is not None:
+            anchors.append((i, w['start'], w['end']))
+
+    # Add virtual anchors at start and end if needed
+    if anchors:
+        first_anchor_idx = anchors[0][0]
+        last_anchor_idx = anchors[-1][0]
+
+        # If first words are unmatched, use first anchor's start
+        if first_anchor_idx > 0:
+            first_start = max(0, anchors[0][1] - 2.0)  # 2 seconds before first match
+            anchors.insert(0, (-1, first_start, first_start))
+
+        # If last words are unmatched, use last anchor's end
+        if last_anchor_idx < len(all_lrclib_words) - 1:
+            last_end = anchors[-1][2] + 5.0  # 5 seconds after last match
+            anchors.append((len(all_lrclib_words), last_end, last_end))
+
+    # Interpolate between consecutive anchors
+    for a_idx in range(len(anchors) - 1):
+        start_anchor = anchors[a_idx]
+        end_anchor = anchors[a_idx + 1]
+
+        start_word_idx = start_anchor[0] + 1
+        end_word_idx = end_anchor[0]
+
+        if start_word_idx >= end_word_idx:
+            continue
+
+        # Get words that need interpolation
+        words_to_interpolate = all_lrclib_words[start_word_idx:end_word_idx]
+        unmatched_words = [w for w in words_to_interpolate if not w['_matched']]
+
+        if not unmatched_words:
+            continue
+
+        # Calculate time range for interpolation
+        time_start = start_anchor[2]  # End time of previous matched word
+        time_end = end_anchor[1]      # Start time of next matched word
+
+        # Distribute timestamps proportionally by character count
+        total_chars = sum(len(w['word']) for w in unmatched_words) or 1
+        duration = time_end - time_start
+        current_time = time_start
+
+        for w in words_to_interpolate:
+            if not w['_matched']:
+                word_len = len(w['word']) or 1
+                word_duration = (word_len / total_chars) * duration
+                w['start'] = round(current_time, 2)
+                w['end'] = round(current_time + word_duration, 2)
+                current_time += word_duration
+
+    # PHASE 3: Rebuild line structure with aligned words
+    result = []
     matched_count = 0
     interpolated_count = 0
 
-    for segment in lrclib_lyrics:
+    for line_idx, segment in enumerate(lrclib_lyrics):
         text = segment.get('text', '')
-        line_start = segment.get('start', 0)
-        line_end = segment.get('end', line_start + 5)
 
-        # Find Whisper words that fall within this line's time range
-        # with some tolerance for timing differences
-        tolerance = 2.0  # seconds
+        # Get words for this line
+        line_words = [w for w in all_lrclib_words if w['line_idx'] == line_idx]
 
-        # Advance whisper_idx to match line timing
-        while (whisper_idx < len(all_whisper_words) and
-               all_whisper_words[whisper_idx].get('end', 0) < line_start - tolerance):
-            whisper_idx += 1
-
-        # Align words
-        aligned_words, new_whisper_idx = align_line(
-            text,
-            all_whisper_words,
-            line_start,
-            line_end,
-            whisper_idx
-        )
-
-        # Count matches vs interpolations
-        for w in aligned_words:
-            if w.get('_matched', True):  # Default to matched if not marked
+        # Count matches
+        for w in line_words:
+            if w.get('_matched', False):
                 matched_count += 1
             else:
                 interpolated_count += 1
 
-        # Update whisper index for next line
-        if new_whisper_idx > whisper_idx:
-            whisper_idx = new_whisper_idx
+        # Determine segment timestamps from words
+        if line_words:
+            segment_start = line_words[0].get('start') or segment.get('start', 0)
+            segment_end = line_words[-1].get('end') or segment.get('end', segment_start + 5)
+        else:
+            segment_start = segment.get('start', 0)
+            segment_end = segment.get('end', segment_start + 5)
 
         result.append({
-            'start': line_start,
-            'end': line_end,
+            'start': segment_start,
+            'end': segment_end,
             'text': text,
-            'words': aligned_words
+            'words': line_words
         })
 
-    logger.info(f"[ALIGNER] Alignment complete: {len(result)} segments with word timestamps")
+    total_words = matched_count + interpolated_count
+    match_rate = (matched_count / total_words * 100) if total_words > 0 else 0.0
 
-    return result
+    logger.info(f"[ALIGNER] Alignment complete: {len(result)} segments, {matched_count}/{total_words} words matched ({match_rate:.1f}%)")
+
+    stats = {
+        'total_words': total_words,
+        'matched_words': matched_count,
+        'interpolated_words': interpolated_count,
+        'match_rate': round(match_rate, 1),
+        'whisper_words_available': len(all_whisper_words)
+    }
+
+    return make_result(result, stats)
 
 
 def enrich_lrclib_with_whisper(
     lrclib_lyrics: List[Dict],
     audio_path: str,
     use_gpu: bool = False,
-    model_size: str = "medium"
-) -> List[Dict]:
+    model_size: str = "medium",
+    return_stats: bool = False
+) -> Dict:
     """
     High-level function: fetch Whisper timestamps and align with LrcLib
 
@@ -338,16 +453,29 @@ def enrich_lrclib_with_whisper(
         audio_path: Path to audio file (preferably vocals stem)
         use_gpu: Use GPU for Whisper
         model_size: Whisper model size
+        return_stats: If True, return dict with 'lyrics' and 'stats'
 
     Returns:
-        Enriched lyrics with word timestamps
+        If return_stats=False: List of enriched lyrics segments
+        If return_stats=True: Dict with 'lyrics', 'stats' keys
     """
+    def make_result(lyrics, stats=None):
+        if return_stats:
+            return {'lyrics': lyrics, 'stats': stats}
+        return lyrics
+
+    empty_stats = {
+        'total_words': 0, 'matched_words': 0, 'interpolated_words': 0,
+        'match_rate': 0.0, 'whisper_words_available': 0
+    }
+
     if not lrclib_lyrics:
-        return lrclib_lyrics
+        return make_result(lrclib_lyrics, empty_stats)
 
     if not audio_path or not os.path.exists(audio_path):
         logger.warning(f"[ALIGNER] Audio file not found: {audio_path}")
-        return align_lyrics_with_whisper(lrclib_lyrics, None)
+        result = align_lyrics_with_whisper(lrclib_lyrics, None, return_stats=True)
+        return make_result(result['lyrics'], result['stats'])
 
     logger.info(f"[ALIGNER] Running Whisper alignment on: {audio_path}")
 
@@ -363,14 +491,17 @@ def enrich_lrclib_with_whisper(
 
         if whisper_lyrics:
             logger.info(f"[ALIGNER] Whisper transcribed {len(whisper_lyrics)} segments")
-            return align_lyrics_with_whisper(lrclib_lyrics, whisper_lyrics)
+            result = align_lyrics_with_whisper(lrclib_lyrics, whisper_lyrics, return_stats=True)
+            return make_result(result['lyrics'], result['stats'])
         else:
             logger.warning("[ALIGNER] Whisper returned no results, using estimation")
-            return align_lyrics_with_whisper(lrclib_lyrics, None)
+            result = align_lyrics_with_whisper(lrclib_lyrics, None, return_stats=True)
+            return make_result(result['lyrics'], result['stats'])
 
     except Exception as e:
         logger.error(f"[ALIGNER] Error running Whisper: {e}", exc_info=True)
-        return align_lyrics_with_whisper(lrclib_lyrics, None)
+        result = align_lyrics_with_whisper(lrclib_lyrics, None, return_stats=True)
+        return make_result(result['lyrics'], result['stats'])
 
 
 # Test if run directly

@@ -512,7 +512,7 @@ def admin_route():
 - Flask 3.x, Flask-SocketIO, Flask-Login
 - PyTorch 2.x, Demucs 4.x, madmom 0.16.1
 - faster-whisper 1.2.0, MSAF, librosa, scipy
-- SQLite3, yt-dlp (with Deno runtime)
+- SQLite3, aiotube, yt-dlp
 
 **Frontend:**
 - Vanilla JavaScript ES6+ (no framework)

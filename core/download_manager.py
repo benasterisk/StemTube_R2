@@ -23,23 +23,15 @@ COOKIES_FILE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'yo
 
 def get_youtube_cookies_config() -> dict:
     """
-    Get the appropriate cookies configuration for yt-dlp.
-    Priority: 1. Firefox browser cookies, 2. cookies.txt file, 3. No cookies
+    Get the cookies configuration for yt-dlp.
+    Uses cookies.txt file uploaded via admin panel.
     Returns dict to merge into ydl_opts.
     """
-    # Check if cookies.txt file exists and is not empty
     if os.path.exists(COOKIES_FILE_PATH) and os.path.getsize(COOKIES_FILE_PATH) > 0:
         print(f"[Cookies] Using cookies file: {COOKIES_FILE_PATH}")
         return {'cookiefile': COOKIES_FILE_PATH}
 
-    # Try Firefox cookies (works if Firefox is installed with YouTube session)
-    firefox_profile = os.path.expanduser('~/.mozilla/firefox')
-    if os.path.exists(firefox_profile):
-        print("[Cookies] Using Firefox browser cookies")
-        return {'cookiesfrombrowser': ('firefox',)}
-
-    # No cookies available
-    print("[Cookies] WARNING: No cookies available - some videos may fail")
+    print("[Cookies] WARNING: No cookies file found - YouTube may block downloads. Upload cookies via Admin > Settings > YouTube Cookies")
     return {}
 
 
@@ -502,6 +494,10 @@ class DownloadManager:
             'fragment_retries': 3,
             'extractor_retries': 3,
             'http_chunk_size': 10485760,  # 10MB chunks
+            # Rate limiting prevention
+            'sleep_interval': 2,
+            'max_sleep_interval': 5,
+            'sleep_interval_requests': 1,
             # YouTube 403 Fix: Use iOS client to bypass SABR streaming blocks (Jan 2026)
             'extractor_args': {
                 'youtube': {
@@ -706,41 +702,35 @@ class DownloadManager:
                             print(f"⚠️ [DOWNLOAD] Error MSAF structure: {e}")
                             structure_data = None
 
-                        # Detect lyrics with Whisper (faster-whisper)
+                        # Detect lyrics: Only try Musixmatch during download (fast API call)
+                        # Whisper fallback will be done AFTER extraction with vocals.mp3 (better quality)
                         lyrics_data = None
                         try:
-                            from .lyrics_detector import detect_song_lyrics
-                            print(f"🎤 [DOWNLOAD] Starting lyrics detection for: {item.title}")
-                            # Use GPU if available from config
-                            from .config import load_config
-                            config = load_config()
-                            use_gpu = config.get('use_gpu_for_extraction', False)
+                            from .metadata_extractor import extract_metadata
+                            from .syncedlyrics_client import fetch_lyrics_enhanced
 
-                            # Try to use vocals stem for better transcription quality
-                            audio_for_lyrics = item.file_path
-                            vocals_stem_path = os.path.join(os.path.dirname(item.file_path), "stems", "vocals.mp3")
+                            print(f"🎤 [DOWNLOAD] Searching Musixmatch lyrics for: {item.title}")
 
-                            if os.path.exists(vocals_stem_path):
-                                print(f"🎤 [DOWNLOAD] Using vocal stem for transcription: {vocals_stem_path}")
-                                audio_for_lyrics = vocals_stem_path
+                            # Extract artist/track from title
+                            artist, track = extract_metadata(db_title=item.title)
+
+                            if artist and track:
+                                # Only try Musixmatch (fast API call, no local processing)
+                                synced_lyrics = fetch_lyrics_enhanced(
+                                    track_name=track,
+                                    artist_name=artist,
+                                    allow_plain=False  # Only word-level
+                                )
+
+                                if synced_lyrics:
+                                    lyrics_data = synced_lyrics
+                                    print(f"🎤 [DOWNLOAD] Musixmatch found: {len(lyrics_data)} segments")
+                                else:
+                                    print(f"ℹ️ [DOWNLOAD] No Musixmatch lyrics - will use Whisper after extraction")
                             else:
-                                print(f"🎤 [DOWNLOAD] No vocal stem found, using original audio")
-
-                            lyrics_data = detect_song_lyrics(
-                                audio_for_lyrics,
-                                model_size=get_setting('lyrics_model_size', 'medium'),
-                                language=None,  # Auto-detect
-                                use_gpu=use_gpu
-                            )
-                            if lyrics_data:
-                                print(f"🎤 [DOWNLOAD] Lyrics detected: {len(lyrics_data)} segments")
-                                # Print first few segments for debugging
-                                for seg in lyrics_data[:3]:
-                                    print(f"   {seg['start']:.1f}s - {seg['end']:.1f}s: {seg['text'][:50]}...")
-                            else:
-                                print(f"⚠️ [DOWNLOAD] No lyrics detected")
+                                print(f"ℹ️ [DOWNLOAD] Cannot search Musixmatch (missing artist/track) - will use Whisper after extraction")
                         except Exception as e:
-                            print(f"⚠️ [DOWNLOAD] Error lyrics detection: {e}")
+                            print(f"⚠️ [DOWNLOAD] Musixmatch search error: {e}")
                             lyrics_data = None
 
                         # Update database with analysis results
@@ -788,6 +778,10 @@ class DownloadManager:
                 item.status = DownloadStatus.CANCELLED
                 item.error_message = "Download cancelled by user"
                 print(f"Download {item.download_id} was cancelled")
+            elif "sign in" in error_message.lower() or "confirm you" in error_message.lower():
+                item.status = DownloadStatus.ERROR
+                item.error_message = "YouTube bot detection - Upload fresh cookies in Admin > Settings > YouTube Cookies"
+                print(f"Download {item.download_id} blocked by YouTube bot detection - cookies need refresh")
             elif "403" in error_message or "Forbidden" in error_message:
                 item.status = DownloadStatus.ERROR
                 item.error_message = "Access forbidden - Video may be private, age-restricted, or geo-blocked"

@@ -247,6 +247,7 @@ def install_requirements(venv_python):
     # List of essential packages to install
     # These are carefully selected to avoid dependency conflicts with PyTorch CUDA versions
     essential_packages = [
+        "aiotube",              # YouTube search
         "beautifulsoup4",       # HTML parsing
         "Flask",                # Web framework
         "Flask-Login",          # Session management
@@ -265,11 +266,6 @@ def install_requirements(venv_python):
         "faster-whisper",       # Speech recognition (GPU)
         "msaf",                 # Music structure analysis
         "pychord",              # Chord notation
-        # BTC chord detection dependencies
-        "mir_eval",             # Music information retrieval evaluation
-        "pretty_midi",          # MIDI file handling
-        "pyrubberband",         # Time stretching
-        "pandas",               # Data manipulation (BTC requirement)
     ]
 
     logger.info(f"Installing {len(essential_packages)} essential packages...")

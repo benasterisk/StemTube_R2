@@ -62,7 +62,7 @@ sudo apt-get install python3.12-venv
 ```bash
 # Don't use sudo
 # Ensure you own the directory
-sudo chown -R $USER:$USER /path/to/stemtube
+sudo chown -R $USER:$USER /home/michael/Documents/Dev/stemtube_dev_v1.2
 python3.12 setup_dependencies.py
 ```
 
@@ -992,7 +992,7 @@ python app.py
 **Solution**:
 ```bash
 # Fix ownership
-sudo chown -R $USER:$USER /path/to/stemtube
+sudo chown -R $USER:$USER /home/michael/Documents/Dev/stemtube_dev_v1.2
 
 # Fix permissions
 chmod 600 .env

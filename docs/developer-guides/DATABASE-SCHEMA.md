@@ -42,7 +42,7 @@ Complete documentation of the SQLite database structure.
 
 ## Database File
 
-**Location**: `stemtubes.db` (project root)
+**Location**: `/home/michael/Documents/Dev/stemtube_dev_v1.2/stemtubes.db`
 
 **Access**:
 ```python
