@@ -231,6 +231,7 @@ class MobileApp {
         this.socket.on('extraction_completed_global', () => this.loadLibrary());
         this.socket.on('extraction_refresh_needed', () => this.loadLibrary());
         this.socket.on('extraction_error', (data) => this.onExtractionError(data));
+        this.socket.on('lyrics_progress', (data) => this.onLyricsProgress(data));
     }
 
     async initAudioContext() {
@@ -4963,7 +4964,311 @@ class MobileApp {
     }
 
     /**
-     * Regenerate lyrics using unified endpoint (LrcLib -> Whisper fallback)
+     * Parse a video title into artist and track components
+     */
+    parseTitle(title) {
+        if (!title) return { artist: '', track: '' };
+
+        let cleanTitle = title;
+
+        // Remove common YouTube suffixes
+        const patterns = [
+            /\s*[\(\[]\s*(Official\s*)?(Music\s*)?(Video|Audio|Lyrics?|Visualizer|Clip)\s*[\)\]]/gi,
+            /\s*[\(\[]\s*(HD|HQ|4K|1080p|720p)\s*[\)\]]/gi,
+            /\s*[\(\[]\s*(Live|Acoustic|Remix|Cover|Version)\s*[\)\]]/gi,
+            /\s*[\(\[]\s*\d{4}\s*[\)\]]/gi
+        ];
+
+        for (const pattern of patterns) {
+            cleanTitle = cleanTitle.replace(pattern, '');
+        }
+
+        cleanTitle = cleanTitle.trim();
+
+        // Split on " - "
+        if (cleanTitle.includes(' - ')) {
+            const parts = cleanTitle.split(' - ', 2);
+            return {
+                artist: parts[0].trim(),
+                track: parts[1].trim()
+            };
+        }
+
+        // No separator - return full title as track
+        return { artist: '', track: cleanTitle };
+    }
+
+    /**
+     * Show two-phase dialog for lyrics regeneration (mobile version).
+     * Phase 1: Search form (artist/track inputs)
+     * Phase 2: Track selection from Musixmatch results
+     */
+    showLyricsDialog() {
+        return new Promise((resolve) => {
+            const title = this.currentExtractionData?.title || '';
+            const parsed = this.parseTitle(title);
+
+            const overlay = document.createElement('div');
+            overlay.className = 'lyrics-dialog-overlay';
+            document.body.appendChild(overlay);
+
+            const stopPropagation = (e) => { e.stopPropagation(); };
+            overlay.addEventListener('keydown', stopPropagation);
+            overlay.addEventListener('keyup', stopPropagation);
+            overlay.addEventListener('keypress', stopPropagation);
+
+            const cleanup = () => {
+                overlay.removeEventListener('keydown', stopPropagation);
+                overlay.removeEventListener('keyup', stopPropagation);
+                overlay.removeEventListener('keypress', stopPropagation);
+                overlay.remove();
+            };
+
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    cleanup();
+                    resolve(null);
+                }
+            });
+
+            let selectedTrackId = null;
+
+            // --- Phase 1: Search form ---
+            const showPhase1 = (prefillArtist, prefillTrack) => {
+                overlay.innerHTML = `
+                    <div class="lyrics-dialog">
+                        <h3>Regenerate Lyrics</h3>
+                        <p class="lyrics-dialog-hint">Edit artist and track for Musixmatch search:</p>
+
+                        <div class="lyrics-dialog-field">
+                            <label for="lyrics-artist-m">Artist</label>
+                            <input type="text" id="lyrics-artist-m" value="${this.escapeHtml(prefillArtist)}" placeholder="e.g. The Police">
+                        </div>
+
+                        <div class="lyrics-dialog-field">
+                            <label for="lyrics-track-m">Track</label>
+                            <input type="text" id="lyrics-track-m" value="${this.escapeHtml(prefillTrack)}" placeholder="e.g. So Lonely">
+                        </div>
+
+                        <div class="lyrics-dialog-buttons">
+                            <button class="lyrics-dialog-btn lyrics-dialog-cancel">Cancel</button>
+                            <button class="lyrics-dialog-btn lyrics-dialog-whisper">Whisper Only</button>
+                            <button class="lyrics-dialog-btn lyrics-dialog-search primary">Search Musixmatch</button>
+                        </div>
+                    </div>
+                `;
+
+                setTimeout(() => {
+                    const artistInput = overlay.querySelector('#lyrics-artist-m');
+                    if (artistInput) artistInput.focus();
+                }, 100);
+
+                overlay.querySelector('.lyrics-dialog-cancel').addEventListener('click', () => {
+                    cleanup();
+                    resolve(null);
+                });
+
+                overlay.querySelector('.lyrics-dialog-whisper').addEventListener('click', () => {
+                    cleanup();
+                    resolve({ artist: '', track: '', forceWhisper: true, skipOnsetSync: false, musixmatchTrackId: null });
+                });
+
+                const doSearch = () => {
+                    const artist = overlay.querySelector('#lyrics-artist-m').value.trim();
+                    const track = overlay.querySelector('#lyrics-track-m').value.trim();
+                    if (!artist && !track) return;
+                    showSearching(artist, track);
+                };
+
+                overlay.querySelector('.lyrics-dialog-search').addEventListener('click', doSearch);
+
+                const handleKeydown = (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        doSearch();
+                    } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        cleanup();
+                        resolve(null);
+                    }
+                };
+                overlay.addEventListener('keydown', handleKeydown);
+            };
+
+            // --- Searching state ---
+            const showSearching = async (artist, track) => {
+                const query = (artist + ' ' + track).trim();
+                overlay.innerHTML = `
+                    <div class="lyrics-dialog">
+                        <h3>Searching Musixmatch</h3>
+                        <div class="lyrics-dialog-spinner">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>Searching for: ${this.escapeHtml(query)}</span>
+                        </div>
+                    </div>
+                `;
+
+                try {
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (this.csrfToken) headers['X-CSRF-Token'] = this.csrfToken;
+
+                    const response = await fetch('/api/musixmatch/search', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers,
+                        body: JSON.stringify({ artist, track })
+                    });
+
+                    if (!response.ok) {
+                        const errText = await response.text();
+                        throw new Error('HTTP ' + response.status + ': ' + errText);
+                    }
+
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error);
+
+                    showPhase2(artist, track, data.results || []);
+
+                } catch (err) {
+                    overlay.innerHTML = `
+                        <div class="lyrics-dialog">
+                            <h3>Search Failed</h3>
+                            <p class="lyrics-dialog-hint" style="color: #f44336;">${this.escapeHtml(err.message)}</p>
+                            <div class="lyrics-dialog-buttons">
+                                <button class="lyrics-dialog-btn lyrics-dialog-back">Back</button>
+                            </div>
+                        </div>
+                    `;
+                    overlay.querySelector('.lyrics-dialog-back').addEventListener('click', () => {
+                        showPhase1(artist, track);
+                    });
+                }
+            };
+
+            // --- Phase 2: Track selection ---
+            const showPhase2 = (artist, track, results) => {
+                selectedTrackId = null;
+
+                const badgeHtml = (r) => {
+                    if (r.has_richsync) return '<span class="lyrics-dialog-track-badge badge-richsync" title="Word-level timestamps">W</span>';
+                    if (r.has_subtitles) return '<span class="lyrics-dialog-track-badge badge-subtitles" title="Line-level timestamps">L</span>';
+                    return '<span class="lyrics-dialog-track-badge badge-unknown" title="Unknown">?</span>';
+                };
+
+                let resultsHtml = '';
+                if (results.length === 0) {
+                    resultsHtml = '<p class="lyrics-dialog-hint">No results found. Try different search terms.</p>';
+                } else {
+                    resultsHtml = '<div class="lyrics-dialog-results">';
+                    results.forEach((r, i) => {
+                        resultsHtml += `
+                            <div class="lyrics-dialog-track${i === 0 ? ' selected' : ''}" data-track-id="${r.track_id}">
+                                <span class="lyrics-dialog-track-radio">${i === 0 ? '\u25CF' : '\u25CB'}</span>
+                                <div class="lyrics-dialog-track-info">
+                                    <span class="lyrics-dialog-track-name">${this.escapeHtml(r.track_name)}</span>
+                                    <span class="lyrics-dialog-track-artist">${this.escapeHtml(r.artist_name)}</span>
+                                    ${r.album_name ? '<span class="lyrics-dialog-track-album">' + this.escapeHtml(r.album_name) + '</span>' : ''}
+                                </div>
+                                ${badgeHtml(r)}
+                            </div>
+                        `;
+                    });
+                    resultsHtml += '</div>';
+                    selectedTrackId = results[0].track_id;
+                }
+
+                overlay.innerHTML = `
+                    <div class="lyrics-dialog lyrics-dialog-phase2">
+                        <h3>Select Track</h3>
+                        <p class="lyrics-dialog-hint">Results for: ${this.escapeHtml(artist)} - ${this.escapeHtml(track)}</p>
+                        ${resultsHtml}
+                        <div class="lyrics-dialog-buttons">
+                            <button class="lyrics-dialog-btn lyrics-dialog-back">Back</button>
+                            <button class="lyrics-dialog-btn lyrics-dialog-musixmatch"${results.length === 0 ? ' disabled' : ''}>Musixmatch Only</button>
+                            <button class="lyrics-dialog-btn lyrics-dialog-submit primary"${results.length === 0 ? ' disabled' : ''}>Musixmatch + Sync</button>
+                        </div>
+                    </div>
+                `;
+
+                overlay.querySelectorAll('.lyrics-dialog-track').forEach(row => {
+                    row.addEventListener('click', () => {
+                        overlay.querySelectorAll('.lyrics-dialog-track').forEach(r => {
+                            r.classList.remove('selected');
+                            r.querySelector('.lyrics-dialog-track-radio').textContent = '\u25CB';
+                        });
+                        row.classList.add('selected');
+                        row.querySelector('.lyrics-dialog-track-radio').textContent = '\u25CF';
+                        selectedTrackId = parseInt(row.dataset.trackId);
+                    });
+                });
+
+                overlay.querySelector('.lyrics-dialog-back').addEventListener('click', () => {
+                    showPhase1(artist, track);
+                });
+
+                const musixmatchBtn = overlay.querySelector('.lyrics-dialog-musixmatch');
+                const submitBtn = overlay.querySelector('.lyrics-dialog-submit');
+
+                if (musixmatchBtn && !musixmatchBtn.disabled) {
+                    musixmatchBtn.addEventListener('click', () => {
+                        if (!selectedTrackId) return;
+                        cleanup();
+                        resolve({ artist, track, forceWhisper: false, skipOnsetSync: true, musixmatchTrackId: selectedTrackId });
+                    });
+                }
+
+                if (submitBtn && !submitBtn.disabled) {
+                    submitBtn.addEventListener('click', () => {
+                        if (!selectedTrackId) return;
+                        cleanup();
+                        resolve({ artist, track, forceWhisper: false, skipOnsetSync: false, musixmatchTrackId: selectedTrackId });
+                    });
+                }
+
+                const handleKeydown = (e) => {
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        cleanup();
+                        resolve(null);
+                    }
+                };
+                overlay.addEventListener('keydown', handleKeydown);
+            };
+
+            showPhase1(parsed.artist, parsed.track);
+        });
+    }
+
+    /**
+     * Map source identifiers to human-readable labels
+     */
+    getSourceLabel(source) {
+        const labels = {
+            'musixmatch+onset': 'Musixmatch + Vocal Sync',
+            'musixmatch': 'Musixmatch',
+            'syncedlyrics': 'Musixmatch (word-level)',
+            'lrclib+whisper': 'LrcLib + Whisper',
+            'lrclib': 'LrcLib',
+            'whisper': 'Whisper AI'
+        };
+        return labels[source] || source;
+    }
+
+    /**
+     * Handle lyrics progress updates from SocketIO
+     */
+    onLyricsProgress(data) {
+        if (!this.lyricsRegenerating) return;
+        const btn = document.getElementById('mobileRegenerateLyrics');
+        if (!btn) return;
+        const step = data.step || '';
+        const message = data.message || '';
+        const display = step ? `${step}: ${message}` : message;
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${this.escapeHtml(display)}`;
+    }
+
+    /**
+     * Regenerate lyrics with Musixmatch dialog and progress feedback
      */
     async regenerateLyrics() {
         if (!this.currentExtractionId) {
@@ -4977,11 +5282,19 @@ class MobileApp {
             return;
         }
 
-        console.log('[Lyrics] Regenerating lyrics for extraction:', this.currentExtractionId);
+        // Show dialog to get artist/track and source preference
+        const dialogResult = await this.showLyricsDialog();
+        if (!dialogResult) {
+            console.log('[Lyrics] Dialog cancelled');
+            return;
+        }
+
+        console.log('[Lyrics] Regenerating lyrics with:', dialogResult);
 
         const orig = btn.innerHTML;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Regenerating...';
         btn.disabled = true;
+        this.lyricsRegenerating = true;
 
         try {
             const url = '/api/extractions/' + this.currentExtractionId + '/lyrics/regenerate';
@@ -4989,14 +5302,25 @@ class MobileApp {
 
             const res = await fetch(url, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({})
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': this.csrfToken
+                },
+                body: JSON.stringify({
+                    artist: dialogResult.artist,
+                    track: dialogResult.track,
+                    force_whisper: dialogResult.forceWhisper,
+                    skip_onset_sync: dialogResult.skipOnsetSync,
+                    musixmatch_track_id: dialogResult.musixmatchTrackId || null
+                })
             });
 
             console.log('[Lyrics] Response status:', res.status);
 
             if (!res.ok) {
-                throw new Error('HTTP ' + res.status + ': ' + res.statusText);
+                const errorText = await res.text();
+                throw new Error('HTTP ' + res.status + ': ' + errorText);
             }
 
             const data = await res.json();
@@ -5008,14 +5332,24 @@ class MobileApp {
 
             if (lyricsData) {
                 this.lyrics = typeof lyricsData === 'string' ? JSON.parse(lyricsData) : lyricsData;
-                console.log('[Lyrics] Loaded', this.lyrics.length, 'segments from source:', data.source);
+                const source = data.source || 'unknown';
+                console.log('[Lyrics] Loaded', this.lyrics.length, 'segments from source:', source);
                 this.displayLyrics();
 
-                // Show success message with source info
-                const sourceLabel = data.source === 'lrclib+whisper' ? 'LrcLib + Whisper' :
-                                   data.source === 'lrclib' ? 'LrcLib' :
-                                   data.source === 'whisper' ? 'Whisper AI' : data.source;
-                alert(`Lyrics loaded (${sourceLabel}): ${this.lyrics.length} segments`);
+                // Build success message with source info and alignment stats
+                const sourceLabel = this.getSourceLabel(source);
+                let message = `Lyrics loaded (${sourceLabel}): ${this.lyrics.length} segments`;
+
+                const stats = data.alignment_stats;
+                if (stats && stats.match_rate !== undefined) {
+                    message += `\n\nSync statistics:`;
+                    message += `\n- Words matched: ${stats.matched_words}/${stats.total_words} (${stats.match_rate}%)`;
+                    if (stats.global_offset_sec !== undefined) {
+                        message += `\n- Global offset: ${stats.global_offset_sec}s`;
+                    }
+                }
+
+                alert(message);
             } else {
                 console.warn('[Lyrics] No lyrics data in response');
                 alert('Lyrics regeneration completed but no data returned');
@@ -5024,6 +5358,7 @@ class MobileApp {
             console.error('[Lyrics] Regeneration failed:', error);
             alert('Lyrics regeneration failed: ' + error.message);
         } finally {
+            this.lyricsRegenerating = false;
             btn.innerHTML = orig;
             btn.disabled = false;
         }

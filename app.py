@@ -2321,6 +2321,7 @@ def regenerate_extraction_lyrics(extraction_id):
         override_track = req_data.get('track', '').strip()
         force_whisper = req_data.get('force_whisper', False)
         skip_onset_sync = req_data.get('skip_onset_sync', False)
+        musixmatch_track_id = req_data.get('musixmatch_track_id')
 
         # Find download
         download = None
@@ -2406,7 +2407,8 @@ def regenerate_extraction_lyrics(extraction_id):
             override_artist=override_artist if override_artist else None,
             override_track=override_track if override_track else None,
             force_whisper=force_whisper,
-            skip_onset_sync=skip_onset_sync
+            skip_onset_sync=skip_onset_sync,
+            musixmatch_track_id=musixmatch_track_id
         )
 
         lyrics_data = result.get('lyrics')
@@ -2438,6 +2440,32 @@ def regenerate_extraction_lyrics(extraction_id):
 
     except Exception as e:
         logger.error(f"Error regenerating lyrics: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/musixmatch/search', methods=['POST'])
+@api_login_required
+def musixmatch_search():
+    """Search Musixmatch for tracks matching artist/track query."""
+    try:
+        from core.musixmatch_client import search_tracks
+
+        req_data = request.get_json(silent=True) or {}
+        artist = req_data.get('artist', '').strip()
+        track = req_data.get('track', '').strip()
+
+        if not artist and not track:
+            return jsonify({'error': 'Artist or track name required'}), 400
+
+        results = search_tracks(artist=artist, track=track, page_size=10)
+
+        return jsonify({
+            'results': results,
+            'query': f"{artist} - {track}".strip(' -')
+        })
+
+    except Exception as e:
+        logger.error(f"Error searching Musixmatch: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 

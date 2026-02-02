@@ -5851,3 +5851,266 @@ select.mobile-input {
 .mobile-library-actions .save-offline-btn i {
     pointer-events: none;
 }
+
+/* ==========================================
+   Lyrics Dialog
+   ========================================== */
+
+.lyrics-dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    backdrop-filter: blur(4px);
+}
+
+.lyrics-dialog {
+    background: var(--mobile-bg-secondary, #1e1e1e);
+    border-radius: var(--mobile-radius, 8px);
+    padding: 1.25rem;
+    width: 92%;
+    max-width: 400px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--mobile-border, #333);
+}
+
+.lyrics-dialog h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.125rem;
+    color: var(--mobile-text, #fff);
+}
+
+.lyrics-dialog-hint {
+    margin: 0 0 1rem 0;
+    font-size: 0.8125rem;
+    color: var(--mobile-text-secondary, #b3b3b3);
+}
+
+.lyrics-dialog-field {
+    margin-bottom: 0.875rem;
+}
+
+.lyrics-dialog-field label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.8125rem;
+    color: var(--mobile-text-secondary, #b3b3b3);
+}
+
+.lyrics-dialog-field input {
+    width: 100%;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--mobile-border, #333);
+    border-radius: 6px;
+    background: var(--mobile-bg-tertiary, #282828);
+    color: var(--mobile-text, #fff);
+    font-size: 1rem;
+    box-sizing: border-box;
+}
+
+.lyrics-dialog-field input:focus {
+    outline: none;
+    border-color: var(--mobile-primary, #1DB954);
+    box-shadow: 0 0 0 2px rgba(29, 185, 84, 0.2);
+}
+
+.lyrics-dialog-field input::placeholder {
+    color: var(--mobile-text-secondary, #b3b3b3);
+    opacity: 0.6;
+}
+
+.lyrics-dialog-buttons {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.lyrics-dialog-btn {
+    flex: 1;
+    min-width: 80px;
+    padding: 0.55rem 0.5rem;
+    border: 1px solid var(--mobile-border, #333);
+    border-radius: 6px;
+    background: var(--mobile-bg-tertiary, #282828);
+    color: var(--mobile-text, #fff);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.lyrics-dialog-btn:active {
+    opacity: 0.8;
+}
+
+.lyrics-dialog-btn.primary {
+    background: var(--mobile-primary, #1DB954);
+    border-color: var(--mobile-primary, #1DB954);
+    color: #fff;
+}
+
+.lyrics-dialog-btn.primary:active {
+    background: var(--mobile-primary-dark, #148a3c);
+}
+
+.lyrics-dialog-cancel {
+    flex: 0.5;
+    background: var(--mobile-bg-secondary, #1e1e1e);
+}
+
+.lyrics-dialog-musixmatch {
+    background: rgba(29, 185, 84, 0.15);
+    border-color: rgba(29, 185, 84, 0.4);
+    color: #1db954;
+}
+
+.lyrics-dialog-musixmatch:active {
+    background: rgba(29, 185, 84, 0.25);
+}
+
+.lyrics-dialog-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.lyrics-dialog-cancel,
+.lyrics-dialog-back {
+    flex: 0.5;
+    background: var(--mobile-bg-secondary, #1e1e1e);
+}
+
+.lyrics-dialog-search {
+    background: var(--mobile-primary, #1DB954);
+    border-color: var(--mobile-primary, #1DB954);
+    color: #fff;
+}
+
+/* Phase 2 - Track selection */
+.lyrics-dialog-phase2 {
+    max-width: 420px;
+}
+
+.lyrics-dialog-results {
+    max-height: 250px;
+    overflow-y: auto;
+    border: 1px solid var(--mobile-border, #333);
+    border-radius: 6px;
+    margin-top: 0.4rem;
+    -webkit-overflow-scrolling: touch;
+}
+
+.lyrics-dialog-track {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 0.65rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--mobile-border, #2a2a2a);
+    transition: background 0.1s ease;
+}
+
+.lyrics-dialog-track:last-child {
+    border-bottom: none;
+}
+
+.lyrics-dialog-track:active {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.lyrics-dialog-track.selected {
+    background: rgba(29, 185, 84, 0.1);
+}
+
+.lyrics-dialog-track-radio {
+    flex-shrink: 0;
+    width: 1.1rem;
+    text-align: center;
+    color: var(--mobile-text-muted, #666);
+    font-size: 0.75rem;
+}
+
+.lyrics-dialog-track.selected .lyrics-dialog-track-radio {
+    color: var(--mobile-primary, #1DB954);
+}
+
+.lyrics-dialog-track-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+}
+
+.lyrics-dialog-track-name {
+    font-size: 0.85rem;
+    color: var(--mobile-text, #fff);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lyrics-dialog-track-artist {
+    font-size: 0.7rem;
+    color: var(--mobile-text-secondary, #b3b3b3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lyrics-dialog-track-album {
+    font-size: 0.65rem;
+    color: var(--mobile-text-muted, #666);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lyrics-dialog-track-badge {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.3rem;
+    height: 1.3rem;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 700;
+}
+
+.lyrics-dialog-track-badge.badge-richsync {
+    background: rgba(76, 175, 80, 0.2);
+    color: #4caf50;
+}
+
+.lyrics-dialog-track-badge.badge-subtitles {
+    background: rgba(255, 152, 0, 0.2);
+    color: #ff9800;
+}
+
+.lyrics-dialog-track-badge.badge-unknown {
+    background: rgba(158, 158, 158, 0.2);
+    color: #9e9e9e;
+}
+
+.lyrics-dialog-spinner {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 1.25rem 0;
+    color: var(--mobile-text-secondary, #b3b3b3);
+    font-size: 0.85rem;
+}
+
+.lyrics-dialog-spinner i {
+    font-size: 1.1rem;
+    color: var(--mobile-primary, #1DB954);
+}

@@ -350,41 +350,18 @@ class KaraokeDisplay {
     }
 
     /**
-     * Show dialog to edit artist/track before regenerating lyrics
+     * Show two-phase dialog for lyrics regeneration.
+     * Phase 1: Search form (artist/track inputs)
+     * Phase 2: Track selection from Musixmatch results
      */
     showLyricsDialog() {
         return new Promise((resolve) => {
-            // Get current title from EXTRACTION_INFO
             const title = (typeof EXTRACTION_INFO !== 'undefined' && EXTRACTION_INFO?.title) || '';
             const parsed = this.parseTitle(title);
 
             // Create dialog overlay
             const overlay = document.createElement('div');
             overlay.className = 'lyrics-dialog-overlay';
-            overlay.innerHTML = `
-                <div class="lyrics-dialog">
-                    <h3>Regenerate Lyrics</h3>
-                    <p class="lyrics-dialog-hint">Edit artist and track for Musixmatch search:</p>
-
-                    <div class="lyrics-dialog-field">
-                        <label for="lyrics-artist">Artist</label>
-                        <input type="text" id="lyrics-artist" value="${this.escapeHtml(parsed.artist)}" placeholder="e.g. The Police">
-                    </div>
-
-                    <div class="lyrics-dialog-field">
-                        <label for="lyrics-track">Track</label>
-                        <input type="text" id="lyrics-track" value="${this.escapeHtml(parsed.track)}" placeholder="e.g. So Lonely">
-                    </div>
-
-                    <div class="lyrics-dialog-buttons">
-                        <button class="lyrics-dialog-btn lyrics-dialog-cancel">Cancel</button>
-                        <button class="lyrics-dialog-btn lyrics-dialog-whisper">Whisper Only</button>
-                        <button class="lyrics-dialog-btn lyrics-dialog-musixmatch">Musixmatch Only</button>
-                        <button class="lyrics-dialog-btn lyrics-dialog-submit primary">Musixmatch + Sync</button>
-                    </div>
-                </div>
-            `;
-
             document.body.appendChild(overlay);
 
             // Prevent keyboard events from propagating (space bar, etc.)
@@ -395,48 +372,12 @@ class KaraokeDisplay {
             overlay.addEventListener('keyup', stopPropagation);
             overlay.addEventListener('keypress', stopPropagation);
 
-            // Focus on artist field
-            setTimeout(() => {
-                const artistInput = overlay.querySelector('#lyrics-artist');
-                if (artistInput) artistInput.focus();
-            }, 100);
-
-            // Handle buttons
-            const cancelBtn = overlay.querySelector('.lyrics-dialog-cancel');
-            const whisperBtn = overlay.querySelector('.lyrics-dialog-whisper');
-            const musixmatchBtn = overlay.querySelector('.lyrics-dialog-musixmatch');
-            const submitBtn = overlay.querySelector('.lyrics-dialog-submit');
-
             const cleanup = () => {
                 overlay.removeEventListener('keydown', stopPropagation);
                 overlay.removeEventListener('keyup', stopPropagation);
                 overlay.removeEventListener('keypress', stopPropagation);
                 overlay.remove();
             };
-
-            cancelBtn.addEventListener('click', () => {
-                cleanup();
-                resolve(null);
-            });
-
-            whisperBtn.addEventListener('click', () => {
-                cleanup();
-                resolve({ artist: '', track: '', forceWhisper: true, skipOnsetSync: false });
-            });
-
-            musixmatchBtn.addEventListener('click', () => {
-                const artist = overlay.querySelector('#lyrics-artist').value.trim();
-                const track = overlay.querySelector('#lyrics-track').value.trim();
-                cleanup();
-                resolve({ artist, track, forceWhisper: false, skipOnsetSync: true });
-            });
-
-            submitBtn.addEventListener('click', () => {
-                const artist = overlay.querySelector('#lyrics-artist').value.trim();
-                const track = overlay.querySelector('#lyrics-track').value.trim();
-                cleanup();
-                resolve({ artist, track, forceWhisper: false, skipOnsetSync: false });
-            });
 
             // Close on overlay click
             overlay.addEventListener('click', (e) => {
@@ -446,21 +387,220 @@ class KaraokeDisplay {
                 }
             });
 
-            // Handle Enter/Escape keys (after stopPropagation)
-            const handleKeydown = (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const artist = overlay.querySelector('#lyrics-artist').value.trim();
-                    const track = overlay.querySelector('#lyrics-track').value.trim();
-                    cleanup();
-                    resolve({ artist, track, forceWhisper: false, skipOnsetSync: false });
-                } else if (e.key === 'Escape') {
-                    e.preventDefault();
+            let selectedTrackId = null;
+
+            // --- Phase 1: Search form ---
+            const showPhase1 = (prefillArtist, prefillTrack) => {
+                overlay.innerHTML = `
+                    <div class="lyrics-dialog">
+                        <h3>Regenerate Lyrics</h3>
+                        <p class="lyrics-dialog-hint">Edit artist and track for Musixmatch search:</p>
+
+                        <div class="lyrics-dialog-field">
+                            <label for="lyrics-artist">Artist</label>
+                            <input type="text" id="lyrics-artist" value="${this.escapeHtml(prefillArtist)}" placeholder="e.g. The Police">
+                        </div>
+
+                        <div class="lyrics-dialog-field">
+                            <label for="lyrics-track">Track</label>
+                            <input type="text" id="lyrics-track" value="${this.escapeHtml(prefillTrack)}" placeholder="e.g. So Lonely">
+                        </div>
+
+                        <div class="lyrics-dialog-buttons">
+                            <button class="lyrics-dialog-btn lyrics-dialog-cancel">Cancel</button>
+                            <button class="lyrics-dialog-btn lyrics-dialog-whisper">Whisper Only</button>
+                            <button class="lyrics-dialog-btn lyrics-dialog-search primary">Search Musixmatch</button>
+                        </div>
+                    </div>
+                `;
+
+                setTimeout(() => {
+                    const artistInput = overlay.querySelector('#lyrics-artist');
+                    if (artistInput) artistInput.focus();
+                }, 100);
+
+                overlay.querySelector('.lyrics-dialog-cancel').addEventListener('click', () => {
                     cleanup();
                     resolve(null);
+                });
+
+                overlay.querySelector('.lyrics-dialog-whisper').addEventListener('click', () => {
+                    cleanup();
+                    resolve({ artist: '', track: '', forceWhisper: true, skipOnsetSync: false, musixmatchTrackId: null });
+                });
+
+                const doSearch = () => {
+                    const artist = overlay.querySelector('#lyrics-artist').value.trim();
+                    const track = overlay.querySelector('#lyrics-track').value.trim();
+                    if (!artist && !track) return;
+                    showSearching(artist, track);
+                };
+
+                overlay.querySelector('.lyrics-dialog-search').addEventListener('click', doSearch);
+
+                // Keyboard: Enter triggers search, Escape cancels
+                const handleKeydown = (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        doSearch();
+                    } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        cleanup();
+                        resolve(null);
+                    }
+                };
+                // Remove old listener, add new one
+                overlay.removeEventListener('keydown', handleKeydown);
+                overlay.addEventListener('keydown', handleKeydown);
+            };
+
+            // --- Searching state ---
+            const showSearching = async (artist, track) => {
+                const query = `${artist} ${track}`.trim();
+                overlay.innerHTML = `
+                    <div class="lyrics-dialog">
+                        <h3>Searching Musixmatch</h3>
+                        <div class="lyrics-dialog-spinner">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>Searching for: ${this.escapeHtml(query)}</span>
+                        </div>
+                    </div>
+                `;
+
+                try {
+                    const response = await fetch('/api/musixmatch/search', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': getCsrfToken()
+                        },
+                        body: JSON.stringify({ artist, track })
+                    });
+
+                    if (!response.ok) {
+                        const errText = await response.text();
+                        throw new Error(`HTTP ${response.status}: ${errText}`);
+                    }
+
+                    const data = await response.json();
+
+                    if (data.error) throw new Error(data.error);
+
+                    showPhase2(artist, track, data.results || []);
+
+                } catch (err) {
+                    overlay.innerHTML = `
+                        <div class="lyrics-dialog">
+                            <h3>Search Failed</h3>
+                            <p class="lyrics-dialog-hint" style="color: #f44336;">${this.escapeHtml(err.message)}</p>
+                            <div class="lyrics-dialog-buttons">
+                                <button class="lyrics-dialog-btn lyrics-dialog-back">Back</button>
+                            </div>
+                        </div>
+                    `;
+                    overlay.querySelector('.lyrics-dialog-back').addEventListener('click', () => {
+                        showPhase1(artist, track);
+                    });
                 }
             };
-            overlay.addEventListener('keydown', handleKeydown);
+
+            // --- Phase 2: Track selection ---
+            const showPhase2 = (artist, track, results) => {
+                selectedTrackId = null;
+
+                const badgeHtml = (r) => {
+                    if (r.has_richsync) return '<span class="lyrics-dialog-track-badge badge-richsync" title="Word-level timestamps">W</span>';
+                    if (r.has_subtitles) return '<span class="lyrics-dialog-track-badge badge-subtitles" title="Line-level timestamps">L</span>';
+                    return '<span class="lyrics-dialog-track-badge badge-unknown" title="Lyrics availability unknown">?</span>';
+                };
+
+                let resultsHtml = '';
+                if (results.length === 0) {
+                    resultsHtml = '<p class="lyrics-dialog-hint">No results found. Try different search terms.</p>';
+                } else {
+                    resultsHtml = '<div class="lyrics-dialog-results">';
+                    results.forEach((r, i) => {
+                        resultsHtml += `
+                            <div class="lyrics-dialog-track${i === 0 ? ' selected' : ''}" data-track-id="${r.track_id}">
+                                <span class="lyrics-dialog-track-radio">${i === 0 ? '●' : '○'}</span>
+                                <div class="lyrics-dialog-track-info">
+                                    <span class="lyrics-dialog-track-name">${this.escapeHtml(r.track_name)}</span>
+                                    <span class="lyrics-dialog-track-artist">${this.escapeHtml(r.artist_name)}</span>
+                                    ${r.album_name ? '<span class="lyrics-dialog-track-album">' + this.escapeHtml(r.album_name) + '</span>' : ''}
+                                </div>
+                                ${badgeHtml(r)}
+                            </div>
+                        `;
+                    });
+                    resultsHtml += '</div>';
+                    selectedTrackId = results[0].track_id;
+                }
+
+                overlay.innerHTML = `
+                    <div class="lyrics-dialog lyrics-dialog-phase2">
+                        <h3>Select Track</h3>
+                        <p class="lyrics-dialog-hint">Results for: ${this.escapeHtml(artist)} - ${this.escapeHtml(track)}</p>
+                        ${resultsHtml}
+                        <div class="lyrics-dialog-buttons">
+                            <button class="lyrics-dialog-btn lyrics-dialog-back">Back</button>
+                            <button class="lyrics-dialog-btn lyrics-dialog-musixmatch"${results.length === 0 ? ' disabled' : ''}>Musixmatch Only</button>
+                            <button class="lyrics-dialog-btn lyrics-dialog-submit primary"${results.length === 0 ? ' disabled' : ''}>Musixmatch + Sync</button>
+                        </div>
+                    </div>
+                `;
+
+                // Track row click handler
+                overlay.querySelectorAll('.lyrics-dialog-track').forEach(row => {
+                    row.addEventListener('click', () => {
+                        // Deselect all
+                        overlay.querySelectorAll('.lyrics-dialog-track').forEach(r => {
+                            r.classList.remove('selected');
+                            r.querySelector('.lyrics-dialog-track-radio').textContent = '○';
+                        });
+                        // Select clicked
+                        row.classList.add('selected');
+                        row.querySelector('.lyrics-dialog-track-radio').textContent = '●';
+                        selectedTrackId = parseInt(row.dataset.trackId);
+                    });
+                });
+
+                overlay.querySelector('.lyrics-dialog-back').addEventListener('click', () => {
+                    showPhase1(artist, track);
+                });
+
+                const musixmatchBtn = overlay.querySelector('.lyrics-dialog-musixmatch');
+                const submitBtn = overlay.querySelector('.lyrics-dialog-submit');
+
+                if (musixmatchBtn && !musixmatchBtn.disabled) {
+                    musixmatchBtn.addEventListener('click', () => {
+                        if (!selectedTrackId) return;
+                        cleanup();
+                        resolve({ artist, track, forceWhisper: false, skipOnsetSync: true, musixmatchTrackId: selectedTrackId });
+                    });
+                }
+
+                if (submitBtn && !submitBtn.disabled) {
+                    submitBtn.addEventListener('click', () => {
+                        if (!selectedTrackId) return;
+                        cleanup();
+                        resolve({ artist, track, forceWhisper: false, skipOnsetSync: false, musixmatchTrackId: selectedTrackId });
+                    });
+                }
+
+                // Keyboard: Escape cancels
+                const handleKeydown = (e) => {
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        cleanup();
+                        resolve(null);
+                    }
+                };
+                overlay.addEventListener('keydown', handleKeydown);
+            };
+
+            // Start with Phase 1
+            showPhase1(parsed.artist, parsed.track);
         });
     }
 
@@ -511,7 +651,8 @@ class KaraokeDisplay {
                     artist: dialogResult.artist,
                     track: dialogResult.track,
                     force_whisper: dialogResult.forceWhisper,
-                    skip_onset_sync: dialogResult.skipOnsetSync
+                    skip_onset_sync: dialogResult.skipOnsetSync,
+                    musixmatch_track_id: dialogResult.musixmatchTrackId || null
                 })
             });
 

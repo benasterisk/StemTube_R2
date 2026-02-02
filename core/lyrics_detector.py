@@ -281,7 +281,8 @@ def detect_lyrics_unified(
     override_artist: str = None,
     override_track: str = None,
     force_whisper: bool = False,
-    skip_onset_sync: bool = False
+    skip_onset_sync: bool = False,
+    musixmatch_track_id: int = None
 ) -> Dict:
     """
     Unified lyrics detection: SyncedLyrics (word-level) first, Whisper fallback
@@ -304,6 +305,7 @@ def detect_lyrics_unified(
         override_track: User-provided track name (overrides metadata extraction)
         force_whisper: Skip Musixmatch and use Whisper directly
         skip_onset_sync: Skip vocal onset synchronization (use Musixmatch timestamps directly)
+        musixmatch_track_id: Specific Musixmatch track ID to fetch lyrics from (bypasses search)
 
     Returns:
         Dict with:
@@ -361,6 +363,78 @@ def detect_lyrics_unified(
     # Skip Musixmatch if force_whisper is set
     if force_whisper:
         logger.info("[LYRICS] Skipping Musixmatch (force_whisper=True)")
+    elif musixmatch_track_id:
+        # User selected a specific Musixmatch track ID
+        emit_progress("musixmatch_trackid", f"Fetching lyrics for Musixmatch track #{musixmatch_track_id}...")
+        try:
+            from core.musixmatch_client import fetch_lyrics_by_track_id
+            logger.info(f"[LYRICS] Fetching by Musixmatch track_id={musixmatch_track_id}")
+
+            synced_lyrics = fetch_lyrics_by_track_id(musixmatch_track_id)
+
+            if synced_lyrics:
+                total_words = sum(len(s.get('words', [])) for s in synced_lyrics)
+                emit_progress("syncedlyrics_found", f"Found {len(synced_lyrics)} lines, {total_words} words")
+                logger.info(f"[LYRICS] Musixmatch track_id={musixmatch_track_id}: {len(synced_lyrics)} lines, {total_words} words")
+
+                # Reuse the vocal onset sync block
+                vocals_path = None
+                if audio_path:
+                    if 'vocals.mp3' in audio_path:
+                        vocals_path = audio_path
+                    else:
+                        audio_dir = os.path.dirname(audio_path)
+                        possible_vocals = os.path.join(audio_dir, "stems", "vocals.mp3")
+                        if os.path.exists(possible_vocals):
+                            vocals_path = possible_vocals
+
+                if not skip_onset_sync and vocals_path and os.path.exists(vocals_path):
+                    emit_progress("onset_sync", "Synchronizing with vocal track...")
+                    logger.info(f"[LYRICS] Syncing with vocal onsets: {vocals_path}")
+
+                    try:
+                        from core.vocal_onset_detector import sync_lyrics_with_vocal_onsets
+
+                        synced_lyrics, sync_stats = sync_lyrics_with_vocal_onsets(
+                            synced_lyrics,
+                            vocals_path,
+                            tolerance_ms=200
+                        )
+
+                        if sync_stats.get("synced"):
+                            emit_progress("onset_sync_done",
+                                f"Synced: {sync_stats['matched_words']}/{sync_stats['total_words']} words matched")
+                            result["lyrics"] = synced_lyrics
+                            result["source"] = "musixmatch+onset"
+                            result["alignment_stats"] = sync_stats
+                            return result
+                        else:
+                            logger.warning("[LYRICS] Onset sync failed, using raw Musixmatch")
+
+                    except Exception as sync_error:
+                        logger.warning(f"[LYRICS] Onset sync error: {sync_error}")
+                        emit_progress("onset_sync_error", f"Sync failed: {str(sync_error)[:30]}")
+                elif skip_onset_sync:
+                    logger.info("[LYRICS] Skipping onset sync (user requested Musixmatch only)")
+
+                logger.info("[LYRICS] Using Musixmatch timestamps (no vocal sync)")
+                result["lyrics"] = synced_lyrics
+                result["source"] = "musixmatch"
+                result["alignment_stats"] = {
+                    "total_words": total_words,
+                    "matched_words": total_words,
+                    "interpolated_words": 0,
+                    "match_rate": 100.0,
+                    "source": "musixmatch"
+                }
+                return result
+            else:
+                emit_progress("musixmatch_trackid_fail", f"No lyrics for track #{musixmatch_track_id}")
+                logger.info(f"[LYRICS] No lyrics found for Musixmatch track_id={musixmatch_track_id}, falling through to Whisper")
+
+        except Exception as e:
+            emit_progress("musixmatch_trackid_error", f"Musixmatch fetch failed: {str(e)[:50]}")
+            logger.warning(f"[LYRICS] Musixmatch track_id fetch failed: {e}")
     elif artist and track:
         emit_progress("syncedlyrics", f"Searching word-level lyrics for: {artist} - {track}")
         try:
