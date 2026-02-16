@@ -17,6 +17,7 @@
 - 🎚️ **Interactive Mixer** - Independent pitch/tempo control (SoundTouch + Web Audio API)
 - 📁 **File Upload** - Support for MP3, WAV, FLAC, M4A, AAC, OGG, WMA, MP4, AVI, MKV, MOV, WEBM
 - 📱 **Mobile PWA** - Installable app with offline mode and audio caching
+- 🎵 **Jam Session** - Real-time collaborative playback with shared BPM, precount, and metronome *(dev stage)*
 - 👥 **Multi-User** - Authentication + global file deduplication
 - 🚀 **GPU Accelerated** - 4-10x faster processing (automatic CUDA detection)
 - 🔒 **HTTPS Required** - For pitch/tempo features (ngrok included)
@@ -168,6 +169,32 @@ Full-featured mobile interface at `/mobile`:
 - **Zero-Latency Tempo** - Hybrid SoundTouch/playbackRate engine
 
 9 mobile-specific JavaScript modules ensure smooth performance on all devices.
+
+---
+
+## 🎵 Jam Session *(Dev Stage)*
+
+Real-time collaborative playback — multiple musicians can listen and play along together in sync.
+
+> **Status**: Early development. Not yet tested across different platforms (Windows, macOS, mobile browsers) or with more than 2 simultaneous participants. Feedback welcome!
+
+**How it works:**
+- Host creates a session and shares a join code
+- Guests join via `/jam/CODE` — no login required
+- Server coordinates transport commands (play/pause/seek) and shared BPM — no audio is streamed through the server
+
+**Features:**
+- **Precount** - Host configures 1 or 2 bar count-in before playback starts; all participants hear the countdown simultaneously
+- **Metronome** - Beat-accurate click track with Web Audio look-ahead scheduling; supports beat maps from chord detection or constant BPM fallback
+- **Shared Transport** - Play, pause, and seek synchronized across all participants with RTT-based latency compensation
+- **Drift Correction** - Periodic sync heartbeats (every 5s) with automatic position correction when drift exceeds 0.5s
+- **Guest Auto-Join** - No authentication required; guests get auto-generated names (e.g., "Guest-A1B2")
+
+**Known limitations:**
+- Tested primarily on Linux with Chrome/Firefox
+- Multi-platform testing (iOS Safari, Windows, macOS) still needed
+- Large group sessions (3+ participants) not yet validated
+- Network conditions with high latency/jitter may affect sync quality
 
 ---
 
