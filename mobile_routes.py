@@ -3,35 +3,11 @@ Mobile Routes Blueprint
 Provides optimized mobile interface and API endpoints
 """
 
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from core.config import get_setting
-import time
 
 mobile_bp = Blueprint('mobile', __name__)
-
-
-@mobile_bp.route('/mobile')
-@login_required
-def mobile_index():
-    """
-    Serve optimized mobile interface if enabled in config
-    """
-    mobile_enabled = get_setting('mobile_optimized_mode', True)
-
-    if not mobile_enabled:
-        # Redirect to regular interface
-        from flask import redirect, url_for
-        return redirect(url_for('index'))
-
-    # Generate cache buster
-    cache_buster = int(time.time())
-
-    return render_template(
-        'mobile-index.html',
-        current_username=current_user.username,
-        cache_buster=cache_buster
-    )
 
 
 @mobile_bp.route('/api/mobile/config')

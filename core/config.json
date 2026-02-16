@@ -7,7 +7,7 @@
     "use_gpu_for_extraction": true,
     "default_stem_model": "htdemucs_6s",
     "lyrics_model_size": "large-v3",
-    "ffmpeg_path": "/usr/local/bin",
+    "ffmpeg_path": "/usr/bin",
     "auto_check_updates": true,
     "browser_logging_enabled": true,
     "browser_logging_level": "info",
@@ -19,7 +19,7 @@
     "mobile_simplified_mixer": true,
     "chords_use_madmom": true,
     "chords_use_hybrid": true,
-    "downloads_directory": "/home/michael/Documents/Dev/stemtube_dev_v1.3/core/downloads",
+    "downloads_directory": "/home/pourtoi/StemTube_R2/core/downloads",
     "enable_youtube_features": true,
     "cookies_upload_token": null
 }
