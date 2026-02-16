@@ -178,17 +178,29 @@ Real-time collaborative playback — multiple musicians can listen and play alon
 
 > **Status**: Early development. Not yet tested across different platforms (Windows, macOS, mobile browsers) or with more than 2 simultaneous participants. Feedback welcome!
 
+**Use cases:**
+- **Replace an absent musician** — Mute the missing instrument's stem and have a real player fill in live
+- **Learn a new song** — Practice along with chords and lyrics displayed in real time, no need to memorize the song beforehand
+- **Improvise a cover** — Jump into a song on the fly without remembering every detail; StemTube handles the chords, lyrics, and structure for you
+- **Rehearse remotely** — Each participant joins from anywhere, no need to be in the same room
+
 **How it works:**
 - Host creates a session and shares a join code
 - Guests join via `/jam/CODE` — no login required
 - Server coordinates transport commands (play/pause/seek) and shared BPM — no audio is streamed through the server
 
-**Features:**
-- **Precount** - Host configures 1 or 2 bar count-in before playback starts; all participants hear the countdown simultaneously
-- **Metronome** - Beat-accurate click track with Web Audio look-ahead scheduling; supports beat maps from chord detection or constant BPM fallback
-- **Shared Transport** - Play, pause, and seek synchronized across all participants with RTT-based latency compensation
-- **Drift Correction** - Periodic sync heartbeats (every 5s) with automatic position correction when drift exceeds 0.5s
-- **Guest Auto-Join** - No authentication required; guests get auto-generated names (e.g., "Guest-A1B2")
+**Per-player independence:**
+- Each participant chooses their own active tab (Mixer, Lyrics, Chords) based on what they need
+- Each participant mutes/solos stems independently — the guitarist can mute the guitar track while others keep it
+- Metronome click can be turned off individually while keeping the visual pulse blinking as a silent guide
+- Precount (1 or 2 bars) ensures everyone starts together
+
+**Technical features:**
+- **Precount** - Host configures count-in; all participants hear the countdown simultaneously
+- **Metronome** - Beat-accurate click track with Web Audio look-ahead scheduling and visual pulse
+- **Shared Transport** - Play, pause, and seek synchronized with RTT-based latency compensation
+- **Drift Correction** - Periodic sync heartbeats (every 5s) with automatic position correction
+- **Guest Auto-Join** - No authentication required; guests get auto-generated names
 
 **Known limitations:**
 - Tested primarily on Linux with Chrome/Firefox
