@@ -708,7 +708,7 @@
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <!-- Global variables MUST be defined before app.js loads -->
+    <!-- Global variables MUST be defined before app-core.js loads -->
     <script>
         // Global admin status variable for JavaScript
         const isAdmin = {% if current_user.is_admin %}true{% else %}false{% endif %};
@@ -718,7 +718,11 @@
     <!-- Dynamic logging with admin-controlled config - timestamp forces cache refresh -->
     <script src="{{ url_for('static', filename='js/logging-dynamic.js') }}?t=1761906276"></script>
     <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/app.js') }}?v=1762213951"></script>
+    <!-- app.js split into modular files -->
+    <script src="{{ url_for('static', filename='js/app-core.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app-downloads.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app-utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app-admin.js') }}"></script>
     <script src="{{ url_for('static', filename='js/app-extensions.js') }}"></script>
     <script src="{{ url_for('static', filename='js/jam-client.js') }}"></script>
     <script src="{{ url_for('static', filename='js/jam-tab.js') }}"></script>

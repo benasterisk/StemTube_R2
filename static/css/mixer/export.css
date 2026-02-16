@@ -1,0 +1,521 @@
+/* ============================================ */
+/* CHORDS GRID POPUP                           */
+/* ============================================ */
+
+.chords-grid-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(4px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.chords-grid-popup-overlay[aria-hidden="false"] {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.chords-grid-popup-dialog {
+    background: var(--bg-primary);
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    width: 98vw;
+    height: 98vh;
+    display: flex;
+    flex-direction: column;
+    transform: scale(0.95);
+    transition: transform 0.3s ease;
+}
+
+.chords-grid-popup-overlay[aria-hidden="false"] .chords-grid-popup-dialog {
+    transform: scale(1);
+}
+
+.chords-grid-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.chords-grid-popup-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.chords-grid-popup-close {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chords-grid-popup-close:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-color);
+    color: var(--text-primary);
+}
+
+.chords-grid-popup-body {
+    flex: 1;
+    overflow: auto;
+    padding: 1.5rem;
+}
+
+/* ============================================ */
+/* POPUP CONTROLS BAR (Grid View, Lyrics Focus) */
+/* ============================================ */
+
+.popup-controls-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    border-radius: 0 0 8px 8px;
+    flex-shrink: 0;
+    overflow: visible;
+}
+
+.popup-playback-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.popup-control-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent-color);
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.popup-control-btn:hover {
+    transform: scale(1.05);
+    filter: brightness(1.1);
+}
+
+.popup-time-display {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-family: monospace;
+    min-width: 90px;
+}
+
+.popup-sliders {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.popup-slider-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.popup-slider-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.popup-slider {
+    width: 80px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--bg-tertiary);
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.popup-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.popup-slider-value {
+    font-size: 11px;
+    color: var(--text-primary);
+    min-width: 30px;
+    text-align: right;
+}
+
+.chords-grid-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.chord-grid-measure {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+}
+
+.chord-grid-measure-label {
+    min-width: 40px;
+    text-align: center;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.chord-grid-beats {
+    display: flex;
+    flex: 1;
+    gap: 0.5rem;
+}
+
+.chord-grid-beat {
+    flex: 1;
+    min-width: 0;
+    padding: 1rem 0.75rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chord-grid-beat:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-color);
+}
+
+.chord-grid-beat.active {
+    background: rgba(29, 185, 84, 0.2);
+    border-color: #1db954;
+    box-shadow: 0 0 0 2px rgba(29, 185, 84, 0.1);
+}
+
+.chord-grid-beat-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.chord-grid-beat-time {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.chord-grid-beat.empty .chord-grid-beat-name {
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .chords-grid-popup-dialog {
+        max-width: 95vw;
+        max-height: 95vh;
+        width: 100%;
+    }
+
+    .chords-grid-popup-header {
+        padding: 1rem;
+    }
+
+    .chords-grid-popup-body {
+        padding: 1rem;
+    }
+
+    .chord-grid-measure {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .chord-grid-measure-label {
+        min-width: unset;
+        text-align: left;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .chord-grid-beats {
+        flex-wrap: wrap;
+    }
+
+    .chord-grid-beat {
+        flex: 0 0 calc(50% - 0.25rem);
+        min-width: 0;
+    }
+}
+
+/* ========================================
+   Export Mix Modal & Button
+   ======================================== */
+
+.export-controls {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+}
+
+.transport-btn.export {
+    background: linear-gradient(135deg, #1db954, #1ed760);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+
+.transport-btn.export:hover {
+    background: linear-gradient(135deg, #1ed760, #1db954);
+    transform: translateY(-1px);
+}
+
+.transport-btn.export:active {
+    transform: translateY(0);
+}
+
+.export-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.export-modal-overlay[aria-hidden="false"] {
+    opacity: 1;
+    visibility: visible;
+}
+
+.export-modal-dialog {
+    background: var(--bg-secondary, #1a1a1a);
+    border-radius: 12px;
+    width: 400px;
+    max-width: 90vw;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.export-modal-overlay[aria-hidden="false"] .export-modal-dialog {
+    transform: scale(1);
+}
+
+.export-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color, #333);
+}
+
+.export-modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    color: var(--text-primary, #fff);
+}
+
+.export-modal-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary, #888);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.export-modal-close:hover {
+    color: var(--text-primary, #fff);
+}
+
+.export-modal-body {
+    padding: 20px;
+}
+
+.export-field {
+    margin-bottom: 16px;
+}
+
+.export-field label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text-secondary, #888);
+    font-size: 14px;
+}
+
+.export-filename-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.export-input {
+    flex: 1;
+    background: var(--bg-tertiary, #252525);
+    border: 1px solid var(--border-color, #333);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: var(--text-primary, #fff);
+    font-size: 14px;
+}
+
+.export-input:focus {
+    outline: none;
+    border-color: #1db954;
+}
+
+.export-extension {
+    color: var(--text-secondary, #888);
+    font-size: 14px;
+}
+
+.export-info {
+    background: var(--bg-tertiary, #252525);
+    border-radius: 8px;
+    padding: 12px 16px;
+}
+
+.export-info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-size: 13px;
+}
+
+.export-info-row:not(:last-child) {
+    border-bottom: 1px solid var(--border-color, #333);
+}
+
+.export-info-row span:first-child {
+    color: var(--text-secondary, #888);
+}
+
+.export-info-row span:last-child {
+    color: var(--text-primary, #fff);
+}
+
+.export-progress {
+    margin-top: 16px;
+}
+
+.export-progress-bar {
+    height: 6px;
+    background: var(--bg-tertiary, #252525);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.export-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #1db954, #1ed760);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.export-status {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-secondary, #888);
+    margin-top: 8px;
+}
+
+.export-modal-footer {
+    display: flex;
+    gap: 12px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--border-color, #333);
+}
+
+.export-btn-secondary,
+.export-btn-primary {
+    flex: 1;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.export-btn-secondary {
+    background: var(--bg-tertiary, #252525);
+    border: 1px solid var(--border-color, #333);
+    color: var(--text-primary, #fff);
+}
+
+.export-btn-secondary:hover {
+    background: var(--bg-primary, #121212);
+}
+
+.export-btn-primary {
+    background: #1db954;
+    border: none;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.export-btn-primary:hover {
+    background: #1ed760;
+}
+
+.export-btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.export-btn-primary.exporting {
+    pointer-events: none;
+}

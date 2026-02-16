@@ -1,0 +1,139 @@
+/* ============================================ */
+/* STRUCTURE DISPLAY */
+/* ============================================ */
+
+#structure-container {
+    width: 100%;
+    margin-top: 0.5rem;
+}
+
+.structure-display-wrapper {
+    position: relative;
+    width: calc(100% - 180px);
+    height: 60px;
+    background-color: var(--bg-tertiary);
+    border-radius: var(--border-radius);
+    margin-top: 1rem;
+    margin-left: 180px; /* Align with timeline */
+    overflow: hidden;
+}
+
+.structure-timeline {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+}
+
+.structure-section {
+    position: absolute;
+    height: 100%;
+    border-right: 1px solid rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.structure-section:hover {
+    opacity: 0.9;
+    transform: scaleY(1.05);
+    z-index: 10;
+}
+
+.structure-section.active {
+    box-shadow: inset 0 0 15px rgba(255, 255, 255, 0.3);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+.structure-section.looping {
+    box-shadow: 0 0 20px rgba(74, 144, 226, 0.8), inset 0 0 20px rgba(74, 144, 226, 0.4);
+    border: 3px solid var(--accent-color);
+    animation: loop-pulse 2s ease-in-out infinite;
+}
+
+@keyframes loop-pulse {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(74, 144, 226, 0.8), inset 0 0 20px rgba(74, 144, 226, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(74, 144, 226, 1), inset 0 0 30px rgba(74, 144, 226, 0.6);
+    }
+}
+
+.structure-label {
+    color: white;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 4px;
+}
+
+.structure-playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+    pointer-events: none;
+    z-index: 20;
+    transition: left 0.1s linear;
+}
+
+/* Structure and Karaoke controls integrated with transport-controls */
+
+/* Section Type Colors */
+.structure-section[data-label*="Intro"],
+.structure-section[data-label*="intro"] {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.structure-section[data-label*="Verse"],
+.structure-section[data-label*="Couplet"],
+.structure-section[data-label*="verse"],
+.structure-section[data-label*="couplet"] {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.structure-section[data-label*="Chorus"],
+.structure-section[data-label*="Refrain"],
+.structure-section[data-label*="chorus"],
+.structure-section[data-label*="refrain"] {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.structure-section[data-label*="Bridge"],
+.structure-section[data-label*="Pont"],
+.structure-section[data-label*="bridge"],
+.structure-section[data-label*="pont"] {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.structure-section[data-label*="Solo"],
+.structure-section[data-label*="solo"] {
+    background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+
+.structure-section[data-label*="Outro"],
+.structure-section[data-label*="Final"],
+.structure-section[data-label*="outro"],
+.structure-section[data-label*="final"] {
+    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+}
+
+.structure-section[data-label*="Instrumental"],
+.structure-section[data-label*="instrumental"] {
+    background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
+}
+
+/* Default section color if no match */
+.structure-section:not([data-label]) {
+    background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+}
+

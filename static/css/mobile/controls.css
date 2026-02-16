@@ -1,0 +1,520 @@
+/* ================================================
+   Neumorphic Controls for Tempo/Pitch
+   ================================================ */
+
+/* Neumorphic Variables */
+:root {
+    --neu-bg: #1e1e1e;
+    --neu-shadow-dark: #0d0d0d;
+    --neu-shadow-light: #2f2f2f;
+    --neu-accent: var(--mobile-primary);
+    --neu-accent-glow: rgba(29, 185, 84, 0.3);
+}
+
+/* Control Buttons Row (replaces sliders) */
+.mobile-control-buttons-row {
+    display: flex;
+    gap: 8px;
+    padding: 4px 12px;
+    justify-content: center;
+}
+
+/* Neumorphic Trigger Button - Compact for mobile */
+.mobile-neumorphic-trigger {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--neu-bg);
+    border: none;
+    border-radius: 8px;
+    box-shadow:
+        2px 2px 4px var(--neu-shadow-dark),
+        -2px -2px 4px var(--neu-shadow-light);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.mobile-neumorphic-trigger:active {
+    box-shadow:
+        inset 2px 2px 4px var(--neu-shadow-dark),
+        inset -2px -2px 4px var(--neu-shadow-light);
+}
+
+.mobile-neumorphic-trigger .trigger-label {
+    font-size: 10px;
+    color: var(--mobile-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.mobile-neumorphic-trigger .trigger-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--neu-accent);
+}
+
+/* Neumorphic Popup Overlay */
+.neumorphic-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.neumorphic-popup-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Neumorphic Popup Container - Compact */
+.neumorphic-popup {
+    background: var(--neu-bg);
+    border-radius: 20px;
+    padding: 16px;
+    min-width: 220px;
+    box-shadow:
+        8px 8px 16px var(--neu-shadow-dark),
+        -8px -8px 16px var(--neu-shadow-light);
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.neumorphic-popup-overlay.active .neumorphic-popup {
+    transform: scale(1);
+}
+
+/* Popup Header */
+.neumorphic-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.neumorphic-popup-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--mobile-text);
+}
+
+.neumorphic-close-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 50%;
+    background: var(--neu-bg);
+    color: var(--mobile-text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow:
+        2px 2px 4px var(--neu-shadow-dark),
+        -2px -2px 4px var(--neu-shadow-light);
+    transition: all 0.15s ease;
+}
+
+.neumorphic-close-btn:active {
+    box-shadow:
+        inset 2px 2px 4px var(--neu-shadow-dark),
+        inset -2px -2px 4px var(--neu-shadow-light);
+}
+
+/* Dial Container */
+.neumorphic-dial-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 16px;
+}
+
+/* Neumorphic Dial (Circular Control) - Compact 100px */
+.neumorphic-dial {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: var(--neu-bg);
+    box-shadow:
+        6px 6px 12px var(--neu-shadow-dark),
+        -6px -6px 12px var(--neu-shadow-light),
+        inset 1px 1px 3px var(--neu-shadow-light),
+        inset -1px -1px 3px var(--neu-shadow-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+.neumorphic-dial:active {
+    cursor: grabbing;
+}
+
+/* Dial Indicator (rotation line) */
+.neumorphic-dial .dial-indicator {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    width: 3px;
+    height: 14px;
+    margin-left: -1.5px;
+    background: var(--neu-accent);
+    border-radius: 2px;
+    box-shadow: 0 0 6px var(--neu-accent-glow);
+    transform-origin: center calc(50px - 6px);
+    transition: transform 0.05s ease-out;
+}
+
+/* Dial Value Display */
+.neumorphic-dial .dial-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--neu-accent);
+    text-shadow: 0 0 8px var(--neu-accent-glow);
+    pointer-events: none;
+}
+
+/* Neumorphic Reset Button - Compact */
+.neumorphic-reset-btn {
+    width: 100%;
+    padding: 10px;
+    background: var(--neu-bg);
+    border: none;
+    border-radius: 10px;
+    color: var(--mobile-text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow:
+        3px 3px 6px var(--neu-shadow-dark),
+        -3px -3px 6px var(--neu-shadow-light);
+    transition: all 0.15s ease;
+}
+
+.neumorphic-reset-btn:active {
+    box-shadow:
+        inset 2px 2px 4px var(--neu-shadow-dark),
+        inset -2px -2px 4px var(--neu-shadow-light);
+}
+
+.neumorphic-reset-btn:hover {
+    color: var(--neu-accent);
+}
+
+/* Popup Neumorphic Triggers (compact version for popups) */
+.popup-control-triggers {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.popup-neumorphic-trigger {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    background: var(--neu-bg);
+    border: none;
+    border-radius: 8px;
+    box-shadow:
+        2px 2px 4px var(--neu-shadow-dark),
+        -2px -2px 4px var(--neu-shadow-light);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.popup-neumorphic-trigger:active {
+    box-shadow:
+        inset 2px 2px 4px var(--neu-shadow-dark),
+        inset -2px -2px 4px var(--neu-shadow-light);
+}
+
+.popup-neumorphic-trigger .trigger-label {
+    font-size: 9px;
+    color: var(--mobile-text-secondary);
+    text-transform: uppercase;
+}
+
+.popup-neumorphic-trigger .trigger-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--neu-accent);
+}
+
+/* Fullscreen lyrics size control */
+.fullscreen-size-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fullscreen-size-control .fullscreen-slider {
+    width: 60px;
+}
+
+/* ================================================
+   Standard Trigger Buttons (non-neumorphic)
+   ================================================ */
+
+.standard-trigger-row {
+    display: flex;
+    gap: 8px;
+    padding: 4px 12px;
+    justify-content: center;
+}
+
+.standard-trigger {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--mobile-bg-tertiary);
+    border: 1px solid var(--mobile-border);
+    border-radius: var(--mobile-radius);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.standard-trigger:active {
+    background: var(--mobile-bg-secondary);
+}
+
+.standard-trigger .trigger-label {
+    font-size: 10px;
+    color: var(--mobile-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.standard-trigger .trigger-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--mobile-primary);
+}
+
+/* Compact triggers for popups (inline) */
+.popup-trigger-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.popup-standard-trigger {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: var(--mobile-bg-tertiary);
+    border: 1px solid var(--mobile-border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.popup-standard-trigger:active {
+    background: var(--mobile-bg-secondary);
+}
+
+.popup-standard-trigger .trigger-label {
+    font-size: 9px;
+    color: var(--mobile-text-secondary);
+    text-transform: uppercase;
+}
+
+.popup-standard-trigger .trigger-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--mobile-primary);
+}
+
+/* ================================================
+   Standard Dial Popup (non-neumorphic) - Floating
+   ================================================ */
+
+.standard-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 100px;
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.standard-popup-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.standard-popup {
+    background: var(--mobile-bg-secondary);
+    border: 1px solid var(--mobile-border);
+    border-radius: 16px;
+    padding: 16px;
+    min-width: 180px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    transform: translateY(20px);
+    transition: transform 0.2s ease;
+}
+
+.standard-popup-overlay.active .standard-popup {
+    transform: translateY(0);
+}
+
+.standard-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.standard-popup-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--mobile-text);
+}
+
+.standard-close-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--mobile-border);
+    border-radius: 50%;
+    background: var(--mobile-bg-tertiary);
+    color: var(--mobile-text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.standard-close-btn:active {
+    background: var(--mobile-bg-secondary);
+}
+
+/* Standard Dial */
+.standard-dial-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 16px;
+}
+
+.standard-dial {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: var(--mobile-bg-tertiary);
+    border: 2px solid var(--mobile-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+.standard-dial:active {
+    cursor: grabbing;
+    border-color: var(--mobile-primary);
+}
+
+.standard-dial .dial-indicator {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    width: 3px;
+    height: 14px;
+    margin-left: -1.5px;
+    background: var(--mobile-primary);
+    border-radius: 2px;
+    transform-origin: center calc(50px - 6px);
+    transition: transform 0.05s ease-out;
+}
+
+.standard-dial .dial-value {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--mobile-primary);
+    pointer-events: none;
+}
+
+/* Standard Reset Button */
+.standard-reset-btn {
+    width: 100%;
+    padding: 10px;
+    background: var(--mobile-bg-tertiary);
+    border: 1px solid var(--mobile-border);
+    border-radius: var(--mobile-radius);
+    color: var(--mobile-text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.standard-reset-btn:active {
+    background: var(--mobile-bg-secondary);
+}
+
+.standard-reset-btn:hover {
+    color: var(--mobile-primary);
+    border-color: var(--mobile-primary);
+}
+
+/* Mobile Toast Notifications */
+.mobile-toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--mobile-bg-secondary);
+    color: var(--mobile-text);
+    padding: 12px 24px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 10000;
+    opacity: 0;
+    transition: all 0.3s ease;
+    max-width: calc(100vw - 40px);
+    text-align: center;
+    font-size: 14px;
+}
+
+.mobile-toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+.mobile-toast-success {
+    border-left: 4px solid #4caf50;
+}
+
+.mobile-toast-error {
+    border-left: 4px solid #f44336;
+}
+
+.mobile-toast-info {
+    border-left: 4px solid var(--mobile-primary);
+}
+

@@ -1,0 +1,124 @@
+/* ============================================ */
+/* CHORD LINEAR VIEW WITH GRID                 */
+/* ============================================ */
+
+.chord-linear-scroll {
+    position: relative;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 1rem 0;
+    scrollbar-width: thin;
+    scroll-behavior: auto; /* Instant scroll to maintain focus on 4th beat */
+}
+
+.chord-linear-track {
+    position: relative;
+    display: flex;
+    gap: 0;
+    min-height: 120px;
+}
+
+.chord-linear-measure {
+    display: flex;
+    flex-direction: column;
+    min-width: max-content;
+    border-right: 2px solid var(--border-color);
+    transition: background 0.2s ease;
+}
+
+.chord-linear-measure.active {
+    background: rgba(29, 185, 84, 0.05);
+}
+
+.chord-linear-chord-row {
+    display: flex;
+    gap: 1px;
+    background: var(--bg-secondary);
+}
+
+.chord-linear-beat {
+    width: 100px;
+    height: 60px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chord-linear-beat:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-color);
+}
+
+.chord-linear-beat.active {
+    background: rgba(29, 185, 84, 0.25);
+    border-color: #1db954;
+    box-shadow: 0 0 0 2px rgba(29, 185, 84, 0.3);
+}
+
+.chord-linear-beat.empty {
+    background: var(--bg-primary);
+    opacity: 0.5;
+    cursor: default;
+}
+
+.chord-linear-beat.empty:hover {
+    background: var(--bg-primary);
+    border-color: var(--border-color);
+}
+
+.chord-linear-beat-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.chord-linear-beat.empty .chord-linear-beat-name {
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.chord-linear-lyrics-row {
+    min-height: 40px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    background: var(--bg-primary);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chord-linear-playhead {
+    display: none; /* Playhead not needed - only highlighted beat is shown */
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, #ff6b6b 0%, #ff3333 100%);
+    z-index: 20;
+    pointer-events: none;
+    transition: transform 0.1s linear;
+    box-shadow: 0 0 8px rgba(255, 107, 107, 0.5);
+}
+
+.chord-linear-playhead::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid #ff6b6b;
+}
+

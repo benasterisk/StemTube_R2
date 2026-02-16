@@ -1,0 +1,317 @@
+/* Admin Menu Styles */
+.admin-menu {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    flex: 1;
+}
+
+.admin-menu-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    color: var(--text-color);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    text-align: left;
+}
+
+.admin-menu-item:hover {
+    background-color: var(--bg-tertiary);
+    border-color: var(--accent-color);
+    transform: translateY(-1px);
+}
+
+.admin-menu-item.active {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+    color: white;
+}
+
+.admin-menu-item i {
+    font-size: 1.1rem;
+    width: 20px;
+    text-align: center;
+}
+
+.admin-menu-item span {
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+/* Empty state for left panel lists */
+.downloads-list-for-extraction .empty-state,
+.extractions-list-for-mixer .empty-state {
+    text-align: center;
+    padding: var(--spacing-lg);
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* Download and Extraction Items */
+.download-item, .extraction-item {
+    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-md);
+    background-color: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+}
+
+.item-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-sm);
+    gap: 15px;
+}
+
+.item-thumbnail {
+    flex-shrink: 0;
+    width: 80px;
+    height: 60px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bg-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color);
+}
+
+.item-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.item-thumbnail-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+    color: var(--text-secondary);
+    font-size: 1.5rem;
+}
+
+.item-title {
+    font-weight: 600;
+    margin-right: var(--spacing-md);
+    flex: 1;
+}
+
+.item-status {
+    font-size: 0.85rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: calc(var(--border-radius) / 2);
+    background-color: var(--bg-tertiary);
+}
+
+.status-queued {
+    background-color: var(--info-color);
+    color: white;
+}
+
+.status-downloading, .status-extracting {
+    background-color: var(--warning-color);
+    color: white;
+}
+
+.status-completed {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.status-error {
+    background-color: var(--error-color);
+    color: white;
+}
+
+.progress-container {
+    margin: var(--spacing-sm) 0;
+}
+
+.progress-bar {
+    height: 8px;
+    background-color: var(--bg-tertiary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background-color: var(--accent-color);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.progress-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-top: var(--spacing-xs);
+}
+
+.item-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+}
+
+.item-button {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background-color: var(--bg-tertiary);
+    color: var(--text-color);
+    border: none;
+    border-radius: calc(var(--border-radius) / 2);
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+    font-size: 0.85rem;
+}
+
+.item-button:hover {
+    background-color: var(--accent-color);
+    color: white;
+}
+
+.item-button.cancel {
+    background-color: var(--error-color);
+    color: white;
+}
+
+.item-button.cancel:hover {
+    background-color: #ff7070;
+}
+
+/* New extraction status buttons */
+.item-button.extracted {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.item-button.extracted:hover {
+    background-color: #45a049;
+}
+
+.item-button.grant-access {
+    background-color: var(--warning-color);
+    color: white;
+}
+
+.item-button.grant-access:hover {
+    background-color: #e69900;
+}
+
+.item-button.loading {
+    background-color: var(--bg-secondary);
+    color: var(--text-muted);
+    cursor: wait;
+}
+
+/* Download Dropdown Menu */
+.download-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.download-dropdown .download-button {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.download-dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: var(--spacing-xs);
+    min-width: 250px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.download-dropdown-menu.show {
+    display: block;
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    color: var(--text-color);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+}
+
+.dropdown-item:hover {
+    background-color: var(--bg-tertiary);
+}
+
+.dropdown-item i {
+    width: 20px;
+    text-align: center;
+    color: var(--accent-color);
+}
+
+.dropdown-divider {
+    height: 1px;
+    background-color: var(--border-color);
+    margin: var(--spacing-xs) 0;
+}
+
+.dropdown-submenu {
+    background-color: rgba(255, 255, 255, 0.02);
+}
+
+.dropdown-item-header {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stems-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.stem-item {
+    padding-left: calc(var(--spacing-md) + var(--spacing-sm));
+    font-size: 0.9rem;
+}
+
+/* Extraction Badge */
+.extraction-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    margin-left: var(--spacing-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Compact item status styles */
+.compact-item-status.extracted-no-access {
+    color: var(--warning-color);
+    font-weight: 500;
+}
+

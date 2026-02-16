@@ -1,0 +1,448 @@
+/* Responsive Design */
+@media (max-width: 768px) {
+    main {
+        flex-direction: column;
+    }
+    
+    .column {
+        flex: none;
+        height: 50vh;
+    }
+    
+    .search-input-container {
+        flex-wrap: wrap;
+    }
+    
+    #searchInput {
+        flex: 1 0 100%;
+        margin-bottom: var(--spacing-sm);
+        min-height: 44px; /* Taille tactile minimum */
+    }
+    
+    .video-info, .result-info {
+        flex-direction: column;
+    }
+    
+    #downloadThumbnail, .result-thumbnail {
+        margin-bottom: var(--spacing-sm);
+        margin-right: 0;
+    }
+    
+    .stem-checkboxes {
+        grid-template-columns: 1fr;
+    }
+    
+    /* Boutons plus gros pour le tactile */
+    .btn, .item-button {
+        min-height: 44px;
+        padding: 0.75rem 1rem;
+        touch-action: manipulation;
+    }
+    
+    /* Résultats de recherche plus espacés */
+    .search-result {
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .result-thumbnail {
+        max-width: 120px;
+        max-height: 90px;
+    }
+    
+    /* Actions d'éléments en colonne */
+    .item-actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+    
+    .item-button {
+        width: 100%;
+        text-align: center;
+    }
+    
+    /* Modals en plein écran sur mobile */
+    .modal-content {
+        width: 95%;
+        max-width: none;
+        height: 90vh;
+        max-height: none;
+        margin: 5vh auto;
+        overflow-y: auto;
+    }
+    
+    /* Headers de modal plus gros */
+    .modal-header h2 {
+        font-size: 1.3rem;
+    }
+    
+    /* Grille de checkboxes pour les stems */
+    .stem-checkboxes {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .stem-checkbox {
+        padding: 1rem;
+        border-radius: 8px;
+    }
+    
+    .stem-checkbox label {
+        font-size: 1rem;
+        padding-left: 2rem;
+    }
+    
+    .stem-checkbox input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+    }
+}
+
+/* Très petits écrans */
+@media (max-width: 480px) {
+    .container {
+        padding: 0.5rem;
+    }
+    
+    .column {
+        height: auto;
+        min-height: 300px;
+    }
+    
+    .section-header h2 {
+        font-size: 1.2rem;
+    }
+    
+    /* Navigation/header plus compact */
+    .header {
+        padding: 0.5rem;
+    }
+    
+    /* Boutons encore plus gros */
+    .btn, .item-button {
+        padding: 1rem;
+        font-size: 1rem;
+    }
+    
+    /* Timeline de progress plus haute */
+    .progress-bar {
+        height: 12px;
+    }
+    
+    /* Espacement réduit */
+    .search-result {
+        padding: 0.75rem;
+    }
+    
+    .result-info {
+        padding: 0.5rem 0;
+    }
+}
+
+/* Mode paysage sur mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+    main {
+        flex-direction: row;
+    }
+    
+    .column {
+        height: 100vh;
+        flex: 1;
+    }
+    
+    .modal-content {
+        height: 85vh;
+        margin: 7.5vh auto;
+    }
+}
+
+/* Améliorations tactiles générales */
+@media (hover: none) and (pointer: coarse) {
+    /* Tous les éléments interactifs respectent la taille tactile */
+    button, 
+    input[type="text"],
+    input[type="search"],
+    select,
+    .clickable {
+        min-height: 44px;
+        touch-action: manipulation;
+    }
+    
+    /* Suppression des effets de survol */
+    .btn:hover,
+    .item-button:hover,
+    .search-result:hover {
+        transform: none;
+    }
+    
+    /* États actifs plus visibles */
+    .btn:active,
+    .item-button:active {
+        transform: scale(0.98);
+        opacity: 0.8;
+    }
+    
+    .search-result:active {
+        background-color: var(--bg-secondary);
+    }
+    
+    /* Scrollbars plus épaisses sur tactile */
+    ::-webkit-scrollbar {
+        width: 12px;
+        height: 12px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        border-radius: 6px;
+    }
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+    main {
+        flex-direction: column;
+    }
+    
+    /* Disable Split.js splitter on mobile */
+    #split-main {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100% !important;
+        height: auto !important;
+    }
+    
+    /* Reset column widths on mobile */
+    .column {
+        width: 100% !important;
+        height: auto !important;
+        min-width: unset !important;
+        flex: none !important;
+    }
+    
+    /* Hide splitter gutter on mobile */
+    .gutter {
+        display: none !important;
+    }
+    
+    /* Mobile search container */
+    .search-column {
+        margin-bottom: 20px;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 20px;
+    }
+    
+    /* Mobile downloads column */
+    .downloads-column {
+        margin-top: 0;
+    }
+    
+    /* Fix search input container on mobile */
+    .search-input-container {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .search-input-container input {
+        flex: 1;
+        min-width: 200px;
+    }
+    
+    .search-input-container select {
+        min-width: 80px;
+    }
+    
+    .search-input-container button {
+        min-width: 50px;
+    }
+    
+    /* Mobile search results */
+    .search-results {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+    }
+    
+    /* Mobile video items */
+    .video-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .video-thumbnail {
+        width: 100%;
+        max-width: 300px;
+        margin-bottom: 10px;
+    }
+    
+    .video-info {
+        width: 100%;
+    }
+    
+    /* Mobile tabs */
+    .tabs {
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+    
+    .tab-button {
+        flex: 1;
+        min-width: 120px;
+        padding: 12px 16px;
+        font-size: 14px;
+    }
+    
+    /* Mobile download/extraction items */
+    .download-item,
+    .extraction-item {
+        padding: 15px;
+        margin: 10px 0;
+    }
+    
+    .item-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .item-info {
+        width: 100%;
+    }
+    
+    .item-actions {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    /* Mobile buttons */
+    .btn,
+    .item-button {
+        min-height: 44px;
+        min-width: 44px;
+        font-size: 16px;
+        padding: 12px 20px;
+    }
+    
+    /* Mobile modals */
+    .modal-content {
+        width: 95%;
+        max-width: none;
+        margin: 20px auto;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    
+    /* Mobile form elements */
+    input[type="text"],
+    input[type="password"],
+    select,
+    textarea {
+        font-size: 16px; /* Prevent zoom on iOS */
+        min-height: 44px;
+    }
+    
+    /* Mobile checkboxes */
+    input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+    }
+    
+    .checkbox-group {
+        gap: 15px;
+    }
+    
+    .checkbox-item {
+        padding: 10px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+    
+    .checkbox-item label {
+        font-size: 16px;
+    }
+    
+    /* Mobile scrollbars */
+    ::-webkit-scrollbar {
+        width: 12px;
+        height: 12px;
+    }
+    
+    /* Mobile header */
+    header {
+        padding: 15px 20px;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    header h1 {
+        font-size: 1.5rem;
+    }
+    
+    /* Mobile user info */
+    .user-info {
+        padding: var(--spacing-xs) var(--spacing-sm);
+        margin-right: var(--spacing-xs);
+    }
+    
+    .username {
+        font-size: 0.8rem;
+    }
+    
+    /* Remove hover effects on mobile */
+    .btn:hover,
+    .item-button:hover,
+    .tab-button:hover {
+        transform: none;
+    }
+    
+    /* Enhanced error message styling */
+.error-message {
+    color: var(--error-color);
+    font-size: 0.9rem;
+    margin-bottom: var(--spacing-sm);
+    padding: var(--spacing-xs);
+    background-color: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    border-left: 3px solid var(--error-color);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.error-message i {
+    flex-shrink: 0;
+}
+
+/* Specific error type styling */
+.error-forbidden {
+    border-left-color: #dc2626;
+    background-color: rgba(220, 38, 38, 0.1);
+}
+
+.error-not-found {
+    border-left-color: #f59e0b;
+    background-color: rgba(245, 158, 11, 0.1);
+}
+
+.error-permission {
+    border-left-color: #7c3aed;
+    background-color: rgba(124, 58, 237, 0.1);
+}
+
+.error-network {
+    border-left-color: #0891b2;
+    background-color: rgba(8, 145, 178, 0.1);
+}
+
+/* Add active states for better touch feedback */
+    .btn:active,
+    .item-button:active,
+    .tab-button:active {
+        transform: scale(0.98);
+        background-color: var(--accent-color);
+        color: white;
+    }
+}
+

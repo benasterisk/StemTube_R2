@@ -1,0 +1,1041 @@
+/* ============================================
+   Mobile System Settings Styles
+   ============================================ */
+
+.mobile-system-status {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.mobile-status-badge {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 15px 10px;
+    background: var(--mobile-bg-tertiary);
+    border-radius: 12px;
+    border: 1px solid var(--mobile-border);
+    gap: 5px;
+}
+
+.mobile-status-badge i {
+    font-size: 20px;
+    color: var(--mobile-text-secondary);
+}
+
+.mobile-status-badge .mobile-status-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--mobile-text-secondary);
+    font-weight: 600;
+}
+
+.mobile-status-badge .mobile-status-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--mobile-text-primary);
+}
+
+.mobile-status-badge.available {
+    border-color: rgba(40, 167, 69, 0.3);
+    background: rgba(40, 167, 69, 0.1);
+}
+
+.mobile-status-badge.available i {
+    color: #28a745;
+}
+
+.mobile-status-badge.available .mobile-status-value {
+    color: #28a745;
+}
+
+.mobile-status-badge.unavailable {
+    border-color: rgba(220, 53, 69, 0.3);
+    background: rgba(220, 53, 69, 0.1);
+}
+
+.mobile-status-badge.unavailable i {
+    color: #dc3545;
+}
+
+.mobile-status-badge.unavailable .mobile-status-value {
+    color: #dc3545;
+}
+
+.mobile-settings-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.mobile-settings-actions .mobile-btn {
+    flex: 1;
+}
+
+.mobile-form-hint {
+    font-size: 11px;
+    color: var(--mobile-text-tertiary);
+    margin-top: 4px;
+}
+
+.mobile-restart-warning {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: rgba(255, 193, 7, 0.15);
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    margin-top: 15px;
+    color: #856404;
+    font-size: 12px;
+}
+
+.mobile-restart-warning i {
+    color: #ffc107;
+    font-size: 16px;
+}
+
+/* Fix: Make action button icons non-interactive so clicks go to button */
+.mobile-user-action i,
+.mobile-user-actions i {
+    pointer-events: none;
+}
+
+/* ========================================
+   Download Bottom Sheet
+   ======================================== */
+
+.mobile-bottom-sheet {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2000;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.mobile-bottom-sheet.active {
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.mobile-bottom-sheet-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.mobile-bottom-sheet.active .mobile-bottom-sheet-backdrop {
+    opacity: 1;
+}
+
+.mobile-bottom-sheet-content {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--mobile-bg-secondary, #1a1a1a);
+    border-radius: 20px 20px 0 0;
+    max-height: 80vh;
+    overflow-y: auto;
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+}
+
+.mobile-bottom-sheet.active .mobile-bottom-sheet-content {
+    transform: translateY(0);
+}
+
+.mobile-bottom-sheet-header {
+    padding: 12px 20px 8px;
+    text-align: center;
+    border-bottom: 1px solid var(--mobile-border, #333);
+    position: sticky;
+    top: 0;
+    background: var(--mobile-bg-secondary, #1a1a1a);
+}
+
+.mobile-bottom-sheet-handle {
+    width: 40px;
+    height: 4px;
+    background: var(--mobile-text-tertiary, #666);
+    border-radius: 2px;
+    margin: 0 auto 10px;
+}
+
+.mobile-bottom-sheet-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--mobile-text-primary, #fff);
+}
+
+.mobile-bottom-sheet-body {
+    padding: 16px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0));
+}
+
+.mobile-download-option {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 16px;
+    background: var(--mobile-bg-tertiary, #252525);
+    border: none;
+    border-radius: 12px;
+    color: var(--mobile-text-primary, #fff);
+    font-size: 15px;
+    text-align: left;
+    cursor: pointer;
+    margin-bottom: 10px;
+    transition: background 0.2s ease;
+}
+
+.mobile-download-option:active {
+    background: var(--mobile-bg-primary, #121212);
+}
+
+.mobile-download-option i {
+    font-size: 20px;
+    color: var(--mobile-primary, #1db954);
+    width: 24px;
+    text-align: center;
+}
+
+.mobile-download-option.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.mobile-download-option.loading i::before {
+    content: "\f110";
+    animation: spin 1s linear infinite;
+}
+
+.mobile-download-option.mobile-download-danger {
+    background: rgba(220, 53, 69, 0.15);
+    color: #ff6b6b;
+}
+
+.mobile-download-option.mobile-download-danger:active {
+    background: rgba(220, 53, 69, 0.25);
+}
+
+.mobile-download-option.mobile-download-danger i {
+    color: #dc3545;
+}
+
+/* Toast notifications */
+.mobile-toast {
+    position: fixed;
+    bottom: calc(80px + env(safe-area-inset-bottom, 0));
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--mobile-bg-secondary, #1a1a1a);
+    color: var(--mobile-text-primary, #fff);
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    z-index: 3000;
+    opacity: 0;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.mobile-toast.show,
+.mobile-toast.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.mobile-toast-success {
+    border-left: 3px solid #28a745;
+}
+
+.mobile-toast-error {
+    border-left: 3px solid #dc3545;
+}
+
+.mobile-toast-info {
+    border-left: 3px solid var(--mobile-primary, #1db954);
+}
+
+/* ========================================
+   Export Mix Modal & Button
+   ======================================== */
+
+.mobile-mixer-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mobile-mixer-header .mobile-mixer-title {
+    flex: 1;
+}
+
+.mobile-export-btn {
+    color: var(--mobile-primary, #1db954);
+}
+
+.mobile-export-modal {
+    max-width: 340px;
+}
+
+.mobile-export-filename-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mobile-export-filename-row .mobile-input {
+    flex: 1;
+}
+
+.mobile-export-extension {
+    color: var(--mobile-text-tertiary, #666);
+    font-size: 14px;
+}
+
+.mobile-export-info {
+    background: var(--mobile-bg-tertiary, #252525);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.mobile-export-info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 13px;
+}
+
+.mobile-export-info-row:not(:last-child) {
+    border-bottom: 1px solid var(--mobile-border, #333);
+}
+
+.mobile-export-info-row span:first-child {
+    color: var(--mobile-text-tertiary, #666);
+}
+
+.mobile-export-info-row span:last-child {
+    color: var(--mobile-text-primary, #fff);
+}
+
+.mobile-export-progress {
+    margin-top: 16px;
+}
+
+.mobile-export-status {
+    text-align: center;
+    font-size: 12px;
+    color: var(--mobile-text-secondary, #aaa);
+    margin-top: 8px;
+}
+
+.mobile-modal-footer {
+    display: flex;
+    gap: 10px;
+    padding: 16px;
+}
+
+.mobile-modal-footer .mobile-btn {
+    flex: 1;
+}
+
+.mobile-btn-secondary {
+    background: var(--mobile-bg-tertiary, #252525);
+    border: 1px solid var(--mobile-border, #333);
+}
+
+#mobileExportStart i {
+    margin-right: 6px;
+}
+
+#mobileExportStart.exporting {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.mobile-download-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0 16px;
+    color: var(--mobile-text-tertiary, #666);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.mobile-download-divider::before,
+.mobile-download-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--mobile-border, #333);
+}
+
+.mobile-stems-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.mobile-stem-download {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px;
+    background: var(--mobile-bg-tertiary, #252525);
+    border: none;
+    border-radius: 10px;
+    color: var(--mobile-text-primary, #fff);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.mobile-stem-download:active {
+    background: var(--mobile-bg-primary, #121212);
+}
+
+.mobile-stem-download i {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+}
+
+/* Stem-specific colors */
+.mobile-stem-download[data-stem="vocals"] i { color: #ff6b6b; }
+.mobile-stem-download[data-stem="drums"] i { color: #ffd93d; }
+.mobile-stem-download[data-stem="bass"] i { color: #6bcb77; }
+.mobile-stem-download[data-stem="guitar"] i { color: #4d96ff; }
+.mobile-stem-download[data-stem="piano"] i { color: #c084fc; }
+.mobile-stem-download[data-stem="other"] i { color: #a0a0a0; }
+
+/* Download button in library item */
+.mobile-library-actions .download-btn,
+.mobile-library-actions .remove-btn {
+    background: transparent;
+    border: 1px solid var(--mobile-border, #333);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--mobile-text-secondary, #aaa);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.mobile-library-actions .download-btn:active {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--mobile-text-primary, #fff);
+}
+
+.mobile-library-actions .remove-btn {
+    color: #ff6b6b;
+    border-color: rgba(220, 53, 69, 0.3);
+}
+
+.mobile-library-actions .remove-btn:active {
+    background: rgba(220, 53, 69, 0.2);
+    color: #dc3545;
+}
+
+.mobile-library-actions .download-btn i,
+.mobile-library-actions .remove-btn i {
+    pointer-events: none;
+}
+
+/* Key display uses standard trigger-value styling (green) */
+/* ================================================
+   User Settings Page Styles
+   ================================================ */
+
+.mobile-settings-content {
+    padding: var(--mobile-spacing);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.mobile-settings-card {
+    background: var(--mobile-bg-secondary);
+    border-radius: var(--mobile-radius);
+    overflow: hidden;
+}
+
+.mobile-settings-card-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--mobile-border);
+}
+
+.mobile-settings-card-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--mobile-text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mobile-settings-card-header h3 i {
+    color: var(--mobile-primary);
+}
+
+.mobile-settings-card-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.mobile-settings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.mobile-settings-row > label {
+    font-size: 14px;
+    color: var(--mobile-text);
+}
+
+/* Toggle Switch */
+.mobile-toggle {
+    position: relative;
+    width: 50px;
+    height: 28px;
+}
+
+.mobile-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.mobile-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--mobile-border);
+    border-radius: 28px;
+    transition: 0.3s;
+}
+
+.mobile-toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 22px;
+    width: 22px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.3s;
+}
+
+.mobile-toggle input:checked + .mobile-toggle-slider {
+    background: var(--mobile-primary);
+}
+
+.mobile-toggle input:checked + .mobile-toggle-slider:before {
+    transform: translateX(22px);
+}
+
+/* Select */
+.mobile-select {
+    padding: 10px 14px;
+    font-size: 14px;
+    background: var(--mobile-bg-tertiary);
+    color: var(--mobile-text);
+    border: 1px solid var(--mobile-border);
+    border-radius: var(--mobile-radius);
+    min-width: 150px;
+}
+
+/* Cache Usage */
+.cache-usage {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.cache-usage-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    color: var(--mobile-text-secondary);
+}
+
+.cache-progress-bar {
+    height: 8px;
+    background: var(--mobile-border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.cache-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--mobile-primary), #4ade80);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.cache-usage-detail {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+    margin-top: 4px;
+}
+
+/* Cached Songs List */
+.cached-songs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    font-size: 14px;
+    color: var(--mobile-text);
+    margin-bottom: 8px;
+}
+
+.cached-songs-list {
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--mobile-bg-tertiary);
+    border-radius: var(--mobile-radius);
+}
+
+.cached-songs-empty {
+    padding: 20px;
+    text-align: center;
+    color: var(--mobile-text-secondary);
+    font-size: 13px;
+}
+
+.cached-song-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    border-bottom: 1px solid var(--mobile-border);
+}
+
+.cached-song-item:last-child {
+    border-bottom: none;
+}
+
+.cached-song-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.cached-song-title {
+    font-size: 13px;
+    color: var(--mobile-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cached-song-size {
+    font-size: 11px;
+    color: var(--mobile-text-secondary);
+}
+
+.cached-song-remove {
+    background: transparent;
+    border: none;
+    color: #ff6b6b;
+    padding: 8px;
+    cursor: pointer;
+}
+
+/* Settings Actions */
+.mobile-settings-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.mobile-btn-small {
+    background: var(--mobile-bg-tertiary);
+    border: 1px solid var(--mobile-border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: var(--mobile-text-secondary);
+    cursor: pointer;
+}
+
+.mobile-btn-small:active {
+    background: var(--mobile-border);
+}
+
+/* Library item cache indicator */
+.library-item-cache-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--mobile-text-secondary);
+    margin-top: 4px;
+}
+
+.library-item-cache-status.cached {
+    color: var(--mobile-primary);
+}
+
+.library-item-cache-status i {
+    font-size: 10px;
+}
+
+/* Save offline button in library */
+.save-offline-btn {
+    background: transparent;
+    border: 1px solid var(--mobile-primary);
+    color: var(--mobile-primary);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.save-offline-btn:active {
+    background: rgba(29, 185, 84, 0.2);
+}
+
+.save-offline-btn.cached {
+    background: var(--mobile-primary);
+    color: white;
+}
+
+.save-offline-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Save Offline Button in Library */
+.mobile-library-actions .save-offline-btn {
+    background: transparent;
+    border: 1px solid var(--mobile-primary);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--mobile-primary);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+}
+
+.mobile-library-actions .save-offline-btn:active {
+    background: rgba(29, 185, 84, 0.2);
+}
+
+.mobile-library-actions .save-offline-btn.cached {
+    background: var(--mobile-primary);
+    color: white;
+}
+
+.mobile-library-actions .save-offline-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.mobile-library-actions .save-offline-btn i {
+    pointer-events: none;
+}
+
+/* ==========================================
+   Lyrics Dialog
+   ========================================== */
+
+.lyrics-dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    backdrop-filter: blur(4px);
+}
+
+.lyrics-dialog {
+    background: var(--mobile-bg-secondary, #1e1e1e);
+    border-radius: var(--mobile-radius, 8px);
+    padding: 1.25rem;
+    width: 92%;
+    max-width: 400px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--mobile-border, #333);
+}
+
+.lyrics-dialog h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.125rem;
+    color: var(--mobile-text, #fff);
+}
+
+.lyrics-dialog-hint {
+    margin: 0 0 1rem 0;
+    font-size: 0.8125rem;
+    color: var(--mobile-text-secondary, #b3b3b3);
+}
+
+.lyrics-dialog-field {
+    margin-bottom: 0.875rem;
+}
+
+.lyrics-dialog-field label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.8125rem;
+    color: var(--mobile-text-secondary, #b3b3b3);
+}
+
+.lyrics-dialog-field input {
+    width: 100%;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--mobile-border, #333);
+    border-radius: 6px;
+    background: var(--mobile-bg-tertiary, #282828);
+    color: var(--mobile-text, #fff);
+    font-size: 1rem;
+    box-sizing: border-box;
+}
+
+.lyrics-dialog-field input:focus {
+    outline: none;
+    border-color: var(--mobile-primary, #1DB954);
+    box-shadow: 0 0 0 2px rgba(29, 185, 84, 0.2);
+}
+
+.lyrics-dialog-field input::placeholder {
+    color: var(--mobile-text-secondary, #b3b3b3);
+    opacity: 0.6;
+}
+
+.lyrics-dialog-buttons {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.lyrics-dialog-btn {
+    flex: 1;
+    min-width: 80px;
+    padding: 0.55rem 0.5rem;
+    border: 1px solid var(--mobile-border, #333);
+    border-radius: 6px;
+    background: var(--mobile-bg-tertiary, #282828);
+    color: var(--mobile-text, #fff);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.lyrics-dialog-btn:active {
+    opacity: 0.8;
+}
+
+.lyrics-dialog-btn.primary {
+    background: var(--mobile-primary, #1DB954);
+    border-color: var(--mobile-primary, #1DB954);
+    color: #fff;
+}
+
+.lyrics-dialog-btn.primary:active {
+    background: var(--mobile-primary-dark, #148a3c);
+}
+
+.lyrics-dialog-cancel {
+    flex: 0.5;
+    background: var(--mobile-bg-secondary, #1e1e1e);
+}
+
+.lyrics-dialog-musixmatch {
+    background: rgba(29, 185, 84, 0.15);
+    border-color: rgba(29, 185, 84, 0.4);
+    color: #1db954;
+}
+
+.lyrics-dialog-musixmatch:active {
+    background: rgba(29, 185, 84, 0.25);
+}
+
+.lyrics-dialog-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.lyrics-dialog-cancel,
+.lyrics-dialog-back {
+    flex: 0.5;
+    background: var(--mobile-bg-secondary, #1e1e1e);
+}
+
+.lyrics-dialog-search {
+    background: var(--mobile-primary, #1DB954);
+    border-color: var(--mobile-primary, #1DB954);
+    color: #fff;
+}
+
+/* Phase 2 - Track selection */
+.lyrics-dialog-phase2 {
+    max-width: 420px;
+}
+
+.lyrics-dialog-results {
+    max-height: 250px;
+    overflow-y: auto;
+    border: 1px solid var(--mobile-border, #333);
+    border-radius: 6px;
+    margin-top: 0.4rem;
+    -webkit-overflow-scrolling: touch;
+}
+
+.lyrics-dialog-track {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 0.65rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--mobile-border, #2a2a2a);
+    transition: background 0.1s ease;
+}
+
+.lyrics-dialog-track:last-child {
+    border-bottom: none;
+}
+
+.lyrics-dialog-track:active {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.lyrics-dialog-track.selected {
+    background: rgba(29, 185, 84, 0.1);
+}
+
+.lyrics-dialog-track-radio {
+    flex-shrink: 0;
+    width: 1.1rem;
+    text-align: center;
+    color: var(--mobile-text-muted, #666);
+    font-size: 0.75rem;
+}
+
+.lyrics-dialog-track.selected .lyrics-dialog-track-radio {
+    color: var(--mobile-primary, #1DB954);
+}
+
+.lyrics-dialog-track-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+}
+
+.lyrics-dialog-track-name {
+    font-size: 0.85rem;
+    color: var(--mobile-text, #fff);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lyrics-dialog-track-artist {
+    font-size: 0.7rem;
+    color: var(--mobile-text-secondary, #b3b3b3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lyrics-dialog-track-album {
+    font-size: 0.65rem;
+    color: var(--mobile-text-muted, #666);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lyrics-dialog-track-badge {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.3rem;
+    height: 1.3rem;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 700;
+}
+
+.lyrics-dialog-track-badge.badge-richsync {
+    background: rgba(76, 175, 80, 0.2);
+    color: #4caf50;
+}
+
+.lyrics-dialog-track-badge.badge-subtitles {
+    background: rgba(255, 152, 0, 0.2);
+    color: #ff9800;
+}
+
+.lyrics-dialog-track-badge.badge-unknown {
+    background: rgba(158, 158, 158, 0.2);
+    color: #9e9e9e;
+}
+
+.lyrics-dialog-spinner {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 1.25rem 0;
+    color: var(--mobile-text-secondary, #b3b3b3);
+    font-size: 0.85rem;
+}
+
+.lyrics-dialog-spinner i {
+    font-size: 1.1rem;
+    color: var(--mobile-primary, #1DB954);
+}

@@ -1,0 +1,716 @@
+/* =========================== */
+/* CONTRÔLES PITCH & TEMPO     */
+/* =========================== */
+
+#pitch-tempo-controls {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+.pitch-tempo-header {
+    text-align: center;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+
+.pitch-tempo-header h3 {
+    color: var(--accent-color);
+    margin: 0 0 0.5rem 0;
+    font-size: 1.1rem;
+}
+
+.analysis-display {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.original-info {
+    background-color: var(--bg-tertiary);
+    padding: 0.3rem 0.8rem;
+    border-radius: var(--border-radius);
+    display: inline-block;
+}
+
+.controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.control-group {
+    background-color: var(--bg-tertiary);
+    padding: 1rem;
+    border-radius: var(--border-radius);
+    text-align: center;
+}
+
+.control-group h4 {
+    color: var(--success-color);
+    margin: 0 0 0.8rem 0;
+    font-size: 1rem;
+}
+
+.value-display {
+    margin-bottom: 1rem;
+}
+
+.current-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--accent-color);
+    display: block;
+}
+
+.percentage {
+    font-size: 0.9rem;
+    color: var(--warning-color);
+    margin-top: 0.2rem;
+}
+
+.target-key {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-top: 0.2rem;
+}
+
+.control-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+}
+
+.control-btn {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 0.4rem 0.8rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 50px;
+}
+
+.control-btn:hover {
+    background-color: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+}
+
+.control-btn.reset {
+    background-color: var(--warning-color);
+    color: white;
+    border-color: var(--warning-color);
+}
+
+.control-btn.reset:hover {
+    background-color: var(--error-color);
+    border-color: var(--error-color);
+}
+
+.transpose-section {
+    background-color: var(--bg-tertiary);
+    padding: 1rem;
+    border-radius: var(--border-radius);
+    margin-top: 1rem;
+}
+
+.transpose-section h4 {
+    color: var(--success-color);
+    margin: 0 0 0.8rem 0;
+    font-size: 1rem;
+    text-align: center;
+}
+
+.transpose-buttons {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0.3rem;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.note-btn {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 0.5rem 0.3rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.note-btn:hover {
+    background-color: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+}
+
+.note-btn.sharp {
+    background-color: #333;
+    color: #fff;
+}
+
+.note-btn.sharp:hover {
+    background-color: var(--accent-color);
+}
+
+.status-info {
+    text-align: center;
+    padding: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--border-color);
+    margin-top: 1rem;
+}
+
+/* Mobile responsive pour contrôles pitch/tempo */
+@media (max-width: 768px) {
+    #pitch-tempo-controls {
+        padding: 0.8rem;
+        margin: 0.8rem 0;
+    }
+    
+    .controls-grid {
+        grid-template-columns: 1fr;
+        gap: 0.8rem;
+    }
+    
+    .control-buttons {
+        gap: 0.5rem;
+    }
+    
+    .control-btn {
+        padding: 0.6rem 1rem;
+        font-size: 0.9rem;
+        min-width: 60px;
+        min-height: 44px;
+    }
+    
+    .transpose-buttons {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.5rem;
+    }
+    
+    .note-btn {
+        padding: 0.8rem 0.4rem;
+        font-size: 0.9rem;
+        min-height: 44px;
+    }
+    
+    .current-value {
+        font-size: 2.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .transpose-buttons {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .control-buttons {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .control-btn {
+        width: 100%;
+        max-width: 120px;
+    }
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+    /* Mobile track styles */
+    .track.mobile-track {
+        margin-bottom: 20px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 15px;
+        background: var(--bg-secondary);
+    }
+    
+    .track.mobile-track .mobile-header {
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .track.mobile-track .track-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-color);
+    }
+    
+    .mobile-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .button-group {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+    }
+    
+    .control-button {
+        flex: 1;
+        min-height: 44px;
+        padding: 12px 16px;
+        background: var(--bg-tertiary);
+        color: var(--text-color);
+        border: 2px solid transparent;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+    
+    .control-button:active {
+        transform: scale(0.98);
+        background: var(--accent-color);
+        color: white;
+    }
+    
+    .control-button.active {
+        background: var(--accent-color);
+        color: white;
+        border-color: var(--accent-color);
+    }
+    
+    .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .control-label {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    /* Mobile waveform container */
+    .track.mobile-track .waveform-container {
+        height: 80px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        overflow: hidden;
+        margin-top: 10px;
+        position: relative;
+    }
+    
+    .track.mobile-track .waveform {
+        width: 100%;
+        height: 100%;
+        position: relative;
+    }
+    
+    .track.mobile-track .waveform canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+    
+    .track.mobile-track .track-playhead {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 2px;
+        height: 100%;
+        background: var(--accent-color);
+        opacity: 0.8;
+        z-index: 2;
+        transition: left 0.1s ease;
+    }
+    
+    /* Ensure mobile tracks are visible */
+    .tracks-container .track {
+        display: block !important;
+        width: 100% !important;
+        margin: 0 0 20px 0 !important;
+    }
+    
+    /* Mobile transport controls adjustments */
+    .transport-controls {
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+        padding: 15px;
+    }
+    
+    .transport-controls button {
+        min-width: 60px;
+        min-height: 44px;
+        font-size: 16px;
+    }
+    
+    /* Mobile timeline adjustments */
+    .timeline-container {
+        margin: 15px 0;
+        height: 60px;
+    }
+    
+    .timeline {
+        height: 40px;
+        border-radius: 8px;
+    }
+    
+    .timeline-playhead {
+        width: 3px;
+        border-radius: 1.5px;
+    }
+    
+    /* Mobile zoom controls */
+    .zoom-controls {
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+        padding: 10px;
+    }
+    
+    .zoom-controls button {
+        min-width: 50px;
+        min-height: 44px;
+        font-size: 14px;
+        padding: 8px 12px;
+    }
+}
+
+/* Chord Display Styles */
+/* Chord Display Container - Always centered */
+.chord-display-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    width: 100%;
+    gap: 0.5rem;
+}
+
+.chord-display {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem;
+    background-color: var(--bg-tertiary);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    position: relative;
+}
+
+/* Toggle button for chord display mode */
+.chord-mode-toggle {
+    padding: 0.5rem 0.8rem;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.chord-mode-toggle:hover {
+    background-color: var(--bg-primary);
+    border-color: var(--accent-color);
+}
+
+.chord-mode-toggle i {
+    margin-right: 0.3rem;
+}
+
+/* Classic 3-chord mode */
+.chord-timeline {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.chord-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.5rem 0.8rem;
+    background-color: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    min-width: 120px;  /* Fixed width to prevent jumping */
+    max-width: 120px;
+    transition: all 0.3s ease;
+}
+
+.chord-item .chord-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.chord-item .chord-value {
+    font-size: 1.2rem;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    color: var(--text-primary);
+}
+
+.chord-item.past {
+    opacity: 0.5;
+    border: 1px solid transparent;
+}
+
+.chord-item.past .chord-value {
+    color: var(--text-secondary);
+}
+
+.chord-item.current {
+    border: 2px solid var(--accent-color);
+    background-color: var(--bg-primary);
+    box-shadow: 0 0 10px rgba(74, 144, 226, 0.3);
+    transform: scale(1.1);
+}
+
+.chord-item.current .chord-value {
+    color: var(--accent-color);
+    font-size: 1.4rem;
+}
+
+.chord-item.next {
+    opacity: 0.7;
+    border: 1px solid var(--border-color);
+}
+
+.chord-item.next .chord-value {
+    color: var(--text-primary);
+}
+
+/* Animation for chord changes */
+@keyframes chord-pulse {
+    0%, 100% {
+        transform: scale(1.1);
+    }
+    50% {
+        transform: scale(1.15);
+    }
+}
+
+.chord-item.current.changed {
+    animation: chord-pulse 0.5s ease;
+}
+
+/* Timeline Mode (Chordify-style) */
+.chord-display.timeline-mode {
+    width: 100%;
+    max-width: 800px;
+    padding: 0;
+    overflow: hidden;
+}
+
+.chord-timeline-scroll {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+}
+
+.chord-timeline-scroll::-webkit-scrollbar {
+    height: 4px;
+}
+
+.chord-timeline-scroll::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+.chord-timeline-scroll::-webkit-scrollbar-thumb {
+    background: var(--accent-color);
+    border-radius: 2px;
+}
+
+/* Timeline marker - shows current playback position */
+.chord-display.timeline-mode .chord-timeline-marker {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 3px;
+    background-color: var(--accent-color);
+    z-index: 10;
+    pointer-events: none;
+    box-shadow: 0 0 5px rgba(74, 144, 226, 0.8);
+}
+
+.chord-display.timeline-mode .chord-timeline-marker::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    left: -6px;
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 10px solid var(--accent-color);
+}
+
+/* Timeline chord items */
+.chord-timeline-scroll .chord-item {
+    flex-shrink: 0;
+    min-width: 80px;
+    max-width: 80px;
+    padding: 0.4rem 0.6rem;
+}
+
+.chord-timeline-scroll .chord-item .chord-label {
+    font-size: 0.6rem;
+}
+
+.chord-timeline-scroll .chord-item .chord-value {
+    font-size: 1rem;
+}
+
+.chord-timeline-scroll .chord-item.current {
+    transform: scale(1.15);
+    border: 2px solid var(--accent-color);
+    box-shadow: 0 0 15px rgba(74, 144, 226, 0.5);
+}
+
+.chord-timeline-scroll .chord-item.current .chord-value {
+    font-size: 1.2rem;
+}
+
+/* Chord items fade based on distance from current */
+.chord-timeline-scroll .chord-item.far-past,
+.chord-timeline-scroll .chord-item.far-future {
+    opacity: 0.3;
+}
+
+.chord-timeline-scroll .chord-item.near-past,
+.chord-timeline-scroll .chord-item.near-future {
+    opacity: 0.6;
+}
+
+/* Beat Grid Cells (Chordify/Moises style) */
+.beat-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 60px;
+    max-width: 60px;
+    height: 70px;
+    flex-shrink: 0;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-right: none;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.beat-cell:last-child {
+    border-right: 1px solid var(--border-color);
+}
+
+/* First beat of bar - thicker border */
+.beat-cell.first-in-bar {
+    border-left: 3px solid var(--accent-color);
+    background-color: rgba(74, 144, 226, 0.05);
+}
+
+/* Beat with chord */
+.beat-cell.has-chord {
+    background-color: rgba(74, 144, 226, 0.15);
+}
+
+.beat-chord {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: var(--text-primary);
+    font-family: 'Courier New', monospace;
+}
+
+.beat-dot {
+    color: var(--text-secondary);
+    opacity: 0.3;
+    font-size: 1.5rem;
+}
+
+/* Beat states during playback */
+.beat-cell.beat-past {
+    opacity: 0.3;
+    background-color: var(--bg-primary);
+}
+
+.beat-cell.beat-current {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+    transform: scale(1.1);
+    z-index: 5;
+    box-shadow: 0 0 15px rgba(74, 144, 226, 0.8);
+}
+
+.beat-cell.beat-current .beat-chord,
+.beat-cell.beat-current .beat-dot {
+    color: white;
+    font-weight: bold;
+}
+
+.beat-cell.beat-near-future {
+    opacity: 1;
+}
+
+.beat-cell.beat-far-future {
+    opacity: 0.4;
+}
+
+/* Debug Panel */
+.chord-debug-panel {
+    background-color: rgba(0, 0, 0, 0.8);
+    border: 1px solid var(--accent-color);
+    border-radius: var(--border-radius);
+    padding: 0.8rem;
+    margin-top: 0.5rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    max-width: 500px;
+}
+
+.debug-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.2rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.debug-row:last-child {
+    border-bottom: none;
+}
+
+.debug-label {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.debug-value {
+    color: var(--accent-color);
+    font-weight: bold;
+}
+

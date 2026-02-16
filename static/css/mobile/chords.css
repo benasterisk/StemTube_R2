@@ -1,0 +1,1467 @@
+/* ============================================ */
+/* CHORD LINEAR VIEW WITH GRID (MOBILE)        */
+/* ============================================ */
+
+.chord-linear-scroll {
+    position: relative;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 1rem 0;
+    scrollbar-width: thin;
+    scroll-behavior: auto;
+    /* Instant scroll to maintain focus on 4th beat */
+    -webkit-overflow-scrolling: touch;
+}
+
+.chord-linear-track {
+    position: relative;
+    display: flex;
+    gap: 0;
+    min-height: 100px;
+}
+
+.chord-linear-measure {
+    display: flex;
+    flex-direction: column;
+    min-width: max-content;
+    border-right: 2px solid var(--mobile-border);
+    transition: background 0.2s ease;
+}
+
+.chord-linear-measure.active {
+    background: rgba(29, 185, 84, 0.08);
+}
+
+.chord-linear-chord-row {
+    display: flex;
+    gap: 1px;
+    background: var(--mobile-bg-secondary);
+}
+
+.chord-linear-beat {
+    width: 80px;
+    height: 50px;
+    background: var(--mobile-bg-tertiary);
+    border: 1px solid var(--mobile-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chord-linear-beat:active {
+    transform: scale(0.95);
+}
+
+.chord-linear-beat.active {
+    background: rgba(29, 185, 84, 0.3);
+    border-color: var(--mobile-primary);
+    box-shadow: 0 0 0 2px rgba(29, 185, 84, 0.3);
+}
+
+.chord-linear-beat.empty {
+    background: var(--mobile-bg-primary);
+    opacity: 0.5;
+    cursor: default;
+}
+
+.chord-linear-beat.empty:active {
+    transform: none;
+}
+
+.chord-linear-beat-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--mobile-text);
+}
+
+.chord-linear-beat.empty .chord-linear-beat-name {
+    color: var(--mobile-text-muted);
+    font-weight: 400;
+}
+
+.chord-linear-lyrics-row {
+    min-height: 36px;
+    padding: 0.5rem;
+    font-size: 0.813rem;
+    color: var(--mobile-text-secondary);
+    background: var(--mobile-bg-primary);
+    border-top: 1px solid var(--mobile-border);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chord-linear-playhead {
+    display: none;
+    /* Playhead not needed - only highlighted beat is shown */
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--mobile-primary) 0%, rgba(29, 185, 84, 0.8) 100%);
+    z-index: 20;
+    pointer-events: none;
+    transition: transform 0.1s linear;
+    box-shadow: 0 0 8px rgba(29, 185, 84, 0.6);
+}
+
+.chord-linear-playhead::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid var(--mobile-primary);
+}
+
+/* Adjust for larger mobile screens */
+@media (min-width: 600px) {
+    .chord-linear-beat {
+        width: 100px;
+        height: 60px;
+    }
+
+    .chord-linear-beat-name {
+        font-size: 1.1rem;
+    }
+
+    .chord-linear-lyrics-row {
+        font-size: 0.875rem;
+    }
+}
+
+/* ============================================ */
+/* POPUP CONTROLS BAR (Grid View, Lyrics Focus) */
+/* ============================================ */
+
+.popup-controls-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    margin: 0;
+    background: var(--mobile-bg-tertiary);
+    border-bottom: 1px solid var(--mobile-border);
+    border-radius: 0 0 8px 8px;
+    box-sizing: border-box;
+    width: 100%;
+    flex-shrink: 0;
+    overflow: visible;
+}
+
+.popup-playback-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.popup-control-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: var(--mobile-primary);
+    color: #000;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.popup-control-btn:active {
+    transform: scale(0.9);
+}
+
+.popup-control-btn.playing .fa-play::before {
+    content: "\f04c";
+    /* pause icon */
+}
+
+.popup-time-display {
+    font-size: 11px;
+    color: var(--mobile-text-secondary);
+    min-width: 70px;
+    font-family: monospace;
+    flex-shrink: 0;
+}
+
+.popup-sliders {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+
+.popup-slider-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+    max-width: 150px;
+}
+
+/* Force Size slider to new row below Tempo/Pitch */
+.popup-sliders .popup-slider-group:nth-child(3) {
+    flex-basis: 100%;
+    max-width: 180px;
+}
+
+.popup-slider-label {
+    font-size: 10px;
+    color: var(--mobile-text-secondary);
+    min-width: 35px;
+    flex-shrink: 0;
+}
+
+.popup-slider {
+    flex: 1;
+    min-width: 40px;
+    max-width: 80px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--mobile-bg-secondary);
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+}
+
+.popup-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--mobile-primary);
+    cursor: pointer;
+}
+
+.popup-slider-value {
+    font-size: 10px;
+    color: var(--mobile-text);
+    min-width: 24px;
+    text-align: right;
+    font-family: monospace;
+    flex-shrink: 0;
+}
+
+/* Mobile landscape - compact controls */
+@media (max-width: 767px) and (orientation: landscape) {
+    .popup-controls-bar {
+        padding: 6px 10px;
+        gap: 6px;
+    }
+
+    .popup-control-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 11px;
+    }
+
+    .popup-time-display {
+        font-size: 10px;
+        min-width: 60px;
+    }
+
+    .popup-sliders {
+        gap: 6px;
+    }
+
+    .popup-slider-group {
+        max-width: 120px;
+    }
+
+    .popup-slider {
+        max-width: 60px;
+    }
+
+    .popup-slider-label {
+        font-size: 9px;
+        min-width: 30px;
+    }
+
+    .popup-slider-value {
+        font-size: 9px;
+        min-width: 20px;
+    }
+}
+
+/* Desktop - wider layout */
+@media (min-width: 1025px) {
+    .popup-controls-bar {
+        padding: 12px 16px;
+        gap: 16px;
+    }
+
+    .popup-control-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 14px;
+    }
+
+    .popup-time-display {
+        font-size: 13px;
+        min-width: 90px;
+    }
+
+    .popup-slider-group {
+        max-width: 180px;
+    }
+
+    .popup-slider {
+        max-width: 100px;
+    }
+
+    .popup-slider-label {
+        font-size: 11px;
+    }
+
+    .popup-slider-value {
+        font-size: 12px;
+        min-width: 40px;
+    }
+}
+
+/* ============================================ */
+/* MOBILE LYRICS FOCUS POPUP                   */
+/* ============================================ */
+
+.lyrics-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1100;
+    padding: 0.5rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.lyrics-popup-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.lyrics-popup-dialog {
+    background: var(--mobile-bg-primary);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    width: 100%;
+    max-width: 95vw;
+    height: 95vh;
+    max-height: 95vh;
+    display: flex;
+    flex-direction: column;
+    transform: scale(0.95);
+    transition: transform 0.3s ease;
+}
+
+.lyrics-popup-overlay.active .lyrics-popup-dialog {
+    transform: scale(1);
+}
+
+.lyrics-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    border-bottom: 1px solid var(--mobile-border);
+    background: var(--mobile-bg-secondary);
+    border-radius: 16px 16px 0 0;
+    flex-shrink: 0;
+}
+
+.lyrics-popup-header h3 {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--mobile-text);
+}
+
+.lyrics-popup-close {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: transparent;
+    border: 1px solid var(--mobile-border);
+    border-radius: 8px;
+    color: var(--mobile-text-secondary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.lyrics-popup-close:active {
+    background: var(--mobile-bg-tertiary);
+    transform: scale(0.95);
+}
+
+.lyrics-popup-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0.75rem;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.lyrics-popup-slider {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: var(--mobile-bg-tertiary);
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    flex-shrink: 0;
+}
+
+.lyrics-popup-slider label {
+    font-size: 0.75rem;
+    color: var(--mobile-text-secondary);
+    white-space: nowrap;
+}
+
+.lyrics-popup-slider input[type="range"] {
+    flex: 1;
+    height: 4px;
+    background: var(--mobile-bg-secondary);
+    border-radius: 2px;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.lyrics-popup-slider input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--mobile-accent);
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.lyrics-popup-content {
+    flex: 1;
+    background: var(--mobile-bg-secondary);
+    border-radius: 12px;
+    padding: 1rem;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile lyrics line styling in popup */
+.lyrics-popup-content .mobile-lyrics-line {
+    padding: 0.75rem 0;
+    font-size: 1.2rem;
+    line-height: 1.8;
+    color: var(--mobile-text-secondary);
+    transition: all 0.3s ease;
+}
+
+.lyrics-popup-content .mobile-lyrics-line.active {
+    color: var(--mobile-text);
+    font-weight: 600;
+    font-size: 1.4rem;
+}
+
+.lyrics-popup-content .mobile-lyrics-line.past {
+    color: var(--mobile-text-muted);
+}
+
+.lyrics-popup-content .mobile-lyrics-time {
+    display: inline-block;
+}
+
+/* Word-level karaoke in popup */
+.lyrics-popup-content .mobile-lyrics-word {
+    display: inline;
+    margin-right: 0.25em;
+    transition: all 0.15s ease;
+}
+
+.lyrics-popup-content .mobile-lyrics-word.word-current {
+    color: var(--mobile-primary);
+    font-weight: 600;
+}
+
+.lyrics-popup-content .mobile-lyrics-word.word-past {
+    color: var(--mobile-primary);
+    opacity: 0.8;
+}
+
+/* Tablet landscape - larger popup */
+@media (min-width: 600px) {
+    .lyrics-popup-dialog {
+        max-width: 700px;
+        max-height: 90vh;
+    }
+
+    .lyrics-popup-content .mobile-lyrics-line {
+        font-size: 1.4rem;
+        padding: 1rem 0;
+    }
+
+    .lyrics-popup-content .mobile-lyrics-line.active {
+        font-size: 1.6rem;
+    }
+}
+
+/* ============================================ */
+/* FULLSCREEN LYRICS POPUP (New Karaoke Mode)  */
+/* ============================================ */
+
+.fullscreen-lyrics-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.95);
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.fullscreen-lyrics-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.fullscreen-lyrics-dialog {
+    width: 100%;
+    height: 100%;
+    max-width: 100vw;
+    max-height: 100vh;
+    background: var(--mobile-bg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.fullscreen-lyrics-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+    background: var(--mobile-bg-secondary);
+    border-bottom: 1px solid var(--mobile-border);
+    flex-shrink: 0;
+}
+
+.fullscreen-lyrics-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--mobile-text);
+}
+
+.fullscreen-lyrics-close {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.6rem;
+    background: var(--mobile-bg-tertiary);
+    border: 1px solid var(--mobile-border);
+    border-radius: 6px;
+    color: var(--mobile-text-secondary);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.fullscreen-lyrics-close:active {
+    background: var(--mobile-bg);
+    transform: scale(0.95);
+}
+
+/* Fullscreen Controls Bar */
+.fullscreen-controls-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--mobile-bg-secondary);
+    border-bottom: 1px solid var(--mobile-border);
+    flex-shrink: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.fullscreen-playback-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.fullscreen-control-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: var(--mobile-primary);
+    color: #000;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.fullscreen-control-btn:active {
+    transform: scale(0.9);
+}
+
+.fullscreen-control-btn.playing .fa-play::before {
+    content: "\f04c"; /* pause icon */
+}
+
+.fullscreen-time-display {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+    font-family: monospace;
+    min-width: 80px;
+    flex-shrink: 0;
+}
+
+.fullscreen-time-separator {
+    color: var(--mobile-text-muted);
+}
+
+.fullscreen-sliders {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}
+
+.fullscreen-slider-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.fullscreen-slider-label {
+    font-size: 11px;
+    color: var(--mobile-text-secondary);
+    min-width: 40px;
+    flex-shrink: 0;
+}
+
+.fullscreen-slider {
+    width: 80px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--mobile-bg-tertiary);
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+}
+
+.fullscreen-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--mobile-primary);
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.fullscreen-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--mobile-primary);
+    cursor: pointer;
+    border: none;
+}
+
+.fullscreen-slider-value {
+    font-size: 11px;
+    color: var(--mobile-primary);
+    font-weight: 600;
+    min-width: 30px;
+    text-align: right;
+    font-family: monospace;
+}
+
+/* Fullscreen Lyrics Body */
+.fullscreen-lyrics-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--mobile-bg);
+}
+
+.fullscreen-lyrics-content {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    padding: 1rem 1.5rem;
+    padding-top: 20vh;
+    padding-bottom: 70vh;
+}
+
+/* Fullscreen Lyrics Line Styles */
+.fullscreen-lyrics-content .fs-lyrics-line {
+    padding: 0.8rem 0;
+    font-size: 1.4rem;
+    line-height: 2;
+    color: rgba(255, 255, 255, 0.4);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border-radius: 8px;
+    margin: 4px 0;
+}
+
+.fullscreen-lyrics-content .fs-lyrics-line:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.fullscreen-lyrics-content .fs-lyrics-line.active {
+    color: var(--mobile-text);
+    font-size: 1.8rem;
+    font-weight: 600;
+}
+
+.fullscreen-lyrics-content .fs-lyrics-line.past {
+    color: rgba(255, 255, 255, 0.35);
+}
+
+.fullscreen-lyrics-content .fs-lyrics-line.recent-past {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.fullscreen-lyrics-content .fs-lyrics-line.up-next {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.fullscreen-lyrics-content .fs-lyrics-line.future {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.fullscreen-lyrics-content .fs-lyrics-line.hidden-past,
+.fullscreen-lyrics-content .fs-lyrics-line.hidden-future {
+    color: rgba(255, 255, 255, 0.2);
+    filter: blur(0.5px);
+}
+
+/* Fullscreen Lyrics Text Container */
+.fullscreen-lyrics-content .fs-lyrics-text {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    align-items: flex-end;
+}
+
+/* Fullscreen Word Styles (Karaoke highlighting) */
+.fullscreen-lyrics-content .fs-lyrics-word {
+    transition: all 0.1s ease;
+}
+
+.fullscreen-lyrics-content .fs-lyrics-word.word-future {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.fullscreen-lyrics-content .fs-lyrics-word.word-current {
+    color: transparent;
+    font-weight: 700;
+    /* Gradient fill applied via inline style in JS */
+}
+
+.fullscreen-lyrics-content .fs-lyrics-word.word-past {
+    color: transparent;
+    /* Full color applied via inline style in JS */
+}
+
+/* Active line word colors */
+.fullscreen-lyrics-content .fs-lyrics-line.active .fs-lyrics-word.word-future {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* Chord annotations in fullscreen */
+.fullscreen-lyrics-content .fs-lyrics-word-wrapper {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    position: relative;
+    margin-bottom: 6px;
+}
+
+.fullscreen-lyrics-content .fs-lyrics-chord {
+    font-size: 0.75em;
+    font-weight: 700;
+    color: var(--mobile-primary);
+    margin-bottom: 4px;
+    white-space: nowrap;
+    opacity: 0.9;
+}
+
+.fullscreen-lyrics-content .fs-lyrics-line.active .fs-lyrics-chord {
+    opacity: 1;
+    text-shadow: 0 0 10px rgba(29, 185, 84, 0.5);
+}
+
+/* Responsive - Mobile Portrait */
+@media (max-width: 480px) {
+    .fullscreen-controls-bar {
+        padding: 6px 10px;
+        gap: 6px;
+    }
+
+    .fullscreen-control-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 12px;
+    }
+
+    .fullscreen-slider {
+        width: 60px;
+    }
+
+    .fullscreen-slider-label {
+        font-size: 10px;
+        min-width: 35px;
+    }
+
+    .fullscreen-lyrics-content .fs-lyrics-line {
+        font-size: 1.2rem;
+    }
+
+    .fullscreen-lyrics-content .fs-lyrics-line.active {
+        font-size: 1.5rem;
+    }
+}
+
+/* Responsive - Mobile Landscape */
+@media (max-width: 767px) and (orientation: landscape) {
+    .fullscreen-lyrics-header {
+        padding: 0.4rem 0.75rem;
+    }
+
+    .fullscreen-lyrics-header h3 {
+        font-size: 0.9rem;
+    }
+
+    .fullscreen-controls-bar {
+        padding: 4px 8px;
+        gap: 6px;
+    }
+
+    .fullscreen-control-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 11px;
+    }
+
+    .fullscreen-time-display {
+        font-size: 10px;
+        min-width: 70px;
+    }
+
+    .fullscreen-slider {
+        width: 50px;
+    }
+
+    .fullscreen-slider-label {
+        font-size: 9px;
+        min-width: 30px;
+    }
+
+    .fullscreen-slider-value {
+        font-size: 9px;
+        min-width: 25px;
+    }
+
+    .fullscreen-lyrics-content {
+        padding: 0.5rem 1rem;
+        padding-top: 15vh;
+        padding-bottom: 60vh;
+    }
+
+    .fullscreen-lyrics-content .fs-lyrics-line {
+        font-size: 1.1rem;
+        padding: 0.5rem 0;
+    }
+
+    .fullscreen-lyrics-content .fs-lyrics-line.active {
+        font-size: 1.3rem;
+    }
+}
+
+/* Responsive - Tablet */
+@media (min-width: 600px) and (max-width: 1024px) {
+    .fullscreen-lyrics-content .fs-lyrics-line {
+        font-size: 1.6rem;
+        padding: 1rem 0;
+    }
+
+    .fullscreen-lyrics-content .fs-lyrics-line.active {
+        font-size: 2rem;
+    }
+
+    .fullscreen-slider {
+        width: 100px;
+    }
+}
+
+/* Responsive - Desktop */
+@media (min-width: 1025px) {
+    .fullscreen-lyrics-dialog {
+        max-width: 900px;
+        max-height: 90vh;
+        border-radius: 16px;
+        margin: auto;
+    }
+
+    .fullscreen-lyrics-header {
+        border-radius: 16px 16px 0 0;
+    }
+
+    .fullscreen-controls-bar {
+        padding: 10px 16px;
+        gap: 16px;
+    }
+
+    .fullscreen-control-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
+    }
+
+    .fullscreen-slider {
+        width: 120px;
+    }
+
+    .fullscreen-lyrics-content .fs-lyrics-line {
+        font-size: 1.8rem;
+        padding: 1.2rem 0;
+    }
+
+    .fullscreen-lyrics-content .fs-lyrics-line.active {
+        font-size: 2.2rem;
+    }
+}
+
+/* ==================================================================
+   GRID VIEW 2 - MODERN CHORDS GRID POPUP
+   ================================================================== */
+
+/* Overlay */
+.gridview2-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(10, 10, 20, 0.98) 0%, rgba(20, 15, 35, 0.98) 100%);
+    z-index: 1200;
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    /* Safe area for Chrome address bar */
+    padding-top: env(safe-area-inset-top, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.gridview2-overlay[aria-hidden="false"] {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Dialog container */
+.gridview2-dialog {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Header */
+.gridview2-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+}
+
+.gridview2-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: 0.02em;
+}
+
+.gridview2-close {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.gridview2-close:hover,
+.gridview2-close:active {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.05);
+}
+
+/* Transport bar */
+.gridview2-transport {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 16px;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.gridview2-transport::-webkit-scrollbar {
+    display: none;
+}
+
+/* Playback controls */
+.gridview2-playback {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.gridview2-control-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+}
+
+.gridview2-control-btn:first-child {
+    background: var(--mobile-primary, #8b5cf6);
+    color: #fff;
+}
+
+.gridview2-control-btn:first-child:hover,
+.gridview2-control-btn:first-child:active {
+    background: var(--mobile-primary-dark, #7c3aed);
+    transform: scale(1.05);
+}
+
+.gridview2-control-btn:last-of-type {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.gridview2-control-btn:last-of-type:hover,
+.gridview2-control-btn:last-of-type:active {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Time display */
+.gridview2-time {
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.8);
+    white-space: nowrap;
+}
+
+.gridview2-time-sep {
+    opacity: 0.5;
+    margin: 0 2px;
+}
+
+/* Sliders */
+.gridview2-sliders {
+    display: flex;
+    gap: 16px;
+    flex-shrink: 0;
+}
+
+.gridview2-slider-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.gridview2-slider-label {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+.gridview2-slider {
+    width: 70px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    outline: none;
+}
+
+.gridview2-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--mobile-primary, #8b5cf6);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);
+}
+
+.gridview2-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: var(--mobile-primary, #8b5cf6);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);
+}
+
+.gridview2-slider-value {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.7);
+    min-width: 28px;
+    text-align: right;
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+}
+
+/* Body container */
+.gridview2-body {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Content with fade edges */
+.gridview2-content {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    padding: 2rem 1rem;
+    -webkit-mask-image: linear-gradient(
+        to bottom,
+        transparent 0%,
+        black 12%,
+        black 88%,
+        transparent 100%
+    );
+    mask-image: linear-gradient(
+        to bottom,
+        transparent 0%,
+        black 12%,
+        black 88%,
+        transparent 100%
+    );
+    scroll-behavior: auto; /* NO smooth scroll - IMMEDIATE */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(139, 92, 246, 0.3) transparent;
+}
+
+.gridview2-content::-webkit-scrollbar {
+    width: 4px;
+}
+
+.gridview2-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.gridview2-content::-webkit-scrollbar-thumb {
+    background: rgba(139, 92, 246, 0.3);
+    border-radius: 2px;
+}
+
+/* Measure container */
+.gridview2-measure {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    position: relative;
+}
+
+/* Measure number badge */
+.gridview2-measure-number {
+    position: absolute;
+    top: -8px;
+    left: 12px;
+    background: rgba(139, 92, 246, 0.2);
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+}
+
+/* Beat/Chord cell */
+.gridview2-beat {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60px;
+    padding: 10px 6px;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 12px;
+    border: 2px solid transparent;
+    transition: all 0.15s ease;
+    text-align: center;
+    line-height: 1.2;
+}
+
+/* Rest/empty beat indicator */
+.gridview2-beat.is-rest,
+.gridview2-beat.is-empty {
+    color: rgba(255, 255, 255, 0.25);
+    font-size: 1rem;
+}
+
+/* Active beat - CENTERED highlight with glow */
+.gridview2-beat.active {
+    background: linear-gradient(135deg, var(--mobile-primary, #8b5cf6), #a855f7);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: scale(1.08);
+    box-shadow:
+        0 4px 20px rgba(139, 92, 246, 0.5),
+        0 0 40px rgba(139, 92, 246, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    z-index: 10;
+}
+
+/* Pulse animation on active beat */
+@keyframes gridview2-pulse {
+    0%, 100% {
+        box-shadow:
+            0 4px 20px rgba(139, 92, 246, 0.5),
+            0 0 40px rgba(139, 92, 246, 0.3);
+    }
+    50% {
+        box-shadow:
+            0 4px 30px rgba(139, 92, 246, 0.7),
+            0 0 60px rgba(139, 92, 246, 0.4);
+    }
+}
+
+.gridview2-beat.active {
+    animation: gridview2-pulse 1.5s ease-in-out infinite;
+}
+
+/* Past beats (already played) */
+.gridview2-beat.past {
+    color: rgba(255, 255, 255, 0.35);
+}
+
+/* Future beats */
+.gridview2-beat.future {
+    color: rgba(255, 255, 255, 0.55);
+}
+
+/* Empty state */
+.gridview2-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: rgba(255, 255, 255, 0.4);
+    text-align: center;
+    padding: 2rem;
+}
+
+.gridview2-empty i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.3;
+}
+
+.gridview2-empty p {
+    font-size: 1rem;
+    margin: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 360px) {
+    .gridview2-transport {
+        padding: 8px 12px;
+        gap: 8px;
+    }
+
+    .gridview2-slider {
+        width: 55px;
+    }
+
+    .gridview2-beat {
+        min-height: 50px;
+        font-size: 1.1rem;
+        padding: 8px 4px;
+    }
+
+    .gridview2-measure {
+        gap: 6px;
+        padding: 10px;
+    }
+}
+
+/* Landscape mode */
+@media (orientation: landscape) and (max-height: 500px) {
+    .gridview2-header {
+        padding: 8px 16px;
+    }
+
+    .gridview2-transport {
+        padding: 6px 16px;
+    }
+
+    .gridview2-control-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .gridview2-content {
+        padding: 1rem;
+    }
+
+    .gridview2-measure {
+        margin-bottom: 8px;
+        padding: 8px;
+    }
+
+    .gridview2-beat {
+        min-height: 45px;
+        font-size: 1.1rem;
+    }
+}
+
+/* Tablet and larger */
+@media (min-width: 768px) {
+    .gridview2-dialog {
+        max-width: 700px;
+        max-height: 85vh;
+        margin: auto;
+        border-radius: 20px;
+        box-shadow: 0 25px 100px rgba(0, 0, 0, 0.5);
+    }
+
+    .gridview2-header {
+        border-radius: 20px 20px 0 0;
+        padding: 14px 20px;
+    }
+
+    .gridview2-transport {
+        padding: 12px 20px;
+    }
+
+    .gridview2-slider {
+        width: 90px;
+    }
+
+    .gridview2-content {
+        padding: 2rem 1.5rem;
+    }
+
+    .gridview2-beat {
+        min-height: 70px;
+        font-size: 1.4rem;
+    }
+
+    .gridview2-measure {
+        gap: 10px;
+        padding: 14px;
+        margin-bottom: 14px;
+    }
+}
+
+/* Desktop */
+@media (min-width: 1025px) {
+    .gridview2-dialog {
+        max-width: 800px;
+    }
+
+    .gridview2-beat {
+        min-height: 80px;
+        font-size: 1.5rem;
+    }
+
+    .gridview2-beat:hover:not(.active) {
+        background: rgba(255, 255, 255, 0.06);
+        transform: scale(1.02);
+    }
+}
+

@@ -1,0 +1,1065 @@
+/* Chord Timeline */
+.mobile-chord-scroll {
+    position: relative;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 2px 0;
+    scrollbar-width: thin;
+}
+
+.mobile-chord-track {
+    position: relative;
+    min-height: 60px;
+}
+
+.mobile-chord-segment {
+    position: absolute;
+    top: 10px;
+    height: 40px;
+    border-radius: 8px;
+    border: 1px solid rgba(29, 185, 84, 0.4);
+    background: rgba(29, 185, 84, 0.16);
+    color: #1db954;
+    font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: transform 0.15s, background 0.15s, border 0.15s;
+}
+
+.mobile-chord-segment.active {
+    background: rgba(29, 185, 84, 0.35);
+    border-color: #1db954;
+    transform: scale(1.02);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.mobile-chord-name {
+    font-size: 14px;
+}
+
+.mobile-chord-time {
+    font-size: 10px;
+    color: var(--mobile-text-secondary);
+}
+
+.mobile-chord-playhead {
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    background: #ff6b6b;
+    z-index: 20;
+    pointer-events: none;
+    transition: transform 0.05s linear;
+}
+
+.mobile-chord-diagram-panel {
+    margin-top: 6px;
+    padding: 8px 2px 8px;
+    border-radius: 12px;
+    background: var(--mobile-bg-secondary);
+    border: 1px solid var(--mobile-border);
+}
+
+.mobile-chord-diagram-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+    padding: 0 4px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--mobile-text-secondary);
+}
+
+/* Tablettes et desktop - plus d'espace */
+@media (min-width: 768px) {
+    .mobile-chord-diagram-panel {
+        padding: 10px 4px 12px;
+    }
+
+    .mobile-chord-diagram-header {
+        margin-bottom: 10px;
+        font-size: 13px;
+    }
+}
+
+.mobile-chord-instrument-toggle {
+    display: inline-flex;
+    border: 1px solid var(--mobile-border);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.mobile-chord-instrument-toggle button {
+    background: transparent;
+    border: none;
+    color: var(--mobile-text);
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.mobile-chord-instrument-toggle button.active {
+    background: var(--mobile-primary);
+    color: #000;
+}
+
+.mobile-chord-diagram-carousel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 8px 2px;
+    min-height: 280px;
+    position: relative;
+    overflow: visible;
+}
+
+.mobile-chord-diagram {
+    padding: 2px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+
+/* Mobile portrait - diagrammes rapprochés, pas de 100% de largeur totale */
+.mobile-chord-diagram-prev {
+    flex: 0 0 auto;
+    width: 24%;
+    max-width: 180px;
+    opacity: 0.75;
+    transform: scale(0.75) translateY(15px);
+    z-index: 1;
+}
+
+.mobile-chord-diagram-next {
+    flex: 0 0 auto;
+    width: 24%;
+    max-width: 180px;
+    opacity: 0.75;
+    transform: scale(0.75) translateY(15px);
+    z-index: 1;
+}
+
+.mobile-chord-diagram-current {
+    flex: 0 0 auto;
+    width: 32%;
+    max-width: 280px;
+    transform: scale(1) translateY(0);
+    opacity: 1;
+    z-index: 2;
+}
+
+.mobile-chord-diagram-label {
+    text-align: center;
+    font-weight: 600;
+    margin-bottom: 2px;
+    color: var(--mobile-text);
+    line-height: 1.2;
+}
+
+.mobile-chord-diagram-current .mobile-chord-diagram-label {
+    font-size: 22px;
+    margin-bottom: 6px;
+}
+
+.mobile-chord-diagram-prev .mobile-chord-diagram-label,
+.mobile-chord-diagram-next .mobile-chord-diagram-label {
+    font-size: 14px;
+    margin-bottom: 1px;
+}
+
+/* Mobile paysage - optimiser l'espace vertical */
+@media (max-width: 767px) and (orientation: landscape) {
+    .mobile-chord-diagram-panel {
+        padding: 4px 2px 4px;
+    }
+
+    .mobile-chord-diagram-header {
+        margin-bottom: 3px;
+        font-size: 11px;
+    }
+
+    .mobile-chord-diagram-carousel {
+        min-height: 200px;
+        padding: 4px 2px;
+        gap: 5px;
+    }
+
+    .mobile-chord-diagram-prev {
+        width: 24%;
+        max-width: 180px;
+        opacity: 0.75;
+        transform: scale(0.72) translateY(15px);
+    }
+
+    .mobile-chord-diagram-next {
+        width: 24%;
+        max-width: 180px;
+        opacity: 0.75;
+        transform: scale(0.72) translateY(15px);
+    }
+
+    .mobile-chord-diagram-current {
+        width: 32%;
+        max-width: 260px;
+        transform: scale(0.9) translateY(0);
+    }
+
+    .mobile-chord-diagram-current .mobile-chord-diagram-label {
+        font-size: 18px;
+        margin-bottom: 3px;
+    }
+
+    .mobile-chord-diagram-prev .mobile-chord-diagram-label,
+    .mobile-chord-diagram-next .mobile-chord-diagram-label {
+        font-size: 12px;
+    }
+}
+
+/* Tablettes et petits laptops (iPad, petit ThinkPad) */
+@media (min-width: 768px) and (max-width: 1024px) {
+    .mobile-chord-diagram-carousel {
+        min-height: 320px;
+        padding: 10px 4px;
+        gap: 8px;
+    }
+
+    .mobile-chord-diagram-prev {
+        width: 26%;
+        max-width: 200px;
+        opacity: 0.7;
+        transform: scale(0.75) translateY(22px);
+    }
+
+    .mobile-chord-diagram-next {
+        width: 26%;
+        max-width: 200px;
+        opacity: 0.7;
+        transform: scale(0.75) translateY(22px);
+    }
+
+    .mobile-chord-diagram-current {
+        width: 34%;
+        max-width: 300px;
+        transform: scale(1) translateY(0);
+    }
+
+    .mobile-chord-diagram-current .mobile-chord-diagram-label {
+        font-size: 22px;
+        margin-bottom: 6px;
+    }
+
+    .mobile-chord-diagram-prev .mobile-chord-diagram-label,
+    .mobile-chord-diagram-next .mobile-chord-diagram-label {
+        font-size: 14px;
+    }
+}
+
+/* Desktop et grands écrans */
+@media (min-width: 1025px) {
+    .mobile-chord-diagram-carousel {
+        min-height: 360px;
+        padding: 12px 6px;
+        gap: 12px;
+    }
+
+    .mobile-chord-diagram-prev {
+        width: 24%;
+        max-width: 220px;
+        opacity: 0.7;
+        transform: scale(0.78) translateY(25px);
+    }
+
+    .mobile-chord-diagram-next {
+        width: 24%;
+        max-width: 220px;
+        opacity: 0.7;
+        transform: scale(0.78) translateY(25px);
+    }
+
+    .mobile-chord-diagram-current {
+        width: 32%;
+        max-width: 340px;
+        transform: scale(1) translateY(0);
+    }
+
+    .mobile-chord-diagram-current .mobile-chord-diagram-label {
+        font-size: 24px;
+        margin-bottom: 8px;
+    }
+
+    .mobile-chord-diagram-prev .mobile-chord-diagram-label,
+    .mobile-chord-diagram-next .mobile-chord-diagram-label {
+        font-size: 15px;
+    }
+}
+
+
+.guitar-diagram {
+    width: 100%;
+    max-width: 540px;
+    min-width: 0;
+    margin: 0 auto;
+    color: var(--mobile-text);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Diagrammes dans le carousel - pas de margin auto pour rapprocher */
+.mobile-chord-diagram-prev .guitar-diagram,
+.mobile-chord-diagram-next .guitar-diagram {
+    margin: 0;
+    max-width: 100%;
+}
+
+.mobile-chord-diagram-current .guitar-diagram {
+    margin: 0;
+    max-width: 100%;
+}
+
+.guitar-svg-wrapper {
+    width: 100%;
+    height: clamp(200px, 60vw, 480px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Ajustements pour les SVG sur mobile portrait */
+@media (max-width: 767px) and (orientation: portrait) {
+    .guitar-svg-wrapper {
+        height: clamp(180px, 55vw, 280px);
+    }
+}
+
+/* Ajustements pour les SVG sur mobile paysage - encore plus compact */
+@media (max-width: 767px) and (orientation: landscape) {
+    .guitar-svg-wrapper {
+        height: clamp(140px, 40vw, 200px);
+    }
+}
+
+/* Tablettes et petits laptops */
+@media (min-width: 768px) and (max-width: 1024px) {
+    .guitar-svg-wrapper {
+        height: clamp(240px, 65vw, 360px);
+    }
+}
+
+/* Desktop */
+@media (min-width: 1025px) {
+    .guitar-svg-wrapper {
+        height: clamp(300px, 70vw, 420px);
+    }
+}
+
+.guitar-svg-wrapper svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    margin: 0 auto;
+}
+
+.guitar-fret-label {
+    margin-top: 8px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--mobile-text-secondary);
+}
+
+/* Mode paysage - fret label plus compact */
+@media (max-width: 767px) and (orientation: landscape) {
+    .guitar-fret-label {
+        margin-top: 3px;
+        font-size: 11px;
+    }
+}
+
+/* Cette règle est maintenant gérée par le mobile-first design ci-dessus */
+
+.piano-diagram {
+    width: 100%;
+    max-width: 220px;
+    margin: 0 auto;
+    position: relative;
+}
+
+/* Piano dans le carousel - pas de margin auto */
+.mobile-chord-diagram-prev .piano-diagram,
+.mobile-chord-diagram-next .piano-diagram,
+.mobile-chord-diagram-current .piano-diagram {
+    margin: 0;
+    max-width: 100%;
+}
+
+.piano-wrapper {
+    position: relative;
+    width: 100%;
+    height: 70px;
+}
+
+/* Ajustements pour le piano sur mobile paysage */
+@media (max-width: 767px) and (orientation: landscape) {
+    .piano-diagram {
+        max-width: 200px;
+    }
+
+    .piano-wrapper {
+        height: 55px;
+    }
+}
+
+/* Ajustements pour le piano sur tablettes */
+@media (min-width: 768px) and (max-width: 1024px) {
+    .piano-diagram {
+        max-width: 260px;
+    }
+
+    .piano-wrapper {
+        height: 80px;
+    }
+}
+
+/* Ajustements pour le piano sur desktop */
+@media (min-width: 1025px) {
+    .piano-diagram {
+        max-width: 300px;
+    }
+
+    .piano-wrapper {
+        height: 90px;
+    }
+}
+
+.piano-white-keys {
+    display: flex;
+    height: 100%;
+}
+
+.piano-white-key {
+    flex: 1;
+    border: 1px solid var(--mobile-border);
+    border-right: none;
+    background: #fdfdfd;
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    font-size: 11px;
+    color: #222;
+}
+
+.piano-white-key span {
+    margin-bottom: 4px;
+    font-size: 10px;
+}
+
+.piano-white-key:last-child {
+    border-right: 1px solid var(--mobile-border);
+}
+
+.piano-white-key.active {
+    background: var(--mobile-primary);
+    color: #000;
+    font-weight: 600;
+}
+
+.piano-black-keys {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 60%;
+    width: 100%;
+    pointer-events: none;
+}
+
+.piano-black-key {
+    position: absolute;
+    width: 14%;
+    height: 100%;
+    background: #111;
+    border: 1px solid #000;
+    border-radius: 0 0 4px 4px;
+    transform: translateX(-50%);
+}
+
+.piano-black-key.active {
+    background: var(--mobile-primary);
+}
+
+/* Extraction Modal */
+.mobile-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+}
+
+.mobile-modal.visible {
+    display: flex;
+}
+
+.mobile-modal-content {
+    background: var(--mobile-bg-secondary);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+}
+
+.mobile-modal-header,
+.mobile-modal-footer {
+    padding: 16px;
+    border-bottom: 1px solid var(--mobile-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.mobile-modal-footer {
+    border-top: 1px solid var(--mobile-border);
+    border-bottom: none;
+}
+
+.mobile-modal-body {
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.mobile-modal-close {
+    background: transparent;
+    border: none;
+    color: var(--mobile-text);
+    font-size: 20px;
+}
+
+.mobile-modal-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mobile-modal-section label {
+    font-size: 13px;
+    color: var(--mobile-text-secondary);
+}
+
+.mobile-modal-path {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+    word-break: break-all;
+}
+
+.mobile-modal-hint {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.mobile-stem-checkboxes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.mobile-stem-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid var(--mobile-border);
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.mobile-stem-option input[type="checkbox"] {
+    accent-color: var(--mobile-primary);
+}
+
+.mobile-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--mobile-text);
+}
+
+.mobile-switch input[type="checkbox"] {
+    accent-color: var(--mobile-primary);
+}
+
+.mobile-modal-action {
+    width: 100%;
+}
+
+/* Mixer Page */
+.mobile-mixer-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: var(--mobile-spacing);
+}
+
+.mobile-mixer-title {
+    font-size: 16px;
+    font-weight: 500;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mobile-mixer-tabs {
+    display: flex;
+    background: var(--mobile-bg-secondary);
+    border-radius: var(--mobile-radius);
+    padding: 4px;
+    margin-bottom: var(--mobile-spacing);
+    gap: 4px;
+}
+
+.mobile-mixer-tab {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--mobile-text-secondary);
+    padding: 10px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s;
+}
+
+.mobile-mixer-tab i {
+    font-size: 16px;
+}
+
+.mobile-mixer-tab.active {
+    background: var(--mobile-bg-tertiary);
+    color: var(--mobile-primary);
+}
+
+.mobile-mixer-content {
+    display: none;
+}
+
+.mobile-mixer-content.active {
+    display: block;
+}
+
+/* Playback Controls */
+.mobile-playback-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: var(--mobile-spacing);
+}
+
+.mobile-play-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--mobile-primary);
+    border: none;
+    color: white;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.mobile-time-display {
+    font-size: 13px;
+    color: var(--mobile-text-secondary);
+}
+
+.mobile-progress-bar {
+    position: relative;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--mobile-spacing);
+    cursor: pointer;
+}
+
+.mobile-progress-bar::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--mobile-bg-tertiary);
+    border-radius: 2px;
+}
+
+.mobile-progress-bar .mobile-progress-fill {
+    position: absolute;
+    left: 0;
+    height: 4px;
+    background: var(--mobile-primary);
+    border-radius: 2px;
+    pointer-events: none;
+}
+
+.mobile-progress-handle {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+/* Track Controls */
+.mobile-tracks-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.mobile-track {
+    background: var(--mobile-bg-secondary);
+    border: 1px solid var(--mobile-border);
+    border-radius: var(--mobile-radius);
+    padding: 12px;
+}
+
+.mobile-track-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.mobile-track-name {
+    font-size: 14px;
+    font-weight: 500;
+    text-transform: capitalize;
+}
+
+.mobile-track-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.mobile-track-btn {
+    background: var(--mobile-bg-tertiary);
+    border: 1px solid var(--mobile-border);
+    border-radius: 4px;
+    color: var(--mobile-text-secondary);
+    width: 55px;
+    /* Wider for text labels */
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.mobile-track-btn.active {
+    background: var(--mobile-primary);
+    color: white;
+    border-color: var(--mobile-primary);
+}
+
+.mobile-track-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.mobile-track-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mobile-track-label {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+    min-width: 50px;
+}
+
+.mobile-track-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--mobile-bg-tertiary);
+    outline: none;
+}
+
+.mobile-track-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--mobile-primary);
+    cursor: pointer;
+}
+
+.mobile-track-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--mobile-primary);
+    cursor: pointer;
+    border: none;
+}
+
+.mobile-track-value {
+    font-size: 12px;
+    color: var(--mobile-text);
+    min-width: 40px;
+    text-align: right;
+}
+
+/* Chord Controls */
+.mobile-chord-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: var(--mobile-spacing);
+    background: var(--mobile-bg-secondary);
+    border: 1px solid var(--mobile-border);
+    border-radius: var(--mobile-radius);
+    padding: 12px;
+}
+
+.mobile-control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mobile-control-group label {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+    font-weight: 500;
+}
+
+.mobile-slider-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mobile-slider-control input[type="range"] {
+    flex: 1;
+}
+
+.mobile-slider-control span {
+    font-size: 13px;
+    min-width: 40px;
+    text-align: center;
+    color: var(--mobile-text);
+}
+
+/* Chord Timeline */
+.mobile-chord-timeline {
+    background: var(--mobile-bg-secondary);
+    border: 1px solid var(--mobile-border);
+    border-radius: var(--mobile-radius);
+    padding: 8px 10px 12px;
+    min-height: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.mobile-chord-item {
+    background: var(--mobile-bg-tertiary);
+    border-radius: 6px;
+    padding: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.mobile-chord-name {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--mobile-primary);
+}
+
+.mobile-chord-time {
+    font-size: 11px;
+    color: var(--mobile-text-secondary);
+}
+
+/* Lyrics Display */
+.mobile-lyrics-action-row {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.mobile-lyrics-action-row .mobile-btn {
+    min-width: 0;
+}
+
+.mobile-chord-action-row {
+    display: flex;
+    justify-content: center;
+    margin: 8px 0;
+}
+
+.mobile-chord-action-row .mobile-btn {
+    min-width: 0;
+}
+
+.mobile-lyrics-display {
+    background: var(--mobile-bg-secondary);
+    border: 1px solid var(--mobile-border);
+    border-radius: var(--mobile-radius);
+    padding: 16px;
+    min-height: 320px;
+    max-height: calc(100vh - 260px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    position: relative;
+}
+
+/* Add padding space at top and bottom for better scrolling */
+.mobile-lyrics-display::before,
+.mobile-lyrics-display::after {
+    content: '';
+    display: block;
+    height: 35vh;
+    flex-shrink: 0;
+}
+
+.mobile-lyrics-display::before {
+    height: 30vh;
+}
+
+.mobile-lyrics-placeholder {
+    color: var(--mobile-text-secondary);
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.mobile-lyrics-line {
+    padding: 12px 0;
+    font-size: 14px;
+    line-height: 2;
+    transition: opacity 0.3s ease, font-size 0.2s ease, font-weight 0.2s ease, filter 0.3s ease;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    cursor: pointer;
+    border-radius: 4px;
+    margin: 4px 0;
+}
+
+.mobile-lyrics-line:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.mobile-lyrics-line.active {
+    font-weight: 500;
+    font-size: 16px;
+}
+
+.mobile-lyrics-line.past {
+    opacity: 0.5;
+}
+
+.mobile-lyrics-line.recent-past {
+    opacity: 0.7;
+}
+
+.mobile-lyrics-line.hidden-past,
+.mobile-lyrics-line.hidden-future {
+    opacity: 0.3;
+    filter: blur(0.3px);
+}
+
+.mobile-lyrics-line.up-next {
+    opacity: 0.85;
+}
+
+.mobile-lyrics-line.future {
+    opacity: 0.7;
+}
+
+.mobile-lyrics-time {
+    flex-shrink: 0;
+    width: 45px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    font-family: 'Courier New', monospace;
+    padding-top: 2px;
+}
+
+.mobile-lyrics-text {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    /* Space between words */
+}
+
+.mobile-lyrics-word {
+    display: inline;
+    transition: all 0.1s ease;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+/* Word states (karaoke-style) */
+.mobile-lyrics-word.word-future {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.mobile-lyrics-word.word-current {
+    color: transparent;
+    font-weight: 600;
+    /* Gradient applied via inline style in JS */
+}
+
+.mobile-lyrics-word.word-past {
+    color: transparent;
+    /* Full color fill applied via inline style in JS */
+}
+

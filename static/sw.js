@@ -1,5 +1,5 @@
 // StemTube Service Worker v2.15 - Single dot metronome, look-ahead scheduling
-const CACHE_NAME = 'stemtube-v2.23';
+const CACHE_NAME = 'stemtube-v2.24';
 const STEMS_CACHE_NAME = 'stemtube-stems-v1';
 
 // Stem file names to cache (no ZIP, no source)
@@ -9,7 +9,11 @@ const STEM_FILES = ['vocals.mp3', 'bass.mp3', 'drums.mp3', 'guitar.mp3', 'piano.
 const PRECACHE_FILES = [
   '/mobile',
   '/static/css/mobile-style.css',
+  '/static/js/mobile-constants.js',
+  '/static/js/mobile-guitar-diagram.js',
+  '/static/js/mobile-neumorphic-dial.js',
   '/static/js/mobile-app.js',
+  '/static/js/mobile-admin.js',
   '/static/js/app-extensions.js',
   '/static/js/pwa-init.js',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'

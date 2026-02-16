@@ -1253,7 +1253,12 @@
     </script>
     <script src="{{ url_for('static', filename='js/jam-client.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/jam-metronome.js') }}?v={{ cache_buster }}"></script>
+    <!-- mobile-app.js split into modular files -->
+    <script src="{{ url_for('static', filename='js/mobile-constants.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/mobile-guitar-diagram.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/mobile-neumorphic-dial.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/mobile-app.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/mobile-admin.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/pwa-init.js') }}?v={{ cache_buster }}"></script>
 </body>
 </html>

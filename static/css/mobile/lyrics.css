@@ -1,0 +1,722 @@
+/* ============================================ */
+/* SONGBOOK-STYLE CHORD ANNOTATIONS ON LYRICS  */
+/* ============================================ */
+
+.mobile-lyrics-text.songbook-style {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    align-items: flex-end;
+}
+
+.mobile-lyrics-word-wrapper {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    position: relative;
+    margin-bottom: 2px;
+}
+
+.mobile-lyrics-chord {
+    display: block;
+    font-size: 0.75em;
+    font-weight: 700;
+    color: var(--mobile-accent);
+    line-height: 1.2;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    text-transform: none;
+    letter-spacing: 0;
+    opacity: 0.9;
+}
+
+/* Active line chord highlight */
+.mobile-lyrics-line.active .mobile-lyrics-chord {
+    color: var(--mobile-accent);
+    opacity: 1;
+    text-shadow: 0 0 8px rgba(var(--mobile-accent-rgb, 76, 175, 80), 0.4);
+}
+
+/* Past line chord fading */
+.mobile-lyrics-line.past .mobile-lyrics-chord {
+    color: var(--mobile-text-muted);
+    opacity: 0.6;
+}
+
+/* Future line chord styling */
+.mobile-lyrics-line.future .mobile-lyrics-chord {
+    color: var(--mobile-text-secondary);
+    opacity: 0.7;
+}
+
+/* Songbook style in Lyrics Focus Popup */
+.lyrics-popup-content .mobile-lyrics-text.songbook-style {
+    gap: 6px 10px;
+}
+
+.lyrics-popup-content .mobile-lyrics-word-wrapper {
+    margin-bottom: 4px;
+}
+
+.lyrics-popup-content .mobile-lyrics-chord {
+    font-size: 0.8em;
+    margin-bottom: 3px;
+}
+
+.lyrics-popup-content .mobile-lyrics-line.active .mobile-lyrics-chord {
+    font-size: 0.85em;
+}
+
+/* Bottom Navigation */
+.mobile-bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--mobile-nav-height);
+    background: var(--mobile-bg-secondary);
+    border-top: 1px solid var(--mobile-border);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    z-index: 100;
+}
+
+.mobile-nav-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--mobile-text-secondary);
+    padding: 8px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    transition: color 0.2s;
+}
+
+.mobile-nav-btn i {
+    font-size: 20px;
+}
+
+.mobile-nav-btn.active {
+    color: var(--mobile-primary);
+}
+
+/* Loading Overlay */
+.mobile-loading-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.mobile-loading-overlay.show {
+    display: flex;
+}
+
+.mobile-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--mobile-bg-tertiary);
+    border-top-color: var(--mobile-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+#mobileLoadingText {
+    color: var(--mobile-text);
+    font-size: 14px;
+}
+
+/* Utility Classes */
+.mobile-hidden {
+    display: none !important;
+}
+
+.mobile-text-center {
+    text-align: center;
+}
+
+.mobile-text-small {
+    font-size: 11px;
+}
+
+.mobile-text-muted {
+    color: var(--mobile-text-secondary);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 375px) {
+    .mobile-body {
+        font-size: 13px;
+    }
+
+    .mobile-result-thumbnail {
+        width: 70px;
+        height: 50px;
+    }
+
+    .mobile-library-thumbnail {
+        width: 50px;
+        height: 50px;
+    }
+}
+
+/* iOS Safe Area Support */
+@supports (padding: max(0px)) {
+    .mobile-header {
+        padding-left: max(var(--mobile-spacing), env(safe-area-inset-left));
+        padding-right: max(var(--mobile-spacing), env(safe-area-inset-right));
+    }
+
+    .mobile-bottom-nav {
+        padding-bottom: env(safe-area-inset-bottom);
+        height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
+    }
+
+    .mobile-main {
+        bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
+    }
+}
+
+/* Chord Timeline Styles */
+.mobile-chord-timeline-grid {
+    overflow-x: auto;
+    overflow-y: hidden;
+    width: 100%;
+    max-height: 140px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 10px;
+}
+
+.mobile-timeline-scroll {
+    position: relative;
+    min-width: 100%;
+}
+
+.mobile-measure-bar {
+    position: absolute;
+    border-left: 1px solid rgba(255, 255, 255, 0.15);
+    height: 100%;
+}
+
+.mobile-chord-box {
+    position: absolute;
+    background: rgba(29, 185, 84, 0.25);
+    border: 1px solid rgba(29, 185, 84, 0.6);
+    border-radius: 6px;
+    padding: 8px;
+    text-align: center;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.mobile-chord-box:active {
+    background: rgba(29, 185, 84, 0.5);
+    transform: scale(0.95);
+}
+
+.mobile-playhead {
+    position: absolute;
+    background: #ff4444;
+    box-shadow: 0 0 8px rgba(255, 68, 68, 0.8);
+}
+
+.mobile-chords-placeholder {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--mobile-text-secondary);
+    font-size: 14px;
+}
+
+/* ================================================
+   Mobile Library Sub-tabs
+   ================================================ */
+.mobile-library-tabs {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    background: var(--mobile-bg-secondary);
+    border-bottom: 1px solid var(--mobile-border);
+}
+
+.mobile-library-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 16px;
+    background: var(--mobile-bg-tertiary);
+    border: 1px solid var(--mobile-border);
+    border-radius: var(--mobile-radius);
+    color: var(--mobile-text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mobile-library-tab.active {
+    background: var(--mobile-primary);
+    color: var(--mobile-text);
+    border-color: var(--mobile-primary);
+}
+
+.mobile-library-tab i {
+    font-size: 16px;
+}
+
+.mobile-library-content {
+    display: none;
+    padding: 12px;
+}
+
+.mobile-library-content.active {
+    display: block;
+}
+
+/* ================================================
+   Unified Control Bar (Play/Pause/Stop + Tempo/Pitch)
+   ================================================ */
+.mobile-unified-controls {
+    background: var(--mobile-bg-secondary);
+    border: 1px solid var(--mobile-border);
+    border-radius: var(--mobile-radius);
+    padding: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: block;
+    margin-bottom: 12px;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
+}
+
+/* Mode paysage mobile - tout sur une ligne */
+@media (max-width: 767px) and (orientation: landscape) {
+    .mobile-unified-controls {
+        padding: 6px 8px;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+}
+
+.mobile-playback-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+/* Mode paysage - tout sur une ligne, pas de marge en bas */
+@media (max-width: 767px) and (orientation: landscape) {
+    .mobile-playback-row {
+        margin-bottom: 0;
+        flex-shrink: 0;
+    }
+}
+
+.mobile-control-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--mobile-primary);
+    border: none;
+    color: var(--mobile-text);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Mode paysage - boutons plus petits */
+@media (max-width: 767px) and (orientation: landscape) {
+    .mobile-control-btn {
+        width: 30px;
+        height: 30px;
+        font-size: 12px;
+    }
+}
+
+.mobile-control-btn:active {
+    transform: scale(0.95);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.mobile-control-btn i {
+    pointer-events: none;
+}
+
+.mobile-time-display {
+    min-width: 70px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--mobile-text-secondary);
+}
+
+/* Mode paysage - texte plus petit */
+@media (max-width: 767px) and (orientation: landscape) {
+    .mobile-time-display {
+        min-width: 60px;
+        font-size: 10px;
+    }
+}
+
+.mobile-control-sliders-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    justify-content: space-between;
+}
+
+/* Mode paysage - disposition horizontale compacte */
+@media (max-width: 767px) and (orientation: landscape) {
+    .mobile-control-sliders-row {
+        gap: 8px;
+        flex: 1;
+        align-items: center;
+        margin-bottom: 0;
+    }
+}
+
+.mobile-slider-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+}
+
+/* Mode paysage - slider horizontal compact */
+@media (max-width: 767px) and (orientation: landscape) {
+    .mobile-slider-group {
+        gap: 2px;
+        flex-direction: row;
+        align-items: center;
+        flex: 0 0 auto;
+        min-width: 120px;
+        max-width: 150px;
+    }
+}
+
+.mobile-slider-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    color: var(--mobile-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Mode paysage - labels en ligne compacts */
+@media (max-width: 767px) and (orientation: landscape) {
+    .mobile-slider-label {
+        font-size: 9px;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 1px;
+        min-width: 45px;
+        flex-shrink: 0;
+    }
+}
+
+.mobile-slider-label .mobile-value {
+    font-size: 11px;
+    min-width: unset;
+}
+
+/* Mode paysage - valeurs plus compactes */
+@media (max-width: 767px) and (orientation: landscape) {
+    .mobile-slider-label .mobile-value {
+        font-size: 10px;
+    }
+}
+
+.mobile-slider {
+    width: 100%;
+    height: 4px;
+    border-radius: 3px;
+    background: var(--mobile-bg-tertiary);
+    outline: none;
+    -webkit-appearance: none;
+}
+
+/* Mode paysage - slider compact */
+@media (max-width: 767px) and (orientation: landscape) {
+    .mobile-slider {
+        height: 3px;
+        min-width: 60px;
+        flex: 1;
+    }
+}
+
+.mobile-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--mobile-primary);
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.mobile-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--mobile-primary);
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.mobile-value {
+    font-size: 11px;
+    color: var(--mobile-primary);
+    font-weight: 600;
+    min-width: 26px;
+}
+
+/* ================================================
+   Single Global Waveform Container
+   ================================================ */
+.mobile-waveform-container {
+    position: relative;
+    width: 100%;
+    height: 140px;
+    /* Increased to accommodate timeline */
+    background: var(--mobile-bg-tertiary);
+    border-radius: var(--mobile-radius);
+    margin: 12px 0;
+    overflow: hidden;
+    padding-top: 20px;
+    /* Space for timeline */
+}
+
+/* Mode desktop - waveform plus compact pour voir accords + diagrammes */
+@media (min-width: 1025px) {
+    .mobile-waveform-container {
+        height: 100px;
+        margin: 8px 0;
+    }
+}
+
+.mobile-waveform {
+    width: 100%;
+    height: calc(100% - 20px);
+    /* Subtract timeline height */
+    display: block;
+    position: relative;
+    z-index: 1;
+}
+
+.mobile-waveform-container .mobile-progress-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    z-index: 2;
+}
+
+.mobile-waveform-container .mobile-progress-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: var(--mobile-primary);
+    transition: width 0.1s linear;
+}
+
+.mobile-waveform-container .mobile-progress-handle {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 12px;
+    height: 12px;
+    background: var(--mobile-primary);
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(29, 185, 84, 0.6);
+}
+
+/* ================================================
+   Responsive adjustments
+   ================================================ */
+@media (max-width: 360px) {
+    .mobile-control-sliders-row {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .mobile-slider-group {
+        width: 100%;
+    }
+}
+
+/* ================================================
+   Waveform Timeline (Graduation)
+   ================================================ */
+.mobile-waveform-timeline {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 20px;
+    z-index: 3;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 2px;
+    pointer-events: none;
+}
+
+.mobile-timeline-marker {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.mobile-timeline-tick {
+    width: 1px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.3);
+    margin-bottom: 2px;
+}
+
+.mobile-timeline-label {
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 500;
+    white-space: nowrap;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.mobile-timeline-marker:first-child .mobile-timeline-label {
+    transform: translateX(0);
+}
+
+.mobile-timeline-marker:last-child .mobile-timeline-label {
+    transform: translateX(-100%);
+}
+
+
+/* ================================================
+   Playhead Vertical (Position Indicator)
+   ================================================ */
+.mobile-playhead {
+    position: absolute;
+    top: 20px;
+    /* Below timeline */
+    bottom: 28px;
+    /* Above seek bar */
+    left: 0;
+    width: 3px;
+    z-index: 5;
+    pointer-events: none;
+    transition: left 0.05s linear;
+}
+
+.mobile-playhead-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 2px;
+    background: linear-gradient(180deg,
+            rgba(255, 59, 59, 0.9) 0%,
+            rgba(255, 59, 59, 1) 50%,
+            rgba(255, 59, 59, 0.9) 100%);
+    box-shadow: 0 0 8px rgba(255, 59, 59, 0.6),
+        0 0 4px rgba(255, 59, 59, 0.8);
+}
+
+.mobile-playhead-handle {
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    width: 10px;
+    height: 10px;
+    background: #ff3b3b;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* ================================================
+   Seek Bar (Bottom Interactive Bar)
+   ================================================ */
+.mobile-seek-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 28px;
+    z-index: 4;
+    cursor: pointer;
+    background: rgba(0, 0, 0, 0.3);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mobile-seek-progress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    background: linear-gradient(90deg,
+            var(--mobile-primary) 0%,
+            rgba(29, 185, 84, 0.8) 100%);
+    transition: width 0.1s linear;
+    pointer-events: none;
+}
+
+.mobile-seek-handle {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 16px;
+    background: #fff;
+    border: 2px solid var(--mobile-primary);
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    cursor: grab;
+    transition: transform 0.1s ease;
+}
+
+.mobile-seek-handle:active {
+    transform: translate(-50%, -50%) scale(1.2);
+    cursor: grabbing;
+}
+
+/* Remove old progress bar styles if they conflict */
+.mobile-waveform-container .mobile-progress-bar {
+    display: none;
+    /* Hide old progress bar */
+}
+

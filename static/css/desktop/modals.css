@@ -1,0 +1,505 @@
+/* Modals */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background-color: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+    padding: var(--spacing-md);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.close-button {
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: color var(--transition-fast);
+}
+
+.close-button:hover {
+    color: var(--error-color);
+}
+
+.modal-body {
+    padding: var(--spacing-md);
+}
+
+.modal-footer {
+    padding: var(--spacing-md);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Mandatory Disclaimer Modal */
+.mandatory-modal {
+    z-index: 9999;
+    backdrop-filter: blur(5px);
+    background-color: rgba(0, 0, 0, 0.8);
+}
+
+.disclaimer-modal {
+    max-width: 700px;
+    width: 95%;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.disclaimer-content {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.disclaimer-section {
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius);
+    background-color: var(--bg-tertiary);
+}
+
+.disclaimer-section h3 {
+    margin-bottom: var(--spacing-sm);
+    font-size: 1.1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.disclaimer-section.warning {
+    background-color: rgba(251, 140, 0, 0.1);
+    border: 1px solid var(--warning-color);
+}
+
+.disclaimer-section.warning h3 {
+    color: var(--warning-color);
+}
+
+.acceptance-section {
+    background-color: rgba(29, 185, 84, 0.1);
+    border: 1px solid var(--accent-color);
+}
+
+.legal-list li {
+    color: var(--success-color);
+    margin: var(--spacing-xs) 0;
+}
+
+.prohibited-list li {
+    color: var(--error-color);
+    margin: var(--spacing-xs) 0;
+}
+
+.disclaimer-note {
+    font-weight: 600;
+    padding: var(--spacing-sm);
+    background-color: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    margin-top: var(--spacing-md);
+}
+
+.disclaimer-footer {
+    text-align: center;
+    margin-top: var(--spacing-md);
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.disclaimer-footer a {
+    color: var(--accent-color);
+    text-decoration: none;
+}
+
+.disclaimer-footer a:hover {
+    text-decoration: underline;
+}
+
+.accept-btn {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    padding: var(--spacing-md) var(--spacing-xl);
+    border-radius: var(--border-radius);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.accept-btn:hover {
+    background-color: var(--accent-hover);
+    transform: translateY(-1px);
+}
+
+/* Block interface until disclaimer accepted */
+body.disclaimer-active .app-container > *:not(#disclaimerModal) {
+    pointer-events: none;
+    opacity: 0.3;
+}
+
+body.disclaimer-active #disclaimerModal {
+    pointer-events: all;
+    opacity: 1;
+}
+
+/* Settings Modal */
+.settings-section {
+    margin-bottom: var(--spacing-lg);
+}
+
+.settings-section h3 {
+    margin-bottom: var(--spacing-sm);
+    font-size: 1rem;
+    color: var(--text-secondary);
+}
+
+.setting-item {
+    margin-bottom: var(--spacing-md);
+}
+
+.setting-item label {
+    display: block;
+    margin-bottom: var(--spacing-xs);
+    font-size: 0.9rem;
+}
+
+.setting-item input[type="text"],
+.setting-item input[type="number"],
+.setting-item select {
+    width: 100%;
+    padding: var(--spacing-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: var(--bg-tertiary);
+    color: var(--text-color);
+}
+
+.setting-item input[type="checkbox"] {
+    margin-right: var(--spacing-xs);
+}
+
+.ffmpeg-status, .gpu-status {
+    padding: var(--spacing-sm);
+    border-radius: var(--border-radius);
+    background-color: var(--bg-tertiary);
+    margin-bottom: var(--spacing-sm);
+}
+
+#saveSettingsButton, #downloadFfmpegButton {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+}
+
+#saveSettingsButton:hover, #downloadFfmpegButton:hover {
+    background-color: var(--accent-hover);
+}
+
+/* Download Modal */
+.video-info {
+    display: flex;
+    margin-bottom: var(--spacing-md);
+}
+
+#downloadThumbnail {
+    width: 120px;
+    height: 68px;
+    object-fit: cover;
+    border-radius: calc(var(--border-radius) / 2);
+    margin-right: var(--spacing-md);
+}
+
+.download-options, .extraction-options {
+    margin-bottom: var(--spacing-md);
+}
+
+.option-item {
+    margin-bottom: var(--spacing-sm);
+}
+
+.option-item label {
+    display: block;
+    margin-bottom: var(--spacing-xs);
+    font-size: 0.9rem;
+}
+
+.option-item select {
+    width: 100%;
+    padding: var(--spacing-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: var(--bg-tertiary);
+    color: var(--text-color);
+}
+
+#startDownloadButton, #startExtractionButton {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+}
+
+#startDownloadButton:hover, #startExtractionButton:hover {
+    background-color: var(--accent-hover);
+}
+
+/* Extraction Modal */
+.audio-info {
+    margin-bottom: var(--spacing-md);
+}
+
+.audio-info h3 {
+    margin-bottom: var(--spacing-xs);
+}
+
+.audio-info p {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    word-break: break-all;
+}
+
+.stem-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-xs);
+}
+
+.stem-checkbox {
+    display: flex;
+    align-items: center;
+    margin-right: var(--spacing-md);
+}
+
+.stem-checkbox input[type="checkbox"] {
+    margin-right: var(--spacing-xs);
+}
+
+.two-stem-mode {
+    display: flex;
+    align-items: center;
+}
+
+.two-stem-mode input[type="checkbox"] {
+    margin-right: var(--spacing-xs);
+}
+
+.model-description {
+    margin-top: var(--spacing-xs);
+    font-size: 0.9em;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.stem-model-select {
+    width: 100%;
+}
+
+/* Extraction Modal Styles */
+.audio-info {
+    margin-bottom: var(--spacing-md);
+}
+
+.extraction-options .option-item {
+    margin-bottom: var(--spacing-md);
+}
+
+.stem-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-xs);
+}
+
+.stem-checkbox {
+    display: flex;
+    align-items: center;
+    margin-right: var(--spacing-md);
+}
+
+.stem-checkbox input[type="checkbox"] {
+    margin-right: var(--spacing-xs);
+}
+
+.two-stem-mode {
+    display: flex;
+    align-items: center;
+}
+
+.two-stem-mode input[type="checkbox"] {
+    margin-right: var(--spacing-xs);
+}
+
+/* Files Modal and List Styles */
+.files-container {
+    width: 100%;
+    max-height: 400px;
+    overflow-y: auto;
+    margin-top: var(--spacing-md);
+}
+
+.files-list {
+    list-style: none;
+    width: 100%;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md);
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color var(--transition-fast);
+}
+
+.file-item:hover {
+    background-color: var(--bg-tertiary);
+}
+
+.file-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.file-name {
+    font-weight: 500;
+    margin-bottom: var(--spacing-xs);
+    word-break: break-word;
+}
+
+.file-size {
+    color: var(--text-secondary);
+    font-size: 0.85em;
+}
+
+.download-button {
+    margin-left: var(--spacing-md);
+    white-space: nowrap;
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    padding: var(--spacing-sm) var(--spacing-md);
+    transition: background-color var(--transition-fast);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.download-button:hover {
+    background-color: var(--accent-hover);
+}
+
+.download-button i {
+    margin-right: var(--spacing-xs);
+}
+
+.loading {
+    text-align: center;
+    padding: var(--spacing-lg);
+    color: var(--text-secondary);
+}
+
+.no-items {
+    text-align: center;
+    padding: var(--spacing-lg);
+    color: var(--text-secondary);
+}
+
+/* Toast Notifications */
+.toast-container {
+    position: fixed;
+    bottom: var(--spacing-lg);
+    right: var(--spacing-lg);
+    z-index: 1001;
+}
+
+.toast {
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
+    border-radius: var(--border-radius);
+    background-color: var(--bg-secondary);
+    color: var(--text-color);
+    box-shadow: var(--shadow-md);
+    max-width: 300px;
+    animation: slide-in 0.3s ease, fade-out 0.3s ease 2.7s forwards;
+}
+
+.toast.success {
+    border-left: 4px solid var(--success-color);
+}
+
+.toast.error {
+    border-left: 4px solid var(--error-color);
+}
+
+.toast.info {
+    border-left: 4px solid var(--info-color);
+}
+
+.toast.warning {
+    border-left: 4px solid var(--warning-color);
+}
+
+@keyframes slide-in {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes fade-out {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+/* Utility Classes */
+.hidden {
+    display: none !important;
+}
+

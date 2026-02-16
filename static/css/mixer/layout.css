@@ -1,0 +1,886 @@
+/* 
+ * StemTubes Mixer - Styles
+ * Styles spécifiques pour l'interface du mixeur
+ */
+
+/* Layout principal */
+.mixer-app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    color: var(--text-primary);
+    background-color: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    position: relative;
+}
+
+/* ============================================ */
+/* SONG TITLE BAR (inside iframe)              */
+/* ============================================ */
+
+.song-title-bar {
+    background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.75rem 1rem;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.song-title-bar .song-title {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+}
+
+@media (max-width: 768px) {
+    .song-title-bar {
+        padding: 0.6rem 0.875rem;
+    }
+
+    .song-title-bar .song-title {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .song-title-bar {
+        padding: 0.5rem 0.75rem;
+    }
+
+    .song-title-bar .song-title {
+        font-size: 0.9rem;
+    }
+}
+
+/* ============================================ */
+/* TAB NAVIGATION (MIXER / REHEARSAL)          */
+/* ============================================ */
+
+.mixer-tabs {
+    display: flex;
+    background-color: var(--bg-primary);
+    border-bottom: 2px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 101;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 1rem 2rem;
+    background-color: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.tab-btn:hover {
+    background-color: rgba(var(--accent-rgb, 74, 144, 226), 0.1);
+    color: var(--text-primary);
+}
+
+.tab-btn.active {
+    color: var(--accent-color);
+    background-color: var(--bg-secondary);
+    border-bottom-color: var(--accent-color);
+}
+
+.tab-btn i {
+    font-size: 1.1rem;
+}
+
+/* ============================================ */
+/* MODE-SPECIFIC CONTENT VISIBILITY            */
+/* ============================================ */
+
+/* Tab-specific visibility helper */
+[data-tab-visible] {
+    display: none !important;
+}
+
+[data-tab-visible][data-tab-display="flex"] {
+    --tab-visible-display: flex;
+}
+
+[data-tab-visible][data-tab-display="block"] {
+    --tab-visible-display: block;
+}
+
+[data-tab-visible][data-tab-display="inline-flex"] {
+    --tab-visible-display: inline-flex;
+}
+
+.mixer-app[data-active-tab="mixer"] [data-tab-visible~="mixer"],
+.mixer-app[data-active-tab="chords"] [data-tab-visible~="chords"],
+.mixer-app[data-active-tab="lyrics"] [data-tab-visible~="lyrics"] {
+    display: var(--tab-visible-display, block) !important;
+}
+
+/* ============================================ */
+/* VISIBILITY TOGGLE BUTTONS (REHEARSAL MODE)  */
+/* ============================================ */
+
+.visibility-toggle {
+    padding: 0.4rem 0.8rem;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.visibility-toggle:hover {
+    background-color: var(--bg-primary);
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+.visibility-toggle i {
+    font-size: 0.9rem;
+}
+
+/* ============================================ */
+/* PRACTICE TAB LAYOUT                          */
+/* ============================================ */
+
+.practice-mode-content {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 1rem;
+}
+
+.practice-panel {
+    background-color: var(--bg-primary);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-height: 0;
+}
+
+.practice-panel.lyrics-panel {
+    flex: 1;
+    min-height: 0;
+    height: calc(100vh - 220px);
+    max-height: calc(100vh - 140px);
+    overflow: hidden;
+}
+
+.practice-panel.chords-panel {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.practice-panel.chords-panel .mobile-chord-timeline {
+    flex-shrink: 0;
+    max-width: 100%;
+}
+
+.practice-panel.chords-panel .mobile-chord-diagram-panel {
+    flex-shrink: 0;
+    max-height: 400px;
+}
+
+.practice-panel.chords-panel .mobile-chord-diagram {
+    max-height: 350px;
+}
+
+.practice-panel.chords-panel .mobile-chord-diagram svg {
+    max-width: 100%;
+    max-height: 320px;
+    height: auto;
+}
+
+.structure-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.structure-controls {
+    margin-top: 0.5rem;
+}
+
+.master-track {
+    background-color: var(--bg-primary);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.master-track .waveform-container {
+    width: 100%;
+    height: 110px;
+}
+
+.master-track .waveform {
+    width: 100%;
+}
+
+.master-track-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.master-track-title {
+    color: var(--text-secondary);
+}
+
+/* Karaoke section inside practice tabs */
+.karaoke-in-content {
+    background-color: var(--bg-primary);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+}
+
+.karaoke-in-content .karaoke-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.karaoke-in-content .karaoke-lyrics {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    overflow-y: auto;
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+}
+
+.lyrics-popup-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 2rem;
+}
+
+.lyrics-popup-overlay.active {
+    display: flex;
+}
+
+.lyrics-popup-dialog {
+    background: var(--bg-primary);
+    border-radius: var(--border-radius);
+    width: 98vw;
+    height: 98vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 80px rgba(0, 0, 0, 0.45);
+}
+
+.lyrics-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.lyrics-popup-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.lyrics-popup-close {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.8rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.lyrics-popup-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem 2rem 2rem;
+    min-height: 0;
+}
+
+.lyrics-popup-content {
+    flex: 1;
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    padding: 2rem;
+    overflow-y: auto;
+}
+
+.lyrics-popup-overlay .karaoke-lyrics {
+    background: transparent;
+    padding: 0;
+    padding-top: 10%;
+    padding-bottom: 70%;
+    max-height: none;
+    font-size: 1.4rem;
+    line-height: 2rem;
+    height: auto;
+    overflow-y: visible;
+}
+
+.lyrics-popup-overlay .karaoke-lyrics.section-hidden {
+    display: block !important;
+}
+
+/* Hide sections when visibility is toggled off in practice tabs */
+.karaoke-in-content .karaoke-lyrics.section-hidden {
+    display: none !important;
+}
+
+#chord-display.section-hidden {
+    display: none !important;
+}
+
+.structure-display-wrapper.section-hidden {
+    display: none !important;
+}
+
+/* Section visibility management */
+[data-section-visible="false"] {
+    display: none !important;
+}
+
+/* Fixed header containing transport controls and timeline */
+.fixed-header {
+    position: sticky;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 100;
+    background-color: var(--bg-secondary);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Scrollable content area */
+.scrollable-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: calc(100vh - 120px); /* Adjust height based on fixed header height */
+    scroll-behavior: smooth;
+}
+
+/* Message de chargement */
+.loading-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    height: 100%;
+    background-color: var(--bg-primary);
+    padding: 2rem;
+    text-align: center;
+}
+
+.loading-spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-left-color: var(--accent-color);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Barre de transport */
+.transport-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background-color: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.transport-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.lyrics-transport-controls {
+    margin-left: auto;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.bpm-key-controls {
+    display: flex;
+    gap: 1rem;
+    margin-left: 1rem;
+    align-items: center;
+}
+
+.bpm-control, .key-control {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.9rem;
+}
+
+.control-btn {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: none;
+    border-radius: var(--border-radius);
+    padding: 0.2rem 0.5rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    min-width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.control-btn:hover {
+    background-color: var(--accent-color);
+}
+
+.control-btn.reset-btn {
+    background-color: var(--btn-secondary);
+    color: var(--text-secondary);
+    font-size: 1rem;
+    margin-left: 0.3rem;
+    border: 1px solid var(--border-color);
+}
+
+.control-btn.reset-btn:hover {
+    background-color: var(--accent-primary);
+    color: var(--text-primary);
+    transform: rotate(180deg);
+    border-color: var(--accent-primary);
+}
+
+#current-key {
+    font-weight: bold;
+    min-width: 40px;
+    text-align: center;
+    color: var(--accent-color);
+}
+
+.bpm-input {
+    width: 64px;
+    min-width: 60px;
+    padding: 0.2rem 0.35rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: var(--bg-primary);
+    color: var(--accent-color);
+    font-weight: 600;
+    text-align: center;
+    font-size: 0.9rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.bpm-input::-webkit-outer-spin-button,
+.bpm-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.bpm-input[type="number"] {
+    -moz-appearance: textfield;
+}
+
+.bpm-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(var(--accent-rgb, 74, 144, 226), 0.2);
+}
+
+.transport-btn {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: none;
+    border-radius: var(--border-radius);
+    padding: 0.4rem 0.8rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.transport-btn:hover {
+    background-color: var(--accent-color);
+}
+
+.transport-btn:active {
+    transform: scale(0.95);
+}
+
+.transport-btn.play {
+    background-color: var(--success-color);
+}
+
+.transport-btn.stop {
+    background-color: var(--error-color);
+}
+
+.transport-btn i {
+    margin-right: 0.3rem;
+}
+
+.time-display {
+    font-family: monospace;
+    font-size: 1rem;
+    background-color: var(--bg-tertiary);
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--border-radius);
+    min-width: 70px;
+    text-align: center;
+}
+
+/* Contrôles de zoom */
+.zoom-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.zoom-controls .zoom-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-right: 0.2rem;
+}
+
+.zoom-controls .zoom-group {
+    display: flex;
+    align-items: center;
+    background-color: var(--bg-tertiary);
+    border-radius: var(--border-radius);
+    padding: 0.2rem;
+}
+
+.zoom-btn {
+    background-color: transparent;
+    color: var(--text-primary);
+    border: none;
+    border-radius: var(--border-radius);
+    width: 28px;
+    height: 28px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.zoom-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+
+/* Timeline */
+.timeline-container {
+    display: flex;
+    align-items: center;
+    height: 40px;
+    padding: 0.5rem 1rem;
+    background-color: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    position: relative;
+    overflow: hidden;
+}
+
+.timeline {
+    flex: 1;
+    height: 20px;
+    background-color: var(--bg-tertiary);
+    border-radius: var(--border-radius);
+    position: relative;
+    cursor: pointer;
+    margin-left: 0;
+    width: 100%;
+    overflow: hidden;
+}
+
+.mixer-app[data-active-tab="mixer"] .timeline {
+    margin-left: 180px; /* align with track headers */
+    width: calc(100% - 180px);
+}
+
+.timeline-markers {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 5px;
+    pointer-events: none;
+}
+
+.timeline-marker {
+    position: absolute;
+    font-size: 10px;
+    color: var(--text-secondary);
+    transform: translateX(-50%);
+}
+
+.timeline-marker::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    height: 6px;
+    width: 1px;
+    background-color: var(--border-color);
+}
+
+.timeline-marker.intermediate {
+    font-size: 8px;
+}
+
+.timeline-marker.intermediate::before {
+    height: 4px; /* Plus petits que les marqueurs principaux */
+}
+
+.timeline-marker.minor {
+    font-size: 0; /* Pas de texte */
+}
+
+.timeline-marker.minor::before {
+    height: 3px; /* Encore plus petits */
+    background-color: rgba(var(--border-color-rgb, 120, 120, 120), 0.5);
+}
+
+.playhead {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 2px;
+    height: 100%;
+    background-color: var(--accent-color);
+    z-index: 5;
+    pointer-events: none;
+}
+
+/* Pistes et formes d'onde */
+.tracks-container {
+    flex: 1;
+    padding: 0.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    overflow-y: visible;
+    overflow-x: hidden;
+    min-height: 100%;
+}
+
+.track {
+    display: flex;
+    background-color: var(--bg-primary);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+}
+
+.track-header {
+    width: 180px;
+    min-width: 180px;
+    padding: 0.5rem;
+    background-color: var(--bg-tertiary);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    left: 0;
+    z-index: 10;
+}
+
+.track-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.track-status {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.track-status.active {
+    background-color: var(--success-color);
+}
+
+.track-status.inactive {
+    background-color: var(--error-color);
+}
+
+.track-buttons {
+    display: flex;
+    gap: 0.3rem;
+    margin-bottom: 0.5rem;
+}
+
+.track-btn {
+    flex: 1;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border: none;
+    border-radius: var(--border-radius);
+    padding: 0.3rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.track-btn:hover {
+    opacity: 0.9;
+}
+
+.track-btn.active {
+    background-color: var(--accent-color);
+    color: #fff;
+}
+
+.track-btn.mute.active {
+    background-color: var(--error-color);
+}
+
+.track-btn.solo.active {
+    background-color: var(--success-color);
+}
+
+.track-control {
+    margin-bottom: 0.5rem;
+}
+
+.track-control-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.2rem;
+}
+
+.track-control-value {
+    text-align: right;
+}
+
+.track-slider {
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: var(--bg-secondary);
+    border-radius: 2px;
+    outline: none;
+}
+
+.track-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    cursor: pointer;
+}
+
+.track-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    cursor: pointer;
+    border: none;
+}
+
+/* Conteneur de forme d'onde */
+.waveform-container {
+    flex: 1;
+    position: relative;
+    height: 150px;
+    background-color: var(--bg-secondary);
+    overflow-y: hidden;
+    overflow-x: auto;
+}
+
+.waveform {
+    width: 100%;
+    height: 100%;
+}
+
+.track-playhead {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 100%;
+    background-color: var(--accent-color);
+    z-index: 5;
+    pointer-events: none;
+}
+
