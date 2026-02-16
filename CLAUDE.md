@@ -92,9 +92,37 @@ Analysis data queries use `COALESCE(global.field, user.field)` — prefer global
 | `jam_bp` | `routes/jam.py` | Jam HTTP routes + SocketIO events |
 | `mobile_bp` | `mobile_routes.py` | Mobile API config/toggle |
 
+### Database Layer (`core/db/`)
+
+`downloads_db.py` is a backwards-compatible re-export. Actual code lives in `core/db/`:
+- `connection.py` (DB_PATH, `_conn()`, path resolution)
+- `schema.py` (`init_table()`, migration)
+- `downloads.py` (CRUD for global_downloads/user_downloads)
+- `extractions.py` (extraction reservation, progress, completion)
+- `admin.py` (admin queries, storage stats)
+- `cleanup.py` (stuck extraction cleanup, orphan removal)
+- `user_views.py` (user session/access management)
+
 ## Key Frontend Modules (`static/js/`)
 
-**Main app:** `app.js` (desktop, ~166K), `mobile-app.js` (mobile, ~399K), `app-extensions.js` (shared utilities)
+**Desktop app** (split from monolithic `app.js`):
+- `app-core.js` — globals, Socket.IO init, config, event listeners
+- `app-downloads.js` — search, upload, download/extraction management
+- `app-utils.js` — settings, toast, display helpers
+- `app-admin.js` — admin cleanup, user management, library tab
+- `app-extensions.js` — tab management, extraction status, mixer loading
+
+**Mobile app** (split from monolithic `mobile-app.js`):
+- `mobile-constants.js` — music theory constants, chord quality maps
+- `mobile-guitar-diagram.js` — GuitarDiagramSettings, GuitarDiagramHelper
+- `mobile-neumorphic-dial.js` — NeumorphicDial touch control
+- `mobile-app.js` — MobileApp class (navigation, search, library, mixer, chords, lyrics, jam)
+- `mobile-admin.js` — MobileAdmin class + initialization
+
+**CSS** (split into subdirectories via `@import`):
+- `style.css` → 7 files in `css/desktop/`
+- `mobile-style.css` → 7 files in `css/mobile/`
+- `mixer/mixer.css` → 7 files in `css/mixer/`
 
 **Mixer modules** (`static/js/mixer/`): Each module follows the pattern `class ModuleName { constructor(mixer) { ... } sync(currentTime) { ... } }`. Key modules: `core.js` (coordinator), `audio-engine.js` (desktop Web Audio), `mobile-audio-engine.js` (iOS-optimized), `chord-display.js`, `karaoke-display.js`, `simple-pitch-tempo.js` (SoundTouch), `structure-display.js`, `waveform.js`, `timeline.js`, `track-controls.js`, `soundtouch-engine.js` (WASM).
 
