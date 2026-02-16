@@ -30,8 +30,8 @@ Thank you for your interest in contributing to StemTube! This document provides 
 
 ```bash
 # 1. Fork and clone
-git clone https://github.com/YOUR-USERNAME/StemTube-dev.git
-cd StemTube-dev
+git clone https://github.com/YOUR-USERNAME/StemTube_R2.git
+cd StemTube_R2
 
 # 2. Set up development environment
 python3.12 setup_dependencies.py

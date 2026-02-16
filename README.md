@@ -34,8 +34,8 @@ sudo apt-get update && sudo apt-get install -y \
   ffmpeg libsndfile1 libatlas-base-dev liblapack-dev
 
 # 2. Clone & setup
-git clone https://github.com/Benasterisk/StemTube-dev.git
-cd StemTube-dev
+git clone https://github.com/Benasterisk/StemTube_R2.git
+cd StemTube_R2
 python3.12 setup_dependencies.py  # Automatic: venv, PyTorch, dependencies, models
 
 # 3. Configure security (MANDATORY)

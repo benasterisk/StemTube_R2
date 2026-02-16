@@ -54,7 +54,7 @@ Complete installation guide for the BTC Transformer chord detector (170 chord vo
 
 ### Step 1: Clone BTC Repository
 
-**Recommended Location**: `../essentiatest/` (parallel to StemTube-dev)
+**Recommended Location**: `../essentiatest/` (parallel to StemTube_R2)
 
 ```bash
 # Navigate to parent directory
@@ -69,7 +69,7 @@ git clone https://github.com/jayg996/BTC-ISMIR19.git
 
 # Your directory structure should be:
 # /home/michael/Documents/Dev/
-# ├── StemTube-dev/
+# ├── StemTube_R2/
 # └── essentiatest/
 #     └── BTC-ISMIR19/
 ```
@@ -133,7 +133,7 @@ python predict.py --audio test_audio.mp3 --output chords.txt
 import os
 from pathlib import Path
 
-# Default path (relative to StemTube-dev)
+# Default path (relative to StemTube_R2)
 BTC_PATH = Path(__file__).parent.parent.parent / 'essentiatest' / 'BTC-ISMIR19'
 
 # If you installed BTC elsewhere, update this path:

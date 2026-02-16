@@ -269,8 +269,8 @@ Now `.env` loads automatically when you `cd` into the project directory.
 ```ini
 # /etc/systemd/system/stemtube.service
 [Service]
-EnvironmentFile=/path/to/StemTube-dev/.env
-ExecStart=/path/to/StemTube-dev/venv/bin/python app.py
+EnvironmentFile=/path/to/StemTube_R2/.env
+ExecStart=/path/to/StemTube_R2/venv/bin/python app.py
 ```
 
 ```bash

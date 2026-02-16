@@ -953,7 +953,7 @@ grep chord app.log
    - Steps to reproduce
 
 **Report At**:
-- GitHub Issues: https://github.com/Benasterisk/StemTube-dev/issues
+- GitHub Issues: https://github.com/Benasterisk/StemTube_R2/issues
 
 **Include**:
 - Clear description of problem

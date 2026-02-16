@@ -24,7 +24,7 @@ Learn how to use all features of StemTube.
 ### Starting StemTube
 
 ```bash
-cd StemTube-dev
+cd StemTube_R2
 source venv/bin/activate
 python app.py
 ```

@@ -26,7 +26,7 @@ Complete guide to using StemTube on iOS and Android devices.
 
 **Step 1: Start with HTTPS**
 ```bash
-cd StemTube-dev
+cd StemTube_R2
 ./start_service.sh
 ```
 

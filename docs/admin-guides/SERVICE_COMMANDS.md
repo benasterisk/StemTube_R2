@@ -72,7 +72,7 @@ The service also writes logs in `logs/`:
 - **Service name**: `stemtube.service`
 - **Config file**: `/etc/systemd/system/stemtube.service`
 - **User**: `michael`
-- **Working directory**: `/path/to/StemTube-dev`
+- **Working directory**: `/path/to/StemTube_R2`
 - **Flask port**: `5011`
 - **ngrok tunnel**: `https://definite-cockatoo-bold.ngrok-free.app`
 - **Wrapper scripts**: `/usr/local/bin/ngrok`, `/usr/local/bin/ffmpeg`, `/usr/local/bin/ffprobe`

@@ -26,8 +26,8 @@ sudo apt-get update && sudo apt-get install -y \
 ### 2. Clone Repository
 
 ```bash
-git clone https://github.com/Benasterisk/StemTube-dev.git
-cd StemTube-dev
+git clone https://github.com/Benasterisk/StemTube_R2.git
+cd StemTube_R2
 ```
 
 ### 3. Run Automated Setup
@@ -191,7 +191,7 @@ nvidia-smi
 ## Need Help?
 
 - **Documentation**: [docs/](../)
-- **GitHub Issues**: https://github.com/Benasterisk/StemTube-dev/issues
+- **GitHub Issues**: https://github.com/Benasterisk/StemTube_R2/issues
 - **Troubleshooting**: [05-TROUBLESHOOTING.md](05-TROUBLESHOOTING.md)
 
 ---

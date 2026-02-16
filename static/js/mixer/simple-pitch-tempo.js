@@ -137,7 +137,7 @@ class SimplePitchTempoController {
                 <strong>HTTPS Required:</strong>
                 <span>Time-stretch and pitch-shift features are disabled (non-secure connection).</span>
                 <span style="opacity: 0.9;">→ Use HTTPS or localhost to enable independent tempo/pitch control.</span>
-                <a href="https://github.com/Benasterisk/StemTube-dev/blob/main/HTTPS_REQUIREMENT.md"
+                <a href="https://github.com/Benasterisk/StemTube_R2/blob/main/HTTPS_REQUIREMENT.md"
                    target="_blank"
                    style="color: white; text-decoration: underline; font-weight: 600; margin-left: 10px;">
                     Learn More

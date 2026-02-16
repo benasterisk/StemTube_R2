@@ -63,10 +63,10 @@ Edit `/etc/systemd/system/stemtube.service` to add the `HOME` variable:
 Type=forking
 User=michael
 Group=michael
-WorkingDirectory=/path/to/Documents/Dev/StemTube-dev
+WorkingDirectory=/path/to/Documents/Dev/StemTube_R2
 
 # Critical environment variables
-Environment="PATH=/path/to/Documents/Dev/StemTube-dev/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PATH=/path/to/Documents/Dev/StemTube_R2/venv/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="HOME=/path/to"  # IMPORTANT for snap
 Environment="PYTHONUNBUFFERED=1"
 ```

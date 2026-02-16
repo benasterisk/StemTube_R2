@@ -265,9 +265,9 @@ Special thanks to all contributors who have helped improve StemTube!
 
 ## Links
 
-- **Repository**: https://github.com/Benasterisk/StemTube-dev
+- **Repository**: https://github.com/Benasterisk/StemTube_R2
 - **Documentation**: [docs/](docs/)
-- **Issues**: https://github.com/Benasterisk/StemTube-dev/issues
+- **Issues**: https://github.com/Benasterisk/StemTube_R2/issues
 - **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---

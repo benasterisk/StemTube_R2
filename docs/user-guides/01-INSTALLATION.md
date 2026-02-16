@@ -178,8 +178,8 @@ wsl --install
 
 4. **Clone Repository**:
    ```powershell
-   git clone https://github.com/Benasterisk/StemTube-dev.git
-   cd StemTube-dev
+   git clone https://github.com/Benasterisk/StemTube_R2.git
+   cd StemTube_R2
    ```
 
 5. **Run Setup**:
@@ -227,8 +227,8 @@ xcode-select --install
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/Benasterisk/StemTube-dev.git
-cd StemTube-dev
+git clone https://github.com/Benasterisk/StemTube_R2.git
+cd StemTube_R2
 ```
 
 **Alternative**: Download ZIP from GitHub and extract.
@@ -673,7 +673,7 @@ python utils/database/clear_database.py
 ## Support
 
 - **Documentation**: [docs/](../)
-- **GitHub Issues**: https://github.com/Benasterisk/StemTube-dev/issues
+- **GitHub Issues**: https://github.com/Benasterisk/StemTube_R2/issues
 - **Quickstart**: [00-QUICKSTART.md](00-QUICKSTART.md)
 
 ---
