@@ -32,6 +32,12 @@ core/downloads/*
 !core/downloads/.gitkeep
 core/ffmpeg/
 
+# Cookies and credential files
+core/youtube_cookies.txt
+
+# Large data assets
+static/js/datas/
+
 # OS files
 .DS_Store
 Thumbs.db

@@ -74,7 +74,23 @@ Analysis data queries use `COALESCE(global.field, user.field)` — prefer global
 | `config.py` | Configuration management, `get_setting()` / `update_setting()` |
 | `auth_db.py` | User authentication, `create_user()`, `authenticate_user()` |
 
-`app.py` (~228K, 5000+ lines) contains all Flask routes, SocketIO event handlers, and the `UserSessionManager` class that manages per-user `DownloadManager` and `StemsExtractor` instances.
+`app.py` (~220 lines) handles bootstrap, Flask/SocketIO setup, and blueprint registration. `extensions.py` contains shared singletons (`socketio`, `login_manager`, `UserSessionManager`, decorators). Routes are organized in `routes/` as Flask Blueprints:
+
+| Blueprint | File | Scope |
+|-----------|------|-------|
+| `auth_bp` | `routes/auth.py` | Login, logout |
+| `pages_bp` | `routes/pages.py` | Index, mobile, mixer, service worker |
+| `admin_bp` | `routes/admin.py` | Admin pages, user management forms |
+| `admin_api_bp` | `routes/admin_api.py` | Admin REST API (24 routes) |
+| `downloads_bp` | `routes/downloads.py` | Search, download CRUD |
+| `extractions_bp` | `routes/extractions.py` | Stem extraction CRUD |
+| `media_bp` | `routes/media.py` | Lyrics, chords, beats, musixmatch |
+| `library_bp` | `routes/library.py` | User library, disclaimer, cleanup |
+| `files_bp` | `routes/files.py` | Upload, download, stream, stems serving |
+| `config_bp` | `routes/config_routes.py` | App config, FFmpeg, browser logging config |
+| `logging_bp` | `routes/logging_routes.py` | Browser log collection, log viewing |
+| `jam_bp` | `routes/jam.py` | Jam HTTP routes + SocketIO events |
+| `mobile_bp` | `mobile_routes.py` | Mobile API config/toggle |
 
 ## Key Frontend Modules (`static/js/`)
 
@@ -94,7 +110,7 @@ Analysis data queries use `COALESCE(global.field, user.field)` — prefer global
 Always verify new features work on BOTH `/` (desktop) and `/mobile` interfaces:
 - API endpoints are called correctly from both `app.js` and `mobile-app.js`
 - Field names match between frontend expectations and API responses (e.g., `download_id` vs `id`)
-- When adding mobile features: reuse existing backend routes from `app.py`, never duplicate API endpoints. Only create mobile-specific code for UI/UX adaptations.
+- When adding mobile features: reuse existing backend routes, never duplicate API endpoints. Only create mobile-specific code for UI/UX adaptations.
 
 ## WebSocket Events
 
@@ -116,7 +132,7 @@ Host-only control: off, 1 bar, or 2 bars (long-press metronome dot). Host broadc
 Flask session flags (`jam_guest`, `jam_code`, `jam_guest_name`) auto-cleared on disconnect, on stale detection in `handle_connect()`, and on route entry. `jam_create` clears leftover guest flags.
 
 ### Key Files
-`app.py` (SocketIO handlers ~lines 830-950, HTTP routes ~5040-5240), `jam-bridge.js`, `jam-client.js`, `jam-metronome.js`, `jam-tab.js`, `jam-guest.html`, `jam-guest-mobile.html`, `static/css/jam.css`.
+`routes/jam.py` (HTTP routes + SocketIO events via `register_jam_socketio_events()`), `jam-bridge.js`, `jam-client.js`, `jam-metronome.js`, `jam-tab.js`, `jam-guest.html`, `jam-guest-mobile.html`, `static/css/jam.css`.
 
 ## Code Style
 
