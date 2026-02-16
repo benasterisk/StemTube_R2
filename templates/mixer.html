@@ -4,16 +4,46 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StemTubes Mixer</title>
-    <!-- CSS principal de StemTubes -->
     <link rel="stylesheet" href="/static/css/style.css">
-    <!-- CSS spécifique au mixeur (modulaire) -->
     <link rel="stylesheet" href="/static/css/mixer/mixer.css">
-    <!-- CSS mobile pour les diagrammes d'accords -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-style.css') }}?v={{ cache_buster }}">
-    <!-- Font Awesome pour les icônes -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/jam.css') }}?v={{ cache_buster }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    {% if jam_guest_mode %}
+    <style>
+        /* Jam Guest: disable host-only controls */
+        #play-btn, #stop-btn { pointer-events: none; opacity: 0.3; }
+        .bpm-control button, .key-control button { pointer-events: none; opacity: 0.3; }
+        #current-bpm { pointer-events: none; }
+        .export-controls { display: none !important; }
+        #regenerateChordsBtn { display: none !important; }
+        #karaoke-regenerate-btn { display: none !important; }
+        /* Guest header bar */
+        .jam-guest-bar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 6px 12px; background: rgba(29,185,84,0.1);
+            border-bottom: 1px solid rgba(29,185,84,0.3); font-size: 0.8rem;
+        }
+        .jam-guest-bar .on-stage-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: #1DB954;
+            display: inline-block; margin-right: 6px; animation: on-stage-pulse 2s infinite;
+        }
+        .jam-guest-bar span { color: #ccc; }
+        .jam-guest-bar .jam-code { color: #1DB954; font-weight: 700; font-family: monospace; }
+        .jam-guest-leave { background: rgba(220,53,69,0.15); color: #dc3545;
+            border: 1px solid rgba(220,53,69,0.3); padding: 4px 10px;
+            border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
+        .jam-guest-leave:hover { background: rgba(220,53,69,0.3); }
+    </style>
+    {% endif %}
 </head>
 <body>
+    {% if jam_guest_mode %}
+    <div class="jam-guest-bar">
+        <div><span class="on-stage-dot"></span><span>ON STAGE</span> &mdash; <span class="jam-code">{{ jam_code }}</span></div>
+        <button class="jam-guest-leave" onclick="if(confirm('Leave this jam session?')) window.location.href='/';">Leave</button>
+    </div>
+    {% endif %}
     <div class="mixer-app" id="mixer-app" style="display: none;" data-active-tab="mixer">
         <!-- Tab Navigation -->
         <div class="mixer-tabs">
@@ -45,6 +75,7 @@
                         <i class="fas fa-stop"></i> Stop
                     </button>
                     <div class="time-display" id="time-display">00:00</div>
+                    <div id="metronome-container"></div>
 
                     <!-- Contrôles BPM/Key simples (SHARED) -->
                     <div class="bpm-key-controls">
@@ -307,12 +338,23 @@
     
     <!-- Initialisation des variables pour le mixeur -->
     <script>
+        {% if jam_guest_mode %}
+        // Jam guest mode flags
+        window.JAM_GUEST_MODE = true;
+        window.JAM_CODE = "{{ jam_code }}";
+        window.JAM_GUEST_NAME = "{{ jam_guest_name }}";
+        window.JAM_STEM_URL_PREFIX = "/api/jam/stems/{{ jam_code }}";
+        window.JAM_STEM_CACHE_BUSTER = "?eid={{ extraction_id }}";
+        {% endif %}
+
         // Informations d'extraction
         const EXTRACTION_ID = "{{ extraction_id }}";
+        window.EXTRACTION_ID = EXTRACTION_ID;
         // Encoder correctement l'ID pour les URLs
         const ENCODED_EXTRACTION_ID = encodeURIComponent(EXTRACTION_ID);
         // Information d'extraction complète
         const EXTRACTION_INFO = {{ extraction_info | tojson | safe }};
+        window.EXTRACTION_INFO = EXTRACTION_INFO;
 
         // Debug: Log what we received
         console.log('[MIXER INIT] EXTRACTION_INFO:', EXTRACTION_INFO);
@@ -389,6 +431,23 @@
     </div>
 
     <!-- Scripts modulaires -->
+    <!-- ngrok free-tier: inject bypass header on all socket.io XHR requests (iOS Safari fix) -->
+    <script>
+    (function(){
+        var origOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(){
+            this._url = arguments[1];
+            return origOpen.apply(this, arguments);
+        };
+        var origSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function(){
+            if(this._url && typeof this._url === 'string' && this._url.indexOf('/socket.io/')!==-1){
+                try{this.setRequestHeader('ngrok-skip-browser-warning','true');}catch(e){}
+            }
+            return origSend.apply(this, arguments);
+        };
+    })();
+    </script>
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
     <script src="/static/js/lib/lame.min.js"></script>
     <script src="/static/wasm/soundtouch.js"></script>
@@ -408,5 +467,208 @@
     <script src="/static/js/mixer/simple-pitch-tempo.js"></script>
     <script src="/static/js/mixer/lyrics-popup.js"></script>
     <script src="/static/js/mixer/core.js"></script>
+    <script src="/static/js/jam-metronome.js"></script>
+    {% if not jam_guest_mode %}
+    <script src="/static/js/jam-bridge.js"></script>
+    {% else %}
+    <script src="/static/js/jam-client.js"></script>
+    <script>
+    // Jam Guest Controller — connects immediately, then waits for mixer
+    (function() {
+        'use strict';
+
+        // Connect to SocketIO IMMEDIATELY — don't wait for mixer
+        console.log('[JamGuest] Connecting to SocketIO...');
+        const socket = io({ transports: ['polling', 'websocket'], upgrade: true });
+        const jamClient = new JamClient(socket);
+
+        function updateSongTitle(title) {
+            const el = document.getElementById('song-title-display');
+            if (el && title) {
+                el.textContent = title;
+                el.title = title;
+            }
+        }
+
+        function setupPlaybackHandlers() {
+            console.log('[JamGuest] Setting up playback handlers');
+
+            jamClient.onPlayback((data) => {
+                const engine = window.stemMixer?.audioEngine;
+                if (!engine) return;
+
+                let pos = data.position || 0;
+                // Only compensate for network delay when there's no precount
+                // (precount commands are sent at the START of the count, so both sides count together)
+                if (data.server_timestamp && data.command === 'play' && !(data.precount_beats > 0)) {
+                    const delay = jamClient.rtt / 2;
+                    const elapsed = Date.now() - data.server_timestamp;
+                    pos += (elapsed + delay) / 1000;
+                }
+
+                switch (data.command) {
+                    case 'play':
+                        // Run precount if host sent precount_beats
+                        const metronome = window.stemMixer?.metronome;
+                        if (data.precount_beats > 0 && metronome) {
+                            engine.seekToPosition(pos);
+                            console.log(`[JamGuest] Running precount: ${data.precount_beats} beats`);
+                            metronome.startPrecount(data.precount_beats, () => {
+                                engine.play();
+                                if (metronome) metronome.start();
+                            });
+                        } else {
+                            engine.seekToPosition(pos);
+                            engine.play();
+                        }
+                        break;
+                    case 'pause':
+                        engine.pause();
+                        break;
+                    case 'stop':
+                        engine.stop();
+                        break;
+                    case 'seek':
+                        engine.seekToPosition(pos);
+                        break;
+                }
+            });
+
+            jamClient.onTempo((data) => {
+                if (window.simplePitchTempo && data.bpm) {
+                    window.simplePitchTempo.setBPM(data.bpm);
+                }
+            });
+
+            jamClient.onPitch((data) => {
+                if (window.simplePitchTempo && data.pitch_shift !== undefined) {
+                    window.simplePitchTempo.setPitchShift(data.pitch_shift);
+                }
+            });
+
+            jamClient.onSync((data) => {
+                const engine = window.stemMixer?.audioEngine;
+                if (!engine) return;
+                const currentPos = engine.playbackPosition || engine.mixer?.currentTime || 0;
+                const isPlaying = !!engine.mixer?.isPlaying;
+                const drift = Math.abs(currentPos - (data.position || 0));
+                if (drift > 0.5) {
+                    engine.seekToPosition(data.position || 0);
+                }
+                if (data.is_playing && !isPlaying) {
+                    engine.seekToPosition(data.position || 0);
+                    engine.play();
+                } else if (!data.is_playing && isPlaying) {
+                    engine.pause();
+                }
+            });
+        }
+
+        function waitForMixerThenSetupHandlers() {
+            // If mixer already ready, set up immediately
+            if (window.stemMixer && window.stemMixer.isInitialized) {
+                setupPlaybackHandlers();
+                applyPendingState();
+                return;
+            }
+            // Poll until mixer is ready
+            const check = setInterval(() => {
+                if (window.stemMixer && window.stemMixer.isInitialized && window.stemMixer.audioEngine) {
+                    clearInterval(check);
+                    setupPlaybackHandlers();
+                    applyPendingState();
+                }
+            }, 300);
+            setTimeout(() => clearInterval(check), 60000);
+        }
+
+        // Store pending state to apply after mixer is ready
+        let pendingState = null;
+
+        function applyPendingState() {
+            if (!pendingState) return;
+            const engine = window.stemMixer?.audioEngine;
+            if (!engine) return;
+            console.log('[JamGuest] Applying pending state:', pendingState);
+
+            // Sync BPM
+            if (pendingState.bpm && window.simplePitchTempo) {
+                window.simplePitchTempo.setBPM(pendingState.bpm);
+            }
+
+            // Sync position and playback
+            if (pendingState.position !== undefined) {
+                engine.seekToPosition(pendingState.position);
+            }
+            if (pendingState.is_playing) {
+                engine.play();
+            }
+
+            pendingState = null;
+        }
+
+        // Server auto-joins via session flags set by /jam/<code> route
+        jamClient.onJoined((data) => {
+            if (data.error) {
+                alert('Could not join: ' + data.error);
+                window.location.href = '/';
+                return;
+            }
+            console.log('[JamGuest] Joined session', data.code, 'extraction_data:', !!data.extraction_data, 'state:', data.state);
+
+            // Store state to apply after mixer is ready
+            pendingState = data.state || null;
+
+            // Case 1: Mixer already initialized (extraction data was in page)
+            if (window.stemMixer && window.stemMixer.isInitialized) {
+                console.log('[JamGuest] Mixer already initialized, setting up handlers');
+                setupPlaybackHandlers();
+                applyPendingState();
+                return;
+            }
+
+            // Case 2: Mixer not initialized — need extraction data from host
+            const extData = data.extraction_data;
+            if (extData && (extData.extraction_id || extData.output_paths || extData.stems_paths)) {
+                console.log('[JamGuest] Received extraction data from host, initializing mixer...');
+                // Set global variables that StemMixer needs
+                window.EXTRACTION_ID = extData.extraction_id || '';
+                window.EXTRACTION_INFO = extData;
+                // Update song title display
+                updateSongTitle(extData.title);
+                // Create StemMixer now
+                window.stemMixer = new StemMixer();
+                window.mixer = window.stemMixer;
+                // Wait for it to finish initializing, then set up handlers and apply state
+                waitForMixerThenSetupHandlers();
+            } else {
+                console.log('[JamGuest] No extraction data yet — waiting for host to load a track');
+            }
+        });
+
+        jamClient.onTrackLoaded((data) => {
+            if (window.stemMixer && window.stemMixer.isInitialized) {
+                // Already have a mixer — host changed track, reload to get new stems
+                console.log('[JamGuest] Host changed track, reloading...');
+                window.location.reload();
+            } else if (data.extraction_data) {
+                // First track received — init mixer dynamically
+                console.log('[JamGuest] First track from host, initializing mixer...');
+                window.EXTRACTION_ID = data.extraction_id || data.extraction_data.extraction_id || '';
+                window.EXTRACTION_INFO = data.extraction_data;
+                updateSongTitle(data.extraction_data.title);
+                window.stemMixer = new StemMixer();
+                window.mixer = window.stemMixer;
+                waitForMixerThenSetupHandlers();
+            }
+        });
+
+        jamClient.onSessionEnded((data) => {
+            alert('Jam session ended: ' + (data.reason || 'Host disconnected'));
+            window.location.href = '/';
+        });
+    })();
+    </script>
+    {% endif %}
 </body>
 </html>

@@ -485,9 +485,10 @@ def analyze_audio_file(audio_file_path, bpm=None, detected_key=None, use_btc=Tru
         use_madmom: Whether to use pure madmom CRF (default: True)
 
     Returns:
-        tuple: (chords_json, beat_offset) or (None, 0.0) if failed
+        tuple: (chords_json, beat_offset, beat_times) or (None, 0.0, []) if failed
         chords_json: JSON string of chord timeline
         beat_offset: float, time offset to first downbeat in seconds
+        beat_times: list of beat timestamps in seconds
     """
     # Try BTC transformer first (professional, 170 chord vocabulary, best for complex music)
     if use_btc:
@@ -496,11 +497,11 @@ def analyze_audio_file(audio_file_path, bpm=None, detected_key=None, use_btc=Tru
 
             if is_available():
                 print("[CHORD DETECTION] Using BTC Transformer (170 chord vocabulary, professional accuracy)...")
-                chords_json, beat_offset = btc_analyze(audio_file_path, bpm)
+                chords_json, beat_offset, beat_times = btc_analyze(audio_file_path, bpm)
 
                 if chords_json:
                     print("[CHORD DETECTION] ✓ BTC Transformer detection successful")
-                    return chords_json, beat_offset
+                    return chords_json, beat_offset, beat_times
                 else:
                     print("[CHORD DETECTION] BTC returned no results, trying madmom...")
             else:
@@ -515,11 +516,11 @@ def analyze_audio_file(audio_file_path, bpm=None, detected_key=None, use_btc=Tru
 
             if is_available():
                 print("[CHORD DETECTION] Using professional madmom CRF engine (works on all genres)...")
-                chords_json, beat_offset = madmom_analyze(audio_file_path, bpm)
+                chords_json, beat_offset, beat_times = madmom_analyze(audio_file_path, bpm)
 
                 if chords_json:
                     print("[CHORD DETECTION] ✓ Madmom CRF detection successful")
-                    return chords_json, beat_offset
+                    return chords_json, beat_offset, beat_times
                 else:
                     print("[CHORD DETECTION] Madmom returned no results, trying hybrid...")
             else:
@@ -533,26 +534,25 @@ def analyze_audio_file(audio_file_path, bpm=None, detected_key=None, use_btc=Tru
             from core.hybrid_chord_detector import analyze_audio_file as hybrid_analyze
 
             print("[CHORD DETECTION] Using hybrid engine (madmom beats + key-aware templates)...")
-            chords_json, beat_offset = hybrid_analyze(audio_file_path, bpm, detected_key)
+            chords_json, beat_offset, beat_times = hybrid_analyze(audio_file_path, bpm, detected_key)
 
             if chords_json:
                 print("[CHORD DETECTION] ✓ Hybrid detection successful")
-                return chords_json, beat_offset
+                return chords_json, beat_offset, beat_times
             else:
                 print("[CHORD DETECTION] Hybrid returned no results, falling back...")
         except Exception as e:
             print(f"[CHORD DETECTION] Hybrid error: {e}, falling back...")
 
-    # Fallback to basic detector
+    # Fallback to basic detector (no beat tracking)
     print("[CHORD DETECTION] Using basic STFT-based detector...")
     detector = ChordDetector()
     chord_timeline = detector.detect_chords(audio_file_path, bpm=bpm)
 
-    # Return both chord data and beat offset
     chords_json = detector.format_for_database(chord_timeline)
     beat_offset = getattr(detector, 'last_beat_offset', 0.0)
 
-    return chords_json, beat_offset
+    return chords_json, beat_offset, []
 
 
 if __name__ == "__main__":

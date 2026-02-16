@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>StemTube Jam Session</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/jam.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: var(--mobile-bg, #0a0a0a);
+            color: var(--text-primary, #fff);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Guest header */
+        .jam-guest-mobile-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            background: var(--mobile-surface, #1a1a1a);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .jam-guest-mobile-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            min-width: 0;
+        }
+        .jam-guest-mobile-code {
+            font-family: monospace;
+            font-weight: 700;
+            color: var(--mobile-primary, #1DB954);
+            font-size: 0.85rem;
+            flex-shrink: 0;
+        }
+        .jam-guest-mobile-track {
+            font-size: 0.8rem;
+            color: var(--text-secondary, #aaa);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .jam-guest-mobile-leave {
+            background: rgba(220, 53, 69, 0.15);
+            color: #dc3545;
+            border: 1px solid rgba(220, 53, 69, 0.3);
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            flex-shrink: 0;
+        }
+
+        /* Waiting screen */
+        .jam-mobile-waiting {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+            text-align: center;
+        }
+        .jam-mobile-waiting i {
+            font-size: 40px;
+            color: var(--mobile-primary, #1DB954);
+            margin-bottom: 16px;
+            animation: on-stage-pulse 2s infinite;
+        }
+        .jam-mobile-waiting h2 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+        }
+        .jam-mobile-waiting p {
+            color: var(--text-secondary, #aaa);
+            font-size: 0.9rem;
+        }
+
+        /* Mixer container */
+        .jam-mobile-mixer {
+            display: none;
+            flex-direction: column;
+            height: calc(100vh - 52px); /* minus header */
+        }
+        .jam-mobile-mixer.active {
+            display: flex;
+        }
+
+        /* Tab navigation */
+        .jam-mobile-tabs {
+            display: flex;
+            background: var(--mobile-surface, #1a1a1a);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .jam-mobile-tab {
+            flex: 1;
+            padding: 10px;
+            background: none;
+            border: none;
+            color: var(--text-secondary, #aaa);
+            font-size: 0.8rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border-bottom: 2px solid transparent;
+        }
+        .jam-mobile-tab.active {
+            color: var(--mobile-primary, #1DB954);
+            border-bottom-color: var(--mobile-primary, #1DB954);
+        }
+
+        /* Transport readonly bar */
+        .jam-mobile-transport {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--mobile-surface, #1a1a1a);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 0.8rem;
+        }
+        .jam-mobile-time {
+            font-family: monospace;
+            color: var(--mobile-primary, #1DB954);
+            font-weight: 600;
+        }
+        .jam-mobile-bpm, .jam-mobile-key {
+            color: var(--text-secondary, #aaa);
+        }
+        .jam-mobile-bpm span, .jam-mobile-key span {
+            color: var(--text-primary, #fff);
+            font-weight: 600;
+        }
+
+        /* Content area */
+        .jam-mobile-content {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Stem controls */
+        .jam-mobile-stem {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .jam-mobile-stem-name {
+            width: 60px;
+            font-size: 0.8rem;
+            text-transform: capitalize;
+            color: var(--text-secondary, #aaa);
+        }
+        .jam-mobile-stem-slider {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(255,255,255,0.15);
+            outline: none;
+        }
+        .jam-mobile-stem-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--mobile-primary, #1DB954);
+            cursor: pointer;
+        }
+        .jam-mobile-stem-btns {
+            display: flex;
+            gap: 4px;
+        }
+        .jam-mobile-stem-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: none;
+            color: var(--text-secondary, #aaa);
+            font-size: 0.65rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .jam-mobile-stem-btn.active {
+            background: var(--mobile-primary, #1DB954);
+            color: #fff;
+            border-color: var(--mobile-primary, #1DB954);
+        }
+
+        /* Chords panel */
+        .jam-mobile-chords {
+            padding: 16px;
+        }
+        .jam-mobile-chord-timeline {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .jam-mobile-chord-item {
+            padding: 6px 10px;
+            background: var(--mobile-surface, #1a1a1a);
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .jam-mobile-chord-item.active {
+            background: var(--mobile-primary, #1DB954);
+            color: #fff;
+        }
+
+        /* Lyrics panel */
+        .jam-mobile-lyrics {
+            padding: 16px;
+        }
+        .jam-mobile-lyric-line {
+            padding: 8px 0;
+            font-size: 1rem;
+            line-height: 1.6;
+            color: var(--text-secondary, #aaa);
+            transition: color 0.3s, font-size 0.3s;
+        }
+        .jam-mobile-lyric-line.active {
+            color: var(--mobile-primary, #1DB954);
+            font-size: 1.15rem;
+            font-weight: 600;
+        }
+
+        /* Loading overlay */
+        .jam-mobile-loading {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 100;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .jam-mobile-loading.active {
+            display: flex;
+        }
+        .jam-mobile-loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: var(--mobile-primary, #1DB954);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .jam-mobile-loading p {
+            color: var(--text-secondary, #aaa);
+            margin-top: 12px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- On Stage Banner -->
+    <div class="on-stage-banner" style="display:flex;">
+        <span class="on-stage-dot"></span>
+        <span>ON STAGE</span>
+    </div>
+
+    <!-- Guest Header -->
+    <div class="jam-guest-mobile-header">
+        <div class="jam-guest-mobile-info">
+            <span class="jam-guest-mobile-code">{{ jam_code }}</span>
+            <span class="jam-guest-mobile-track" id="jamGuestTrackTitle">Waiting for host...</span>
+        </div>
+        <button class="jam-guest-mobile-leave" id="jamGuestLeaveBtn">
+            <i class="fas fa-sign-out-alt"></i> Leave
+        </button>
+    </div>
+
+    <!-- Waiting Screen -->
+    <div class="jam-mobile-waiting" id="jamWaitingScreen">
+        <i class="fas fa-headphones"></i>
+        <h2>Connected to Jam Session</h2>
+        <p>Waiting for the host to play a track...</p>
+        <p class="jam-guest-mobile-code" style="margin-top:16px;">{{ jam_code }}</p>
+    </div>
+
+    <!-- Host Disconnected Overlay -->
+    <div id="jamHostDisconnectedOverlay" style="display:none; position:fixed; inset:0; z-index:9999;
+         background:rgba(0,0,0,0.85); flex-direction:column; align-items:center;
+         justify-content:center; color:#fff; text-align:center; padding:20px;">
+        <i class="fas fa-wifi" style="font-size:40px; color:#ff6b6b; margin-bottom:16px; opacity:0.8;"></i>
+        <h2 style="margin:0 0 8px; font-size:1.3rem;">Host Disconnected</h2>
+        <p style="color:#aaa; margin:0 0 20px; font-size:0.9rem;">Waiting for the host to reconnect...</p>
+        <div id="jamDisconnectCountdown" style="font-size:48px; font-weight:700; color:#ff6b6b;
+             font-family:monospace; margin-bottom:20px;">10</div>
+        <p id="jamDisconnectMessage" style="color:#888; font-size:0.8rem; margin:0 0 16px;">Session will close if host doesn't return</p>
+        <button id="jamDisconnectLeaveBtn" style="background:rgba(220,53,69,0.15); color:#dc3545;
+                border:1px solid rgba(220,53,69,0.3); padding:10px 24px; border-radius:8px;
+                cursor:pointer; font-size:0.9rem;">
+            <i class="fas fa-sign-out-alt"></i> Leave Now
+        </button>
+    </div>
+
+    <!-- Mobile Mixer -->
+    <div class="jam-mobile-mixer" id="jamMobileMixer">
+        <!-- Tabs -->
+        <div class="jam-mobile-tabs">
+            <button class="jam-mobile-tab active" data-tab="mix">
+                <i class="fas fa-sliders-h"></i> Mix
+            </button>
+            <button class="jam-mobile-tab" data-tab="chords">
+                <i class="fas fa-music"></i> Chords
+            </button>
+            <button class="jam-mobile-tab" data-tab="lyrics">
+                <i class="fas fa-microphone"></i> Lyrics
+            </button>
+        </div>
+
+        <!-- Readonly Transport -->
+        <div class="jam-mobile-transport">
+            <span class="jam-mobile-time" id="jamMobileTime">00:00</span>
+            <span class="jam-mobile-bpm">BPM: <span id="jamMobileBPM">120</span></span>
+            <span class="jam-mobile-key">Key: <span id="jamMobileKey">C</span></span>
+        </div>
+
+        <!-- Content -->
+        <div class="jam-mobile-content" id="jamMobileContent">
+            <!-- Mix tab (stems) -->
+            <div class="jam-mobile-mix-panel" id="jamMixPanel">
+                <!-- Populated dynamically -->
+            </div>
+            <!-- Chords tab -->
+            <div class="jam-mobile-chords" id="jamChordsPanel" style="display:none;">
+                <div class="jam-mobile-chord-timeline" id="jamChordTimeline"></div>
+            </div>
+            <!-- Lyrics tab -->
+            <div class="jam-mobile-lyrics" id="jamLyricsPanel" style="display:none;">
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="jam-mobile-loading" id="jamMobileLoading">
+        <div class="jam-mobile-loading-spinner"></div>
+        <p>Loading stems...</p>
+    </div>
+
+    <!-- Scripts -->
+    <!-- ngrok free-tier: inject bypass header on all socket.io XHR requests (iOS Safari fix) -->
+    <script>
+    (function(){
+        var origOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(){
+            this._url = arguments[1];
+            return origOpen.apply(this, arguments);
+        };
+        var origSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function(){
+            if(this._url && typeof this._url === 'string' && this._url.indexOf('/socket.io/')!==-1){
+                try{this.setRequestHeader('ngrok-skip-browser-warning','true');}catch(e){}
+            }
+            return origSend.apply(this, arguments);
+        };
+    })();
+    </script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='wasm/soundtouch.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/jam-client.js') }}"></script>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // Guest mode globals
+        window.JAM_GUEST_MODE = true;
+        window.JAM_CODE = "{{ jam_code }}";
+        window.JAM_GUEST_NAME = "{{ jam_guest_name }}";
+
+        const initialData = JSON.parse('{{ extraction_data | safe }}' || '{}');
+
+        const socket = io({ transports: ['polling', 'websocket'], upgrade: true });
+        const jamClient = new JamClient(socket);
+
+        // Audio state
+        let audioContext = null;
+        let stems = {};
+        let isPlaying = false;
+        let playbackPosition = 0;
+        let lastAudioTime = null;
+        let duration = 0;
+        let animationFrameId = null;
+        let currentBPM = 120;
+        let originalBPM = 120;
+        let currentKey = 'C';
+        let chords = [];
+        let lyrics = [];
+        let currentTab = 'mix';
+        let mixerReady = false;
+
+        // Leave button
+        document.getElementById('jamGuestLeaveBtn').addEventListener('click', () => {
+            if (confirm('Leave this jam session?')) {
+                jamClient.leaveSession();
+                window.location.href = '/';
+            }
+        });
+
+        // Tab navigation
+        document.querySelectorAll('.jam-mobile-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                currentTab = tab.dataset.tab;
+                document.querySelectorAll('.jam-mobile-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('jamMixPanel').style.display = currentTab === 'mix' ? '' : 'none';
+                document.getElementById('jamChordsPanel').style.display = currentTab === 'chords' ? '' : 'none';
+                document.getElementById('jamLyricsPanel').style.display = currentTab === 'lyrics' ? '' : 'none';
+            });
+        });
+
+        // --- JamClient callbacks ---
+
+        // Store pending state to apply after mixer is ready
+        let pendingState = null;
+
+        jamClient.onJoined((data) => {
+            if (data.error) {
+                alert('Could not join: ' + data.error);
+                window.location.href = '/';
+                return;
+            }
+            console.log('[JamGuest] Joined session', data.code, 'extraction_data:', !!data.extraction_data, 'state:', data.state);
+
+            // Store state to apply after loading
+            pendingState = data.state || null;
+
+            if (data.extraction_data && (data.extraction_data.title || data.extraction_data.stems_paths || data.extraction_data.output_paths)) {
+                loadTrack(data.extraction_data).then(() => {
+                    // After loading, sync with host's current state
+                    applyPendingState();
+                });
+            }
+        });
+
+        function applyPendingState() {
+            if (!pendingState || !mixerReady) return;
+            console.log('[JamGuest] Applying pending state:', pendingState);
+
+            // Sync BPM
+            if (pendingState.bpm) {
+                currentBPM = pendingState.bpm;
+                document.getElementById('jamMobileBPM').textContent = Math.round(pendingState.bpm);
+                updatePlaybackRate();
+            }
+
+            // Sync position and playback
+            if (pendingState.position !== undefined) {
+                seekTo(pendingState.position);
+            }
+            if (pendingState.is_playing) {
+                play();
+            }
+
+            pendingState = null;
+        }
+
+        jamClient.onTrackLoaded((data) => {
+            console.log('[JamGuest] Track loaded event received:', !!data.extraction_data);
+            if (data.extraction_data) {
+                loadTrack(data.extraction_data).then(() => {
+                    // Host just loaded a new track — guest should be ready but not playing
+                    // Host will send play command separately if needed
+                });
+            }
+        });
+
+        jamClient.onPlayback((data) => {
+            if (!mixerReady) return;
+
+            // Latency compensation: adjust position by estimated network delay
+            let adjustedPosition = data.position || 0;
+            if (data.server_timestamp && data.command === 'play') {
+                const networkDelay = jamClient.rtt / 2;
+                const timeSinceSent = Date.now() - data.server_timestamp;
+                adjustedPosition += (timeSinceSent + networkDelay) / 1000;
+            }
+
+            switch (data.command) {
+                case 'play':
+                    seekTo(adjustedPosition);
+                    play();
+                    break;
+                case 'pause':
+                    pause();
+                    break;
+                case 'stop':
+                    stop();
+                    break;
+                case 'seek':
+                    seekTo(adjustedPosition);
+                    break;
+            }
+        });
+
+        jamClient.onTempo((data) => {
+            if (data.bpm) {
+                currentBPM = data.bpm;
+                document.getElementById('jamMobileBPM').textContent = Math.round(data.bpm);
+                // Apply tempo change to audio if SoundTouch is available
+                updatePlaybackRate();
+            }
+        });
+
+        jamClient.onPitch((data) => {
+            if (data.current_key) {
+                currentKey = data.current_key;
+                document.getElementById('jamMobileKey').textContent = data.current_key;
+            }
+        });
+
+        jamClient.onSync((data) => {
+            if (!mixerReady) return;
+            const expectedPos = data.position || 0;
+            const drift = Math.abs(playbackPosition - expectedPos);
+            if (drift > 0.5) {
+                seekTo(expectedPos);
+            } else if (drift > 0.1) {
+                seekTo(expectedPos);
+            }
+            if (data.is_playing && !isPlaying) {
+                seekTo(expectedPos);
+                play();
+            } else if (!data.is_playing && isPlaying) {
+                pause();
+            }
+        });
+
+        jamClient.onSessionEnded((data) => {
+            alert('Jam session ended: ' + (data.reason || 'Host disconnected'));
+            window.location.href = '/';
+        });
+
+        // Host disconnect/reconnect handling
+        let hostDisconnectTimer = null;
+        jamClient.onHostStatus((data) => {
+            const overlay = document.getElementById('jamHostDisconnectedOverlay');
+            const countdownEl = document.getElementById('jamDisconnectCountdown');
+
+            if (data.status === 'disconnected') {
+                // Pause guest playback immediately
+                if (isPlaying) {
+                    pause();
+                }
+
+                const timeout = data.timeout || 10;
+                let remaining = timeout;
+                overlay.style.display = 'flex';
+                countdownEl.textContent = remaining;
+
+                const messageEl = document.getElementById('jamDisconnectMessage');
+                if (messageEl) messageEl.textContent = 'Session will close if host doesn\'t return';
+
+                if (hostDisconnectTimer) clearInterval(hostDisconnectTimer);
+                hostDisconnectTimer = setInterval(() => {
+                    remaining--;
+                    if (remaining <= 0) {
+                        clearInterval(hostDisconnectTimer);
+                        hostDisconnectTimer = null;
+                        countdownEl.textContent = '...';
+                        if (messageEl) messageEl.textContent = 'Still waiting for host \u2014 you can leave anytime';
+                    } else {
+                        countdownEl.textContent = remaining;
+                    }
+                }, 1000);
+
+            } else if (data.status === 'reconnected') {
+                // Clear countdown
+                if (hostDisconnectTimer) {
+                    clearInterval(hostDisconnectTimer);
+                    hostDisconnectTimer = null;
+                }
+                overlay.style.display = 'none';
+
+                // Resync to host state (host just reloaded — will be stopped)
+                const state = data.state;
+                if (state) {
+                    if (state.bpm) {
+                        currentBPM = state.bpm;
+                        const bpmEl = document.getElementById('jamMobileBPM');
+                        if (bpmEl) bpmEl.textContent = Math.round(state.bpm);
+                    }
+                    if (state.current_key) {
+                        currentKey = state.current_key;
+                        const keyEl = document.getElementById('jamMobileKey');
+                        if (keyEl) keyEl.textContent = state.current_key;
+                    }
+                    // Stay stopped — wait for host to press play
+                    if (isPlaying) {
+                        pause();
+                    }
+                }
+                console.log('[JamGuest] Host reconnected, waiting for host to resume playback');
+            }
+        });
+
+        document.getElementById('jamDisconnectLeaveBtn').addEventListener('click', () => {
+            window.location.href = '/';
+        });
+
+        // --- Audio Engine (simplified for guest) ---
+
+        function initAudioContext() {
+            if (audioContext) return;
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        async function loadTrack(extractionData) {
+            initAudioContext();
+
+            document.getElementById('jamWaitingScreen').style.display = 'none';
+            document.getElementById('jamMobileMixer').classList.add('active');
+            document.getElementById('jamMobileLoading').classList.add('active');
+
+            // Update UI
+            document.getElementById('jamGuestTrackTitle').textContent = extractionData.title || 'Unknown Track';
+            originalBPM = extractionData.detected_bpm || 120;
+            currentBPM = originalBPM;
+            currentKey = extractionData.detected_key || 'C';
+            document.getElementById('jamMobileBPM').textContent = Math.round(currentBPM);
+            document.getElementById('jamMobileKey').textContent = currentKey;
+
+            // Load chords data
+            chords = [];
+            if (extractionData.chords_data) {
+                try {
+                    const cd = typeof extractionData.chords_data === 'string'
+                        ? JSON.parse(extractionData.chords_data) : extractionData.chords_data;
+                    chords = cd.chords || cd || [];
+                } catch (e) { console.warn('[JamGuest] Chords parse error:', e); }
+            }
+
+            // Load lyrics data
+            lyrics = [];
+            if (extractionData.lyrics_data) {
+                try {
+                    const ld = typeof extractionData.lyrics_data === 'string'
+                        ? JSON.parse(extractionData.lyrics_data) : extractionData.lyrics_data;
+                    lyrics = ld.lines || ld || [];
+                } catch (e) { console.warn('[JamGuest] Lyrics parse error:', e); }
+            }
+
+            // Load stem audio files (handle both output_paths and stems_paths formats)
+            console.log('[JamGuest] extractionData:', extractionData);
+            console.log('[JamGuest] output_paths:', extractionData.output_paths);
+            console.log('[JamGuest] stems_paths:', extractionData.stems_paths);
+            const stemsPaths = extractionData.output_paths ||
+                (typeof extractionData.stems_paths === 'string' ? JSON.parse(extractionData.stems_paths) : extractionData.stems_paths) || {};
+            const stemNames = Object.keys(stemsPaths);
+            console.log('[JamGuest] Resolved stemsPaths:', stemsPaths, 'names:', stemNames);
+            const jamCode = window.JAM_CODE;
+
+            if (stemNames.length === 0) {
+                console.error('[JamGuest] No stems found in extraction data!');
+                document.getElementById('jamMobileLoading').classList.remove('active');
+                document.getElementById('jamGuestTrackTitle').textContent = 'Error: No stems available';
+                return;
+            }
+
+            // Clean up existing stems
+            for (const name of Object.keys(stems)) {
+                if (stems[name].source) {
+                    try { stems[name].source.disconnect(); } catch (e) {}
+                }
+            }
+            stems = {};
+
+            try {
+                const eid = extractionData.extraction_id || extractionData.id || Date.now();
+                const loadPromises = stemNames.map(async (name) => {
+                    const url = `/api/jam/stems/${jamCode}/${name}?eid=${encodeURIComponent(eid)}`;
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`Failed to load stem ${name}: ${response.status}`);
+                    const arrayBuffer = await response.arrayBuffer();
+                    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                    stems[name] = {
+                        buffer: audioBuffer,
+                        gainNode: audioContext.createGain(),
+                        source: null,
+                        volume: 1.0,
+                        muted: false,
+                        solo: false
+                    };
+                    stems[name].gainNode.connect(audioContext.destination);
+                    duration = Math.max(duration, audioBuffer.duration);
+                });
+
+                await Promise.all(loadPromises);
+                console.log(`[JamGuest] Loaded ${stemNames.length} stems`);
+                mixerReady = true;
+            } catch (e) {
+                console.error('[JamGuest] Error loading stems:', e);
+            }
+
+            document.getElementById('jamMobileLoading').classList.remove('active');
+
+            // Render UI
+            renderStemControls();
+            renderChords();
+            renderLyrics();
+        }
+
+        function play() {
+            if (isPlaying) return;
+            initAudioContext();
+            if (audioContext.state === 'suspended') audioContext.resume();
+
+            isPlaying = true;
+            lastAudioTime = audioContext.currentTime;
+
+            for (const name of Object.keys(stems)) {
+                const stem = stems[name];
+                if (stem.source) {
+                    try { stem.source.disconnect(); } catch (e) {}
+                }
+                stem.source = audioContext.createBufferSource();
+                stem.source.buffer = stem.buffer;
+                stem.source.playbackRate.value = getPlaybackRate();
+                stem.source.connect(stem.gainNode);
+                stem.source.start(0, playbackPosition);
+            }
+
+            startUpdateLoop();
+        }
+
+        function pause() {
+            if (!isPlaying) return;
+            isPlaying = false;
+            stopSources();
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+        }
+
+        function stop() {
+            isPlaying = false;
+            playbackPosition = 0;
+            stopSources();
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            updateTimeDisplay();
+        }
+
+        function seekTo(pos) {
+            playbackPosition = Math.max(0, Math.min(pos, duration));
+            if (isPlaying) {
+                stopSources();
+                lastAudioTime = audioContext.currentTime;
+                for (const name of Object.keys(stems)) {
+                    const stem = stems[name];
+                    stem.source = audioContext.createBufferSource();
+                    stem.source.buffer = stem.buffer;
+                    stem.source.playbackRate.value = getPlaybackRate();
+                    stem.source.connect(stem.gainNode);
+                    stem.source.start(0, playbackPosition);
+                }
+            }
+            updateTimeDisplay();
+        }
+
+        function stopSources() {
+            for (const name of Object.keys(stems)) {
+                if (stems[name].source) {
+                    try {
+                        stems[name].source.stop();
+                        stems[name].source.disconnect();
+                    } catch (e) {}
+                    stems[name].source = null;
+                }
+            }
+        }
+
+        function getPlaybackRate() {
+            return originalBPM > 0 ? currentBPM / originalBPM : 1.0;
+        }
+
+        function updatePlaybackRate() {
+            const rate = getPlaybackRate();
+            for (const name of Object.keys(stems)) {
+                if (stems[name].source) {
+                    stems[name].source.playbackRate.value = rate;
+                }
+            }
+        }
+
+        function startUpdateLoop() {
+            function update() {
+                if (!isPlaying) return;
+                const now = audioContext.currentTime;
+                const delta = (now - lastAudioTime) * getPlaybackRate();
+                lastAudioTime = now;
+                playbackPosition += delta;
+
+                if (playbackPosition >= duration) {
+                    stop();
+                    return;
+                }
+
+                updateTimeDisplay();
+                updateActiveChord();
+                updateActiveLyric();
+                animationFrameId = requestAnimationFrame(update);
+            }
+            animationFrameId = requestAnimationFrame(update);
+        }
+
+        function updateTimeDisplay() {
+            const mins = Math.floor(playbackPosition / 60);
+            const secs = Math.floor(playbackPosition % 60);
+            document.getElementById('jamMobileTime').textContent =
+                `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // --- Stem UI ---
+
+        function renderStemControls() {
+            const panel = document.getElementById('jamMixPanel');
+            panel.innerHTML = '';
+            for (const name of Object.keys(stems)) {
+                const stem = stems[name];
+                const el = document.createElement('div');
+                el.className = 'jam-mobile-stem';
+                el.innerHTML = `
+                    <span class="jam-mobile-stem-name">${name}</span>
+                    <input type="range" class="jam-mobile-stem-slider" min="0" max="100" value="100" data-stem="${name}">
+                    <div class="jam-mobile-stem-btns">
+                        <button class="jam-mobile-stem-btn" data-stem="${name}" data-action="mute">M</button>
+                        <button class="jam-mobile-stem-btn" data-stem="${name}" data-action="solo">S</button>
+                    </div>
+                `;
+                panel.appendChild(el);
+
+                // Volume slider
+                el.querySelector('.jam-mobile-stem-slider').addEventListener('input', (e) => {
+                    stem.volume = e.target.value / 100;
+                    updateGains();
+                });
+
+                // Mute button
+                el.querySelector('[data-action="mute"]').addEventListener('click', (e) => {
+                    stem.muted = !stem.muted;
+                    e.target.classList.toggle('active', stem.muted);
+                    updateGains();
+                });
+
+                // Solo button
+                el.querySelector('[data-action="solo"]').addEventListener('click', (e) => {
+                    stem.solo = !stem.solo;
+                    e.target.classList.toggle('active', stem.solo);
+                    updateGains();
+                });
+            }
+        }
+
+        function updateGains() {
+            const hasSolo = Object.values(stems).some(s => s.solo);
+            for (const name of Object.keys(stems)) {
+                const stem = stems[name];
+                let vol = stem.volume;
+                if (stem.muted) vol = 0;
+                if (hasSolo && !stem.solo) vol = 0;
+                stem.gainNode.gain.value = vol;
+            }
+        }
+
+        // --- Chords UI ---
+
+        function renderChords() {
+            const container = document.getElementById('jamChordTimeline');
+            container.innerHTML = '';
+            if (!Array.isArray(chords) || chords.length === 0) {
+                container.innerHTML = '<p style="color:#aaa;padding:16px;">No chord data available</p>';
+                return;
+            }
+            chords.forEach((chord, i) => {
+                const el = document.createElement('span');
+                el.className = 'jam-mobile-chord-item';
+                el.textContent = chord.chord || chord.label || chord.name || 'N';
+                el.dataset.index = i;
+                el.dataset.time = chord.time || chord.start || 0;
+                container.appendChild(el);
+            });
+        }
+
+        function updateActiveChord() {
+            const items = document.querySelectorAll('.jam-mobile-chord-item');
+            let activeIdx = -1;
+            for (let i = 0; i < chords.length; i++) {
+                const t = chords[i].time || chords[i].start || 0;
+                if (playbackPosition >= t) activeIdx = i;
+            }
+            items.forEach((el, i) => {
+                el.classList.toggle('active', i === activeIdx);
+            });
+            // Scroll active into view
+            if (activeIdx >= 0 && items[activeIdx]) {
+                items[activeIdx].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        }
+
+        // --- Lyrics UI ---
+
+        function renderLyrics() {
+            const container = document.getElementById('jamLyricsPanel');
+            container.innerHTML = '';
+            if (!Array.isArray(lyrics) || lyrics.length === 0) {
+                container.innerHTML = '<p style="color:#aaa;padding:16px;">No lyrics available</p>';
+                return;
+            }
+            lyrics.forEach((line, i) => {
+                const el = document.createElement('div');
+                el.className = 'jam-mobile-lyric-line';
+                el.textContent = line.text || line.words || line.line || '';
+                el.dataset.index = i;
+                el.dataset.time = line.time || line.start || line.startTime || 0;
+                container.appendChild(el);
+            });
+        }
+
+        function updateActiveLyric() {
+            const items = document.querySelectorAll('.jam-mobile-lyric-line');
+            let activeIdx = -1;
+            for (let i = 0; i < lyrics.length; i++) {
+                const t = lyrics[i].time || lyrics[i].start || lyrics[i].startTime || 0;
+                if (playbackPosition >= t) activeIdx = i;
+            }
+            items.forEach((el, i) => {
+                el.classList.toggle('active', i === activeIdx);
+            });
+            if (activeIdx >= 0 && items[activeIdx]) {
+                items[activeIdx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        // --- Socket connection ---
+
+        // The server auto-joins jam guests during the connect handler
+        socket.on('connect', () => {
+            console.log('[JamGuest] Mobile connected');
+        });
+
+        // Load initial data if available
+        if (initialData && initialData.title) {
+            document.addEventListener('DOMContentLoaded', () => {
+                // Small delay to ensure audio context can be created on touch
+                document.addEventListener('touchstart', () => {
+                    if (!mixerReady && initialData.title) {
+                        loadTrack(initialData);
+                    }
+                }, { once: true });
+            });
+        }
+    })();
+    </script>
+</body>
+</html>

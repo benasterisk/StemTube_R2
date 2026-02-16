@@ -156,6 +156,10 @@ def calculate_global_offset(
             best_matches = matches
             best_offset = test_offset
 
+    # Musixmatch timestamps are typically early or on-time, never late.
+    # A negative offset would shift lyrics even earlier — always wrong.
+    best_offset = max(0.0, best_offset)
+
     logger.info(f"[ONSET] Global offset calculated: {best_offset:.3f}s "
                 f"(first word: {first_word_time:.2f}s, first onset: {first_onset_time:.2f}s, "
                 f"matches with offset: {best_matches})")

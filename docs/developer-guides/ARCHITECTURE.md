@@ -600,6 +600,88 @@ python utils/database/debug_db.py
 
 ---
 
+## Jam Session Architecture
+
+### Overview
+
+Jam Session allows a host to share real-time playback with guests. No audio streams through the server — only BPM, transport commands, and sync data. Each client plays stems locally.
+
+### Session Lifecycle
+
+1. **Create**: Host emits `jam_create` → server generates 6-char code, stores session in `active_jam_sessions`
+2. **Join**: Guest visits `/jam/CODE` → Flask sets session flags → SocketIO auto-joins on connect
+3. **Play**: Host presses play → `jam-bridge.js` broadcasts `jam_playback` with position + precount_beats
+4. **Sync**: Host sends `jam_sync` heartbeat every 5s (position, BPM, is_playing). Guests correct drift > 0.5s
+5. **Disconnect**: Guest flags cleared in `handle_disconnect()`. Host gets 30s grace period for reconnection
+6. **End**: Host emits `jam_end` → all guests notified → session removed
+
+### WebSocket Events (13 total)
+
+| Event | Direction | Purpose |
+|-------|-----------|---------|
+| `jam_create` | Client→Server | Create session (host only) |
+| `jam_end` | Client→Server | End session (host only) |
+| `jam_delete_code` | Client→Server | Delete session code |
+| `jam_join` | Server→Client | Auto-join confirmation with extraction data + state |
+| `jam_leave` | Client→Server | Guest leaves |
+| `jam_track_load` | Client→Server | Host loaded new track |
+| `jam_playback` | Client→Server→Clients | Transport command (play/pause/stop/seek) |
+| `jam_tempo` | Client→Server→Clients | BPM change |
+| `jam_pitch` | Client→Server→Clients | Pitch shift change |
+| `jam_sync` | Client→Server→Clients | Periodic position/state sync |
+| `jam_pong` | Client→Server | RTT measurement response |
+| `jam_participants` | Server→Clients | Updated participant list |
+| `jam_session_ended` | Server→Clients | Session terminated notification |
+
+### Precount Mechanism
+
+The precount ensures host and guests start music simultaneously:
+
+1. Host presses play → `jam-bridge.js` intercepts `engine.play()`
+2. `sendPlayback('play', pos, { precount_beats })` broadcasted **before** local precount starts
+3. `metronome.startPrecount(beats, callback)` pre-schedules click sounds on Web Audio clock
+4. Guest receives command, starts its own precount simultaneously
+5. When precount ends (callback fires): `originalPlay()` starts audio, `metronome.start()` begins regular clicks
+6. Guest: desktop runs `engine.play()` in callback; mobile pre-schedules stems at `stemStartTime` on audio clock
+
+### Metronome Architecture (`jam-metronome.js`)
+
+- **Beat map extrapolation**: `setBeatTimes()` receives detected beat times from audio analysis. Extrapolates backward to time 0 using the interval between first two beats. This ensures clicks from the very start of the track.
+- **Look-ahead scheduling**: `_scheduleUpcomingClicks()` pre-schedules oscillator clicks 100ms ahead on the Web Audio clock. On `start()`, uses a wider 1s window for the first pass to catch the initial beats.
+- **Constant BPM fallback**: When no beat map is available, `_scheduleFromConstantBPM()` generates beats from time 0 using BPM.
+- **Precount clicks**: Separate scheduling (`_schedulePrecountClick`) with uniform 1200Hz sine tone, same gain node as regular clicks.
+
+### Guest Permission Model
+
+- `window.JAM_GUEST_MODE = true` set in guest templates
+- Guests can hear precount but cannot change settings (long-press popover blocked)
+- Guests cannot control transport (play/pause/seek) — only host can
+- Guest sync handler corrects position drift and follows host play/pause state
+
+### Stale Session Handling
+
+Flask session flags (`jam_guest`, `jam_code`, `jam_guest_name`) caused SocketIO connection blocking when stale. Fixed with:
+- `handle_connect()`: clears stale flags instead of returning `False`
+- `handle_disconnect()`: clears guest flags on disconnect
+- `/jam/<code>` route: clears old flags before setting new ones
+- `jam_create`: clears leftover guest flags when user becomes host
+
+### Key Files
+
+| File | Role |
+|------|------|
+| `app.py` (lines ~830-950, ~5040-5240) | Backend: SocketIO handlers + HTTP routes |
+| `static/js/jam-bridge.js` | Host mixer iframe: wraps transport to broadcast |
+| `static/js/jam-client.js` | Shared WebSocket client, RTT, event handlers |
+| `static/js/jam-metronome.js` | Metronome: precount, beat map, scheduling |
+| `static/js/jam-tab.js` | Desktop jam tab UI |
+| `static/css/jam.css` | Jam-specific styles |
+| `templates/mixer.html` | Desktop guest inline JS handlers |
+| `templates/jam-guest.html` | Desktop guest page |
+| `templates/jam-guest-mobile.html` | Mobile guest page |
+
+---
+
 ## For Claude Code: Best Practices
 
 1. **Always read database schema** before modifying queries
@@ -613,7 +695,7 @@ python utils/database/debug_db.py
 
 ---
 
-**Last Updated:** December 2025
+**Last Updated:** February 2026
 **For Full Installation Guide:** See README.md
 **For User Documentation:** See README.md
 **For Development Utilities:** See ../utilities/

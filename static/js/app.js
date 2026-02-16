@@ -83,12 +83,12 @@ window.addEventListener('beforeunload', () => {
 function initializeSocketIO() {
     // Optimized configuration for connection stability
     socket = io({
-        transports: ['websocket'],
-        upgrade: false,
+        transports: ['polling', 'websocket'],
+        upgrade: true,
         reconnection: true,
         reconnectionAttempts: 10,
         reconnectionDelay: 1000,
-        timeout: 60000  // Increase timeout to 60 seconds
+        timeout: 60000
     });
 
     // Socket event listeners

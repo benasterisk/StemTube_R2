@@ -192,7 +192,7 @@ class HybridChordDetector:
         else:
             print("[HYBRID] Madmom not available, using basic beat detection")
 
-    def detect_chords(self, audio_file_path: str, bpm: Optional[float] = None, detected_key: Optional[str] = None) -> Tuple[Optional[str], float]:
+    def detect_chords(self, audio_file_path: str, bpm: Optional[float] = None, detected_key: Optional[str] = None) -> Tuple[Optional[str], float, List]:
         """
         Detect chords using hybrid approach.
 
@@ -202,11 +202,11 @@ class HybridChordDetector:
             detected_key: Known musical key (optional, improves accuracy)
 
         Returns:
-            tuple: (chords_json, beat_offset)
+            tuple: (chords_json, beat_offset, beat_times_list)
         """
         if not os.path.exists(audio_file_path):
             print(f"[HYBRID ERROR] File not found: {audio_file_path}")
-            return None, 0.0
+            return None, 0.0, []
 
         print(f"[HYBRID] Processing: {os.path.basename(audio_file_path)}")
         if detected_key:
@@ -253,15 +253,16 @@ class HybridChordDetector:
 
             # Convert to JSON
             chords_json = json.dumps(chords)
-            print(f"[HYBRID] ✓ Detection complete: {len(chords)} chord changes")
+            beat_times_list = [round(float(b), 4) for b in beats]
+            print(f"[HYBRID] ✓ Detection complete: {len(chords)} chord changes, {len(beat_times_list)} beats")
 
-            return chords_json, beat_offset
+            return chords_json, beat_offset, beat_times_list
 
         except Exception as e:
             print(f"[HYBRID ERROR] Detection failed: {e}")
             import traceback
             traceback.print_exc()
-            return None, 0.0
+            return None, 0.0, []
 
     def _detect_beats(self, audio_file_path: str, y: np.ndarray, sr: int, known_bpm: Optional[float]) -> Tuple[float, np.ndarray]:
         """Detect beats using madmom (preferred) or librosa."""
@@ -552,7 +553,7 @@ class HybridChordDetector:
         return aligned
 
 
-def analyze_audio_file(audio_file_path: str, bpm: Optional[float] = None, detected_key: Optional[str] = None) -> Tuple[Optional[str], float]:
+def analyze_audio_file(audio_file_path: str, bpm: Optional[float] = None, detected_key: Optional[str] = None) -> Tuple[Optional[str], float, List]:
     """
     Main entry point for hybrid chord detection.
 
@@ -562,7 +563,7 @@ def analyze_audio_file(audio_file_path: str, bpm: Optional[float] = None, detect
         detected_key: Known musical key (optional, improves accuracy significantly)
 
     Returns:
-        tuple: (chords_json, beat_offset)
+        tuple: (chords_json, beat_offset, beat_times_list)
     """
     try:
         detector = HybridChordDetector()
@@ -571,4 +572,4 @@ def analyze_audio_file(audio_file_path: str, bpm: Optional[float] = None, detect
         print(f"[HYBRID] Analysis failed: {e}")
         import traceback
         traceback.print_exc()
-        return None, 0.0
+        return None, 0.0, []

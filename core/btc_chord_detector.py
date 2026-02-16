@@ -64,7 +64,7 @@ class BTCChordDetector:
         self.detector = BTCWrapper(use_large_vocab=True)
         print("[BTC] ✓ Detector initialized with 170 chord vocabulary")
 
-    def detect_chords(self, audio_file_path: str, bpm: Optional[float] = None) -> Tuple[Optional[str], float]:
+    def detect_chords(self, audio_file_path: str, bpm: Optional[float] = None) -> Tuple[Optional[str], float, List]:
         """
         Detect chords in audio file using BTC transformer.
 
@@ -73,13 +73,14 @@ class BTCChordDetector:
             bpm: Known BPM (optional, not used by BTC but kept for API compatibility)
 
         Returns:
-            tuple: (chords_json, beat_offset)
+            tuple: (chords_json, beat_offset, beat_times_list)
                 - chords_json: JSON string of chord detections
                 - beat_offset: Time offset to first chord change in seconds
+                - beat_times_list: Empty list (BTC doesn't do beat tracking)
         """
         if not os.path.exists(audio_file_path):
             print(f"[BTC ERROR] File not found: {audio_file_path}")
-            return None, 0.0
+            return None, 0.0, []
 
         print(f"[BTC] Processing: {os.path.basename(audio_file_path)}")
 
@@ -91,7 +92,7 @@ class BTCChordDetector:
 
             if not segments:
                 print("[BTC WARNING] No chords detected")
-                return None, 0.0
+                return None, 0.0, []
 
             print(f"[BTC] Detected {len(segments)} chord segments")
 
@@ -107,13 +108,13 @@ class BTCChordDetector:
 
             print(f"[BTC] ✓ Detection complete: {len(chords_data)} chord changes, offset={beat_offset:.3f}s")
 
-            return chords_json, beat_offset
+            return chords_json, beat_offset, []
 
         except Exception as e:
             print(f"[BTC ERROR] Chord detection failed: {e}")
             import traceback
             traceback.print_exc()
-            return None, 0.0
+            return None, 0.0, []
 
     def _format_for_stemtube(self, segments: List[Tuple[float, float, str]]) -> List[Dict]:
         """
@@ -226,7 +227,7 @@ class BTCChordDetector:
         return merged
 
 
-def analyze_audio_file(audio_file_path: str, bpm: Optional[float] = None) -> Tuple[Optional[str], float]:
+def analyze_audio_file(audio_file_path: str, bpm: Optional[float] = None) -> Tuple[Optional[str], float, List]:
     """
     Main entry point for BTC chord detection (matches Stemtube API).
 
@@ -235,11 +236,11 @@ def analyze_audio_file(audio_file_path: str, bpm: Optional[float] = None) -> Tup
         bpm: Known BPM (optional, not used by BTC)
 
     Returns:
-        tuple: (chords_json, beat_offset)
+        tuple: (chords_json, beat_offset, beat_times_list)
     """
     if not BTC_AVAILABLE:
         print("[BTC] BTC not available, cannot analyze")
-        return None, 0.0
+        return None, 0.0, []
 
     try:
         detector = BTCChordDetector()
@@ -248,7 +249,7 @@ def analyze_audio_file(audio_file_path: str, bpm: Optional[float] = None) -> Tup
         print(f"[BTC] Analysis failed: {e}")
         import traceback
         traceback.print_exc()
-        return None, 0.0
+        return None, 0.0, []
 
 
 def is_available() -> bool:
@@ -271,7 +272,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # Test detection
-    chords_json, beat_offset = analyze_audio_file(audio_file)
+    chords_json, beat_offset, beat_times = analyze_audio_file(audio_file)
 
     if chords_json:
         chords = json.loads(chords_json)

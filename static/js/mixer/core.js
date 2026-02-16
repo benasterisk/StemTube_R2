@@ -121,14 +121,15 @@ class StemMixer {
         this.log('Initializing mixer...');
         
         try {
-            // Use the global extraction ID defined in the template
-            if (!EXTRACTION_ID) {
+            // Use the global extraction ID (prefer window property for dynamic guest mode)
+            const extractionId = window.EXTRACTION_ID || (typeof EXTRACTION_ID !== 'undefined' ? EXTRACTION_ID : '');
+            if (!extractionId) {
                 throw new Error('Extraction ID not specified in URL');
             }
 
             // Define the global variable for the extraction ID
-            this.extractionId = EXTRACTION_ID;
-            this.encodedExtractionId = ENCODED_EXTRACTION_ID;
+            this.extractionId = extractionId;
+            this.encodedExtractionId = encodeURIComponent(extractionId);
 
             // Initialize audio context
             await this.audioEngine.initAudioContext();
@@ -168,6 +169,9 @@ class StemMixer {
 
             this.isInitialized = true;
             this.log('Mixer initialized successfully!');
+
+            // Initialize visual metronome
+            this.initMetronome();
         } catch (error) {
             this.log(`Error during initialization: ${error.message}`);
             this.showError(`Error: ${error.message}`);
@@ -301,7 +305,9 @@ class StemMixer {
      */
     async checkStemExists(stemName) {
         try {
-            const url = `/api/extracted_stems/${this.encodedExtractionId}/${stemName}`;
+            const urlBase = window.JAM_STEM_URL_PREFIX || `/api/extracted_stems/${this.encodedExtractionId}`;
+            const cacheBuster = window.JAM_STEM_CACHE_BUSTER || '';
+            const url = `${urlBase}/${stemName}${cacheBuster}`;
             const response = await fetch(url, { method: 'HEAD' });
             return response.ok;
         } catch (error) {
@@ -320,13 +326,27 @@ class StemMixer {
             // Check if we have extraction information with output paths
             let stemFiles = [];
 
-            if (window.EXTRACTION_INFO && window.EXTRACTION_INFO.output_paths) {
+            // Handle both output_paths (from live extractions) and stems_paths (from API/database)
+            let stemPaths = null;
+            if (window.EXTRACTION_INFO) {
+                if (window.EXTRACTION_INFO.output_paths) {
+                    stemPaths = window.EXTRACTION_INFO.output_paths;
+                } else if (window.EXTRACTION_INFO.stems_paths) {
+                    stemPaths = typeof window.EXTRACTION_INFO.stems_paths === 'string'
+                        ? JSON.parse(window.EXTRACTION_INFO.stems_paths)
+                        : window.EXTRACTION_INFO.stems_paths;
+                }
+            }
+
+            if (stemPaths && Object.keys(stemPaths).length > 0) {
                 this.log('Using stem paths from EXTRACTION_INFO');
                 // Use provided stem paths - they are guaranteed to exist
-                for (const [stemName, stemPath] of Object.entries(window.EXTRACTION_INFO.output_paths)) {
+                const stemUrlBase = window.JAM_STEM_URL_PREFIX || `/api/extracted_stems/${this.encodedExtractionId}`;
+                const cacheBuster = window.JAM_STEM_CACHE_BUSTER || '';
+                for (const [stemName, stemPath] of Object.entries(stemPaths)) {
                     stemFiles.push({
                         name: stemName,
-                        url: `/api/extracted_stems/${this.encodedExtractionId}/${stemName}`
+                        url: `${stemUrlBase}/${stemName}${cacheBuster}`
                     });
                 }
             } else {
@@ -341,12 +361,14 @@ class StemMixer {
 
                 // Keep only stems that exist
                 stemFiles = [];
+                const fallbackUrlBase = window.JAM_STEM_URL_PREFIX || `/api/extracted_stems/${this.encodedExtractionId}`;
+                const fallbackCacheBuster = window.JAM_STEM_CACHE_BUSTER || '';
                 existenceChecks.forEach((result, index) => {
                     if (result.status === 'fulfilled' && result.value) {
                         const stemName = standardStems[index];
                         stemFiles.push({
                             name: stemName,
-                            url: `/api/extracted_stems/${this.encodedExtractionId}/${stemName}`
+                            url: `${fallbackUrlBase}/${stemName}${fallbackCacheBuster}`
                         });
                         this.log(`Stem ${stemName} detected as existing`);
                     } else {
@@ -567,6 +589,9 @@ class StemMixer {
         this.audioEngine.play();
         this.updatePlayPauseButton();
 
+        // Start metronome
+        if (this.metronome) this.metronome.start();
+
         // Emit event for SimplePitchTempo
         window.dispatchEvent(new CustomEvent('playbackStarted'));
     }
@@ -578,6 +603,7 @@ class StemMixer {
         this.log('Pausing playback');
         this.audioEngine.pause();
         this.updatePlayPauseButton();
+        if (this.metronome) this.metronome.stop();
     }
 
     /**
@@ -587,6 +613,7 @@ class StemMixer {
         this.log('Stopping playback');
         this.audioEngine.stop();
         this.updatePlayPauseButton();
+        if (this.metronome) this.metronome.stop();
     }
 
     /**
@@ -713,10 +740,57 @@ class StemMixer {
             this.log(`Error initializing persistence: ${error.message}`);
         }
     }
+
+    /**
+     * Initialize visual metronome
+     */
+    initMetronome() {
+        if (typeof JamMetronome === 'undefined') return;
+
+        const container = document.getElementById('metronome-container');
+        if (!container) return;
+
+        const bpm = window.EXTRACTION_INFO?.detected_bpm || 120;
+        const beatOffset = window.EXTRACTION_INFO?.beat_offset || 0;
+
+        this.metronome = new JamMetronome(container, {
+            bpm: bpm,
+            beatOffset: beatOffset,
+            beatsPerBar: 4,
+            getCurrentTime: () => {
+                if (this.audioEngine) {
+                    return this.audioEngine.playbackPosition || 0;
+                }
+                return 0;
+            },
+            audioContext: this.audioEngine?.audioContext || null
+        });
+
+        // Load beat map for variable-tempo metronome
+        const beatTimesRaw = window.EXTRACTION_INFO?.beat_times;
+        if (beatTimesRaw) {
+            const bt = typeof beatTimesRaw === 'string' ? JSON.parse(beatTimesRaw) : beatTimesRaw;
+            if (Array.isArray(bt) && bt.length > 0) this.metronome.setBeatTimes(bt);
+        }
+
+        // Listen for tempo changes to update metronome BPM
+        window.addEventListener('tempoChanged', (e) => {
+            if (this.metronome && window.simplePitchTempo) {
+                this.metronome.setBPM(window.simplePitchTempo.currentBPM);
+            }
+        });
+
+        this.log('Metronome initialized');
+    }
 }
 
 // Start mixer when page is loaded
 document.addEventListener('DOMContentLoaded', () => {
+    // In jam guest mode with no extraction data yet, wait for host to provide it
+    if (window.JAM_GUEST_MODE && !window.EXTRACTION_ID) {
+        console.log('[StemMixer] Guest mode — no extraction yet, waiting for host track data');
+        return;
+    }
     window.stemMixer = new StemMixer();
     // Expose mixer globally for SimplePitchTempo
     window.mixer = window.stemMixer;

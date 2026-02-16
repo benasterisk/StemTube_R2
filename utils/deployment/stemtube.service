@@ -1,0 +1,25 @@
+[Unit]
+Description=StemTube Web Application with ngrok Tunnel
+After=network.target
+
+[Service]
+Type=forking
+User=michael
+Group=michael
+WorkingDirectory=/opt/stemtube/StemTube-dev
+ExecStart=/opt/stemtube/StemTube-dev/start_service.sh
+ExecStop=/opt/stemtube/StemTube-dev/stop_service.sh
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/opt/stemtube/StemTube-dev/logs/stemtube_service.log
+StandardError=append:/opt/stemtube/StemTube-dev/logs/stemtube_service.log
+
+# Security settings
+PrivateTmp=true
+NoNewPrivileges=true
+
+# Environment
+Environment="PATH=/opt/stemtube/StemTube-dev/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+[Install]
+WantedBy=multi-user.target

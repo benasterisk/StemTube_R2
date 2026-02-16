@@ -1,5 +1,5 @@
-// StemTube Service Worker v2.1 - Fixed stems cache-first for API
-const CACHE_NAME = 'stemtube-v2.1';
+// StemTube Service Worker v2.15 - Single dot metronome, look-ahead scheduling
+const CACHE_NAME = 'stemtube-v2.23';
 const STEMS_CACHE_NAME = 'stemtube-stems-v1';
 
 // Stem file names to cache (no ZIP, no source)
@@ -30,12 +30,13 @@ self.addEventListener('install', (event) => {
 
 // Activate: clean old caches
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating v2...');
+  console.log('[SW] Activating v2.8...');
+  const KEEP_CACHES = [CACHE_NAME, STEMS_CACHE_NAME];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
-          .filter((name) => !name.startsWith('stemtube-'))
+          .filter((name) => !KEEP_CACHES.includes(name))
           .map((name) => {
             console.log('[SW] Deleting old cache:', name);
             return caches.delete(name);
@@ -55,6 +56,14 @@ function isStemFile(pathname) {
       return STEM_FILES.some(stem => stem.replace('.mp3', '') === stemName);
     }
   }
+  // Match /api/jam/stems/{code}/{stem} pattern (guest access)
+  if (pathname.startsWith('/api/jam/stems/')) {
+    const parts = pathname.split('/');
+    if (parts.length >= 4) {
+      const stemName = parts[parts.length - 1];
+      return STEM_FILES.some(stem => stem.replace('.mp3', '') === stemName);
+    }
+  }
   // Also match older /stems/ pattern
   if (pathname.includes('/stems/')) {
     if (pathname.endsWith('.zip')) return false;
@@ -66,6 +75,17 @@ function isStemFile(pathname) {
 // Fetch: smart caching strategy
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+
+  // ngrok free-tier fix: add bypass header to socket.io polling requests
+  // iOS Safari doesn't propagate the ngrok bypass cookie to XHR requests,
+  // so socket.io polling fails. Intercept and re-fetch with the header.
+  if (url.pathname.startsWith('/socket.io/')) {
+    const newHeaders = new Headers(event.request.headers);
+    newHeaders.set('ngrok-skip-browser-warning', 'true');
+    const modifiedRequest = new Request(event.request, { headers: newHeaders });
+    event.respondWith(fetch(modifiedRequest));
+    return;
+  }
 
   // Skip non-GET requests
   if (event.request.method !== 'GET') return;
@@ -80,9 +100,13 @@ self.addEventListener('fetch', (event) => {
             console.log('[SW] Stem from cache:', url.pathname);
             return cached;
           }
-          // Fetch with credentials for authenticated endpoints
+          // Fetch and auto-cache on first download
           return fetch(event.request, { credentials: 'include' }).then((response) => {
-            // Don't auto-cache on fetch - only cache via explicit CACHE_SONG message
+            if (response.ok) {
+              const clone = response.clone();
+              cache.put(event.request, clone);
+              console.log('[SW] Auto-cached stem:', url.pathname);
+            }
             return response;
           });
         });

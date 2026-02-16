@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StemTube Jam Session</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/mixer/mixer.css">
+    <link rel="stylesheet" href="/static/css/jam.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* Guest-specific overrides */
+        .jam-guest-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 16px;
+            background: var(--bg-secondary, #1e1e1e);
+            border-bottom: 1px solid var(--border-color, #333);
+        }
+        .jam-guest-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .jam-guest-code {
+            font-family: monospace;
+            font-weight: 700;
+            color: var(--accent-color, #1DB954);
+            font-size: 0.9rem;
+        }
+        .jam-guest-track-title {
+            font-size: 0.85rem;
+            color: var(--text-secondary, #aaa);
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .jam-guest-name {
+            font-size: 0.8rem;
+            color: var(--text-secondary, #aaa);
+        }
+        .jam-guest-leave-btn {
+            background: rgba(220, 53, 69, 0.15);
+            color: #dc3545;
+            border: 1px solid rgba(220, 53, 69, 0.3);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .jam-guest-leave-btn:hover {
+            background: rgba(220, 53, 69, 0.3);
+        }
+        /* Hide transport buttons for guests — playback is controlled by host */
+        .guest-transport-readonly #play-btn,
+        .guest-transport-readonly #stop-btn,
+        .guest-transport-readonly .export-controls,
+        .guest-transport-readonly .chords-transport-controls,
+        .guest-transport-readonly .lyrics-transport-controls,
+        .guest-transport-readonly .zoom-controls,
+        .guest-transport-readonly #bpm-down,
+        .guest-transport-readonly #bpm-up,
+        .guest-transport-readonly #bpm-reset,
+        .guest-transport-readonly #key-down,
+        .guest-transport-readonly #key-up,
+        .guest-transport-readonly #key-reset {
+            display: none !important;
+        }
+        .guest-transport-readonly #current-bpm {
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        .jam-waiting-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+            text-align: center;
+            color: var(--text-secondary, #aaa);
+        }
+        .jam-waiting-screen i {
+            font-size: 48px;
+            color: var(--accent-color, #1DB954);
+            margin-bottom: 20px;
+            animation: on-stage-pulse 2s infinite;
+        }
+        .jam-waiting-screen h2 {
+            color: var(--text-primary, #fff);
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Guest Header -->
+    <div class="jam-guest-header">
+        <div class="jam-guest-info">
+            <div class="on-stage-indicator" style="display:flex;">
+                <span class="on-stage-dot"></span><span>ON STAGE</span>
+            </div>
+            <span class="jam-guest-code" id="jamGuestCode">{{ jam_code }}</span>
+            <span class="jam-guest-track-title" id="jamGuestTrackTitle">Waiting for host...</span>
+        </div>
+        <div class="jam-guest-info">
+            <span class="jam-guest-name"><i class="fas fa-user"></i> {{ jam_guest_name }}</span>
+            <button class="jam-guest-leave-btn" id="jamGuestLeaveBtn">
+                <i class="fas fa-sign-out-alt"></i> Leave
+            </button>
+        </div>
+    </div>
+
+    <!-- Waiting Screen (shown when no track is loaded) -->
+    <div class="jam-waiting-screen" id="jamWaitingScreen">
+        <i class="fas fa-headphones"></i>
+        <h2>Connected to Jam Session</h2>
+        <p>Waiting for the host to play a track...</p>
+        <p class="jam-guest-code" style="margin-top:20px;">{{ jam_code }}</p>
+    </div>
+
+    <!-- Host Disconnected Overlay -->
+    <div id="jamHostDisconnectedOverlay" style="display:none; position:fixed; inset:0; z-index:9999;
+         background:rgba(0,0,0,0.85); flex-direction:column; align-items:center;
+         justify-content:center; color:#fff; text-align:center;">
+        <i class="fas fa-wifi" style="font-size:48px; color:#ff6b6b; margin-bottom:20px; opacity:0.8;"></i>
+        <h2 style="margin:0 0 10px;">Host Disconnected</h2>
+        <p style="color:#aaa; margin:0 0 24px;">Waiting for the host to reconnect...</p>
+        <div id="jamDisconnectCountdown" style="font-size:48px; font-weight:700; color:#ff6b6b;
+             font-family:monospace; margin-bottom:24px;">10</div>
+        <p id="jamDisconnectMessage" style="color:#888; font-size:0.85rem; margin:0 0 20px;">Session will close if host doesn't return</p>
+        <button id="jamDisconnectLeaveBtn" style="background:rgba(220,53,69,0.15); color:#dc3545;
+                border:1px solid rgba(220,53,69,0.3); padding:10px 24px; border-radius:8px;
+                cursor:pointer; font-size:0.9rem;">
+            <i class="fas fa-sign-out-alt"></i> Leave Now
+        </button>
+    </div>
+
+    <!-- Mixer App (hidden until track loaded) -->
+    <div class="mixer-app guest-transport-readonly" id="mixer-app" style="display: none;" data-active-tab="mixer">
+        <!-- Tab Navigation -->
+        <div class="mixer-tabs">
+            <button id="mixer-tab-btn" class="tab-btn active" data-tab="mixer">
+                <i class="fas fa-sliders-h"></i> Mix
+            </button>
+            <button id="chords-tab-btn" class="tab-btn" data-tab="chords">
+                <i class="fas fa-music"></i> Chords
+            </button>
+            <button id="lyrics-tab-btn" class="tab-btn" data-tab="lyrics">
+                <i class="fas fa-microphone"></i> Lyrics
+            </button>
+        </div>
+
+        <!-- Song Title Display -->
+        <div class="song-title-bar">
+            <span class="song-title" id="song-title-display">Loading...</span>
+        </div>
+
+        <!-- Fixed header containing transport controls and timeline -->
+        <div class="fixed-header">
+            <div class="transport-container">
+                <div class="transport-controls">
+                    <button id="play-btn" class="transport-btn play">
+                        <i class="fas fa-play"></i> Play
+                    </button>
+                    <button id="stop-btn" class="transport-btn stop">
+                        <i class="fas fa-stop"></i> Stop
+                    </button>
+                    <div class="time-display" id="time-display">00:00</div>
+
+                    <div class="bpm-key-controls">
+                        <div class="bpm-control">
+                            <span>BPM:</span>
+                            <button id="bpm-down" class="control-btn">-</button>
+                            <input id="current-bpm" class="bpm-input" type="number" min="50" max="300" step="1" value="120" aria-label="Current tempo (BPM)" readonly>
+                            <button id="bpm-up" class="control-btn">+</button>
+                            <button id="bpm-reset" class="control-btn reset-btn" title="Reset BPM to original">⟲</button>
+                        </div>
+                        <div class="key-control">
+                            <span>Key:</span>
+                            <button id="key-down" class="control-btn">-</button>
+                            <span id="current-key">C</span>
+                            <button id="key-up" class="control-btn">+</button>
+                            <button id="key-reset" class="control-btn reset-btn" title="Reset Key to original">⟲</button>
+                        </div>
+                    </div>
+
+                    <div class="chords-transport-controls" data-tab-visible="chords" data-tab-display="flex">
+                        <button class="chord-mode-toggle" id="regenerateChordsBtn" title="Re-detect chords">
+                            <i class="fas fa-sync-alt"></i><span>Regenerate Chords</span>
+                        </button>
+                        <button class="chord-mode-toggle" id="chord-grid-view-btn" title="Open chord grid view">
+                            <i class="fas fa-th"></i><span>Grid View</span>
+                        </button>
+                    </div>
+
+                    <div class="lyrics-transport-controls" data-tab-visible="lyrics" data-tab-display="flex">
+                        <button class="chord-mode-toggle" id="karaoke-regenerate-btn" title="Regenerate lyrics">
+                            <i class="fas fa-sync-alt"></i><span id="regenerate-btn-label">Regenerate Lyrics</span>
+                        </button>
+                        <button class="chord-mode-toggle" id="lyrics-popup-open" title="Open focused lyrics view">
+                            <i class="fas fa-expand"></i><span>Focus Lyrics</span>
+                        </button>
+                    </div>
+
+                    <div class="export-controls" data-tab-visible="mixer" data-tab-display="flex">
+                        <button class="transport-btn export" id="export-mix-btn" title="Export current mix to MP3">
+                            <i class="fas fa-file-export"></i> Export Mix
+                        </button>
+                    </div>
+                </div>
+
+                <div class="zoom-controls" data-tab-visible="mixer" data-tab-display="flex">
+                    <div class="zoom-group">
+                        <span class="zoom-label">H:</span>
+                        <button id="zoom-out-h" class="zoom-btn"><i class="fas fa-minus"></i></button>
+                        <button id="zoom-in-h" class="zoom-btn"><i class="fas fa-plus"></i></button>
+                    </div>
+                    <div class="zoom-group">
+                        <span class="zoom-label">V:</span>
+                        <button id="zoom-out-v" class="zoom-btn"><i class="fas fa-minus"></i></button>
+                        <button id="zoom-in-v" class="zoom-btn"><i class="fas fa-plus"></i></button>
+                    </div>
+                    <button id="zoom-reset" class="zoom-btn"><i class="fas fa-sync-alt"></i></button>
+                </div>
+            </div>
+
+            <div class="timeline-container">
+                <div class="timeline" id="timeline">
+                    <div id="timeline-playhead" class="playhead"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scrollable content area -->
+        <div class="scrollable-content">
+            <div class="tracks-container" id="tracks-container" data-tab-visible="mixer" data-tab-display="flex">
+            </div>
+
+            <div class="practice-mode-content" data-tab-visible="chords lyrics" data-tab-display="flex">
+                <div class="master-track" id="master-track" data-tab-visible="chords" data-tab-display="block">
+                    <div class="master-track-header">
+                        <span class="master-track-title">Master Mix</span>
+                        <span class="track-status active" id="master-status"></span>
+                    </div>
+                    <div class="waveform-container" id="master-waveform-container">
+                        <canvas class="waveform" id="master-waveform"></canvas>
+                        <div class="track-playhead" id="master-playhead"></div>
+                    </div>
+                </div>
+
+                <div class="practice-panel chords-panel" data-tab-visible="chords" data-tab-display="flex">
+                    <div class="mobile-chord-timeline" id="mobileChordTimeline"></div>
+                    <div class="mobile-chord-diagram-panel">
+                        <div class="mobile-chord-diagram-header">
+                            <span>Chords</span>
+                            <div class="mobile-chord-instrument-toggle">
+                                <button type="button" class="active" data-chord-instrument="guitar">Guitar</button>
+                                <button type="button" data-chord-instrument="piano">Piano</button>
+                            </div>
+                        </div>
+                        <div class="mobile-chord-diagram-carousel">
+                            <div class="mobile-chord-diagram mobile-chord-diagram-prev" id="mobileChordDiagramPrev">
+                                <p class="mobile-text-muted">—</p>
+                            </div>
+                            <div class="mobile-chord-diagram mobile-chord-diagram-current" id="mobileChordDiagram">
+                                <p class="mobile-text-muted">Select a chord to view the diagram.</p>
+                            </div>
+                            <div class="mobile-chord-diagram mobile-chord-diagram-next" id="mobileChordDiagramNext">
+                                <p class="mobile-text-muted">—</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="structure-controls">
+                        <button class="visibility-toggle" id="structure-visibility-toggle" data-section="structure" title="Show/hide structure display">
+                            <i class="fas fa-eye-slash"></i><span>Hide Structure</span>
+                        </button>
+                    </div>
+                    <div id="structure-container" style="display: none;"></div>
+                </div>
+
+                <div class="practice-panel lyrics-panel" data-tab-visible="lyrics" data-tab-display="flex">
+                    <div id="karaoke-container-lyrics" class="karaoke-in-content"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading screen -->
+    <div class="loading-container" id="loading-container" style="display:none;">
+        <div class="loading-spinner"></div>
+        <h2>Loading stems...</h2>
+        <p>Please wait while the audio loads</p>
+    </div>
+
+    <!-- Lyrics Focus Popup -->
+    <div class="lyrics-popup-overlay" id="lyrics-popup" style="display:none;">
+        <div class="lyrics-popup-content">
+            <div class="lyrics-popup-header">
+                <button class="lyrics-popup-close" id="lyrics-popup-close"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="lyrics-popup-controls">
+                <div class="lyrics-popup-time" id="lyrics-popup-time">0:00 / 0:00</div>
+            </div>
+            <div class="lyrics-popup-body">
+                <div id="karaoke-container-popup" class="karaoke-in-popup"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chords Grid Popup -->
+    <div class="chords-grid-popup-overlay" id="chords-grid-popup" style="display:none;">
+        <div class="chords-grid-popup-content">
+            <div class="chords-grid-popup-header">
+                <button class="chords-grid-popup-close" id="chords-grid-popup-close"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="chords-grid-popup-controls">
+                <div class="chords-grid-popup-time" id="chords-grid-popup-time">0:00 / 0:00</div>
+            </div>
+            <div class="chords-grid-popup-body">
+                <div id="chord-grid-container" class="chord-grid-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Initialization -->
+    <script>
+        // Guest mode flags
+        window.JAM_GUEST_MODE = true;
+        window.JAM_CODE = "{{ jam_code }}";
+        window.JAM_GUEST_NAME = "{{ jam_guest_name }}";
+
+        // Will be populated when host loads a track
+        let EXTRACTION_ID = "";
+        let ENCODED_EXTRACTION_ID = "";
+        let EXTRACTION_INFO = {};
+
+        // Parse initial extraction data if available
+        const _initialData = {{ extraction_data | safe }};
+        if (_initialData && _initialData.title) {
+            EXTRACTION_INFO = _initialData;
+            EXTRACTION_ID = _initialData.extraction_id || "";
+            ENCODED_EXTRACTION_ID = encodeURIComponent(EXTRACTION_ID);
+            window.EXTRACTION_INFO = EXTRACTION_INFO;
+            window.EXTRACTION_ID = EXTRACTION_ID;
+        }
+    </script>
+
+    <!-- Scripts -->
+    <!-- ngrok free-tier: inject bypass header on all socket.io XHR requests (iOS Safari fix) -->
+    <script>
+    (function(){
+        var origOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(){
+            this._url = arguments[1];
+            return origOpen.apply(this, arguments);
+        };
+        var origSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function(){
+            if(this._url && typeof this._url === 'string' && this._url.indexOf('/socket.io/')!==-1){
+                try{this.setRequestHeader('ngrok-skip-browser-warning','true');}catch(e){}
+            }
+            return origSend.apply(this, arguments);
+        };
+    })();
+    </script>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script src="/static/js/lib/lame.min.js"></script>
+    <script src="/static/wasm/soundtouch.js"></script>
+    <script src="/static/js/mixer/mix-exporter.js"></script>
+    <script src="/static/js/mixer/export-handler.js"></script>
+    <script src="/static/js/mixer/timeline.js"></script>
+    <script src="/static/js/mixer/waveform.js"></script>
+    <script src="/static/js/mixer/track-controls.js"></script>
+    <script src="/static/js/mixer/chord-display.js"></script>
+    <script src="/static/js/mixer/structure-display.js"></script>
+    <script src="/static/js/mixer/karaoke-display.js"></script>
+    <script src="/static/js/mixer/tab-manager.js"></script>
+    <script src="/static/js/mixer/audio-engine.js"></script>
+    <script src="/static/js/mixer/mobile-audio-engine.js"></script>
+    <script src="/static/js/mixer/mobile-debug-fix.js"></script>
+    <script src="/static/js/mixer/mixer-persistence.js"></script>
+    <script src="/static/js/mixer/simple-pitch-tempo.js"></script>
+    <script src="/static/js/mixer/lyrics-popup.js"></script>
+    <script src="/static/js/mixer/core.js"></script>
+    <script src="/static/js/jam-client.js"></script>
+
+    <!-- Guest Controller -->
+    <script>
+    (function() {
+        'use strict';
+
+        const socket = io({ transports: ['polling', 'websocket'], upgrade: true });
+        const jamClient = new JamClient(socket);
+        let mixerInitialized = false;
+
+        // Leave button
+        document.getElementById('jamGuestLeaveBtn').addEventListener('click', () => {
+            if (confirm('Leave this jam session?')) {
+                jamClient.leaveSession();
+                window.location.href = '/';
+            }
+        });
+
+        // When joined, check if there's already a track
+        jamClient.onJoined((data) => {
+            if (data.error) {
+                alert('Could not join session: ' + data.error);
+                window.location.href = '/';
+                return;
+            }
+            console.log('[JamGuest] Joined session', data.code);
+            console.log('[JamGuest] extraction_data=', data.extraction_data);
+            console.log('[JamGuest] has title=', data.extraction_data?.title);
+            console.log('[JamGuest] has output_paths=', data.extraction_data?.output_paths ? Object.keys(data.extraction_data.output_paths) : 'NONE');
+            if (data.extraction_data && data.extraction_data.title) {
+                loadGuestTrack(data.extraction_data);
+            } else {
+                console.warn('[JamGuest] No extraction_data or no title — showing waiting screen');
+            }
+        });
+
+        // When host loads a new track
+        jamClient.onTrackLoaded((data) => {
+            console.log('[JamGuest] Host loaded track:', data.extraction_data?.title);
+            if (data.extraction_data) {
+                loadGuestTrack(data.extraction_data);
+            }
+        });
+
+        // When host controls playback
+        jamClient.onPlayback((data) => {
+            if (!mixerInitialized || !window.stemMixer) return;
+            const mixer = window.stemMixer;
+
+            // Latency compensation: adjust position by estimated network delay
+            let adjustedPosition = data.position || 0;
+            if (data.server_timestamp && data.command === 'play') {
+                const networkDelay = jamClient.rtt / 2;
+                const timeSinceSent = Date.now() - data.server_timestamp;
+                adjustedPosition += (timeSinceSent + networkDelay) / 1000;
+            }
+
+            switch (data.command) {
+                case 'play':
+                    mixer.audioEngine.seekToPosition(adjustedPosition);
+                    mixer.play();
+                    break;
+                case 'pause':
+                    mixer.pause();
+                    break;
+                case 'stop':
+                    mixer.stop();
+                    break;
+                case 'seek':
+                    mixer.audioEngine.seekToPosition(adjustedPosition);
+                    break;
+            }
+        });
+
+        // When host changes tempo
+        jamClient.onTempo((data) => {
+            if (!mixerInitialized || !window.simplePitchTempo) return;
+            if (data.bpm) {
+                window.simplePitchTempo.setBPM(data.bpm);
+            }
+        });
+
+        // When host changes pitch
+        jamClient.onPitch((data) => {
+            if (!mixerInitialized || !window.simplePitchTempo) return;
+            if (data.pitch_shift !== undefined) {
+                window.simplePitchTempo.setPitchShift(data.pitch_shift);
+            }
+        });
+
+        // Periodic resync
+        jamClient.onSync((data) => {
+            if (!mixerInitialized || !window.stemMixer) return;
+            const mixer = window.stemMixer;
+            const expectedPos = data.position || 0;
+            const currentPos = mixer.audioEngine.currentTime || 0;
+            const drift = Math.abs(currentPos - expectedPos);
+
+            if (drift > 0.5) {
+                console.log(`[JamGuest] Hard resync: drift=${drift.toFixed(2)}s`);
+                mixer.audioEngine.seekToPosition(expectedPos);
+            } else if (drift > 0.1) {
+                console.log(`[JamGuest] Soft resync: drift=${drift.toFixed(2)}s`);
+                mixer.audioEngine.seekToPosition(expectedPos);
+            }
+
+            // Sync play state
+            if (data.is_playing && !mixer.audioEngine.isPlaying) {
+                mixer.audioEngine.seekToPosition(expectedPos);
+                mixer.play();
+            } else if (!data.is_playing && mixer.audioEngine.isPlaying) {
+                mixer.pause();
+            }
+        });
+
+        // Session ended
+        jamClient.onSessionEnded((data) => {
+            alert('The jam session has ended: ' + (data.reason || 'Host disconnected'));
+            window.location.href = '/';
+        });
+
+        // Host disconnect/reconnect handling
+        let hostDisconnectTimer = null;
+        jamClient.onHostStatus((data) => {
+            const overlay = document.getElementById('jamHostDisconnectedOverlay');
+            const countdownEl = document.getElementById('jamDisconnectCountdown');
+
+            if (data.status === 'disconnected') {
+                // Pause guest playback immediately
+                if (mixerInitialized && window.stemMixer) {
+                    try { window.stemMixer.pause(); } catch (e) { /* ignore */ }
+                }
+
+                const timeout = data.timeout || 10;
+                let remaining = timeout;
+                overlay.style.display = 'flex';
+                countdownEl.textContent = remaining;
+
+                const messageEl = document.getElementById('jamDisconnectMessage');
+                if (messageEl) messageEl.textContent = 'Session will close if host doesn\'t return';
+
+                if (hostDisconnectTimer) clearInterval(hostDisconnectTimer);
+                hostDisconnectTimer = setInterval(() => {
+                    remaining--;
+                    if (remaining <= 0) {
+                        clearInterval(hostDisconnectTimer);
+                        hostDisconnectTimer = null;
+                        countdownEl.textContent = '...';
+                        if (messageEl) messageEl.textContent = 'Still waiting for host \u2014 you can leave anytime';
+                    } else {
+                        countdownEl.textContent = remaining;
+                    }
+                }, 1000);
+
+            } else if (data.status === 'reconnected') {
+                // Clear countdown
+                if (hostDisconnectTimer) {
+                    clearInterval(hostDisconnectTimer);
+                    hostDisconnectTimer = null;
+                }
+                overlay.style.display = 'none';
+
+                // Resync to host state (host just reloaded — will be stopped)
+                const state = data.state;
+                if (state && mixerInitialized && window.stemMixer) {
+                    const mixer = window.stemMixer;
+                    // Apply tempo/pitch if available
+                    if (state.bpm && window.simplePitchTempo) {
+                        window.simplePitchTempo.setBPM(state.bpm);
+                    }
+                    if (state.pitch_shift !== undefined && window.simplePitchTempo) {
+                        window.simplePitchTempo.setPitchShift(state.pitch_shift);
+                    }
+                    // Stop and reset position — wait for host to press play
+                    try {
+                        mixer.stop();
+                    } catch (e) { /* ignore */ }
+                }
+                console.log('[JamGuest] Host reconnected, waiting for host to resume playback');
+            }
+        });
+
+        document.getElementById('jamDisconnectLeaveBtn').addEventListener('click', () => {
+            window.location.href = '/';
+        });
+
+        function loadGuestTrack(extractionData) {
+            console.log('[JamGuest] loadGuestTrack called:', extractionData.title);
+            console.log('[JamGuest] output_paths:', Object.keys(extractionData.output_paths || {}));
+            // Update globals (both lexical and window for core.js compatibility)
+            EXTRACTION_INFO = extractionData;
+            EXTRACTION_ID = extractionData.extraction_id || '';
+            ENCODED_EXTRACTION_ID = encodeURIComponent(EXTRACTION_ID);
+            window.EXTRACTION_INFO = extractionData;
+            window.EXTRACTION_ID = EXTRACTION_ID;
+
+            // Update title
+            const titleEl = document.getElementById('song-title-display');
+            if (titleEl) titleEl.textContent = extractionData.title || 'Unknown Track';
+            const guestTitleEl = document.getElementById('jamGuestTrackTitle');
+            if (guestTitleEl) guestTitleEl.textContent = extractionData.title || 'Unknown Track';
+
+            // Override stem URL builder to use jam stems endpoint
+            // Include extraction_id as cache-buster so SW doesn't serve stale stems on track change
+            const eid = extractionData.extraction_id || extractionData.id || Date.now();
+            window.JAM_STEM_URL_PREFIX = `/api/jam/stems/${window.JAM_CODE}`;
+            window.JAM_STEM_CACHE_BUSTER = `?eid=${encodeURIComponent(eid)}`;
+
+            // Show mixer, hide waiting screen
+            document.getElementById('jamWaitingScreen').style.display = 'none';
+            document.getElementById('mixer-app').style.display = '';
+            document.getElementById('loading-container').style.display = 'flex';
+
+            // Initialize or reinitialize mixer
+            if (mixerInitialized && window.stemMixer) {
+                // Stop any active playback before reinitializing
+                try {
+                    if (window.stemMixer.audioEngine) {
+                        window.stemMixer.audioEngine.stop();
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            // The StemMixer will initialize from EXTRACTION_INFO globals
+            window.stemMixer = new StemMixer();
+            window.mixer = window.stemMixer;
+            mixerInitialized = true;
+            console.log('[JamGuest] StemMixer created and initialized');
+        }
+
+        // The server auto-joins jam guests during the connect handler
+        // (via session flags set by the /jam/<code> route).
+        // No explicit joinSession() call needed here.
+        socket.on('connect', () => {
+            console.log('[JamGuest] Connected to server');
+        });
+    })();
+    </script>
+</body>
+</html>

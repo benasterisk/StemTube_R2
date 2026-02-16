@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "outDir": "./dist",
+        "target": "ESNext",
+        "sourceMap": true,
+        "strict": true,
+        "module": "ESNext",
+        "declaration": true
+    },
+    "include": ["./src/**/*"],
+    "exclude": ["node_modules", "**/*.spec.ts"]
+}

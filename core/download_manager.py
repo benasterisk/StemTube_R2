@@ -663,18 +663,19 @@ class DownloadManager:
                         # Detect chords (pass BPM for beat grid alignment)
                         chords_data = None
                         beat_offset = 0.0
+                        beat_times = []
                         try:
                             from .chord_detector import analyze_audio_file
                             print(f"🎸 [DOWNLOAD] Starting chord detection for: {item.title} (BPM: {item.detected_bpm}, Key: {item.detected_key})")
                             # Pass detected BPM and key to chord analyzer for better accuracy
-                            chords_data, beat_offset = analyze_audio_file(
+                            chords_data, beat_offset, beat_times = analyze_audio_file(
                                 item.file_path,
                                 bpm=item.detected_bpm,
                                 detected_key=item.detected_key,
                                 use_madmom=True  # Use professional madmom CRF for all genres
                             )
                             if chords_data:
-                                print(f"🎸 [DOWNLOAD] Chord detection complete (beat offset: {beat_offset:.3f}s)")
+                                print(f"🎸 [DOWNLOAD] Chord detection complete (beat offset: {beat_offset:.3f}s, {len(beat_times)} beats)")
                             else:
                                 print(f"⚠️ [DOWNLOAD] No chords detected")
                         except Exception as e:
@@ -683,6 +684,7 @@ class DownloadManager:
                             if isinstance(e, ValueError):
                                 chords_data = None
                                 beat_offset = 0.0
+                                beat_times = []
 
                         # Detect song structure using simple MSAF segmentation
                         structure_data = None
@@ -744,7 +746,8 @@ class DownloadManager:
                                 chords_data,
                                 beat_offset,
                                 structure_data,
-                                lyrics_data
+                                lyrics_data,
+                                beat_times=beat_times
                             )
                         except Exception as e:
                             print(f"⚠️ [DOWNLOAD] Error updating database analysis: {e}")

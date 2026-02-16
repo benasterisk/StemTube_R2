@@ -1,5 +1,10 @@
 # CLAUDE.md - StemTube Development Guide
 
+## Workflow
+
+**Tout le développement et les tests se font dans `/home/michael/Documents/Dev/stemtube_dev_v1.3`.**
+La synchronisation vers `/home/michael/Documents/Dev/stemtube` (repo Git/GitHub) se fait **uniquement sur signal explicite de l'utilisateur**, suivie d'un push vers GitHub. Ne jamais synchroniser ou push de manière autonome.
+
 ## Development Commands
 
 ```bash
@@ -96,8 +101,7 @@ templates/
   index.html            # Desktop template
   mobile-index.html     # Mobile template
   admin_embedded.html   # Admin panel
-external/
-  BTC-ISMIR19/          # BTC chord detection model (170 chord vocabulary)
+utils/                  # Setup scripts and testing utilities
 ```
 
 ## Code Style
@@ -116,4 +120,51 @@ external/
 
 ### General
 - Comments in English only (no French)
+- All code comments must be in English
+- All UI text must be in English
 - Conventional commit format: `feat:`, `fix:`, `docs:`, `style:`, `refactor:`
+
+## Jam Session Feature
+
+### Architecture
+- **No audio sync through server** — only shared BPM distributed to all participants
+- Each client plays audio locally; server coordinates tempo, transport commands, and timing offsets
+- Periodic sync heartbeats (every 5s) with drift correction (threshold: 0.5s)
+- RTT measurement for network latency compensation
+
+### Precount
+- Host-only control: off, 1 bar, or 2 bars (long-press metronome dot to configure)
+- Guests hear the precount but **cannot** change settings (`window.JAM_GUEST_MODE` blocks the popover)
+- Host broadcasts `play` command with `precount_beats` **before** starting local precount, so both sides count down simultaneously
+- After precount callback fires: `originalPlay()` starts audio, then `metronome.start()` begins regular clicks
+
+### Metronome
+- Single dot UI with pulse animation, uniform click sound (1200Hz sine, 50ms)
+- **Beat map extrapolation**: `setBeatTimes()` prepends virtual beats backward to time 0, so clicks start from the very beginning of the track (no intro silence skipping)
+- **Look-ahead scheduling**: clicks pre-scheduled 100ms ahead on Web Audio clock for sample-accurate timing; `start()` uses a wider 1s window for the first pass
+- Constant BPM fallback when no beat map available (beats start from time 0, not from `beatOffset`)
+- Click mode: all or off (toggle icon). Haptic feedback: off, beat, every
+
+### Session Lifecycle
+- Host creates session → gets shareable code → guests join via `/jam/CODE`
+- Guest Flask session flags (`jam_guest`, `jam_code`, `jam_guest_name`) are auto-cleared on disconnect and on stale detection in `handle_connect()` — no more cache/cookie issues
+- 30-second grace period for host reconnection before session ends
+- `jam_create` clears any leftover guest flags (host can't be a guest simultaneously)
+
+### Authentication
+- Users do **NOT** need to be logged in to join a session
+- Guests get auto-generated names (e.g., "Guest-A1B2")
+- If logged in, username is used for display
+
+### Key Files
+- `jam-bridge.js` — Host-side: wraps mixer transport (play/pause/seek) to broadcast commands
+- `jam-client.js` — Shared WebSocket client (desktop + mobile), RTT tracking, event handlers
+- `jam-metronome.js` — Metronome class: precount, beat map, look-ahead scheduling, popover
+- `jam-tab.js` — Desktop UI for jam tab (create/join/share)
+- `mobile-app.js` — Mobile jam handlers: `_handleJamPlaybackCommand()`, `_handleJamSync()`
+- `templates/mixer.html` — Desktop guest inline JS (playback/sync handlers)
+- `static/css/jam.css` — Metronome dot, popover, precount styles
+
+### Shared Backend
+- Backend SocketIO events shared between desktop and mobile
+- Platform-specific UI code in `jam-tab.js` (desktop) and mobile Jam section in `mobile-app.js`

@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-StemTube is a Flask app anchored in `app.py`, which wires routes, sockets, and background jobs. Domain logic sits in `core/`, split into audio source clients (`aiotube_client.py` using yt-dlp + Deno), signal processing (`stems_extractor.py`, `demucs_wrapper.py`), and orchestration utilities (`download_manager.py`, `logging_config.py`). Shared helpers (ngrok, sessions, cleanup) live in `utils/`. Templates and static assets follow Flask defaults in `templates/` and `static/` (with `static/js`, `static/css`, and audio assets). Operations collateral—setup notes, screenshots, and logs—reside in `docs/`, `bug_screenshots/`, and `logs/`. Use `temp_files/` and `flask_session/` for runtime artifacts only; do not version their contents.
+StemTube is a Flask app anchored in `app.py`, which wires routes, sockets, and background jobs. Domain logic sits in `core/`, split into AI clients (`aiotube_client.py`), signal processing (`stems_extractor.py`, `demucs_wrapper.py`), and orchestration utilities (`download_manager.py`, `logging_config.py`). Shared helpers (ngrok, sessions, cleanup) live in `utils/`. Templates and static assets follow Flask defaults in `templates/` and `static/` (with `static/js`, `static/css`, and audio assets). Operations collateral—setup notes, screenshots, and logs—reside in `docs/`, `bug_screenshots/`, and `logs/`. Use `temp_files/` and `flask_session/` for runtime artifacts only; do not version their contents.
 
 ## Build, Test, and Development Commands
 - `python3.12 setup_dependencies.py` — provisions the virtualenv, Torch, and model requirements.

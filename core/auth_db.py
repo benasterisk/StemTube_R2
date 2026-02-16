@@ -54,6 +54,12 @@ def init_db():
         except sqlite3.OperationalError:
             pass  # Column already exists
 
+        # Add jam_code column for persistent jam session codes
+        try:
+            conn.execute('ALTER TABLE users ADD COLUMN jam_code TEXT')
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+
         conn.commit()
         
         # Check if admin user exists, create if not
@@ -337,5 +343,43 @@ def accept_disclaimer(user_id):
     except Exception as e:
         print(f"Error accepting disclaimer: {e}")
         return False
+    finally:
+        conn.close()
+
+def get_user_jam_code(user_id):
+    """Get the persistent jam code for a user, or None if not set."""
+    conn = get_db_connection()
+    try:
+        row = conn.execute('SELECT jam_code FROM users WHERE id = ?', (user_id,)).fetchone()
+        return row['jam_code'] if row and row['jam_code'] else None
+    finally:
+        conn.close()
+
+def set_user_jam_code(user_id, jam_code):
+    """Store a persistent jam code for a user."""
+    conn = get_db_connection()
+    try:
+        conn.execute('UPDATE users SET jam_code = ? WHERE id = ?', (jam_code, user_id))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+def delete_user_jam_code(user_id):
+    """Delete the jam code for a user (allows regeneration)."""
+    conn = get_db_connection()
+    try:
+        conn.execute('UPDATE users SET jam_code = NULL WHERE id = ?', (user_id,))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+def find_user_by_jam_code(jam_code):
+    """Look up a user by their jam code. Returns user dict or None."""
+    conn = get_db_connection()
+    try:
+        row = conn.execute('SELECT id, username FROM users WHERE jam_code = ?', (jam_code,)).fetchone()
+        return dict(row) if row else None
     finally:
         conn.close()

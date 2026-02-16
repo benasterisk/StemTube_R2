@@ -11,6 +11,56 @@
     <title>StemTube Mobile</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-style.css') }}?v={{ cache_buster }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/jam.css') }}">
+    {% if jam_guest_mode %}
+    <style>
+        /* Jam Guest Mode: Disable transport controls */
+        .mobile-playback-row .mobile-control-btn,
+        .standard-trigger-row .standard-trigger,
+        #mobilePlayBtn, #mobileStopBtn,
+        #mobilePlayBtnChords, #mobileStopBtnChords,
+        #mobilePlayBtnLyrics, #mobileStopBtnLyrics,
+        .tempo-popup-trigger, .pitch-popup-trigger,
+        #mobileMixerExport {
+            pointer-events: none !important;
+            opacity: 0.4 !important;
+        }
+        /* Hide bottom nav buttons except Mixer */
+        .mobile-bottom-nav .mobile-nav-btn:not([data-page="mixer"]) {
+            display: none !important;
+        }
+        /* Hide mixer back button and export */
+        #mobileMixerBack, #mobileMixerExport {
+            visibility: hidden !important;
+        }
+        /* Show ON STAGE banner always */
+        #onStageBanner {
+            display: flex !important;
+        }
+        /* Hide logout button */
+        #mobileLogoutBtn {
+            display: none !important;
+        }
+        /* Hide regenerate chords/lyrics buttons for guests */
+        #mobileRegenerateChords,
+        #mobileRegenerateLyrics {
+            display: none !important;
+        }
+        /* Start on mixer page for jam guests */
+        #mobileLibraryPage {
+            display: none !important;
+        }
+        #mobileMixerPage {
+            display: block !important;
+        }
+        #mobileNavMixer {
+            display: flex !important;
+        }
+        .mobile-nav-btn[data-page="mixer"] {
+            display: flex !important;
+        }
+    </style>
+    {% endif %}
 </head>
 <body class="mobile-body">
     <!-- Top Navigation Bar -->
@@ -25,6 +75,12 @@
             </div>
         </div>
     </header>
+
+    <!-- On Stage Banner (visible when jam session is active) -->
+    <div class="on-stage-banner" id="onStageBanner" style="display:none; cursor:pointer;" onclick="window.mobileApp && window.mobileApp.navigateTo('jam')">
+        <span class="on-stage-dot"></span>
+        <span class="on-stage-text">ON STAGE</span>
+    </div>
 
     <!-- Main Content Area -->
     <main class="mobile-main" id="mobileMainContent">
@@ -139,6 +195,7 @@
                         <div class="mobile-time-display">
                             <span id="mobileCurrentTime">0:00</span> / <span id="mobileDuration">0:00</span>
                         </div>
+                        <div id="mobileMetronomeContainer" class="mobile-metronome-container"></div>
                     </div>
                     <div class="standard-trigger-row">
                         <button id="mobileTempoTrigger" class="standard-trigger tempo-popup-trigger">
@@ -192,6 +249,7 @@
                         <div class="mobile-time-display">
                             <span id="mobileCurrentTimeChords" class="mobile-time-sync">0:00</span> / <span id="mobileDurationChords" class="mobile-duration-sync">0:00</span>
                         </div>
+                        <div class="mobile-metronome-container mobile-metronome-sync"></div>
                     </div>
                     <div class="standard-trigger-row">
                         <button class="standard-trigger tempo-popup-trigger">
@@ -254,6 +312,7 @@
                         <div class="mobile-time-display">
                             <span id="mobileCurrentTimeLyrics" class="mobile-time-sync">0:00</span> / <span id="mobileDurationLyrics" class="mobile-duration-sync">0:00</span>
                         </div>
+                        <div class="mobile-metronome-container mobile-metronome-sync"></div>
                     </div>
                     <div class="standard-trigger-row">
                         <button class="standard-trigger tempo-popup-trigger">
@@ -279,6 +338,16 @@
                 <div class="mobile-lyrics-display" id="mobileLyricsDisplay">
                     <p class="mobile-lyrics-placeholder">No lyrics available. Generate lyrics to see them here.</p>
                 </div>
+            </div>
+        </div>
+
+        <!-- Jam Session Page -->
+        <div class="mobile-page" id="mobileJamPage">
+            <div class="mobile-section-header">
+                <h2>Jam Session</h2>
+            </div>
+            <div class="mobile-jam-page" id="mobileJamContent">
+                <!-- Rendered by mobile-app.js -->
             </div>
         </div>
 
@@ -372,7 +441,7 @@
             </div>
         </div>
 
-        {% if current_user.is_admin %}
+        {% if current_user and current_user.is_admin %}
         <!-- Admin Page -->
         <div class="mobile-page" id="mobileAdminPage">
             <div class="mobile-section-header">
@@ -715,6 +784,7 @@
                         <span class="fullscreen-time-separator">/</span>
                         <span id="fullscreenLyricsDuration" class="popup-duration-sync">0:00</span>
                     </div>
+                    <div class="mobile-metronome-container mobile-metronome-sync"></div>
                 </div>
                 <div class="popup-trigger-row">
                     <button class="popup-standard-trigger tempo-popup-trigger">
@@ -763,6 +833,7 @@
                         <span class="gridview2-time-sep">/</span>
                         <span id="gridview2Duration" class="popup-duration-sync">0:00</span>
                     </div>
+                    <div class="mobile-metronome-container mobile-metronome-sync"></div>
                 </div>
                 <div class="popup-trigger-row">
                     <button class="popup-standard-trigger tempo-popup-trigger">
@@ -799,11 +870,15 @@
             <i class="fas fa-sliders-h"></i>
             <span>Mixer</span>
         </button>
+        <button class="mobile-nav-btn" data-page="jam">
+            <i class="fas fa-users"></i>
+            <span>Jam</span>
+        </button>
         <button class="mobile-nav-btn" data-page="settings">
             <i class="fas fa-cog"></i>
             <span>Settings</span>
         </button>
-        {% if current_user.is_admin %}
+        {% if current_user and current_user.is_admin %}
         <button class="mobile-nav-btn" data-page="admin">
             <i class="fas fa-user-shield"></i>
             <span>Admin</span>
@@ -816,6 +891,29 @@
         <div class="mobile-spinner"></div>
         <p id="mobileLoadingText">Loading...</p>
     </div>
+
+    {% if jam_guest_mode %}
+    <!-- Jam Guest Entry Overlay (iOS requires AudioContext init inside user gesture) -->
+    <div id="jamGuestEntryOverlay" style="
+        position:fixed;inset:0;z-index:10000;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        background:rgba(0,0,0,0.92);color:#fff;text-align:center;
+    ">
+        <div style="font-size:2.5rem;margin-bottom:1rem;">
+            <i class="fas fa-headphones"></i>
+        </div>
+        <h2 style="margin:0 0 0.5rem;font-size:1.3rem;">Jam Session</h2>
+        <p style="color:#aaa;margin:0 0 0.3rem;font-size:0.9rem;">{{ jam_code }}</p>
+        <p style="color:#888;margin:0 0 1.5rem;font-size:0.8rem;">Hosted by {{ jam_host_name|default('Host') }}</p>
+        <button id="jamGuestEntryBtn" style="
+            padding:1rem 2.5rem;font-size:1.1rem;font-weight:bold;
+            border:none;border-radius:2rem;
+            background:linear-gradient(135deg,#6c5ce7,#a29bfe);
+            color:#fff;cursor:pointer;touch-action:manipulation;
+            -webkit-tap-highlight-color:transparent;
+        ">Tap to Enter</button>
+    </div>
+    {% endif %}
 
     <!-- Extraction Modal -->
     <div class="mobile-modal" id="mobileExtractionModal">
@@ -999,7 +1097,7 @@
         </div>
     </div>
 
-    {% if current_user.is_admin %}
+    {% if current_user and current_user.is_admin %}
     <!-- Add User Modal -->
     <div class="mobile-modal mobile-admin-modal" id="mobileAddUserModal">
         <div class="mobile-admin-modal-header">
@@ -1117,6 +1215,23 @@
     {% endif %}
 
     <!-- Scripts -->
+    <!-- ngrok free-tier: inject bypass header on all socket.io XHR requests (iOS Safari fix) -->
+    <script>
+    (function(){
+        var origOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(){
+            this._url = arguments[1];
+            return origOpen.apply(this, arguments);
+        };
+        var origSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function(){
+            if(this._url && typeof this._url === 'string' && this._url.indexOf('/socket.io/')!==-1){
+                try{this.setRequestHeader('ngrok-skip-browser-warning','true');}catch(e){}
+            }
+            return origSend.apply(this, arguments);
+        };
+    })();
+    </script>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="{{ url_for('static', filename='js/lib/lame.min.js') }}"></script>
     <script src="{{ url_for('static', filename='wasm/soundtouch.js') }}"></script>
@@ -1125,8 +1240,19 @@
         // YouTube features flag (disabled by default, enable in config.json)
         const enableYoutube = {% if enable_youtube %}true{% else %}false{% endif %};
         // Admin flag
-        const isAdmin = {% if current_user.is_admin %}true{% else %}false{% endif %};
+        const isAdmin = {% if current_user and current_user.is_admin %}true{% else %}false{% endif %};
+        // Jam Guest Mode flags
+        {% if jam_guest_mode %}
+        window.JAM_GUEST_MODE = true;
+        window.JAM_CODE = '{{ jam_code }}';
+        window.JAM_GUEST_NAME = '{{ jam_guest_name }}';
+        window.JAM_EXTRACTION_DATA = {{ jam_extraction_data|safe }};
+        {% else %}
+        window.JAM_GUEST_MODE = false;
+        {% endif %}
     </script>
+    <script src="{{ url_for('static', filename='js/jam-client.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/jam-metronome.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/mobile-app.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/pwa-init.js') }}?v={{ cache_buster }}"></script>
 </body>

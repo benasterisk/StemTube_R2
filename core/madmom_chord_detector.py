@@ -56,7 +56,7 @@ class MadmomChordDetector:
 
         print("[MADMOM] Professional chord detector initialized")
 
-    def detect_chords(self, audio_file_path: str, bpm: Optional[float] = None) -> Tuple[Optional[str], float]:
+    def detect_chords(self, audio_file_path: str, bpm: Optional[float] = None) -> Tuple[Optional[str], float, List]:
         """
         Detect chords in an audio file with professional-grade accuracy.
 
@@ -65,13 +65,14 @@ class MadmomChordDetector:
             bpm: Known BPM (optional, will be detected if not provided)
 
         Returns:
-            tuple: (chords_json, beat_offset)
+            tuple: (chords_json, beat_offset, beat_times_list)
                 - chords_json: JSON string of chord detections
                 - beat_offset: Time offset to first downbeat in seconds
+                - beat_times_list: List of beat timestamps in seconds
         """
         if not os.path.exists(audio_file_path):
             print(f"[MADMOM ERROR] File not found: {audio_file_path}")
-            return None, 0.0
+            return None, 0.0, []
 
         print(f"[MADMOM] Processing: {os.path.basename(audio_file_path)}")
 
@@ -79,6 +80,7 @@ class MadmomChordDetector:
             # Step 1: Beat tracking for timeline alignment
             print("[MADMOM] Step 1/3: Detecting beats...")
             beat_offset, beats = self._detect_beats(audio_file_path, bpm)
+            beat_times_list = [round(float(b), 4) for b in beats]
             print(f"[MADMOM] Beat offset: {beat_offset:.3f}s, {len(beats)} beats detected")
 
             # Step 2: Extract CNN chord features
@@ -98,13 +100,13 @@ class MadmomChordDetector:
             # Convert to JSON
             chords_json = json.dumps(chords_data)
 
-            return chords_json, beat_offset
+            return chords_json, beat_offset, beat_times_list
 
         except Exception as e:
             print(f"[MADMOM ERROR] Chord detection failed: {e}")
             import traceback
             traceback.print_exc()
-            return None, 0.0
+            return None, 0.0, []
 
     def _detect_beats(self, audio_file_path: str, known_bpm: Optional[float] = None) -> Tuple[float, np.ndarray]:
         """
@@ -265,7 +267,7 @@ class MadmomChordDetector:
         return merged
 
 
-def analyze_audio_file(audio_file_path: str, bpm: Optional[float] = None) -> Tuple[Optional[str], float]:
+def analyze_audio_file(audio_file_path: str, bpm: Optional[float] = None) -> Tuple[Optional[str], float, List]:
     """
     Main entry point for chord analysis using madmom.
 
@@ -274,11 +276,11 @@ def analyze_audio_file(audio_file_path: str, bpm: Optional[float] = None) -> Tup
         bpm: Known BPM (optional)
 
     Returns:
-        tuple: (chords_json, beat_offset)
+        tuple: (chords_json, beat_offset, beat_times_list)
     """
     if not MADMOM_AVAILABLE:
         print("[MADMOM] Library not available, cannot analyze")
-        return None, 0.0
+        return None, 0.0, []
 
     try:
         detector = MadmomChordDetector()
@@ -287,7 +289,7 @@ def analyze_audio_file(audio_file_path: str, bpm: Optional[float] = None) -> Tup
         print(f"[MADMOM] Analysis failed: {e}")
         import traceback
         traceback.print_exc()
-        return None, 0.0
+        return None, 0.0, []
 
 
 # Convenience function to check availability

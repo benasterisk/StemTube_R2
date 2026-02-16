@@ -1,0 +1,580 @@
+/* ============================================
+   Jam Session Styles (Desktop + Mobile + On Stage)
+   ============================================ */
+
+/* --- Jam Page --- */
+.jam-page {
+    padding: 30px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.jam-create-section {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.jam-icon {
+    font-size: 48px;
+    color: var(--accent-color, #1DB954);
+    margin-bottom: 20px;
+}
+
+.jam-icon i {
+    opacity: 0.8;
+}
+
+.jam-description {
+    color: var(--text-secondary, #aaa);
+    margin: 10px 0 30px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.jam-create-btn {
+    background: linear-gradient(135deg, #1DB954, #1ed760);
+    color: #fff;
+    border: none;
+    padding: 14px 32px;
+    border-radius: 50px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.jam-create-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 20px rgba(29, 185, 84, 0.4);
+}
+
+/* --- Active Session --- */
+.jam-active-section {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.jam-session-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.jam-session-code {
+    display: flex;
+    flex-direction: column;
+}
+
+.jam-code-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary, #aaa);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.jam-code-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent-color, #1DB954);
+    letter-spacing: 4px;
+    font-family: monospace;
+}
+
+.jam-end-btn {
+    background: rgba(220, 53, 69, 0.15);
+    color: #dc3545;
+    border: 1px solid rgba(220, 53, 69, 0.3);
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.2s;
+}
+
+.jam-end-btn:hover {
+    background: rgba(220, 53, 69, 0.3);
+}
+
+/* --- QR Code --- */
+.jam-qr-container {
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+    background: var(--bg-secondary, #1e1e1e);
+    border-radius: 12px;
+}
+
+.jam-qr-container canvas {
+    border-radius: 8px;
+}
+
+.jam-qr-fallback {
+    font-family: monospace;
+    font-size: 0.75rem;
+    color: var(--text-secondary, #aaa);
+    word-break: break-all;
+    padding: 20px;
+    text-align: center;
+}
+
+/* --- Share URL --- */
+.jam-share-url {
+    display: flex;
+    gap: 8px;
+}
+
+.jam-url-input {
+    flex: 1;
+    background: var(--bg-secondary, #1e1e1e);
+    border: 1px solid var(--border-color, #333);
+    color: var(--text-primary, #fff);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-family: monospace;
+}
+
+.jam-copy-btn {
+    background: var(--accent-color, #1DB954);
+    color: #fff;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.jam-copy-btn:hover {
+    opacity: 0.85;
+}
+
+/* --- Share Buttons --- */
+.jam-share-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.jam-share-btn {
+    flex: 1;
+    min-width: 100px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: opacity 0.2s;
+    color: #fff;
+}
+
+.jam-share-btn:hover {
+    opacity: 0.85;
+}
+
+.jam-share-whatsapp { background: #25D366; }
+.jam-share-email { background: #4A90D9; }
+.jam-share-sms { background: #FF9500; }
+
+/* --- Participants --- */
+.jam-participants-section h3 {
+    font-size: 0.95rem;
+    color: var(--text-secondary, #aaa);
+    margin-bottom: 12px;
+}
+
+.jam-participants-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.jam-participant {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg-secondary, #1e1e1e);
+    border-radius: 8px;
+}
+
+.jam-participant-host .jam-participant-icon {
+    color: #ffc107;
+}
+
+.jam-participant-guest .jam-participant-icon {
+    color: var(--accent-color, #1DB954);
+}
+
+.jam-participant-name {
+    font-size: 0.9rem;
+    color: var(--text-primary, #fff);
+}
+
+/* ============================================
+   On Stage Indicator (Desktop)
+   ============================================ */
+.on-stage-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(29, 185, 84, 0.15);
+    border: 1px solid rgba(29, 185, 84, 0.4);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #1DB954;
+    cursor: pointer;
+    animation: on-stage-pulse 2s infinite;
+    white-space: nowrap;
+}
+
+.on-stage-indicator:hover {
+    background: rgba(29, 185, 84, 0.25);
+}
+
+.on-stage-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #1DB954;
+    animation: on-stage-dot-pulse 1s infinite;
+    flex-shrink: 0;
+}
+
+@keyframes on-stage-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(29, 185, 84, 0.3); }
+    50% { box-shadow: 0 0 0 6px rgba(29, 185, 84, 0); }
+}
+
+@keyframes on-stage-dot-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* ============================================
+   On Stage Banner (Mobile)
+   ============================================ */
+.on-stage-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: rgba(29, 185, 84, 0.15);
+    border-bottom: 1px solid rgba(29, 185, 84, 0.3);
+    padding: 6px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #1DB954;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* ============================================
+   Mobile Jam Page
+   ============================================ */
+.mobile-jam-page {
+    padding: 20px 16px;
+    text-align: center;
+}
+
+.mobile-jam-create-section {
+    padding: 40px 16px;
+}
+
+.mobile-jam-icon {
+    font-size: 40px;
+    color: var(--mobile-primary, #1DB954);
+    margin-bottom: 16px;
+}
+
+.mobile-jam-description {
+    color: var(--text-secondary, #aaa);
+    margin: 8px 0 24px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.mobile-jam-create-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #1DB954, #1ed760);
+    color: #fff;
+    border: none;
+    padding: 14px 28px;
+    border-radius: 50px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    max-width: 300px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    -webkit-tap-highlight-color: rgba(29, 185, 84, 0.3);
+}
+
+.mobile-jam-create-btn:active {
+    transform: scale(0.95);
+    opacity: 0.8;
+}
+
+/* Mobile active session */
+.mobile-jam-active-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    text-align: center;
+}
+
+.mobile-jam-code-display {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: var(--mobile-primary, #1DB954);
+    letter-spacing: 4px;
+    font-family: monospace;
+}
+
+.mobile-jam-code-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #aaa);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.mobile-jam-qr-container {
+    display: flex;
+    justify-content: center;
+    padding: 16px;
+    background: var(--bg-secondary, #1e1e1e);
+    border-radius: 12px;
+}
+
+.mobile-jam-share-row {
+    display: flex;
+    gap: 8px;
+}
+
+.mobile-jam-url-input {
+    flex: 1;
+    background: var(--bg-secondary, #1e1e1e);
+    border: 1px solid var(--border-color, #333);
+    color: var(--text-primary, #fff);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-family: monospace;
+}
+
+.mobile-jam-copy-btn {
+    background: var(--mobile-primary, #1DB954);
+    color: #fff;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.mobile-jam-share-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.mobile-jam-share-btn {
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    touch-action: manipulation;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.mobile-jam-participants {
+    text-align: left;
+}
+
+.mobile-jam-participants h3 {
+    font-size: 0.85rem;
+    color: var(--text-secondary, #aaa);
+    margin-bottom: 10px;
+}
+
+.mobile-jam-participant {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg-secondary, #1e1e1e);
+    border-radius: 8px;
+    margin-bottom: 6px;
+}
+
+.mobile-jam-participant-host .jam-participant-icon {
+    color: #ffc107;
+}
+
+.mobile-jam-end-btn {
+    background: rgba(220, 53, 69, 0.15);
+    color: #dc3545;
+    border: 1px solid rgba(220, 53, 69, 0.3);
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    touch-action: manipulation;
+    font-size: 0.9rem;
+    width: 100%;
+    margin-top: 10px;
+}
+
+.mobile-jam-newcode-btn {
+    background: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    touch-action: manipulation;
+    font-size: 0.85rem;
+    width: 100%;
+    margin-top: 8px;
+}
+
+/* ============================================
+   Visual Metronome
+   ============================================ */
+.metronome-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px;
+    height: 100%;
+}
+
+.metronome-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #4A90D9;
+    opacity: 0.3;
+    transition: opacity 0.05s, transform 0.05s;
+    flex-shrink: 0;
+}
+
+/* Haptic mode selector */
+.metronome-haptic-btn {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.15);
+    color: var(--text-secondary, #aaa);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.metronome-haptic-btn:hover {
+    border-color: var(--accent-color, #1DB954);
+    color: var(--accent-color, #1DB954);
+}
+
+/* Mobile metronome in transport bar */
+.mobile-metronome-container {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 6px;
+}
+
+.mobile-metronome-container .metronome-dot {
+    width: 14px;
+    height: 14px;
+    min-width: 14px;
+    min-height: 14px;
+}
+
+/* ============================================
+   Metronome Click Toggle Icon
+   ============================================ */
+.metronome-toggle-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text-secondary, #aaa);
+    opacity: 0.7;
+    margin-left: 4px;
+    transition: opacity 0.2s, color 0.2s;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.metronome-toggle-icon:hover {
+    opacity: 1;
+    color: var(--accent-color, #1DB954);
+}
+
+.metronome-toggle-icon.muted {
+    opacity: 0.35;
+    color: #666;
+}
+
+.mobile-metronome-container .metronome-toggle-icon {
+    font-size: 11px;
+    margin-left: 3px;
+}
+
+/* ============================================
+   Metronome Precount Popover
+   ============================================ */
+.metronome-precount-popover {
+    background: #2a2a2a;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 6px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    min-width: 100px;
+    white-space: nowrap;
+}
+
+.metronome-precount-title {
+    font-size: 0.7rem;
+    color: var(--text-secondary, #888);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 4px 10px 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 2px;
+}
+
+.metronome-precount-option {
+    padding: 8px 10px;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: var(--text-primary, #ddd);
+    transition: background 0.15s;
+}
+
+.metronome-precount-option:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.metronome-precount-option.active {
+    color: var(--accent-color, #1DB954);
+    font-weight: 600;
+}

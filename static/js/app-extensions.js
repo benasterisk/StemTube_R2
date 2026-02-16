@@ -1,6 +1,9 @@
 // Tab state management
 const TAB_STORAGE_KEY = 'stemtube_active_tab';
 
+// Jam session state (accessible by mixer iframe via window.parent.jamState)
+window.jamState = { active: false, code: null };
+
 // Check extraction status for a video (shared function)
 async function checkExtractionStatus(videoId) {
     try {
@@ -151,6 +154,10 @@ function updateLeftPanelContent(tabId) {
             loadExtractionsForMixer();
             // Restore mixer state if needed
             restoreMixerIfNeeded();
+            break;
+        case 'jam':
+            // Jam tab uses its own full-width content, no left panel needed
+            document.getElementById('searchContent').style.display = 'flex';
             break;
         default:
             document.getElementById('searchContent').style.display = 'flex';
@@ -1183,11 +1190,43 @@ async function saveBrowserLoggingConfig() {
     }, 5000);
 }
 
+// ============================================
+// Jam Session Desktop Initialization
+// ============================================
+
+function initJamSession() {
+    // Initialize JamClient using the global socket from app.js
+    if (typeof socket !== 'undefined' && typeof JamClient !== 'undefined') {
+        window.jamClient = new JamClient(socket);
+
+        // Connect to JamTab UI
+        if (window.jamTab) {
+            window.jamTab.init(window.jamClient);
+        }
+
+        console.log('[Jam] Desktop JamClient initialized');
+
+        // Auto-reclaim active session on page reload (e.g. browser refresh)
+        fetch('/api/jam/my-session')
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (data && data.active) {
+                    console.log('[Jam] Active session found, auto-reclaiming:', data.code);
+                    window.jamClient.createSession();
+                }
+            })
+            .catch(() => {});
+    } else {
+        // Retry if socket not ready yet
+        setTimeout(initJamSession, 500);
+    }
+}
+
 // Initialize left panel content on page load
 document.addEventListener('DOMContentLoaded', () => {
     // Restore the last active tab or default to downloads
     restoreActiveTab();
-    
+
     // Initialize admin menu event listeners
     document.querySelectorAll('.admin-menu-item').forEach(item => {
         item.addEventListener('click', () => {
@@ -1197,7 +1236,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
-    
+
     // Initialize with users section by default for admin tab
     switchAdminSection('users');
 
@@ -1211,4 +1250,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+    // Initialize Jam Session (with delay to ensure socket is connected)
+    setTimeout(initJamSession, 1000);
 });

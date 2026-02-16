@@ -371,6 +371,34 @@ header h1 {
     font-weight: 600;
 }
 
+/* Maximize mixer space when mixer tab is active */
+#right-panel:has(#mixerTab.active) {
+    padding: 0;
+}
+
+#right-panel:has(#mixerTab.active) > .tabs {
+    padding: 0 var(--spacing-sm);
+}
+
+#right-panel:has(#mixerTab.active) .mixer-header-with-title {
+    padding: 0 var(--spacing-sm);
+    margin-bottom: var(--spacing-xs);
+}
+
+#right-panel:has(#mixerTab.active) #mixerTab.active {
+    overflow: hidden;
+}
+
+#right-panel:has(#mixerTab.active) .mixer-container {
+    flex: 1;
+    min-height: 0;
+}
+
+#right-panel:has(#mixerTab.active) #mixerFrame {
+    height: 100% !important;
+    min-height: 600px !important;
+}
+
 /* Mixer header with song title */
 .mixer-header-with-title {
     display: flex;

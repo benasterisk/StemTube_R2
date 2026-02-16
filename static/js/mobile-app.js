@@ -85,6 +85,7 @@ class MobileApp {
         this.currentLibraryTab = 'my';  // Track library sub-tab (my/global)
 
         this.socket = null;
+        this.jamClient = null;
         this.chords = [];
         this.chordSegments = [];
         this.chordElements = [];
@@ -162,9 +163,21 @@ class MobileApp {
         this.setupBrowserLogging();
         this.setupSettings();
 
+        this.initJamClient();
+
         document.addEventListener('touchstart', () => {
             if (!this.audioContext) this.initAudioContext();
         }, { once: true });
+
+        // Check for Jam Guest Mode
+        if (window.JAM_GUEST_MODE) {
+            console.log('[MobileApp] JAM GUEST MODE detected');
+            // Set initial page to mixer for guests
+            this.currentPage = 'mixer';
+            await this.initJamGuestMode();
+            this.log('[MobileApp] Jam guest initialization complete');
+            return; // Skip normal library loading for guests
+        }
 
         await this.loadLibrary();
 
@@ -221,8 +234,25 @@ class MobileApp {
     }
 
     initSocket() {
-        this.socket = io();
-        this.socket.on('connect', () => console.log('[Socket] Connected'));
+        this.socket = io({
+            transports: ['polling', 'websocket'],
+            upgrade: true,
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 20000
+        });
+        this.socket.on('connect', () => console.log('[Socket] Connected, id:', this.socket.id));
+        this.socket.on('connect_error', (err) => {
+            console.error('[Socket] Connect error:', err.message, err.description || '', err.context || '');
+        });
+        this.socket.on('disconnect', (reason) => {
+            console.warn('[Socket] Disconnected:', reason);
+        });
+        this.socket.on('reconnect', (attemptNumber) => {
+            console.log('[Socket] Reconnected after', attemptNumber, 'attempts');
+        });
         this.socket.on('download_progress', (data) => this.onDownloadProgress(data));
         this.socket.on('download_complete', (data) => this.onDownloadComplete(data));
         this.socket.on('download_error', (data) => this.onDownloadError(data));
@@ -232,6 +262,14 @@ class MobileApp {
         this.socket.on('extraction_refresh_needed', () => this.loadLibrary());
         this.socket.on('extraction_error', (data) => this.onExtractionError(data));
         this.socket.on('lyrics_progress', (data) => this.onLyricsProgress(data));
+
+        // iOS: reconnect socket when app returns to foreground
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && this.socket && !this.socket.connected) {
+                console.log('[Socket] Page visible again — reconnecting');
+                this.socket.connect();
+            }
+        });
     }
 
     async initAudioContext() {
@@ -318,13 +356,19 @@ class MobileApp {
     async navigateTo(page) {
         console.log('[Nav]', page);
 
-        // CRITICAL: Clean up completely when leaving mixer
-        if (this.currentPage === 'mixer' && page !== 'mixer') {
-            console.log('[Nav] Leaving mixer, cleaning up...');
-            try {
-                await this.cleanupMixer();
-            } catch (e) {
-                console.warn('[Nav] Cleanup error:', e);
+        // Clean up mixer when leaving for an unrelated page (NOT jam — mixer stays alive during jam)
+        if (this.currentPage === 'mixer' && page !== 'mixer' && page !== 'jam') {
+            // If jam session is active as host, keep mixer alive regardless
+            const isJamHost = this.jamClient && this.jamClient.isActive() && this.jamClient.getRole() === 'host';
+            if (!isJamHost) {
+                console.log('[Nav] Leaving mixer, cleaning up...');
+                try {
+                    await this.cleanupMixer();
+                } catch (e) {
+                    console.warn('[Nav] Cleanup error:', e);
+                }
+            } else {
+                console.log('[Nav] Jam active as host — keeping mixer alive');
             }
         }
 
@@ -352,6 +396,11 @@ class MobileApp {
         // When navigating to settings page, load cache stats
         if (page === 'settings') {
             this.loadSettingsPage();
+        }
+
+        // When navigating to jam page, render jam UI
+        if (page === 'jam') {
+            this.renderJamPage();
         }
 
         // Save state
@@ -2483,8 +2532,14 @@ class MobileApp {
                 if (data.error) throw new Error(data.error);
             }
 
-            // CRITICAL: Clean up previous mixer completely before loading new one
-            await this.cleanupMixer();
+            // Clean up previous mixer — keep AudioContext alive if jam session is active
+            const isJamHost = this.jamClient && this.jamClient.isActive() && this.jamClient.getRole() === 'host';
+            if (isJamHost) {
+                // Light cleanup: stop playback and clear stems but keep AudioContext
+                await this.lightMixerCleanup();
+            } else {
+                await this.cleanupMixer();
+            }
 
             this.currentExtractionId = id;
             this.currentExtractionData = data;
@@ -2498,6 +2553,10 @@ class MobileApp {
 
             // Save state after opening mixer
             this.saveState();
+
+            // Jam session: broadcast track load and current tempo to guests
+            this._jamBroadcastTrackLoad();
+            this._jamBroadcastTempo(this.currentBPM, this.originalBPM, 1.0);
         } catch (error) {
             alert('Failed: ' + error.message);
         } finally {
@@ -2677,6 +2736,49 @@ class MobileApp {
         console.log('[Cleanup] ========== COMPLETE mixer cleanup finished ==========');
     }
 
+    /**
+     * Light cleanup for jam sessions: stops playback and disconnects stems,
+     * but keeps AudioContext alive so new stems can load without user gesture.
+     */
+    async lightMixerCleanup() {
+        console.log('[Cleanup] Light cleanup (preserving AudioContext)');
+
+        // Stop playback
+        this.stopPlaybackAnimation();
+        this.isPlaying = false;
+        this.updatePlayPauseButtons();
+
+        // Disconnect and clear stems
+        Object.keys(this.stems).forEach(name => {
+            const stem = this.stems[name];
+            try {
+                if (stem.source) { stem.source.stop(0); stem.source.disconnect(); }
+                if (stem.soundTouchNode) { stem.soundTouchNode.disconnect(); }
+                if (stem.gainNode) { stem.gainNode.disconnect(); }
+                if (stem.panNode) { stem.panNode.disconnect(); }
+            } catch (e) { /* ignore */ }
+        });
+        this.stems = {};
+        this.masterAudioBuffer = null;
+        this.masterAudioSource = null;
+
+        // Reset playback state
+        this.currentTime = 0;
+        this.startTime = 0;
+
+        // Clear UI but keep AudioContext
+        const tracksContainer = document.getElementById('mobileTracksContainer');
+        if (tracksContainer) tracksContainer.innerHTML = '';
+
+        const waveformCanvas = document.getElementById('mobileWaveformCanvas');
+        if (waveformCanvas) {
+            const ctx = waveformCanvas.getContext('2d');
+            if (ctx) ctx.clearRect(0, 0, waveformCanvas.width, waveformCanvas.height);
+        }
+
+        console.log('[Cleanup] Light cleanup done — AudioContext preserved');
+    }
+
     async loadMixerData(data, options = {}) {
         const showLoader = options.showLoader !== false;
         const cacheKey = options.extractionId || this.currentExtractionId;
@@ -2718,11 +2820,12 @@ class MobileApp {
         const stemNames = Object.keys(stemsPaths);
         console.log('[LoadMixer] Loading', stemNames.length, 'stems:', stemNames);
 
+        const loadStart = performance.now();
         await Promise.all(stemNames.map(name => this.loadStem(name, stemsPaths[name])));
+        console.log(`[LoadMixer] All stems loaded in ${(performance.now() - loadStart).toFixed(0)}ms`);
 
         const loadedStems = Object.keys(this.stems);
         console.log('[LoadMixer] Loaded stems:', loadedStems);
-        console.log('[LoadMixer] Stems detail:', this.stems);
 
         const durations = Object.values(this.stems).map(s => s.buffer ? s.buffer.duration : 0).filter(d => d > 0);
         if (durations.length) {
@@ -2793,20 +2896,66 @@ class MobileApp {
         }
 
             this.updateTimeDisplay();
+
+            // Initialize metronome
+            this.initMetronome(data);
+
             console.log('[LoadMixer] Complete!');
         } finally {
             if (showLoader) this.hideLoading();
         }
     }
 
+    initMetronome(data) {
+        if (typeof JamMetronome === 'undefined') {
+            console.warn('[Metronome] JamMetronome class not available');
+            return;
+        }
+
+        // Destroy previous instance
+        if (this.metronome) {
+            this.metronome.destroy();
+            this.metronome = null;
+        }
+
+        // Gather all metronome containers (main + synced copies in tabs/popups)
+        const containers = document.querySelectorAll(
+            '#mobileMetronomeContainer, .mobile-metronome-sync'
+        );
+        if (!containers.length) {
+            console.warn('[Metronome] No containers found');
+            return;
+        }
+
+        const bpm = data?.detected_bpm || this.currentBPM || 120;
+        const beatOffset = data?.beat_offset || 0;
+        console.log(`[Metronome] Initializing: BPM=${bpm}, beatOffset=${beatOffset}, containers=${containers.length}`);
+
+        this.metronome = new JamMetronome(containers, {
+            bpm: bpm,
+            beatOffset: beatOffset,
+            beatsPerBar: 4,
+            getCurrentTime: () => this.currentTime || 0,
+            audioContext: this.audioContext
+        });
+
+        // Load beat map for variable-tempo metronome
+        const beatTimesRaw = data?.beat_times;
+        if (beatTimesRaw) {
+            const bt = typeof beatTimesRaw === 'string' ? JSON.parse(beatTimesRaw) : beatTimesRaw;
+            if (Array.isArray(bt) && bt.length > 0) this.metronome.setBeatTimes(bt);
+        }
+
+        console.log(`[Metronome] Created with ${this.metronome.dotSets.length} container(s)`);
+    }
+
     async loadStem(name, path) {
         console.log('[LoadStem] Starting:', name, 'path:', path);
         try {
             const url = '/api/extracted_stems/' + this.currentExtractionId + '/' + name;
-            console.log('[LoadStem] Fetching:', url);
+            const t0 = performance.now();
 
             const res = await fetch(url);
-            console.log('[LoadStem]', name, 'response status:', res.status);
 
             if (!res.ok) {
                 if (res.status === 404) {
@@ -2816,13 +2965,13 @@ class MobileApp {
                 throw new Error('HTTP ' + res.status);
             }
 
-            console.log('[LoadStem]', name, 'downloading audio data...');
             const arrayBuffer = await res.arrayBuffer();
-            console.log('[LoadStem]', name, 'downloaded', arrayBuffer.byteLength, 'bytes');
+            const t1 = performance.now();
+            console.log(`[LoadStem] ${name} fetched ${(arrayBuffer.byteLength / 1048576).toFixed(1)}MB in ${(t1 - t0).toFixed(0)}ms`);
 
-            console.log('[LoadStem]', name, 'decoding audio...');
             const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-            console.log('[LoadStem]', name, 'decoded! Duration:', audioBuffer.duration, 'channels:', audioBuffer.numberOfChannels);
+            const t2 = performance.now();
+            console.log(`[LoadStem] ${name} decoded in ${(t2 - t1).toFixed(0)}ms (duration: ${audioBuffer.duration.toFixed(1)}s)`);
 
             console.log('[LoadStem]', name, 'creating audio nodes...');
             await this.createAudioNodesForStem(name, audioBuffer);
@@ -3233,7 +3382,7 @@ class MobileApp {
     }
 
     async play() {
-        if (this.isPlaying) return;
+        if (this.isPlaying || this._precountActive) return;
 
         // Ensure audio context is ready (critical for mobile)
         if (!this.audioContext) {
@@ -3262,7 +3411,67 @@ class MobileApp {
             return;
         }
 
-        console.log('[Play] Starting', stemCount, 'stems');
+        // Determine precount beats
+        let precountBeats = 0;
+        if (this.metronome && this.metronome.getPrecountBars() > 0) {
+            precountBeats = this.metronome.getPrecountBars() * this.metronome.beatsPerBar;
+        }
+
+        if (precountBeats > 0 && this.metronome.bpm > 0) {
+            // Use beat map duration for accurate timing (matches startPrecount's internal click spacing)
+            const precountDuration = this.metronome.getPrecountDuration(precountBeats);
+            const stemStartTime = this.audioContext.currentTime + precountDuration;
+
+            const playbackStart = this.currentTime || 0;
+
+            console.log(`[Play] Precount: ${precountBeats} beats (${precountDuration.toFixed(2)}s), stems scheduled at ${stemStartTime.toFixed(3)}`);
+
+            // Create and schedule stems NOW, but they start at stemStartTime (sample-accurate)
+            this.setPlaybackPosition(Math.max(0, Math.min(playbackStart, this.duration || Infinity)));
+            Object.keys(this.stems).forEach(name => this.startStemSource(name, stemStartTime));
+
+            // Track time from when stems actually start
+            this.lastAudioTime = stemStartTime;
+
+            this._precountActive = true;
+            this._precountBeatsUsed = precountBeats;
+
+            // Start precount (visual dots + audible clicks — all pre-scheduled on Web Audio clock)
+            this.metronome.startPrecount(precountBeats, () => {
+                // Stems already playing via Web Audio scheduling — just update UI state
+                this._precountActive = false;
+                this.isPlaying = true;
+                this.updatePlayPauseButtons();
+                this.syncPopupControlsState();
+                this.startPlaybackAnimation();
+
+                if (this.activeLyricIndex >= 0) {
+                    this.scrollLyricsToIndex(this.activeLyricIndex, true);
+                }
+                if (this.fullscreenLyricsOpen && this.activeLyricIndex >= 0) {
+                    this.scrollToFullscreenLyric(this.activeLyricIndex, true);
+                }
+                if (this.wakeLockSupported) {
+                    this.requestWakeLock().catch(error => {
+                        console.warn('[WakeLock] Unable to keep screen awake:', error);
+                    });
+                }
+
+                // Start normal metronome — precount ended on beat 3, so beat 0 (downbeat) should click
+                if (this.metronome) this.metronome.start();
+
+                const extra = { precount_beats: this._precountBeatsUsed };
+                this._jamBroadcastPlayback('play', this.currentTime || 0, extra);
+                this._jamStartSyncHeartbeat();
+            });
+        } else {
+            this._precountBeatsUsed = 0;
+            this._startPlaybackInternal();
+        }
+    }
+
+    _startPlaybackInternal() {
+        console.log('[Play] Starting', Object.keys(this.stems).length, 'stems');
 
         // Reset precise playback tracking (needed for hybrid tempo)
         this.setPlaybackPosition(Math.max(0, Math.min(this.currentTime || 0, this.duration || Infinity)));
@@ -3290,9 +3499,22 @@ class MobileApp {
                 console.warn('[WakeLock] Unable to keep screen awake:', error);
             });
         }
+
+        // Start metronome
+        if (this.metronome) this.metronome.start();
+
+        // Jam session: broadcast play command
+        const extra = this._precountBeatsUsed > 0 ? { precount_beats: this._precountBeatsUsed } : {};
+        this._jamBroadcastPlayback('play', this.currentTime || 0, extra);
+        this._jamStartSyncHeartbeat();
     }
 
-    startStemSource(name) {
+    /**
+     * Create and start a stem audio source.
+     * @param {string} name - Stem name
+     * @param {number} when - AudioContext time to start (0 = now)
+     */
+    startStemSource(name, when = 0) {
         const stem = this.stems[name];
         if (!stem || !stem.buffer) {
             console.warn('[StartStem] Skipping', name, '- no buffer');
@@ -3319,11 +3541,27 @@ class MobileApp {
 
         this.updateStemGain(name);
         const startOffset = Math.min(this.currentTime, stem.buffer.duration);
-        stem.source.start(0, startOffset);
-        console.log('[StartStem]', name, 'started at offset', startOffset.toFixed(2) + 's');
+        stem.source.start(when, startOffset);
+        console.log('[StartStem]', name, 'started at offset', startOffset.toFixed(2) + 's',
+            when > 0 ? `(scheduled at ${when.toFixed(3)})` : '(immediate)');
     }
 
     pause() {
+        // Cancel any active precount and stop pre-scheduled stems
+        if (this._precountActive) {
+            this._precountActive = false;
+            if (this.metronome) this.metronome.cancelPrecount();
+            // Stop stems that were pre-scheduled but haven't started yet
+            Object.values(this.stems).forEach(s => {
+                if (s.source) {
+                    try { s.source.stop(); } catch(e) {}
+                    s.source = null;
+                }
+            });
+            this.updatePlayPauseButtons();
+            return;
+        }
+
         if (!this.isPlaying) return;
 
         this.updatePlaybackClock();
@@ -3342,13 +3580,24 @@ class MobileApp {
         this.stopPlaybackAnimation();
         this.releaseWakeLock();
 
+        // Stop metronome
+        if (this.metronome) this.metronome.stop();
+
+        // Jam session: broadcast pause command
+        this._jamBroadcastPlayback('pause', this.currentTime || 0);
+        this._jamStopSyncHeartbeat();
+
         // Save state when pausing
         this.saveState();
     }
 
     stop() {
+        // pause() handles precount cancellation + pre-scheduled stem cleanup
         this.pause();
         this.seek(0);
+        // Jam session: broadcast stop command
+        this._jamBroadcastPlayback('stop', 0);
+        this._jamStopSyncHeartbeat();
         // Save state when stopping
         this.saveState();
     }
@@ -3363,8 +3612,23 @@ class MobileApp {
         this.updateProgressBar();
         if (wasPlaying) this.play();
 
+        // Jam session: broadcast seek command
+        this._jamBroadcastPlayback('seek', newTime);
+
         // Save state after seeking
         this.saveState();
+    }
+
+    seekToPosition(time) {
+        // Seek without broadcasting — used by jam guests receiving commands
+        const newTime = Math.max(0, Math.min(time, this.duration || Infinity));
+        const wasPlaying = this.isPlaying;
+
+        if (this.isPlaying) this.pause();
+        this.setPlaybackPosition(newTime);
+        this.updateTimeDisplay();
+        this.updateProgressBar();
+        if (wasPlaying) this.play();
     }
 
     handleSeekTouch(e) {
@@ -3570,6 +3834,12 @@ class MobileApp {
         const targets = this.calculateTempoPitchTargets();
         console.log('[Tempo] Targets → playbackRate:', targets.playbackRate.toFixed(3), 'SoundTouch tempo:', targets.soundTouchTempo.toFixed(3), 'SoundTouch pitch:', targets.soundTouchPitch.toFixed(3), 'mode:', targets.isAcceleration ? 'hybrid-accel' : 'stretch');
         this.applyTempoPitchTargets(targets);
+
+        // Update metronome BPM
+        if (this.metronome) this.metronome.setBPM(this.currentBPM);
+
+        // Jam session: broadcast tempo change
+        this._jamBroadcastTempo(this.currentBPM, this.originalBPM, actualRatio);
     }
 
     setPitch(semitones) {
@@ -3581,6 +3851,10 @@ class MobileApp {
         this.updateLyricsChordTransposition();
         this.updateGridView2Chords();
         this.updateFullscreenLyricsChords();
+
+        // Jam session: broadcast pitch change
+        const keyEl = document.getElementById('mobileCurrentKey');
+        this._jamBroadcastPitch(this.currentPitchShift, keyEl?.textContent || 'C');
     }
 
     calculateTempoPitchTargets() {
@@ -3907,6 +4181,8 @@ class MobileApp {
         this.chordScrollContainer = scroll;
         this.chordTrackElement = track;
 
+        console.log(`[Chords] Grid: ${this.beatElements.length} beats, BPM=${bpm}, offset=${this.beatOffset || 0}`);
+
         // Block manual horizontal scroll while allowing code-controlled scrollTo()
         this.preventManualHorizontalScroll(scroll);
 
@@ -3997,6 +4273,10 @@ class MobileApp {
         if (force || beatIdx !== this.currentChordIndex) {
             this.currentChordIndex = beatIdx;
             this.highlightBeat(beatIdx);
+            if (beatIdx !== this._lastLoggedBeat) {
+                this._lastLoggedBeat = beatIdx;
+                console.log(`[ChordSync] t=${this.currentTime.toFixed(2)}, beatIdx=${beatIdx}, beatTime=${this.beatElements[beatIdx]?.dataset.beatTime}`);
+            }
         }
 
         // Scroll to keep highlighted beat in 2nd position (using actual DOM position)
@@ -5335,6 +5615,10 @@ class MobileApp {
                 const source = data.source || 'unknown';
                 console.log('[Lyrics] Loaded', this.lyrics.length, 'segments from source:', source);
                 this.displayLyrics();
+                // Update extraction data so jam guests get lyrics on join
+                if (this.currentExtractionData) {
+                    this.currentExtractionData.lyrics_data = this.lyrics;
+                }
 
                 // Build success message with source info and alignment stats
                 const sourceLabel = this.getSourceLabel(source);
@@ -5540,9 +5824,6 @@ class MobileApp {
     updateActiveLyric() {
         if (!this.lyrics.length || !this.lyricsContainer) return;
 
-        // IMPORTANT: Do NOT adjust time for lyrics!
-        // SoundTouch changes playback speed but doesn't affect AudioContext.currentTime
-        // The lyrics timestamps are already in the correct time domain
         const currentTime = this.currentTime;
         const segmentIndex = this.findCurrentLyricIndex(currentTime);
 
@@ -5570,7 +5851,7 @@ class MobileApp {
     findCurrentLyricIndex(currentTime) {
         if (!this.lyrics.length) return -1;
 
-        const tolerance = 0.2; // seconds
+        const tolerance = 0.2;
         const activeIndex = this.activeLyricIndex;
 
         if (activeIndex >= 0) {
@@ -6796,6 +7077,1050 @@ class MobileApp {
 
         // Note: Tempo/Pitch sliders have been replaced with neumorphic trigger buttons
         // The triggers are handled in setupNeumorphicDialControls()
+    }
+
+    // ============================================
+    // Jam Session Methods
+    // ============================================
+
+    initJamClient() {
+        if (!this.socket || typeof JamClient === 'undefined') {
+            console.warn('[Jam] Socket or JamClient not available, retrying...');
+            setTimeout(() => this.initJamClient(), 500);
+            return;
+        }
+
+        this.jamClient = new JamClient(this.socket);
+
+        this.jamClient.onCreated((data) => {
+            if (data.error) {
+                console.error('[Jam] Session creation failed:', data.error);
+                this.showToast(data.error, 'error');
+                return;
+            }
+            console.log('[Jam] Session created:', data.code);
+            this.renderJamPage();
+            // Broadcast current track and tempo if one is loaded
+            if (this.currentExtractionId && this.currentExtractionData) {
+                console.log('[Jam] Broadcasting current track after session creation');
+                this._jamBroadcastTrackLoad();
+                this._jamBroadcastTempo(this.currentBPM, this.originalBPM, this.currentBPM / this.originalBPM);
+            }
+        });
+
+        this.jamClient.onParticipantUpdate((data) => {
+            this.updateJamParticipantList(data.participants);
+        });
+
+        this.jamClient.onSessionEnded((data) => {
+            this.showToast('Jam session ended', 'info');
+            this.renderJamPage();
+        });
+
+        console.log('[Jam] Mobile JamClient initialized');
+
+        // Auto-reclaim active session on page reload (e.g. pull-to-refresh)
+        this._autoReclaimJamSession();
+    }
+
+    async _autoReclaimJamSession() {
+        try {
+            const resp = await fetch('/api/jam/my-session');
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (data.active) {
+                console.log('[Jam] Active session found, auto-reclaiming:', data.code);
+                this.jamClient.createSession();
+            }
+        } catch (e) {
+            // Ignore — non-critical
+        }
+    }
+
+    async initJamGuestMode() {
+        console.log('[Jam Guest] Initializing guest mode...');
+        console.log('[Jam Guest] Code:', window.JAM_CODE);
+        console.log('[Jam Guest] Name:', window.JAM_GUEST_NAME);
+        console.log('[Jam Guest] Extraction data:', window.JAM_EXTRACTION_DATA);
+
+        // Show ON STAGE banner
+        const banner = document.getElementById('onStageBanner');
+        if (banner) {
+            banner.style.display = 'flex';
+            const text = banner.querySelector('.on-stage-text');
+            if (text) text.textContent = `ON STAGE - ${window.JAM_CODE}`;
+        }
+
+        // Start socket/jamClient connection in parallel (no user gesture needed)
+        const clientReady = this._waitForJamClient();
+
+        // iOS Safari requires AudioContext creation INSIDE a user gesture.
+        // Show "Tap to Enter" overlay and wait for the user to tap.
+        const overlay = document.getElementById('jamGuestEntryOverlay');
+        if (overlay) {
+            await new Promise((resolve) => {
+                const btn = document.getElementById('jamGuestEntryBtn');
+                if (!btn) { resolve(); return; }
+                const handler = async (e) => {
+                    e.preventDefault();
+                    btn.removeEventListener('click', handler);
+                    btn.removeEventListener('touchend', handler);
+                    btn.textContent = 'Connecting...';
+                    btn.disabled = true;
+
+                    // Create and resume AudioContext INSIDE user gesture
+                    await this.initAudioContext();
+                    if (this.audioContext && this.audioContext.state === 'suspended') {
+                        try { await this.audioContext.resume(); } catch (err) {
+                            console.warn('[Jam Guest] AudioContext resume failed:', err);
+                        }
+                    }
+                    console.log('[Jam Guest] AudioContext state after gesture:', this.audioContext?.state);
+
+                    overlay.style.display = 'none';
+                    resolve();
+                };
+                btn.addEventListener('touchend', handler, { passive: false });
+                btn.addEventListener('click', handler);
+            });
+        } else {
+            // Fallback: no overlay (desktop or template issue)
+            await this.initAudioContext();
+            if (this.audioContext && this.audioContext.state === 'suspended') {
+                try { await this.audioContext.resume(); } catch (err) {
+                    console.warn('[Jam Guest] AudioContext resume failed:', err);
+                }
+            }
+        }
+
+        // Wait for jam client to be ready (may already be done)
+        await clientReady;
+
+        if (!this.jamClient) {
+            this.showToast('Connection failed - please refresh', 'error');
+            return;
+        }
+
+        // Hide transport controls for jam guests (host controls playback)
+        this._hideGuestTransportControls();
+
+        // Setup guest listeners using jamClient callbacks
+        this._setupJamGuestListeners();
+
+        // Join the jam session using jamClient
+        console.log('[Jam Guest] Joining session:', window.JAM_CODE);
+        this.jamClient.joinSession(window.JAM_CODE);
+
+        // If extraction data is provided, load it immediately
+        if (window.JAM_EXTRACTION_DATA && Object.keys(window.JAM_EXTRACTION_DATA).length > 0) {
+            console.log('[Jam Guest] Loading provided extraction data');
+            await this._loadJamGuestTrack(window.JAM_EXTRACTION_DATA);
+        } else {
+            console.log('[Jam Guest] No extraction data, waiting for host to load track');
+            this.showLoading('Waiting for host to load a track...');
+        }
+    }
+
+    _hideGuestTransportControls() {
+        // Hide play/stop buttons across all tabs and popups
+        document.querySelectorAll(
+            '.mobile-play-sync, .mobile-stop-sync, ' +
+            '#fullscreenLyricsPlayBtn, #fullscreenLyricsStopBtn, ' +
+            '#gridview2PlayBtn, #gridview2StopBtn'
+        ).forEach(el => el.style.display = 'none');
+
+        // Make tempo/pitch triggers read-only
+        document.querySelectorAll('.tempo-popup-trigger, .pitch-popup-trigger').forEach(el => {
+            el.style.pointerEvents = 'none';
+            el.style.opacity = '0.5';
+        });
+
+        // Hide regenerate buttons only (keep Grid View and Fullscreen Lyrics buttons)
+        document.querySelectorAll(
+            '#mobileRegenerateChords, #mobileRegenerateLyrics'
+        ).forEach(el => el.style.display = 'none');
+
+        console.log('[Jam Guest] Transport controls hidden');
+    }
+
+    async _waitForJamClient() {
+        let attempts = 0;
+        const maxAttempts = 40; // 10 seconds total
+        while (!this.jamClient && attempts < maxAttempts) {
+            await new Promise(r => setTimeout(r, 250));
+            attempts++;
+        }
+        if (!this.jamClient) {
+            console.error(`[Jam Guest] JamClient not available after ${maxAttempts * 250}ms`);
+        } else {
+            console.log(`[Jam Guest] JamClient ready after ${attempts * 250}ms`);
+        }
+    }
+
+    _setupJamGuestListeners() {
+        console.log('[Jam Guest] Setting up guest listeners via jamClient');
+
+        // Track loaded by host
+        this.jamClient.onTrackLoaded(async (data) => {
+            console.log('[Jam Guest] Track loaded by host:', data);
+            if (data.extraction_data) {
+                await this._loadJamGuestTrack(data.extraction_data);
+            }
+        });
+
+        // Playback commands from host
+        this.jamClient.onPlayback((data) => {
+            console.log('[Jam Guest] Playback command:', data);
+            this._handleJamPlaybackCommand(data);
+        });
+
+        // Tempo change from host
+        this.jamClient.onTempo((data) => {
+            console.log('[Jam Guest] Tempo change:', data);
+            if (data.bpm) {
+                this.currentBPM = data.bpm;
+                this.syncTempoValueBPM(data.bpm);
+                this._applyTempoChange(data.bpm);
+            }
+        });
+
+        // Pitch change from host
+        this.jamClient.onPitch((data) => {
+            console.log('[Jam Guest] Pitch change:', data);
+            if (data.pitch_shift !== undefined) {
+                this.currentPitchShift = data.pitch_shift;
+                this.syncKeyDisplay();
+                this._applyPitchChange(data.pitch_shift);
+            }
+        });
+
+        // Sync from host (periodic sync)
+        this.jamClient.onSync((data) => {
+            this._handleJamSync(data);
+        });
+
+        // Join confirmation
+        this.jamClient.onJoined((data) => {
+            console.log('[Jam Guest] Joined session:', data);
+            if (data.error) {
+                console.error('[Jam Guest] Join error:', data.error);
+                this.showToast(`Failed to join: ${data.error}`, 'error');
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 2000);
+                return;
+            }
+            // If extraction data comes with join, load it (may already be loading from JAM_EXTRACTION_DATA)
+            if (data.extraction_data && Object.keys(data.extraction_data).length > 0 && !this.currentExtractionData) {
+                this._loadJamGuestTrack(data.extraction_data);
+            }
+            // Apply pending state if provided
+            if (data.state) {
+                this._pendingJamState = data.state;
+            }
+        });
+
+        // Session ended
+        this.jamClient.onSessionEnded(() => {
+            console.log('[Jam Guest] Session ended by host');
+            this.showToast('Jam session ended by host', 'info');
+            // Redirect to home after a delay
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 2000);
+        });
+
+        // Host disconnect/reconnect handling
+        this._jamHostDisconnectTimer = null;
+        this.jamClient.onHostStatus((data) => {
+            if (data.status === 'disconnected') {
+                // Pause playback immediately
+                if (this.isPlaying) {
+                    this.pause();
+                }
+
+                // Show disconnect overlay with countdown
+                this._showJamHostDisconnectOverlay(data.timeout || 10);
+
+            } else if (data.status === 'reconnected') {
+                // Hide overlay, clear timer
+                this._hideJamHostDisconnectOverlay();
+
+                // Resync state from host (host just reloaded — stopped)
+                const state = data.state;
+                if (state) {
+                    if (state.bpm) {
+                        this.currentBPM = state.bpm;
+                        this.syncTempoValueBPM(state.bpm);
+                    }
+                    if (state.pitch_shift !== undefined) {
+                        this.currentPitchShift = state.pitch_shift;
+                        this.syncKeyDisplay();
+                    }
+                    // Stay stopped — host will send play command when ready
+                    if (this.isPlaying) {
+                        this.pause();
+                    }
+                }
+                console.log('[Jam Guest] Host reconnected, waiting for host to resume playback');
+            }
+        });
+    }
+
+    async _loadJamGuestTrack(extractionData) {
+        console.log('[Jam Guest] Loading track:', extractionData.title);
+        this.showLoading(`Loading: ${extractionData.title || 'Track'}...`);
+
+        // Stop current playback and clean up old audio nodes before loading new track
+        await this.lightMixerCleanup();
+
+        // Store extraction data
+        this.currentExtractionData = extractionData;
+        this.currentExtractionId = extractionData.extraction_id || extractionData.id || `jam_${Date.now()}`;
+        this.currentExtractionVideoId = extractionData.video_id || null;
+
+        // Set up stem URL prefix for jam stems
+        const jamCode = window.JAM_CODE.replace('JAM-', '');
+        window.JAM_STEM_URL_PREFIX = `/api/jam/stems/${jamCode}`;
+        window.JAM_STEM_CACHE_BUSTER = `?eid=${encodeURIComponent(this.currentExtractionId)}`;
+
+        // Parse stem paths (could be string or object)
+        let stemPaths = extractionData.output_paths || extractionData.stems_paths;
+        if (typeof stemPaths === 'string') {
+            try {
+                stemPaths = JSON.parse(stemPaths);
+            } catch (e) {
+                console.error('[Jam Guest] Failed to parse stem paths:', e);
+                stemPaths = {};
+            }
+        }
+
+        if (!stemPaths || Object.keys(stemPaths).length === 0) {
+            // Fallback: fetch extraction data from server
+            console.warn('[Jam Guest] No stem paths in initial data, fetching from server...');
+            try {
+                const jamCode = window.JAM_CODE.replace('JAM-', '');
+                const resp = await fetch(`/api/jam/extraction/${jamCode}`);
+                if (resp.ok) {
+                    const serverData = await resp.json();
+                    stemPaths = serverData.output_paths || serverData.stems_paths;
+                    if (typeof stemPaths === 'string') {
+                        stemPaths = JSON.parse(stemPaths);
+                    }
+                    // Merge any missing fields from server response
+                    if (!extractionData.title && serverData.title) extractionData.title = serverData.title;
+                    if (!extractionData.detected_bpm && serverData.detected_bpm) extractionData.detected_bpm = serverData.detected_bpm;
+                    if (!extractionData.detected_key && serverData.detected_key) extractionData.detected_key = serverData.detected_key;
+                    if (!extractionData.chords && serverData.chords) extractionData.chords = serverData.chords;
+                    if (!extractionData.chords_data && serverData.chords_data) extractionData.chords_data = serverData.chords_data;
+                    if (!extractionData.lyrics && serverData.lyrics) extractionData.lyrics = serverData.lyrics;
+                    if (!extractionData.lyrics_data && serverData.lyrics_data) extractionData.lyrics_data = serverData.lyrics_data;
+                    console.log('[Jam Guest] Got stem paths from server:', stemPaths);
+                }
+            } catch (fetchErr) {
+                console.error('[Jam Guest] Server fallback failed:', fetchErr);
+            }
+        }
+
+        if (!stemPaths || Object.keys(stemPaths).length === 0) {
+            console.error('[Jam Guest] No stem paths available (initial data + server fallback)');
+            this.hideLoading();
+            this.showToast('No stems available', 'error');
+            return;
+        }
+
+        console.log('[Jam Guest] Stem paths:', stemPaths);
+
+        // Navigate to mixer
+        this.navigateTo('mixer');
+
+        // Set title
+        const titleEl = document.getElementById('mobileMixerTitle');
+        if (titleEl) titleEl.textContent = extractionData.title || 'Jam Session';
+
+        // Show the mixer nav button
+        const mixerNav = document.getElementById('mobileNavMixer');
+        if (mixerNav) mixerNav.style.display = 'flex';
+
+        // Set original BPM and key
+        this.originalBPM = extractionData.detected_bpm || extractionData.bpm || 120;
+        this.currentBPM = this.originalBPM;
+        this.originalKey = extractionData.detected_key || extractionData.key || 'C major';
+        this.beatOffset = extractionData.beat_offset || 0;
+
+        // Update displays
+        this.syncTempoValueBPM(this.currentBPM);
+        this.syncKeyDisplay();
+
+        // Load stems
+        try {
+            await this.loadStemsForJamGuest(stemPaths);
+            console.log('[Jam Guest] Stems loaded successfully');
+
+            // Load chords if available
+            if (extractionData.chords || extractionData.chords_data) {
+                const chordPayload = extractionData.chords_data || extractionData.chords;
+                let parsedChords = null;
+                try {
+                    parsedChords = typeof chordPayload === 'string' ? JSON.parse(chordPayload) : chordPayload;
+                    if (parsedChords && !Array.isArray(parsedChords) && Array.isArray(parsedChords.chords)) {
+                        parsedChords = parsedChords.chords;
+                    }
+                } catch (e) {
+                    console.warn('[Jam Guest] Failed to parse chords:', e);
+                }
+                if (Array.isArray(parsedChords)) {
+                    this.chords = parsedChords;
+                    this.beatsPerBar = extractionData.beats_per_bar || 4;
+                    this.chordBPM = this.currentBPM;
+                    this.displayChords();
+                    this.initGridView2Popup();
+                }
+            }
+
+            // Load lyrics if available
+            if (extractionData.lyrics || extractionData.lyrics_data) {
+                const lyricsPayload = extractionData.lyrics_data || extractionData.lyrics;
+                let parsedLyrics = null;
+                try {
+                    parsedLyrics = typeof lyricsPayload === 'string' ? JSON.parse(lyricsPayload) : lyricsPayload;
+                    // Handle wrapped format: {lyrics: [...]} or {words: [...]}
+                    if (parsedLyrics && !Array.isArray(parsedLyrics)) {
+                        if (Array.isArray(parsedLyrics.lyrics)) parsedLyrics = parsedLyrics.lyrics;
+                        else if (Array.isArray(parsedLyrics.words)) parsedLyrics = parsedLyrics.words;
+                        else if (Array.isArray(parsedLyrics.segments)) parsedLyrics = parsedLyrics.segments;
+                    }
+                } catch (e) {
+                    console.warn('[Jam Guest] Failed to parse lyrics:', e);
+                }
+                if (Array.isArray(parsedLyrics) && parsedLyrics.length > 0) {
+                    this.lyrics = parsedLyrics;
+                    this.displayLyrics();
+                    console.log('[Jam Guest] Loaded', parsedLyrics.length, 'lyrics segments');
+                } else {
+                    console.warn('[Jam Guest] Lyrics data found but not an array:', typeof parsedLyrics);
+                }
+            } else {
+                console.log('[Jam Guest] No lyrics in extraction data');
+            }
+
+            // Initialize metronome for guest
+            this.initMetronome(extractionData);
+
+            // Apply pending state if any (convert state to playback command)
+            if (this._pendingJamState) {
+                console.log('[Jam Guest] Applying pending state:', this._pendingJamState);
+                setTimeout(() => {
+                    this._applyJamState(this._pendingJamState);
+                    this._pendingJamState = null;
+                }, 500);
+            }
+        } catch (error) {
+            console.error('[Jam Guest] Failed to load stems:', error);
+            this.showToast('Failed to load stems', 'error');
+        }
+
+        this.hideLoading();
+    }
+
+    async loadStemsForJamGuest(stemPaths) {
+        console.log('[Jam Guest] Loading stems...');
+
+        // AudioContext should already be initialized via user gesture in initJamGuestMode
+        if (!this.audioContext || this.audioContext.state === 'closed') {
+            console.warn('[Jam Guest] AudioContext not ready — reinitializing');
+            await this.initAudioContext();
+        }
+
+        // Clear existing stems and track container
+        this.stems = {};
+        const container = document.getElementById('mobileTracksContainer');
+        if (container) container.innerHTML = '';
+
+        const stemEntries = Object.entries(stemPaths);
+        const jamCode = window.JAM_CODE.replace('JAM-', '');
+
+        // Cache-busting: use extraction ID so SW doesn't serve stale stems after track change
+        const eid = this.currentExtractionId || Date.now();
+
+        // Load ALL stems in parallel (Promise.allSettled for resilience)
+        const results = await Promise.allSettled(stemEntries.map(async ([stemName]) => {
+            const url = `/api/jam/stems/${jamCode}/${stemName}?eid=${encodeURIComponent(eid)}`;
+            const t0 = performance.now();
+
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const arrayBuffer = await response.arrayBuffer();
+            const t1 = performance.now();
+            console.log(`[Jam Guest] ${stemName} fetched ${(arrayBuffer.byteLength / 1048576).toFixed(1)}MB in ${(t1 - t0).toFixed(0)}ms`);
+
+            const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+            const t2 = performance.now();
+            console.log(`[Jam Guest] ${stemName} decoded in ${(t2 - t1).toFixed(0)}ms`);
+
+            await this.createAudioNodesForStem(stemName, audioBuffer);
+            this.createTrackControl(stemName);
+        }));
+
+        const loaded = results.filter(r => r.status === 'fulfilled').length;
+        results.forEach((r, i) => {
+            if (r.status === 'rejected') {
+                console.error(`[Jam Guest] Error loading stem ${stemEntries[i][0]}:`, r.reason);
+            }
+        });
+
+        if (loaded === 0) {
+            throw new Error('No stems could be loaded');
+        }
+
+        // Get duration from first loaded stem
+        const firstStem = Object.values(this.stems)[0];
+        if (firstStem && firstStem.buffer) {
+            this.duration = firstStem.buffer.duration;
+            this.updateTimeDisplay();
+        }
+
+        // Draw waveform
+        this.renderWaveform();
+
+        console.log(`[Jam Guest] Successfully loaded ${loaded}/${stemEntries.length} stems`);
+    }
+
+    _handleJamPlaybackCommand(data) {
+        if (!this.stems || Object.keys(this.stems).length === 0) {
+            console.warn('[Jam Guest] Cannot handle playback - no stems loaded');
+            this._pendingJamState = data;
+            return;
+        }
+
+        // Ensure AudioContext is running (defensive for iOS)
+        if (this.audioContext && this.audioContext.state === 'suspended') {
+            console.warn('[Jam Guest] AudioContext suspended during playback — attempting resume');
+            this.audioContext.resume().catch(e => console.error('[Jam Guest] Resume failed:', e));
+        }
+
+        const command = data.command;
+        const position = data.position || 0;
+
+        console.log(`[Jam Guest] Handling playback command: ${command} at ${position}s`);
+
+        switch (command) {
+            case 'play':
+                this.currentTime = position;
+                this.playbackPosition = position;
+                // Host sent precount — pre-schedule stems and run precount for seamless start
+                if (data.precount_beats > 0 && this.metronome && this.metronome.bpm > 0) {
+                    const precountDuration = this.metronome.getPrecountDuration(data.precount_beats);
+                    const stemStartTime = this.audioContext.currentTime + precountDuration;
+                    const guestPlaybackStart = position;
+
+                    console.log(`[Jam Guest] Precount: ${data.precount_beats} beats, stems at ${stemStartTime.toFixed(3)}`);
+
+                    // Pre-schedule stems on Web Audio clock
+                    this.setPlaybackPosition(Math.max(0, Math.min(guestPlaybackStart, this.duration || Infinity)));
+                    Object.keys(this.stems).forEach(name => this.startStemSource(name, stemStartTime));
+                    this.lastAudioTime = stemStartTime;
+
+                    this._precountActive = true;
+                    this.metronome.startPrecount(data.precount_beats, () => {
+                        // Stems already playing — just update UI
+                        this._precountActive = false;
+                        this.isPlaying = true;
+                        this.updatePlayPauseButtons();
+                        this.syncPopupControlsState();
+                        this.startPlaybackAnimation();
+                        if (this.metronome) this.metronome.start();
+                    });
+                } else {
+                    this._startPlaybackInternal();
+                }
+                break;
+            case 'pause':
+                this.pause();
+                break;
+            case 'stop':
+                this.stop();
+                break;
+            case 'seek':
+                this.seekToPosition(position);
+                break;
+        }
+    }
+
+    _applyJamState(state) {
+        if (!this.stems || Object.keys(this.stems).length === 0) {
+            console.warn('[Jam Guest] Cannot apply state — no stems loaded');
+            this._pendingJamState = state;
+            return;
+        }
+
+        console.log('[Jam Guest] Applying jam state:', state);
+
+        // Apply tempo if different
+        if (state.bpm && state.bpm !== this.currentBPM) {
+            this.currentBPM = state.bpm;
+            this.syncTempoValueBPM(state.bpm);
+            this._applyTempoChange(state.bpm);
+        }
+
+        // Apply pitch if different
+        if (state.pitch_shift !== undefined && state.pitch_shift !== this.currentPitchShift) {
+            this.currentPitchShift = state.pitch_shift;
+            this._applyPitchChange(state.pitch_shift);
+        }
+
+        // Seek to position and start playback if host is playing
+        const position = state.position || 0;
+        if (state.is_playing) {
+            this.currentTime = position;
+            this.playbackPosition = position;
+            this.play();
+        } else if (position > 0) {
+            this.seekToPosition(position);
+        }
+    }
+
+    _handleJamSync(data) {
+        if (!this.stems || Object.keys(this.stems).length === 0) return;
+
+        // Sync tempo if host BPM differs
+        if (data.bpm && data.bpm !== this.currentBPM) {
+            this.currentBPM = data.bpm;
+            this.syncTempoValueBPM(data.bpm);
+            this._applyTempoChange(data.bpm);
+        }
+
+        const hostPosition = data.position || 0;
+        const hostIsPlaying = data.is_playing;
+
+        // If host is playing but guest is not, start playing at host's position
+        if (hostIsPlaying && !this.isPlaying) {
+            console.log(`[Jam Guest] Host is playing but guest is not — syncing to ${hostPosition}s`);
+            this.currentTime = hostPosition;
+            this.playbackPosition = hostPosition;
+            this.play();
+            return;
+        }
+
+        // If host stopped but guest is still playing, stop
+        if (!hostIsPlaying && this.isPlaying) {
+            console.log('[Jam Guest] Host stopped — stopping guest');
+            this.pause();
+            return;
+        }
+
+        // Drift correction when both are playing
+        if (hostIsPlaying && this.isPlaying) {
+            const drift = Math.abs(this.currentTime - hostPosition);
+            if (drift > 0.5) {
+                console.log(`[Jam Guest] Sync correction: drift=${drift.toFixed(2)}s, seeking to ${hostPosition}`);
+                this.seekToPosition(hostPosition);
+            }
+        }
+    }
+
+    _applyTempoChange(bpm) {
+        // Use the same setTempo path as the host for full audio pipeline update
+        const ratio = bpm / this.originalBPM;
+        this.setTempo(ratio);
+    }
+
+    _applyPitchChange(semitones) {
+        // Use the same setPitch path as the host for full audio pipeline update
+        this.setPitch(semitones);
+    }
+
+    _jamBroadcastPlayback(command, position, extra = {}) {
+        if (this.jamClient && this.jamClient.isActive() && this.jamClient.getRole() === 'host') {
+            this.jamClient.sendPlayback(command, position, extra);
+        }
+    }
+
+    _jamBroadcastTrackLoad() {
+        if (!this.jamClient || !this.jamClient.isActive() || this.jamClient.getRole() !== 'host') {
+            console.log('[Jam] Not broadcasting track — conditions not met:', {
+                hasClient: !!this.jamClient,
+                isActive: this.jamClient?.isActive(),
+                role: this.jamClient?.getRole()
+            });
+            return;
+        }
+        if (!this.currentExtractionId || !this.currentExtractionData) {
+            console.log('[Jam] Not broadcasting track — no data:', {
+                id: this.currentExtractionId,
+                hasData: !!this.currentExtractionData
+            });
+            return;
+        }
+        console.log('[Jam] Broadcasting track:', {
+            id: this.currentExtractionId,
+            title: this.currentExtractionData?.title,
+            hasStemsPaths: !!this.currentExtractionData?.stems_paths
+        });
+        this.jamClient.loadTrack(this.currentExtractionId, this.currentExtractionData);
+    }
+
+    _jamBroadcastTempo(bpm, originalBpm, syncRatio) {
+        if (this.jamClient && this.jamClient.isActive() && this.jamClient.getRole() === 'host') {
+            this.jamClient.sendTempo(bpm, originalBpm, syncRatio);
+        }
+    }
+
+    _jamBroadcastPitch(pitchShift, currentKey) {
+        if (this.jamClient && this.jamClient.isActive() && this.jamClient.getRole() === 'host') {
+            this.jamClient.sendPitch(pitchShift, currentKey);
+        }
+    }
+
+    _jamStartSyncHeartbeat() {
+        this._jamStopSyncHeartbeat();
+        if (!this.jamClient || !this.jamClient.isActive() || this.jamClient.getRole() !== 'host') return;
+        this._jamSyncInterval = setInterval(() => {
+            if (!this.isPlaying || !this.jamClient || !this.jamClient.isActive()) {
+                this._jamStopSyncHeartbeat();
+                return;
+            }
+            this.jamClient.socket.emit('jam_sync', {
+                code: this.jamClient.getCode(),
+                position: this.currentTime || 0,
+                bpm: this.currentBPM || 120,
+                is_playing: true,
+                timestamp: Date.now()
+            });
+        }, 5000);
+    }
+
+    _jamStopSyncHeartbeat() {
+        if (this._jamSyncInterval) {
+            clearInterval(this._jamSyncInterval);
+            this._jamSyncInterval = null;
+        }
+    }
+
+    _showJamHostDisconnectOverlay(timeout) {
+        // Create overlay if it doesn't exist
+        let overlay = document.getElementById('jamHostDisconnectedOverlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'jamHostDisconnectedOverlay';
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;padding:20px;';
+            overlay.innerHTML = `
+                <i class="fas fa-wifi" style="font-size:40px;color:#ff6b6b;margin-bottom:16px;opacity:0.8;"></i>
+                <h2 style="margin:0 0 8px;font-size:1.3rem;">Host Disconnected</h2>
+                <p style="color:#aaa;margin:0 0 20px;font-size:0.9rem;">Waiting for the host to reconnect...</p>
+                <div id="jamDisconnectCountdown" style="font-size:48px;font-weight:700;color:#ff6b6b;font-family:monospace;margin-bottom:20px;">${timeout}</div>
+                <p id="jamDisconnectMessage" style="color:#888;font-size:0.8rem;margin:0 0 16px;">Session will close if host doesn't return</p>
+                <button id="jamDisconnectLeaveBtn" style="background:rgba(220,53,69,0.15);color:#dc3545;border:1px solid rgba(220,53,69,0.3);padding:10px 24px;border-radius:8px;cursor:pointer;font-size:0.9rem;">
+                    <i class="fas fa-sign-out-alt"></i> Leave Now
+                </button>`;
+            document.body.appendChild(overlay);
+            document.getElementById('jamDisconnectLeaveBtn').addEventListener('click', () => {
+                window.location.href = '/mobile';
+            });
+        }
+
+        overlay.style.display = 'flex';
+        const countdownEl = document.getElementById('jamDisconnectCountdown');
+        const messageEl = document.getElementById('jamDisconnectMessage');
+        let remaining = timeout;
+        countdownEl.textContent = remaining;
+        messageEl.textContent = 'Session will close if host doesn\'t return';
+
+        if (this._jamHostDisconnectTimer) clearInterval(this._jamHostDisconnectTimer);
+        this._jamHostDisconnectTimer = setInterval(() => {
+            remaining--;
+            if (remaining <= 0) {
+                clearInterval(this._jamHostDisconnectTimer);
+                this._jamHostDisconnectTimer = null;
+                countdownEl.textContent = '...';
+                messageEl.textContent = 'Still waiting for host — you can leave anytime';
+            } else {
+                countdownEl.textContent = remaining;
+            }
+        }, 1000);
+    }
+
+    _hideJamHostDisconnectOverlay() {
+        if (this._jamHostDisconnectTimer) {
+            clearInterval(this._jamHostDisconnectTimer);
+            this._jamHostDisconnectTimer = null;
+        }
+        const overlay = document.getElementById('jamHostDisconnectedOverlay');
+        if (overlay) overlay.style.display = 'none';
+    }
+
+    renderJamPage() {
+        const container = document.getElementById('mobileJamContent');
+        if (!container) return;
+
+        if (this.jamClient && this.jamClient.isActive()) {
+            this.showJamActiveView(container);
+        } else {
+            this.showJamCreateView(container);
+        }
+    }
+
+    showJamCreateView(container) {
+        window._jamStartSession = () => {
+            if (!this.jamClient) {
+                this.showToast('Jam not ready — try refreshing', 'error');
+                return;
+            }
+            this.jamClient.createSession();
+        };
+
+        container.innerHTML = `
+            <div class="mobile-jam-create-section">
+                <div class="mobile-jam-icon"><i class="fas fa-users"></i></div>
+                <h2>Jam Session</h2>
+                <p class="mobile-jam-description">
+                    Create a jam session and invite others to listen along in sync.
+                    Share via QR code or link — no login required for guests.
+                </p>
+                <button type="button" class="mobile-jam-create-btn" id="mobileJamCreateBtn"
+                        onclick="window._jamStartSession()">
+                    <i class="fas fa-play-circle"></i> Start Jam Session
+                </button>
+            </div>
+        `;
+    }
+
+    showJamActiveView(container) {
+        const code = this.jamClient.getCode();
+        const shareUrl = `${window.location.origin}/jam/${code.replace('JAM-', '')}`;
+
+        container.innerHTML = `
+            <div class="mobile-jam-active-section">
+                <div class="mobile-jam-code-label">SESSION CODE</div>
+                <div class="mobile-jam-code-display">${code}</div>
+
+                <div class="mobile-jam-qr-container" id="mobileJamQR"></div>
+
+                <div class="mobile-jam-share-row">
+                    <input class="mobile-jam-url-input" type="text" value="${shareUrl}" readonly id="mobileJamUrl">
+                    <button class="mobile-jam-copy-btn" id="mobileJamCopyBtn">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+
+                <div class="mobile-jam-share-buttons">
+                    <button class="mobile-jam-share-btn jam-share-whatsapp" id="mobileJamShareWhatsapp">
+                        <i class="fab fa-whatsapp"></i> WhatsApp
+                    </button>
+                    <button class="mobile-jam-share-btn jam-share-email" id="mobileJamShareEmail">
+                        <i class="fas fa-envelope"></i> Email
+                    </button>
+                    <button class="mobile-jam-share-btn jam-share-sms" id="mobileJamShareSms">
+                        <i class="fas fa-sms"></i> SMS
+                    </button>
+                </div>
+
+                <div class="mobile-jam-participants" id="mobileJamParticipants">
+                    <h3>Participants</h3>
+                    <div class="mobile-jam-participants-list" id="mobileJamParticipantsList"></div>
+                </div>
+
+                <button class="mobile-jam-end-btn" id="mobileJamEndBtn"
+                        style="touch-action:manipulation;">
+                    <i class="fas fa-times-circle"></i> End Session
+                </button>
+                <button class="mobile-jam-newcode-btn" id="mobileJamNewCodeBtn"
+                        style="touch-action:manipulation;">
+                    <i class="fas fa-sync-alt"></i> Get New Code
+                </button>
+            </div>
+        `;
+
+        // Generate QR code
+        this.generateJamQRCode(shareUrl);
+
+        // Use requestAnimationFrame + dual touchend/click for iOS reliability
+        requestAnimationFrame(() => {
+            // Copy button
+            const copyBtn = document.getElementById('mobileJamCopyBtn');
+            if (copyBtn) {
+                let copyFired = false;
+                const copyHandler = (e) => {
+                    e.preventDefault();
+                    if (copyFired) return;
+                    copyFired = true;
+                    setTimeout(() => { copyFired = false; }, 500);
+                    const urlInput = document.getElementById('mobileJamUrl');
+                    navigator.clipboard.writeText(urlInput.value).then(() => {
+                        this.showToast('Link copied!', 'success');
+                    }).catch(() => {
+                        urlInput.select();
+                        document.execCommand('copy');
+                        this.showToast('Link copied!', 'success');
+                    });
+                };
+                copyBtn.addEventListener('touchend', copyHandler, { passive: false });
+                copyBtn.addEventListener('click', copyHandler);
+            }
+
+            // Share buttons
+            const msg = `Join my jam session on StemTube! ${shareUrl}`;
+
+            const whatsappBtn = document.getElementById('mobileJamShareWhatsapp');
+            if (whatsappBtn) {
+                let wFired = false;
+                const wHandler = (e) => {
+                    e.preventDefault();
+                    if (wFired) return;
+                    wFired = true;
+                    setTimeout(() => { wFired = false; }, 500);
+                    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                };
+                whatsappBtn.addEventListener('touchend', wHandler, { passive: false });
+                whatsappBtn.addEventListener('click', wHandler);
+            }
+
+            const emailBtn = document.getElementById('mobileJamShareEmail');
+            if (emailBtn) {
+                let eFired = false;
+                const eHandler = (e) => {
+                    e.preventDefault();
+                    if (eFired) return;
+                    eFired = true;
+                    setTimeout(() => { eFired = false; }, 500);
+                    window.location.href = `mailto:?subject=${encodeURIComponent('Join my Jam Session')}&body=${encodeURIComponent(msg)}`;
+                };
+                emailBtn.addEventListener('touchend', eHandler, { passive: false });
+                emailBtn.addEventListener('click', eHandler);
+            }
+
+            const smsBtn = document.getElementById('mobileJamShareSms');
+            if (smsBtn) {
+                let sFired = false;
+                const sHandler = (e) => {
+                    e.preventDefault();
+                    if (sFired) return;
+                    sFired = true;
+                    setTimeout(() => { sFired = false; }, 500);
+                    window.location.href = `sms:?body=${encodeURIComponent(msg)}`;
+                };
+                smsBtn.addEventListener('touchend', sHandler, { passive: false });
+                smsBtn.addEventListener('click', sHandler);
+            }
+
+            // End session button
+            const endBtn = document.getElementById('mobileJamEndBtn');
+            if (endBtn) {
+                let endFired = false;
+                const endHandler = (e) => {
+                    e.preventDefault();
+                    if (endFired) return;
+                    endFired = true;
+                    setTimeout(() => { endFired = false; }, 500);
+                    this.endJamSession();
+                };
+                endBtn.addEventListener('touchend', endHandler, { passive: false });
+                endBtn.addEventListener('click', endHandler);
+            }
+
+            // Get New Code button
+            const newCodeBtn = document.getElementById('mobileJamNewCodeBtn');
+            if (newCodeBtn) {
+                let ncFired = false;
+                const ncHandler = (e) => {
+                    e.preventDefault();
+                    if (ncFired) return;
+                    ncFired = true;
+                    setTimeout(() => { ncFired = false; }, 500);
+                    this._handleGetNewCode();
+                };
+                newCodeBtn.addEventListener('touchend', ncHandler, { passive: false });
+                newCodeBtn.addEventListener('click', ncHandler);
+            }
+        });
+
+        // Update participant list with current data
+        if (this.jamClient.participants.length > 0) {
+            this.updateJamParticipantList(this.jamClient.participants);
+        }
+    }
+
+    updateJamParticipantList(participants) {
+        const listEl = document.getElementById('mobileJamParticipantsList');
+        if (!listEl) return;
+
+        listEl.innerHTML = participants.map(p => `
+            <div class="mobile-jam-participant ${p.role === 'host' ? 'mobile-jam-participant-host' : ''}">
+                <i class="fas ${p.role === 'host' ? 'fa-crown' : 'fa-user'} jam-participant-icon"></i>
+                <span class="jam-participant-name">${p.name}</span>
+            </div>
+        `).join('');
+    }
+
+    endJamSession() {
+        if (!confirm('End this jam session? All participants will be disconnected.')) return;
+        if (this.jamClient) {
+            this.jamClient.endSession();
+        }
+        this.renderJamPage();
+    }
+
+    _handleGetNewCode() {
+        if (!confirm('Delete your current jam code and get a new one?\nAll guests with the old QR code will need the new one.')) return;
+        if (this.jamClient) {
+            this.jamClient.endSession();
+            this.jamClient.socket.emit('jam_delete_code', {});
+            this.jamClient.socket.once('jam_code_deleted', () => {
+                this.showToast('Code deleted. Start a new session to get a fresh code.', 'success');
+                this.renderJamPage();
+            });
+            // Fallback if no response within 3s
+            setTimeout(() => {
+                this.renderJamPage();
+            }, 3000);
+        }
+    }
+
+    async generateJamQRCode(url) {
+        const container = document.getElementById('mobileJamQR');
+        if (!container) return;
+
+        // Load QRCode library dynamically if not loaded
+        if (typeof QRCode === 'undefined') {
+            try {
+                await this._loadQRScript('https://cdn.jsdelivr.net/npm/qrcode@1.4.4/build/qrcode.min.js');
+            } catch (e) {
+                console.warn('[Jam] QRCode library failed to load');
+                container.innerHTML = `<div class="jam-qr-fallback">${url}</div>`;
+                return;
+            }
+        }
+
+        try {
+            const canvas = document.createElement('canvas');
+            await QRCode.toCanvas(canvas, url, {
+                width: 180,
+                margin: 2,
+                color: { dark: '#ffffff', light: '#00000000' }
+            });
+            container.innerHTML = '';
+            container.appendChild(canvas);
+        } catch (e) {
+            console.error('[Jam] QR generation error:', e);
+            container.innerHTML = `<div class="jam-qr-fallback">${url}</div>`;
+        }
+    }
+
+    _loadQRScript(src) {
+        return new Promise((resolve, reject) => {
+            if (document.querySelector(`script[src="${src}"]`)) {
+                resolve();
+                return;
+            }
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
     }
 }
 
