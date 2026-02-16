@@ -18,14 +18,14 @@ YouTube is forcing SABR (Server-Assisted Bitrate) streaming for web clients, blo
 ### 2. JavaScript Challenge (nsig)
 YouTube requires solving JavaScript challenges to get valid download URLs. This requires an external JS runtime.
 
-**Solution:** Install Deno and ensure it's in the system PATH.
+**Solution:** Install Node.js (20+):
 
 ```bash
-# Install Deno
-curl -fsSL https://deno.land/install.sh | sh
+# Ubuntu/Debian
+sudo apt-get install -y nodejs
 
-# Add to PATH (in ~/.bashrc or service script)
-export PATH="$HOME/.deno/bin:$PATH"
+# macOS
+brew install node
 ```
 
 ### 3. PO Tokens
@@ -46,7 +46,7 @@ Many downloads require authenticated YouTube sessions to bypass restrictions.
 
 | Requirement | Purpose |
 |-------------|---------|
-| **Deno** | JavaScript runtime for nsig challenges |
+| **Node.js** | JavaScript runtime (20+) |
 | **Firefox OR cookies.txt** | YouTube authentication |
 | **yt-dlp nightly** | Latest YouTube fixes |
 
@@ -86,19 +86,17 @@ yt-dlp --version
 # Should be 2026.01.xx or newer (nightly)
 ```
 
-### Check Deno Installation
+### Check Node.js Installation
 ```bash
-which deno
-deno --version
-# Should return valid paths and version
+node --version
+# Should return v20.x.x or higher
 ```
 
 ### Test Download Manually
 ```bash
 source venv/bin/activate
-export PATH="$HOME/.deno/bin:$PATH"
 
-yt-dlp --cookies-from-browser firefox \
+yt-dlp --js-runtimes node \
        --extractor-args "youtube:player_client=ios,web" \
        -f "bestaudio/best[acodec!=none]" \
        "https://www.youtube.com/watch?v=VIDEO_ID"
@@ -106,14 +104,14 @@ yt-dlp --cookies-from-browser firefox \
 
 ### Check Service Logs
 ```bash
-sudo tail -f /path/to/stemtube/logs/stemtube_app.log | grep -i "cookie\|error\|deno"
+sudo tail -f /path/to/stemtube/logs/stemtube_app.log | grep -i "cookie\|error\|node"
 ```
 
 ### Common Errors
 
 | Error | Cause | Solution |
 |-------|-------|----------|
-| `n challenge solving failed` | Deno not in PATH | Add Deno to service PATH |
+| `n challenge solving failed` | Node.js not installed | Install Node.js 20+ |
 | `403 Forbidden` | Missing/expired cookies | Refresh cookies via bookmarklet |
 | `Requested format not available` | SABR blocking | Use iOS player client |
 | `No cookies available` | No Firefox or cookies.txt | Upload cookies via admin |
@@ -124,7 +122,7 @@ sudo tail -f /path/to/stemtube/logs/stemtube_app.log | grep -i "cookie\|error\|d
 
 | File | Changes |
 |------|---------|
-| `start_service.sh` | Added Deno to PATH |
+| `start_service.sh` | Service startup script |
 | `core/download_manager.py` | Cookie fallback, iOS client |
 | `core/aiotube_client.py` | Cookie fallback, iOS client |
 | `app.py` | Cookie upload API, yt-dlp nightly auto-update |

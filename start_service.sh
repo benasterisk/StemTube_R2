@@ -97,10 +97,11 @@ else
     echo "[$(date)] faster-whisper will run in CPU mode" | tee -a "$APP_LOG"
 fi
 
-# Add Deno to PATH (required for yt-dlp YouTube downloads)
-if [ -d "$HOME/.deno/bin" ]; then
-    export PATH="$HOME/.deno/bin:$PATH"
-    echo "[$(date)] Added Deno to PATH: $HOME/.deno/bin" | tee -a "$APP_LOG"
+# Check Node.js availability (required for JS challenge solving)
+if command -v node &> /dev/null; then
+    echo "[$(date)] Node.js found: $(node --version)" | tee -a "$APP_LOG"
+else
+    echo "[$(date)] WARNING: Node.js not found. Install with: sudo apt-get install -y nodejs" | tee -a "$APP_LOG"
 fi
 
 # Add Node.js to PATH if using nvm

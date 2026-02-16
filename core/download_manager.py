@@ -504,6 +504,8 @@ class DownloadManager:
                     'player_client': ['ios', 'web']
                 }
             },
+            # Node.js runtime for YouTube JS challenge solving (Feb 2026)
+            'js_runtimes': {'node': {}},
             # Cookies config added below
         }
 

@@ -171,18 +171,18 @@ YouTube now requires JavaScript challenge solving. If you see warnings like:
 - "n challenge solving failed"
 - "JS Challenge Providers: none"
 
-**Solution**: Install Deno runtime:
+**Solution**: Install Node.js runtime:
 ```bash
-# Linux/macOS
-curl -fsSL https://deno.land/install.sh | sh
-echo 'export PATH="$HOME/.deno/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
+# Linux (Ubuntu/Debian)
+sudo apt-get install -y nodejs
 
-# Windows (PowerShell)
-irm https://deno.land/install.ps1 | iex
+# macOS
+brew install node
+
+# Windows: download from https://nodejs.org/
 ```
 
-Then install the EJS component:
+Then ensure the EJS component is installed:
 ```bash
 source venv/bin/activate
 pip install yt-dlp-ejs
@@ -457,6 +457,12 @@ ls downloads/global/VIDEO_ID/stems/htdemucs/
 http://localhost:5011
 # SharedArrayBuffer allowed on localhost
 ```
+
+> **Note**: If `localhost` doesn't work but `127.0.0.1` does, your system may resolve `localhost` to IPv6 (`::1`) instead of IPv4. Fix by editing `/etc/hosts` and removing `localhost` from the `::1` line:
+> ```
+> 127.0.0.1   localhost          # keep this
+> ::1         ip6-localhost ip6-loopback  # remove "localhost" from this line
+> ```
 
 **Option 3: Custom HTTPS**:
 - See [HTTPS Setup Guide](../admin-guides/HTTPS-SETUP.md)

@@ -29,7 +29,7 @@ Comprehensive installation instructions for all platforms.
 - **Disk Space**: 2 GB (base installation)
 - **Network**: Internet connection for downloads
 - **Browser**: Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
-- **Deno**: 2.x (required for YouTube downloads)
+- **Node.js**: 20+ (required runtime dependency)
 - **Firefox**: Required for YouTube cookie authentication
 
 ### Recommended Requirements
@@ -82,37 +82,25 @@ sudo apt-get install -y \
   libsndfile1 \
   libatlas-base-dev \
   liblapack-dev \
+  nodejs \
   git \
   curl \
   wget \
   unzip
 ```
 
-#### 3. Install Deno (Required for YouTube Downloads)
-
-YouTube requires JavaScript challenge solving for downloads. Deno is the recommended JavaScript runtime.
+#### 3. Verify Node.js
 
 ```bash
-# Install Deno
-curl -fsSL https://deno.land/install.sh | sh
-
-# Add Deno to PATH (add to ~/.bashrc for persistence)
-echo 'export DENO_INSTALL="$HOME/.deno"' >> ~/.bashrc
-echo 'export PATH="$DENO_INSTALL/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-
-# Verify installation
-deno --version
+node --version
+# Expected: v20.x.x or higher
 ```
 
-**Expected Output**:
+If Node.js is not available or too old, install from [NodeSource](https://github.com/nodesource/distributions):
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
 ```
-deno 2.x.x (stable, release, x86_64-unknown-linux-gnu)
-v8 xx.x.xxx.xx
-typescript x.x.x
-```
-
-**Why Deno is Required**: Since late 2025, YouTube enforces JavaScript challenges (SABR streaming) that must be solved to download content. Without Deno, yt-dlp cannot solve these challenges and downloads will fail with HTTP 403 errors.
 
 #### 4. Verify Python Version
 
@@ -556,38 +544,15 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 
 #### "n challenge solving failed" or "HTTP Error 403"
 
-**Cause**: YouTube requires JavaScript challenge solving. Deno is missing or not in PATH.
+**Cause**: JavaScript challenge solving requires Node.js.
 
 **Solution**:
 ```bash
-# 1. Install Deno
-curl -fsSL https://deno.land/install.sh | sh
+# Install Node.js
+sudo apt-get install -y nodejs
 
-# 2. Add to PATH
-echo 'export PATH="$HOME/.deno/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-
-# 3. Verify
-deno --version
-```
-
-**If running as systemd service**: The service PATH must include `~/.deno/bin`. See [Service Commands](../admin-guides/SERVICE_COMMANDS.md) for details.
-
-#### Downloads work from CLI but not from web interface
-
-**Cause**: The systemd service doesn't have Deno in its PATH.
-
-**Solution**:
-```bash
-# 1. Edit service file
-sudo nano /etc/systemd/system/stemtube.service
-
-# 2. Add ~/.deno/bin to the PATH Environment line:
-Environment="PATH=/home/YOUR_USER/.deno/bin:/path/to/venv/bin:..."
-
-# 3. Reload and restart
-sudo systemctl daemon-reload
-sudo systemctl restart stemtube
+# Verify
+node --version
 ```
 
 #### "Sign in to confirm you're not a bot"

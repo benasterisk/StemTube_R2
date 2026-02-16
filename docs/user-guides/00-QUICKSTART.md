@@ -8,6 +8,7 @@ Get StemTube running in 5 minutes with this minimal setup guide.
 
 - Ubuntu/Debian Linux (or WSL on Windows)
 - Python 3.12+
+- Node.js 20+
 - 4 GB RAM minimum
 - 2 GB free disk space
 
@@ -20,7 +21,7 @@ Get StemTube running in 5 minutes with this minimal setup guide.
 ```bash
 sudo apt-get update && sudo apt-get install -y \
   python3.12 python3.12-venv python3-dev build-essential \
-  ffmpeg libsndfile1 libatlas-base-dev liblapack-dev
+  ffmpeg libsndfile1 libatlas-base-dev liblapack-dev nodejs
 ```
 
 ### 2. Clone Repository
@@ -165,6 +166,8 @@ nvidia-smi
 1. Use `./start_service.sh` (automatic ngrok HTTPS)
 2. Access via localhost: http://localhost:5011
 3. See [HTTPS Setup Guide](../admin-guides/HTTPS-SETUP.md)
+
+> If `localhost` doesn't connect but `127.0.0.1:5011` does, see [Troubleshooting](05-TROUBLESHOOTING.md#controls-dont-respond) for IPv6 fix.
 
 ---
 

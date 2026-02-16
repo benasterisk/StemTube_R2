@@ -118,8 +118,8 @@ StandardError=append:/path/to/stemtube_dev/logs/stemtube_service.log
 PrivateTmp=false
 NoNewPrivileges=true
 
-# Environment - IMPORTANT: Include Deno path for YouTube downloads
-Environment="PATH=/home/YOUR_USERNAME/.deno/bin:/path/to/stemtube_dev/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+# Environment
+Environment="PATH=/path/to/stemtube_dev/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="VIRTUAL_ENV=/path/to/stemtube_dev/venv"
 
 [Install]
@@ -156,18 +156,6 @@ exec /usr/bin/ffprobe \"\$@\"" > /usr/local/bin/ffprobe'
 
 **Why this matters**: Snap FFmpeg has sandbox restrictions that prevent it from accessing temporary files created by yt-dlp, causing `ffprobe and ffmpeg not found` errors during post-processing.
 
-### Critical: Deno in PATH
-
-**YouTube downloads require Deno** to solve JavaScript challenges. The service's PATH environment variable **must include** `~/.deno/bin`:
-
-```ini
-Environment="PATH=/home/YOUR_USERNAME/.deno/bin:/path/to/venv/bin:..."
-```
-
-Without Deno in the PATH, YouTube downloads will fail with errors like:
-- `WARNING: [youtube] n challenge solving failed`
-- `HTTP Error 403: Forbidden`
-
 ### Installation Steps
 
 ```bash
@@ -187,52 +175,24 @@ sudo systemctl start stemtube
 systemctl status stemtube
 ```
 
-### Updating PATH After Installing Deno
-
-If you install Deno after creating the service, update the PATH:
-
-```bash
-# 1. Edit service file
-sudo nano /etc/systemd/system/stemtube.service
-
-# 2. Add ~/.deno/bin to PATH in Environment line
-
-# 3. Reload and restart
-sudo systemctl daemon-reload
-sudo systemctl restart stemtube
-```
-
 ---
 
 ## Troubleshooting YouTube Downloads
 
 ### "n challenge solving failed" Warning
 
-**Cause**: Deno is not available in the service's PATH.
+**Cause**: Node.js is not installed.
 
 **Solution**:
-1. Verify Deno is installed: `deno --version`
-2. Check service PATH includes `~/.deno/bin`
-3. Update service file and restart
+1. Install Node.js: `sudo apt-get install -y nodejs`
+2. Verify: `node --version` (should be v20+)
+3. Restart the service
 
 ### "HTTP Error 403: Forbidden"
 
 **Cause**: YouTube blocks requests without proper authentication or JS challenge solving.
 
 **Solutions**:
-1. Ensure Deno is in service PATH (see above)
+1. Ensure Node.js is installed (see above)
 2. Make sure Firefox is installed and has been used to access YouTube (for cookies)
 3. Check that the service runs as your user (not root)
-
-### Verify Service Can Access Deno
-
-```bash
-# Check what PATH the service sees
-sudo -u YOUR_USERNAME PATH="/home/YOUR_USERNAME/.deno/bin:/path/to/venv/bin:/usr/bin" deno --version
-
-# Test yt-dlp with service environment
-sudo -u YOUR_USERNAME PATH="/home/YOUR_USERNAME/.deno/bin:/path/to/venv/bin:/usr/bin" \
-  /path/to/venv/bin/yt-dlp --cookies-from-browser firefox -F "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-```
-
-Expected output should include: `[youtube] [jsc:deno] Solving JS challenges using deno`

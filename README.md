@@ -31,7 +31,7 @@
 # 1. Install system dependencies (Ubuntu/Debian)
 sudo apt-get update && sudo apt-get install -y \
   python3.12 python3.12-venv python3-dev build-essential \
-  ffmpeg libsndfile1 libatlas-base-dev liblapack-dev
+  ffmpeg libsndfile1 libatlas-base-dev liblapack-dev nodejs
 
 # 2. Clone & setup
 git clone https://github.com/Benasterisk/StemTube_R2.git
@@ -93,6 +93,7 @@ chmod 600 .env
 
 **Minimum:**
 - Python 3.12+
+- Node.js 20+
 - 4 GB RAM
 - 2 GB disk space
 - FFmpeg (auto-installed)
