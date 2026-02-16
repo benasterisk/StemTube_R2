@@ -332,10 +332,15 @@ class SoundTouchEngine {
             
             // Start all stem sources
             this.startAllStems();
-            
+
+            // Start recording track playback
+            if (this.mixer.recordingEngine) {
+                this.mixer.recordingEngine.playAll(this.mixer.currentTime);
+            }
+
             // Start position update animation
             this.startPlaybackAnimation();
-            
+
             this.mixer.log('SoundTouch playback started');
         } catch (error) {
             this.mixer.log(`Error starting SoundTouch playback: ${error.message}`);
@@ -410,17 +415,22 @@ class SoundTouchEngine {
     pause() {
         try {
             if (!this.isPlaying) return;
-            
+
             this.pausedAt = this.mixer.currentTime;
             this.isPlaying = false;
-            
+
+            // Stop recording track playback
+            if (this.mixer.recordingEngine) {
+                this.mixer.recordingEngine.stopAll();
+            }
+
             // Stop all sources
             this.bufferSources.forEach((source, name) => {
                 this.stopStemSource(name);
             });
-            
+
             this.stopPlaybackAnimation();
-            
+
             this.mixer.log('SoundTouch playback paused');
         } catch (error) {
             this.mixer.log(`Error pausing SoundTouch playback: ${error.message}`);
@@ -435,7 +445,12 @@ class SoundTouchEngine {
             this.isPlaying = false;
             this.mixer.currentTime = 0;
             this.pausedAt = 0;
-            
+
+            // Stop recording track playback
+            if (this.mixer.recordingEngine) {
+                this.mixer.recordingEngine.stopAll();
+            }
+
             // Stop all sources
             this.bufferSources.forEach((source, name) => {
                 this.stopStemSource(name);
@@ -461,13 +476,18 @@ class SoundTouchEngine {
         try {
             const newPosition = Math.max(0, Math.min(position, this.mixer.maxDuration));
             this.mixer.currentTime = newPosition;
-            
+
             if (this.isPlaying) {
                 // Restart sources at new position
                 this.startAllStems();
                 this.startTime = this.audioContext.currentTime - newPosition;
             }
-            
+
+            // Update recording playback positions
+            if (this.mixer.recordingEngine) {
+                this.mixer.recordingEngine.seekUpdate(newPosition);
+            }
+
             // Update timeline
             this.mixer.timeline.updatePlayhead(newPosition);
             this.mixer.updateTimeDisplay();
@@ -527,16 +547,23 @@ class SoundTouchEngine {
      * Update solo/mute states
      */
     updateSoloMuteStates() {
-        const hasSolo = Object.values(this.mixer.stems).some(stem => stem.solo);
-        
+        const stemHasSolo = Object.values(this.mixer.stems).some(stem => stem.solo);
+        const recHasSolo = this.mixer.recordingEngine ? this.mixer.recordingEngine.hasAnySolo() : false;
+        const hasSolo = stemHasSolo || recHasSolo;
+
         Object.entries(this.mixer.stems).forEach(([name, stem]) => {
             if (!stem.gainNode) return;
-            
+
             const shouldBeMuted = stem.muted || (hasSolo && !stem.solo);
             stem.gainNode.gain.value = shouldBeMuted ? 0 : stem.volume;
-            
+
             this.mixer.trackControls.updateTrackStatus(name, !shouldBeMuted);
         });
+
+        // Update recording tracks
+        if (this.mixer.recordingEngine) {
+            this.mixer.recordingEngine.updateSoloMuteStates(hasSolo);
+        }
     }
     
     /**

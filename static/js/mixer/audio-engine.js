@@ -305,12 +305,17 @@ class AudioEngine {
             }
         });
         
+        // Start recording track playback
+        if (this.mixer.recordingEngine) {
+            this.mixer.recordingEngine.playAll(this.mixer.currentTime);
+        }
+
         // Update l'state de lecture
         this.mixer.isPlaying = true;
-        
+
         // Update l'affichage du button
         this.mixer.updatePlayPauseButton();
-        
+
         // Démarrer l'animation de la tête de lecture
         this.startPlaybackAnimation();
     }
@@ -324,7 +329,12 @@ class AudioEngine {
             this.updatePlaybackClock();
             this.mixer.log(`Pause à la position: ${this.mixer.currentTime.toFixed(2)}s`);
         }
-        
+
+        // Stop recording track playback
+        if (this.mixer.recordingEngine) {
+            this.mixer.recordingEngine.stopAll();
+        }
+
         // Arrêter la lecture de chaque stem en désactivant d'abord les événements onended
         Object.entries(this.mixer.stems).forEach(([name, stem]) => {
             if (stem.source) {
@@ -359,6 +369,11 @@ class AudioEngine {
      * Arrêter la lecture
      */
     stop() {
+        // Stop recording track playback
+        if (this.mixer.recordingEngine) {
+            this.mixer.recordingEngine.stopAll();
+        }
+
         // Arrêter la lecture de chaque stem
         Object.values(this.mixer.stems).forEach(stem => {
             if (stem.source) {
@@ -586,6 +601,11 @@ class AudioEngine {
             this.mixer.karaokeDisplay.sync(newPosition);
         }
 
+        // Update recording playback positions
+        if (this.mixer.recordingEngine) {
+            this.mixer.recordingEngine.seekUpdate(newPosition);
+        }
+
         // Si on était en train de jouer, reprendre automatiquement
         if (wasPlaying) {
             // Redémarrer immédiatement la lecture depuis la new position
@@ -599,24 +619,25 @@ class AudioEngine {
      * Update les states solo/mute
      */
     updateSoloMuteStates() {
-        // Vérifier si au moins une track est en solo
-        const hasSolo = Object.values(this.mixer.stems).some(stem => stem.solo);
-        
-        // Update le gain de chaque track en fonction de son state
+        // Check if any stem or recording is soloed (unified)
+        const stemHasSolo = Object.values(this.mixer.stems).some(stem => stem.solo);
+        const recHasSolo = this.mixer.recordingEngine ? this.mixer.recordingEngine.hasAnySolo() : false;
+        const hasSolo = stemHasSolo || recHasSolo;
+
+        // Update gain for each stem track
         Object.entries(this.mixer.stems).forEach(([name, stem]) => {
             if (!stem.gainNode) return;
-            
-            // Si une track est en solo, toutes les autres sont muettes sauf si elles sont aussi en solo
-            if (hasSolo) {
-                stem.gainNode.gain.value = (stem.solo) ? stem.volume : 0;
-            } else {
-                // Sinon, appliquer l'state mute normal
-                stem.gainNode.gain.value = stem.muted ? 0 : stem.volume;
-            }
-            
-            // Update l'indicateur d'state actif
-            this.mixer.trackControls.updateTrackStatus(name, hasSolo ? stem.solo : !stem.muted);
+
+            const shouldBeMuted = stem.muted || (hasSolo && !stem.solo);
+            stem.gainNode.gain.value = shouldBeMuted ? 0 : stem.volume;
+
+            this.mixer.trackControls.updateTrackStatus(name, !shouldBeMuted);
         });
+
+        // Update recording tracks
+        if (this.mixer.recordingEngine) {
+            this.mixer.recordingEngine.updateSoloMuteStates(hasSolo);
+        }
     }
     
     /**

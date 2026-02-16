@@ -125,6 +125,20 @@
                 }
             }
 
+            // Collect recording states
+            const recEngine = window.stemMixer?.recordingEngine;
+            if (recEngine && recEngine.recordings.length > 0) {
+                mixerState.recordings = recEngine.recordings
+                    .filter(r => !r.muted && r.audioBuffer)
+                    .map(r => ({
+                        audioBuffer: r.audioBuffer,
+                        startOffset: r.startOffset,
+                        volume: r.volume,
+                        pan: r.pan,
+                        muted: r.muted,
+                    }));
+            }
+
             // Show progress
             if (progressEl) progressEl.style.display = 'block';
             if (startBtn) {

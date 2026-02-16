@@ -65,6 +65,7 @@ static/js/
     ├── advanced-controls.js    # Advanced features
     ├── lyrics-popup.js         # Lyrics modal
     ├── soundtouch-engine.js    # SoundTouch integration
+    ├── recording-engine.js     # Multi-track recording & playback
     ├── stem-worklet.js         # AudioWorklet processor
     └── mobile-*.js             # Mobile-specific (9 files)
 ```

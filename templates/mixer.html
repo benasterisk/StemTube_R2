@@ -6,6 +6,7 @@
     <title>StemTubes Mixer</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="/static/css/mixer/mixer.css">
+    <link rel="stylesheet" href="/static/css/recording.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-style.css') }}?v={{ cache_buster }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jam.css') }}?v={{ cache_buster }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -70,6 +71,9 @@
                 <div class="transport-controls">
                     <button id="play-btn" class="transport-btn play">
                         <i class="fas fa-play"></i> Play
+                    </button>
+                    <button id="record-btn" class="transport-btn record" title="Record (arm a track first, or a new track will be created)">
+                        <i class="fas fa-circle"></i> Rec
                     </button>
                     <button id="stop-btn" class="transport-btn stop">
                         <i class="fas fa-stop"></i> Stop
@@ -164,7 +168,32 @@
         <div class="scrollable-content">
             <!-- MIXER TAB: All stem tracks -->
             <div class="tracks-container" id="tracks-container" data-tab-visible="mixer" data-tab-display="flex">
-                <!-- Les pistes seront générées dynamiquement ici -->
+                <!-- Stem tracks are generated dynamically here -->
+            </div>
+
+            <!-- Recording tracks section -->
+            <div class="recording-section" id="recording-section" data-tab-visible="mixer" data-tab-display="block">
+                <!-- Recording toolbar: add track + settings -->
+                <div class="recording-toolbar">
+                    <button class="rec-toolbar-btn" id="add-recording-track-btn" title="Add a new recording track">
+                        <i class="fas fa-plus"></i> Add Track
+                    </button>
+                    <div class="rec-toolbar-separator"></div>
+                    <div class="latency-control" title="Auto-calibrate recording latency">
+                        <button class="rec-toolbar-btn" id="calibrate-latency-btn" title="Plays a test click and measures round-trip delay">
+                            <i class="fas fa-crosshairs"></i> Calibrate
+                        </button>
+                        <span class="latency-value" id="latency-value"></span>
+                    </div>
+                    <label class="bleed-toggle" title="Remove speaker bleed from recordings">
+                        <input type="checkbox" id="bleed-removal-toggle" checked>
+                        <span class="bleed-label">De-bleed</span>
+                    </label>
+                </div>
+                <!-- Recording tracks container -->
+                <div class="recording-tracks-container" id="recording-tracks-container">
+                    <!-- Recording tracks are generated dynamically here -->
+                </div>
             </div>
 
             <!-- PRACTICE TABS -->
@@ -456,6 +485,7 @@
     <script src="/static/js/mixer/timeline.js"></script>
     <script src="/static/js/mixer/waveform.js"></script>
     <script src="/static/js/mixer/track-controls.js"></script>
+    <script src="/static/js/mixer/recording-engine.js"></script>
     <script src="/static/js/mixer/chord-display.js"></script>
     <script src="/static/js/mixer/structure-display.js"></script>
     <script src="/static/js/mixer/karaoke-display.js"></script>

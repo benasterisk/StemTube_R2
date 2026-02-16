@@ -58,9 +58,25 @@ class MixerPersistence {
                 }
             });
             
+            // Save recording track states (audio data is NOT stored — too large)
+            const recEngine = this.mixer.recordingEngine;
+            if (recEngine) {
+                state.recordingSettings = {
+                    bleedRemovalEnabled: recEngine.bleedRemovalEnabled,
+                };
+                state.recordingTracks = recEngine.recordings.map(r => ({
+                    id: r.id,
+                    name: r.name,
+                    volume: r.volume,
+                    pan: r.pan,
+                    muted: r.muted,
+                    solo: r.solo,
+                }));
+            }
+
             localStorage.setItem(this.storageKey, JSON.stringify(state));
             console.log('[MixerPersistence] State saved:', state);
-            
+
         } catch (error) {
             console.warn('[MixerPersistence] Could not save mixer state:', error);
         }
@@ -106,6 +122,41 @@ class MixerPersistence {
             // Restore pitch/tempo settings
             if (state.pitchTempo && this.mixer.pitchTempoControl) {
                 this.mixer.pitchTempoControl.restoreState(state.pitchTempo);
+            }
+
+            // Restore recording settings
+            const recEngine = this.mixer.recordingEngine;
+            if (recEngine && state.recordingSettings) {
+                recEngine.bleedRemovalEnabled = state.recordingSettings.bleedRemovalEnabled !== false;
+
+                // Restore UI elements
+                const latencyValue = document.getElementById('latency-value');
+                const bleedToggle = document.getElementById('bleed-removal-toggle');
+                if (latencyValue) {
+                    const lat = recEngine.getEffectiveLatency();
+                    latencyValue.textContent = lat > 0 ? `${(lat * 1000).toFixed(0)}ms` : '';
+                }
+                if (bleedToggle) bleedToggle.checked = recEngine.bleedRemovalEnabled;
+            }
+
+            // Restore recording track states (volume/pan/mute/solo for loaded recordings)
+            if (recEngine && state.recordingTracks) {
+                setTimeout(() => {
+                    for (const saved of state.recordingTracks) {
+                        const rec = recEngine.recordings.find(r => r.id === saved.id || r.name === saved.name);
+                        if (rec) {
+                            rec.volume = saved.volume ?? 1.0;
+                            rec.pan = saved.pan ?? 0;
+                            rec.muted = saved.muted ?? false;
+                            rec.solo = saved.solo ?? false;
+                            if (rec.gainNode) rec.gainNode.gain.value = rec.volume;
+                            if (rec.panNode) rec.panNode.pan.value = rec.pan;
+                        }
+                    }
+                    recEngine.updateSoloMuteStates(
+                        Object.values(this.mixer.stems).some(s => s.solo)
+                    );
+                }, 500); // Wait for recordings to be loaded from server
             }
 
             return true;

@@ -1,0 +1,366 @@
+/* ── Record Transport Button ──────────────────────────────────── */
+
+.transport-btn.record {
+    background-color: var(--bg-tertiary, #333);
+    color: #e74c3c;
+}
+
+.transport-btn.record:hover {
+    background-color: #e74c3c;
+    color: #fff;
+}
+
+.transport-btn.record.recording {
+    background: #e74c3c;
+    color: #fff;
+    animation: record-pulse 1.2s ease-in-out infinite;
+}
+
+.transport-btn.record .fa-circle {
+    font-size: 0.7em;
+}
+
+@keyframes record-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+/* ── Recording Section ───────────────────────────────────────── */
+
+.recording-section {
+    margin-top: 4px;
+}
+
+/* Toolbar: add track + global settings */
+.recording-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    background: var(--bg-secondary, #2a2a2a);
+    border: 1px solid var(--border-color, #444);
+    border-radius: var(--border-radius, 4px);
+    margin-bottom: 2px;
+}
+
+.rec-toolbar-btn {
+    background: var(--bg-tertiary, #333);
+    color: var(--text-primary, #e0e0e0);
+    border: 1px solid var(--border-color, #444);
+    border-radius: var(--border-radius, 4px);
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: background 0.2s;
+    white-space: nowrap;
+}
+
+.rec-toolbar-btn:hover {
+    background: var(--accent-color, #3498db);
+    color: #fff;
+}
+
+.rec-toolbar-separator {
+    width: 1px;
+    height: 20px;
+    background: var(--border-color, #444);
+}
+
+/* Latency control */
+.latency-control {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.latency-value {
+    font-family: monospace;
+    font-size: 10px;
+    color: var(--text-secondary, #888);
+    white-space: nowrap;
+}
+
+.latency-value:empty {
+    display: none;
+}
+
+/* Bleed toggle */
+.bleed-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 10px;
+    color: var(--text-secondary, #888);
+    white-space: nowrap;
+}
+
+.bleed-toggle input[type="checkbox"] {
+    width: 12px;
+    height: 12px;
+    cursor: pointer;
+}
+
+.bleed-label {
+    user-select: none;
+}
+
+/* ── Recording Tracks ────────────────────────────────────────── */
+
+.recording-tracks-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.recording-track {
+    border-left: 3px solid #e74c3c !important;
+}
+
+/* Same 180px width as stem tracks */
+.recording-track .track-header {
+    width: 180px;
+    min-width: 180px;
+}
+
+/* ── Title Row ──────────────────────────────────────────────── */
+
+.recording-title {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.recording-title .track-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.85rem;
+}
+
+/* ── Arm Button (R) — same style as S/M but red ─────────────── */
+
+.rec-arm-btn {
+    color: #e74c3c;
+    font-weight: 700;
+}
+
+.rec-arm-btn:hover {
+    background-color: rgba(231, 76, 60, 0.3) !important;
+}
+
+.rec-arm-btn.active {
+    background-color: #e74c3c !important;
+    color: #fff;
+}
+
+.track-name[contenteditable="true"] {
+    outline: 1px solid var(--accent-color, #3498db);
+    padding: 0 4px;
+    border-radius: 2px;
+    background: var(--bg-secondary, #2a2a2a);
+}
+
+/* ── Expand / Collapse Button ────────────────────────────────── */
+
+.rec-expand-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 16px;
+    background: none;
+    border: none;
+    border-top: 1px solid var(--border-color, #444);
+    color: var(--text-secondary, #888);
+    cursor: pointer;
+    font-size: 8px;
+    padding: 0;
+    margin-top: 2px;
+    transition: color 0.2s;
+}
+
+.rec-expand-btn:hover {
+    color: var(--text-primary, #e0e0e0);
+}
+
+.rec-expand-btn .fa-chevron-down {
+    transition: transform 0.2s;
+}
+
+.rec-expand-btn.open .fa-chevron-down {
+    transform: rotate(180deg);
+}
+
+/* ── Collapsible Recording Controls ──────────────────────────── */
+
+.rec-expanded-controls {
+    display: none;
+    flex-direction: column;
+    gap: 5px;
+    padding-top: 5px;
+    border-top: 1px solid var(--border-color, #444);
+    margin-top: 2px;
+}
+
+.rec-expanded-controls.open {
+    display: flex;
+}
+
+.rec-device-select {
+    background: var(--bg-primary, #1e1e1e);
+    color: var(--text-primary, #e0e0e0);
+    border: 1px solid var(--border-color, #444);
+    border-radius: 3px;
+    padding: 3px 4px;
+    font-size: 9px;
+    width: 100%;
+    cursor: pointer;
+}
+
+.rec-input-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+}
+
+.input-level-meter {
+    flex: 1;
+    height: 8px;
+    background: var(--bg-primary, #1e1e1e);
+    border: 1px solid var(--border-color, #444);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.input-level-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #2ecc71, #f1c40f, #e74c3c);
+    transition: width 50ms linear;
+    border-radius: 2px;
+}
+
+.monitor-control {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    color: var(--text-secondary, #888);
+    font-size: 9px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.monitor-control .fa-headphones {
+    font-size: 9px;
+}
+
+.monitor-slider {
+    width: 40px;
+    height: 4px;
+    cursor: pointer;
+}
+
+/* Action buttons inside expanded panel */
+.rec-action-buttons {
+    display: flex;
+    gap: 0.3rem;
+}
+
+.rec-action-buttons .track-btn {
+    flex: 1;
+    font-size: 9px;
+    padding: 3px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+}
+
+.rec-save-btn.saved {
+    color: #2ecc71 !important;
+    border-color: #2ecc71 !important;
+}
+
+.rec-delete-btn {
+    color: #e74c3c !important;
+}
+
+.rec-delete-btn:hover {
+    background: rgba(231, 76, 60, 0.2) !important;
+}
+
+/* ── Track Recording State ───────────────────────────────────── */
+
+.recording-track.is-recording {
+    border-left-color: #ff0000 !important;
+    animation: track-recording-glow 1.2s ease-in-out infinite;
+}
+
+@keyframes track-recording-glow {
+    0%, 100% { box-shadow: inset 0 0 0 0 rgba(255, 0, 0, 0); }
+    50% { box-shadow: inset 0 0 8px 0 rgba(255, 0, 0, 0.15); }
+}
+
+/* ── Empty Track (no audio yet) ──────────────────────────────── */
+
+.recording-track.empty-track .waveform-container {
+    opacity: 0.3;
+}
+
+.recording-track.empty-track:not(.is-recording) .waveform::after {
+    content: 'Arm this track and press Rec to record';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--text-secondary, #888);
+    font-size: 11px;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+/* When recording, show waveform at full opacity */
+.recording-track.is-recording .waveform-container {
+    opacity: 1;
+}
+
+.recording-track .waveform {
+    position: relative;
+}
+
+/* ── Processing Indicator ────────────────────────────────────── */
+
+.recording-processing {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.recording-processing .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}

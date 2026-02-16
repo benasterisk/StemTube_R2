@@ -366,6 +366,263 @@ class TrackControls {
         this.mixer.log(`Pan updated for ${name}: ${value}`);
     }
     
+    // ── Recording Track Creation ──────────────────────────────────
+
+    /**
+     * Create a recording track element
+     * @param {Object} recording - Recording object from RecordingEngine
+     */
+    createRecordingTrackElement(recording) {
+        const container = document.getElementById('recording-tracks-container');
+        if (!container) return;
+
+        const isEmptyTrack = !recording.audioBuffer;
+
+        const trackEl = document.createElement('div');
+        trackEl.className = `track recording-track${isEmptyTrack ? ' empty-track' : ''}`;
+        trackEl.id = `rec-track-${recording.id}`;
+
+        trackEl.innerHTML = `
+            <div class="track-header">
+                <div class="track-title recording-title">
+                    <span class="track-name" contenteditable="false" title="Double-click to rename">${recording.name}</span>
+                    <span class="track-status${isEmptyTrack ? '' : ' active'}"></span>
+                </div>
+                <div class="track-buttons">
+                    <button class="track-btn rec-arm-btn${recording.armed ? ' active' : ''}" title="Arm for recording">R</button>
+                    <button class="track-btn solo" title="Solo">S</button>
+                    <button class="track-btn mute" title="Mute">M</button>
+                </div>
+                <div class="track-control">
+                    <div class="track-control-label">
+                        <span>Volume</span>
+                        <span class="track-control-value volume-value">100%</span>
+                    </div>
+                    <input type="range" class="track-slider volume-slider" min="0" max="1" step="0.01" value="${recording.volume}">
+                </div>
+                <div class="track-control">
+                    <div class="track-control-label">
+                        <span>Pan</span>
+                        <span class="track-control-value pan-value">C</span>
+                    </div>
+                    <input type="range" class="track-slider pan-knob" min="-1" max="1" step="0.01" value="${recording.pan}">
+                </div>
+                <button class="rec-expand-btn" title="Show recording controls">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+                <div class="rec-expanded-controls">
+                    <select class="rec-device-select" title="Input device">
+                        <option value="">Select mic...</option>
+                    </select>
+                    <div class="rec-input-row">
+                        <div class="input-level-meter" title="Input level">
+                            <div class="input-level-fill"></div>
+                        </div>
+                        <div class="monitor-control" title="Monitor volume">
+                            <i class="fas fa-headphones"></i>
+                            <input type="range" class="monitor-slider" min="0" max="1" step="0.01" value="0">
+                        </div>
+                    </div>
+                    <div class="rec-action-buttons">
+                        <button class="track-btn rec-save-btn${recording.saved ? ' saved' : ''}" title="${recording.saved ? 'Saved' : 'Save to server'}">
+                            <i class="fas fa-save"></i> Save
+                        </button>
+                        <button class="track-btn rec-delete-btn" title="Delete recording">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="waveform-container">
+                <div class="waveform"></div>
+                <div class="track-playhead"></div>
+            </div>
+        `;
+
+        container.appendChild(trackEl);
+
+        const recEngine = this.mixer.recordingEngine;
+        if (!recEngine) return;
+
+        // ── Expand / collapse toggle ──
+        const expandBtn = trackEl.querySelector('.rec-expand-btn');
+        const expandedPanel = trackEl.querySelector('.rec-expanded-controls');
+        expandBtn.addEventListener('click', () => {
+            const isOpen = expandedPanel.classList.toggle('open');
+            expandBtn.classList.toggle('open', isOpen);
+        });
+
+        // ── Per-track input device selector ──
+        const deviceSelect = trackEl.querySelector('.rec-device-select');
+        const levelFill = trackEl.querySelector('.input-level-fill');
+        const monitorSlider = trackEl.querySelector('.monitor-slider');
+
+        // Populate device list
+        this._populateRecDeviceSelect(deviceSelect, recEngine);
+
+        // Level meter animation (runs while track has a device stream)
+        let levelAnimId = null;
+        const updateLevel = () => {
+            const level = recEngine.getTrackInputLevel(recording.id);
+            if (levelFill) levelFill.style.width = `${Math.round(level * 100)}%`;
+            levelAnimId = requestAnimationFrame(updateLevel);
+        };
+
+        deviceSelect.addEventListener('change', async (e) => {
+            try {
+                await recEngine.setTrackDevice(recording.id, e.target.value);
+                // Populate other tracks' selectors too (permission may reveal labels)
+                document.querySelectorAll('.rec-device-select').forEach(sel => {
+                    if (sel !== deviceSelect) this._populateRecDeviceSelect(sel, recEngine);
+                });
+                // Start level meter
+                if (levelAnimId) cancelAnimationFrame(levelAnimId);
+                if (e.target.value) updateLevel();
+            } catch (err) {
+                console.warn('[TrackControls] Device init failed:', err);
+            }
+        });
+
+        // Monitor volume
+        monitorSlider.addEventListener('input', (e) => {
+            recEngine.setTrackMonitorVolume(recording.id, parseFloat(e.target.value));
+        });
+
+        // ── Arm button ──
+        const armBtn = trackEl.querySelector('.rec-arm-btn');
+        armBtn.addEventListener('click', () => {
+            if (recording.armed) {
+                recEngine.disarmTrack(recording.id);
+            } else {
+                recEngine.armTrack(recording.id);
+            }
+            armBtn.classList.toggle('active', recording.armed);
+        });
+
+        // Solo
+        trackEl.querySelector('.solo').addEventListener('click', () => {
+            recEngine.toggleSolo(recording.id);
+            trackEl.querySelector('.solo').classList.toggle('active', recording.solo);
+        });
+
+        // Mute
+        trackEl.querySelector('.mute').addEventListener('click', () => {
+            recEngine.toggleMute(recording.id);
+            trackEl.querySelector('.mute').classList.toggle('active', recording.muted);
+        });
+
+        // Volume
+        trackEl.querySelector('.volume-slider').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            recEngine.setVolume(recording.id, val);
+            trackEl.querySelector('.volume-value').textContent = `${Math.round(val * 100)}%`;
+        });
+
+        // Pan
+        trackEl.querySelector('.pan-knob').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            recEngine.setPan(recording.id, val);
+            let panText = 'C';
+            if (val < -0.05) panText = `${Math.round(Math.abs(val) * 100)}%L`;
+            else if (val > 0.05) panText = `${Math.round(val * 100)}%R`;
+            trackEl.querySelector('.pan-value').textContent = panText;
+        });
+
+        // Save
+        trackEl.querySelector('.rec-save-btn').addEventListener('click', async () => {
+            if (!recording.audioBuffer) {
+                this.mixer.showToast('Nothing to save — record something first', 'warning');
+                return;
+            }
+            try {
+                const downloadId = this.mixer.extractionId;
+                if (!downloadId) {
+                    this.mixer.showToast('Cannot save — no extraction ID', 'error');
+                    return;
+                }
+                await recEngine.saveToServer(recording.id, downloadId);
+                // Re-render waveform in green to indicate saved state
+                if (this.mixer.waveform) {
+                    this.mixer.waveform.renderRecordingWaveform(
+                        recording, trackEl.querySelector('.waveform')
+                    );
+                }
+                this.mixer.showToast('Recording saved', 'success');
+            } catch (err) {
+                console.error('[TrackControls] Save recording failed:', err);
+                this.mixer.showToast('Save failed: ' + err.message, 'error');
+            }
+        });
+
+        // Delete (also cancel level meter)
+        trackEl.querySelector('.rec-delete-btn').addEventListener('click', async () => {
+            if (levelAnimId) cancelAnimationFrame(levelAnimId);
+            if (recording.serverId) {
+                try {
+                    await recEngine.deleteFromServer(recording.serverId);
+                } catch (err) {
+                    console.warn('[TrackControls] Server delete failed:', err);
+                }
+            }
+            recEngine.deleteRecording(recording.id);
+        });
+
+        // Inline rename (double-click)
+        const nameEl = trackEl.querySelector('.track-name');
+        nameEl.addEventListener('dblclick', () => {
+            nameEl.contentEditable = 'true';
+            nameEl.focus();
+            const range = document.createRange();
+            range.selectNodeContents(nameEl);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+        });
+        nameEl.addEventListener('blur', () => {
+            nameEl.contentEditable = 'false';
+            const newName = nameEl.textContent.trim();
+            if (newName && newName !== recording.name) {
+                recEngine.renameRecording(recording.id, newName);
+            }
+        });
+        nameEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                nameEl.blur();
+            }
+        });
+
+        // Render waveform if audio is available
+        if (this.mixer.waveform && recording.audioBuffer) {
+            this.mixer.waveform.renderRecordingWaveform(recording, trackEl.querySelector('.waveform'));
+        }
+
+        this.mixer.log(`Recording track created: ${recording.name}${isEmptyTrack ? ' (empty)' : ''}`);
+    }
+
+    /**
+     * Populate a per-track device selector
+     * @private
+     */
+    async _populateRecDeviceSelect(selectEl, recEngine) {
+        if (!selectEl) return;
+        try {
+            const devices = await recEngine.getInputDevices();
+            const currentVal = selectEl.value;
+            selectEl.innerHTML = '<option value="">Select mic...</option>';
+            for (const device of devices) {
+                const opt = document.createElement('option');
+                opt.value = device.deviceId;
+                opt.textContent = device.label || `Microphone ${selectEl.options.length}`;
+                selectEl.appendChild(opt);
+            }
+            // Restore previous selection if still available
+            if (currentVal) selectEl.value = currentVal;
+        } catch (err) {
+            // Permission not yet granted — will be populated after first device selection
+        }
+    }
+
     /**
      * Update track status indicator
      * @param {string} name - Stem name

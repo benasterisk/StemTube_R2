@@ -1,6 +1,6 @@
 # StemTube API Reference
 
-Complete documentation of all 69 API endpoints and WebSocket events.
+Complete documentation of all 74 API endpoints and WebSocket events.
 
 ---
 
@@ -18,6 +18,7 @@ Complete documentation of all 69 API endpoints and WebSocket events.
 - [API - Configuration](#api---configuration)
 - [API - Files & Storage](#api---files--storage)
 - [API - Library](#api---library)
+- [API - Recordings](#api---recordings)
 - [API - Logging](#api---logging)
 
 ---
@@ -1562,6 +1563,110 @@ Add extraction from global library to user library.
 ```
 
 **File**: app.py:3588
+
+---
+
+## API - Recordings
+
+### POST /api/recordings
+
+Upload a WAV recording with metadata.
+
+**Auth**: Required
+
+**Content-Type**: `multipart/form-data`
+
+**Form Data**:
+- `file` (required): WAV audio file
+- `download_id` (required): Extraction/download ID to associate with
+- `name` (optional): Recording name (default: "Recording")
+- `start_offset` (optional): Timeline position in seconds where recording starts (default: 0)
+
+**Response** (201):
+```json
+{
+  "success": true,
+  "id": "a1b2c3d4e5f67890",
+  "name": "Recording 1",
+  "start_offset": 12.5,
+  "filename": "a1b2c3d4e5f67890.wav"
+}
+```
+
+**File**: routes/recordings.py
+
+---
+
+### GET /api/recordings/:download_id
+
+List all recordings for the current user and download.
+
+**Auth**: Required
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "recordings": [
+    {
+      "id": "a1b2c3d4e5f67890",
+      "name": "Recording 1",
+      "start_offset": 12.5,
+      "url": "/api/recordings/a1b2c3d4e5f67890/file",
+      "created_at": "2026-02-17 10:30:00"
+    }
+  ]
+}
+```
+
+**File**: routes/recordings.py
+
+---
+
+### GET /api/recordings/:recording_id/file
+
+Serve a recording WAV file. Owner-only access with path traversal protection.
+
+**Auth**: Required (owner only)
+
+**Response**: WAV audio file (`audio/wav`)
+
+**File**: routes/recordings.py
+
+---
+
+### PUT /api/recordings/:recording_id
+
+Rename a recording.
+
+**Auth**: Required (owner only)
+
+**Request Body**:
+```json
+{ "name": "New Name" }
+```
+
+**Response** (200):
+```json
+{ "success": true }
+```
+
+**File**: routes/recordings.py
+
+---
+
+### DELETE /api/recordings/:recording_id
+
+Delete a recording and its WAV file from disk.
+
+**Auth**: Required (owner only)
+
+**Response** (200):
+```json
+{ "success": true }
+```
+
+**File**: routes/recordings.py
 
 ---
 

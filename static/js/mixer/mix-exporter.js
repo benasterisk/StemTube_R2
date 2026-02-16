@@ -25,7 +25,7 @@ class MixExporter {
      * @returns {Promise<Blob>} MP3 blob
      */
     async exportMix(mixerState) {
-        const { stems, tempo = 1.0, pitch = 0, title = 'mix' } = mixerState;
+        const { stems, recordings = [], tempo = 1.0, pitch = 0, title = 'mix' } = mixerState;
 
         this.onProgress(0, 'Preparing export...');
 
@@ -34,15 +34,21 @@ class MixExporter {
             .filter(([name, stem]) => !stem.muted && stem.buffer)
             .map(([name, stem]) => ({ name, ...stem }));
 
-        if (activeStems.length === 0) {
-            throw new Error('No active stems to export');
+        if (activeStems.length === 0 && recordings.length === 0) {
+            throw new Error('No active stems or recordings to export');
         }
 
         // Check if we need pitch/tempo processing
         const needsProcessing = tempo !== 1.0 || pitch !== 0;
 
-        // Calculate output duration (adjusted for tempo)
-        const originalDuration = Math.max(...activeStems.map(s => s.buffer.duration));
+        // Calculate output duration (adjusted for tempo), including recordings
+        const stemDuration = activeStems.length > 0
+            ? Math.max(...activeStems.map(s => s.buffer.duration))
+            : 0;
+        const recDuration = recordings.length > 0
+            ? Math.max(...recordings.map(r => (r.startOffset || 0) + r.audioBuffer.duration))
+            : 0;
+        const originalDuration = Math.max(stemDuration, recDuration);
         const outputDuration = originalDuration / tempo;
         const outputSamples = Math.ceil(outputDuration * this.sampleRate);
 
@@ -78,8 +84,8 @@ class MixExporter {
 
         this.onProgress(50, 'Mixing stems...');
 
-        // Mix all stems to stereo
-        const mixedBuffer = this.mixStems(processedStems, outputSamples);
+        // Mix all stems (and recordings) to stereo
+        const mixedBuffer = this.mixStems(processedStems, outputSamples, recordings);
 
         this.onProgress(70, 'Encoding MP3...');
 
@@ -142,32 +148,63 @@ class MixExporter {
 
     /**
      * Mix multiple stems into a stereo buffer
+     * @param {Array} stems — stem objects with buffer, volume, pan
+     * @param {number} outputSamples — total output length in samples
+     * @param {Array} [recordings] — recording objects with audioBuffer, startOffset, volume, pan, muted
      */
-    mixStems(stems, outputSamples) {
+    mixStems(stems, outputSamples, recordings) {
         const left = new Float32Array(outputSamples);
         const right = new Float32Array(outputSamples);
 
+        // Mix stems
         for (const stem of stems) {
             const buffer = stem.buffer;
             const volume = stem.volume;
-            const pan = stem.pan; // -1 (left) to 1 (right)
+            const pan = stem.pan;
 
-            // Calculate pan gains (constant power panning)
-            const panAngle = (pan + 1) * Math.PI / 4; // 0 to PI/2
+            const panAngle = (pan + 1) * Math.PI / 4;
             const leftGain = Math.cos(panAngle) * volume;
             const rightGain = Math.sin(panAngle) * volume;
 
-            // Get channel data
             const srcLeft = buffer.getChannelData(0);
             const srcRight = buffer.numberOfChannels > 1
                 ? buffer.getChannelData(1)
                 : buffer.getChannelData(0);
 
-            // Mix into output
             const samplesToMix = Math.min(buffer.length, outputSamples);
             for (let i = 0; i < samplesToMix; i++) {
                 left[i] += srcLeft[i] * leftGain;
                 right[i] += srcRight[i] * rightGain;
+            }
+        }
+
+        // Mix recordings (with startOffset)
+        if (recordings && recordings.length > 0) {
+            for (const rec of recordings) {
+                if (rec.muted || !rec.audioBuffer) continue;
+
+                const buffer = rec.audioBuffer;
+                const volume = rec.volume;
+                const pan = rec.pan;
+                const offsetSamples = Math.round((rec.startOffset || 0) * this.sampleRate);
+
+                const panAngle = (pan + 1) * Math.PI / 4;
+                const leftGain = Math.cos(panAngle) * volume;
+                const rightGain = Math.sin(panAngle) * volume;
+
+                const srcLeft = buffer.getChannelData(0);
+                const srcRight = buffer.numberOfChannels > 1
+                    ? buffer.getChannelData(1)
+                    : buffer.getChannelData(0);
+
+                const samplesToMix = Math.min(buffer.length, outputSamples - offsetSamples);
+                for (let j = 0; j < samplesToMix; j++) {
+                    const outIdx = offsetSamples + j;
+                    if (outIdx >= 0 && outIdx < outputSamples) {
+                        left[outIdx] += srcLeft[j] * leftGain;
+                        right[outIdx] += srcRight[j] * rightGain;
+                    }
+                }
             }
         }
 

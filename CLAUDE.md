@@ -25,7 +25,7 @@ python utils/analysis/reanalyze_all_structure.py       # Re-run structure analys
 
 ## Architecture Overview
 
-Flask app with Flask-SocketIO for real-time WebSocket communication. Frontend is vanilla JavaScript with Web Audio API. SQLite database (`stemtubes.db`) with 3 tables. PWA-enabled with separate desktop (`/`) and mobile (`/mobile`) interfaces.
+Flask app with Flask-SocketIO for real-time WebSocket communication. Frontend is vanilla JavaScript with Web Audio API. SQLite database (`stemtubes.db`) with 4 tables. PWA-enabled with separate desktop (`/`) and mobile (`/mobile`) interfaces.
 
 ### Core Design: Download-Centric with Global Deduplication
 
@@ -48,11 +48,12 @@ User Request → Check global_downloads → Use existing OR Process → Add user
 
 ## Database Schema
 
-Three tables in `stemtubes.db`:
+Four tables in `stemtubes.db`:
 
 - **`users`** — Authentication (Flask-Login + werkzeug bcrypt). Fields: `id`, `username`, `password_hash`, `is_admin`, `disclaimer_accepted`.
 - **`global_downloads`** — Master file records. Key fields: `video_id` (unique key), `extracted`, `extraction_model`, `stems_paths` (JSON), `chords_data` (JSON), `structure_data` (JSON), `lyrics_data` (JSON), `detected_bpm`, `detected_key`, `beat_offset`.
 - **`user_downloads`** — Per-user access (denormalized copy of global fields for query speed). FK to `global_downloads.id`.
+- **`recordings`** — User recording takes. Fields: `id` (UUID hex), `user_id`, `download_id`, `name`, `start_offset` (timeline position in seconds), `filename` (WAV path). FK to `global_downloads.id`.
 
 Analysis data queries use `COALESCE(global.field, user.field)` — prefer global data. JSON fields (`stems_paths`, `chords_data`, `structure_data`, `lyrics_data`) are stored as TEXT and parsed in application code. Database migrations are auto-applied on startup via `_add_extraction_fields_if_missing()` in `core/downloads_db.py`.
 
@@ -90,6 +91,7 @@ Analysis data queries use `COALESCE(global.field, user.field)` — prefer global
 | `config_bp` | `routes/config_routes.py` | App config, FFmpeg, browser logging config |
 | `logging_bp` | `routes/logging_routes.py` | Browser log collection, log viewing |
 | `jam_bp` | `routes/jam.py` | Jam HTTP routes + SocketIO events |
+| `recordings_bp` | `routes/recordings.py` | Recording CRUD (upload, list, rename, delete) |
 | `mobile_bp` | `mobile_routes.py` | Mobile API config/toggle |
 
 ### Database Layer (`core/db/`)
@@ -99,6 +101,7 @@ Analysis data queries use `COALESCE(global.field, user.field)` — prefer global
 - `schema.py` (`init_table()`, migration)
 - `downloads.py` (CRUD for global_downloads/user_downloads)
 - `extractions.py` (extraction reservation, progress, completion)
+- `recordings.py` (recording CRUD — `recordings` table)
 - `admin.py` (admin queries, storage stats)
 - `cleanup.py` (stuck extraction cleanup, orphan removal)
 - `user_views.py` (user session/access management)
@@ -124,7 +127,7 @@ Analysis data queries use `COALESCE(global.field, user.field)` — prefer global
 - `mobile-style.css` → 7 files in `css/mobile/`
 - `mixer/mixer.css` → 7 files in `css/mixer/`
 
-**Mixer modules** (`static/js/mixer/`): Each module follows the pattern `class ModuleName { constructor(mixer) { ... } sync(currentTime) { ... } }`. Key modules: `core.js` (coordinator), `audio-engine.js` (desktop Web Audio), `mobile-audio-engine.js` (iOS-optimized), `chord-display.js`, `karaoke-display.js`, `simple-pitch-tempo.js` (SoundTouch), `structure-display.js`, `waveform.js`, `timeline.js`, `track-controls.js`, `soundtouch-engine.js` (WASM).
+**Mixer modules** (`static/js/mixer/`): Each module follows the pattern `class ModuleName { constructor(mixer) { ... } sync(currentTime) { ... } }`. Key modules: `core.js` (coordinator), `audio-engine.js` (desktop Web Audio), `mobile-audio-engine.js` (iOS-optimized), `chord-display.js`, `karaoke-display.js`, `simple-pitch-tempo.js` (SoundTouch), `structure-display.js`, `waveform.js`, `timeline.js`, `track-controls.js`, `recording-engine.js` (multi-track recording), `soundtouch-engine.js` (WASM).
 
 **Jam session:** `jam-bridge.js` (host transport wrapper), `jam-client.js` (shared WebSocket client), `jam-metronome.js` (beat scheduling), `jam-tab.js` (desktop UI).
 

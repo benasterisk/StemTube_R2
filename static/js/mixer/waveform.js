@@ -152,31 +152,113 @@ class WaveformRenderer {
     }
     
     /**
+     * Render a recording waveform with startOffset spacer.
+     * @param {Object} recording - Recording object with audioBuffer and startOffset
+     * @param {HTMLElement} waveformContainer - Container element for the waveform
+     */
+    renderRecordingWaveform(recording, waveformContainer) {
+        if (!recording.audioBuffer || !waveformContainer) return;
+
+        let canvas = waveformContainer.querySelector('canvas');
+        if (!canvas) {
+            canvas = document.createElement('canvas');
+            waveformContainer.appendChild(canvas);
+        }
+
+        canvas.width = waveformContainer.offsetWidth * window.devicePixelRatio;
+        canvas.height = waveformContainer.offsetHeight * window.devicePixelRatio;
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+        const centerY = height / 2;
+
+        ctx.clearRect(0, 0, width, height);
+        this.drawGrid(ctx, width, height);
+
+        // Compute waveform data from AudioBuffer
+        const buffer = recording.audioBuffer;
+        const rawData = buffer.getChannelData(0);
+        const totalDuration = this.mixer.maxDuration || buffer.duration;
+        const offsetRatio = recording.startOffset / totalDuration;
+        const durationRatio = buffer.duration / totalDuration;
+
+        // Apply horizontal zoom
+        const hz = this.mixer.zoomLevels.horizontal;
+        const vz = this.mixer.zoomLevels.vertical;
+
+        const startX = offsetRatio * width * hz;
+        const waveWidth = durationRatio * width * hz;
+        const samples = Math.max(1, Math.floor(waveWidth));
+
+        // Color: green if saved to server, red otherwise
+        const color = recording.saved ? '#2ecc71' : '#e74c3c';
+        const colorRgba = recording.saved ? 'rgba(46, 204, 113, 0.05)' : 'rgba(231, 76, 60, 0.05)';
+
+        // Draw offset spacer (dimmed area)
+        if (startX > 0) {
+            ctx.fillStyle = colorRgba;
+            ctx.fillRect(0, 0, Math.min(startX, width), height);
+        }
+
+        // Draw waveform
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1 * window.devicePixelRatio;
+
+        const samplesPerPixel = rawData.length / samples;
+        for (let px = 0; px < samples; px++) {
+            const x = startX + px;
+            if (x > width) break;
+            if (x < 0) continue;
+
+            const sampleIdx = Math.floor(px * samplesPerPixel);
+            const endIdx = Math.min(sampleIdx + Math.ceil(samplesPerPixel), rawData.length);
+
+            let max = 0;
+            for (let j = sampleIdx; j < endIdx; j++) {
+                const abs = Math.abs(rawData[j]);
+                if (abs > max) max = abs;
+            }
+
+            const amplitude = max * vz * height * 0.8;
+            ctx.moveTo(x, centerY - amplitude / 2);
+            ctx.lineTo(x, centerY + amplitude / 2);
+        }
+        ctx.stroke();
+    }
+
+    /**
      * Update playhead position on all waveforms
      * @param {number} position - Position in seconds
      */
     updateWaveformPlayheads(position) {
+        const maxDur = this.mixer.maxDuration;
+        const hz = this.mixer.zoomLevels.horizontal;
+
+        // Helper: position a playhead element
+        const setPlayhead = (playhead) => {
+            const positionPercent = maxDur > 0 ? (position / maxDur) * 100 : 0;
+            const adjustedPercent = positionPercent * hz;
+            const clampedPercent = Math.max(0, Math.min(adjustedPercent, 100 * hz));
+            playhead.style.left = `${clampedPercent}%`;
+        };
+
+        // Stem track playheads
         Object.keys(this.mixer.stems).forEach(stemName => {
             const playhead = document.querySelector(`.track[data-stem="${stemName}"] .track-playhead`);
-            if (!playhead) return;
-
-            const waveformContainer = document.querySelector(`.track[data-stem="${stemName}"] .waveform`);
-            if (!waveformContainer) return;
-
-            // Calculate relative position
-            const positionPercent = (this.mixer.maxDuration > 0)
-                ? (position / this.mixer.maxDuration) * 100
-                : 0;
-
-            // Apply horizontal zoom
-            const adjustedPercent = positionPercent * this.mixer.zoomLevels.horizontal;
-
-            // Clamp position between 0% and 100%
-            const clampedPercent = Math.max(0, Math.min(adjustedPercent, 100 * this.mixer.zoomLevels.horizontal));
-
-            // Update playhead position
-            playhead.style.left = `${clampedPercent}%`;
+            if (playhead) setPlayhead(playhead);
         });
+
+        // Recording track playheads
+        if (this.mixer.recordingEngine) {
+            for (const rec of this.mixer.recordingEngine.recordings) {
+                const playhead = document.querySelector(`#rec-track-${rec.id} .track-playhead`);
+                if (playhead) setPlayhead(playhead);
+            }
+        }
 
         // Also update master playhead if in a practice tab
         if (this.mixer.tabManager && this.mixer.tabManager.isPracticeTab()) {

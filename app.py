@@ -82,6 +82,7 @@ from core.auth_db import init_db, get_user_by_id
 from core.auth_models import User
 from core.downloads_db import (
     init_table as init_downloads_table,
+    init_recordings_table,
     comprehensive_cleanup,
 )
 
@@ -126,6 +127,9 @@ logger.info("Authentication database initialized")
 
 init_downloads_table()
 logger.info("Downloads database initialized")
+
+init_recordings_table()
+logger.info("Recordings database initialized")
 
 comprehensive_cleanup()
 logger.info("Database cleanup completed")

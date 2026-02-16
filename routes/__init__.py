@@ -16,6 +16,7 @@ from .files import files_bp
 from .config_routes import config_bp
 from .logging_routes import logging_bp
 from .jam import jam_bp, register_jam_socketio_events
+from .recordings import recordings_bp
 
 ALL_BLUEPRINTS = [
     auth_bp,
@@ -30,6 +31,7 @@ ALL_BLUEPRINTS = [
     config_bp,
     logging_bp,
     jam_bp,
+    recordings_bp,
 ]
 
 

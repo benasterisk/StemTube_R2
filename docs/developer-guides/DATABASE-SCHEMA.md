@@ -12,6 +12,7 @@ Complete documentation of the SQLite database structure.
   - [users](#users)
   - [global_downloads](#global_downloads)
   - [user_downloads](#user_downloads)
+  - [recordings](#recordings)
 - [Relationships](#relationships)
 - [Indexes](#indexes)
 - [Data Types](#data-types)
@@ -25,7 +26,7 @@ Complete documentation of the SQLite database structure.
 
 **Database File**: `stemtubes.db` (in project root)
 
-**Total Tables**: 3
+**Total Tables**: 4
 
 **Architecture**:
 - **Global deduplication**: Files stored once in `global_downloads`
@@ -349,6 +350,48 @@ for dl in downloads:
 ```
 
 **File**: core/downloads_db.py
+
+---
+
+### recordings
+
+User recordings stored alongside extracted stems.
+
+**Purpose**: Store user-recorded audio takes with timeline position metadata
+
+**Schema**:
+```sql
+CREATE TABLE IF NOT EXISTS recordings (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    download_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    start_offset REAL NOT NULL DEFAULT 0.0,
+    filename TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (download_id) REFERENCES global_downloads(id)
+)
+```
+
+**Columns**:
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | TEXT | NO | - | Primary key, UUID hex (16 chars) |
+| `user_id` | TEXT | NO | - | Owner user ID |
+| `download_id` | TEXT | NO | - | Associated download/extraction ID |
+| `name` | TEXT | NO | - | Display name (e.g., "Recording 1") |
+| `start_offset` | REAL | NO | 0.0 | Timeline position where recording starts (seconds) |
+| `filename` | TEXT | NO | - | Absolute path to WAV file on disk |
+| `created_at` | TIMESTAMP | NO | CURRENT_TIMESTAMP | Creation date |
+
+**Constraints**:
+- `PRIMARY KEY (id)`
+- `FOREIGN KEY (download_id) REFERENCES global_downloads(id)`
+
+**Storage**: Files saved as `<download_dir>/recordings/<id>.wav`
+
+**File**: core/db/recordings.py
 
 ---
 
@@ -755,6 +798,9 @@ if record['chords_data']:
 **v2.0** (December 2025):
 - No schema changes (documentation and code updates only)
 
+**v2.1** (February 2026):
+- Added: `recordings` table for multi-track recording feature
+
 ### Future Considerations
 
 **Potential Additions**:
@@ -780,6 +826,6 @@ if record['chords_data']:
 
 ---
 
-**Database Version**: 2.0
-**Last Updated**: December 2025
-**Schema Complexity**: 3 tables, 50+ columns
+**Database Version**: 2.1
+**Last Updated**: February 2026
+**Schema Complexity**: 4 tables, 55+ columns

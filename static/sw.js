@@ -1,5 +1,5 @@
 // StemTube Service Worker v2.15 - Single dot metronome, look-ahead scheduling
-const CACHE_NAME = 'stemtube-v2.24';
+const CACHE_NAME = 'stemtube-v2.36';
 const STEMS_CACHE_NAME = 'stemtube-stems-v1';
 
 // Stem file names to cache (no ZIP, no source)

@@ -213,6 +213,46 @@ The **interactive mixer** provides full control over extracted stems.
 - Click "Reset" button on track to restore defaults
 - Volume: 100%, Pan: 0, Solo: off, Mute: off
 
+### Recording (Multi-Track)
+
+Record yourself playing along with stems. Recordings are positioned on the timeline and included in mix exports.
+
+**Adding a Track**:
+- Click "Add Track" in the recording toolbar below the stem tracks
+- Each track has its own input device selector (for multiple mics/instruments)
+
+**Recording**:
+1. Click the **R** button on a track to arm it (turns red when armed)
+2. Click the global **Record** button (red circle in transport bar)
+3. Playback starts automatically — record along with the stems
+4. Click **Stop** or **Record** again to stop
+5. Waveform appears on the track after processing
+
+**Punch In/Out** (DAW-style):
+- During an active recording session, arm additional tracks to punch in
+- Disarm a track to punch out (stops recording on that track only)
+- The global session continues for other armed tracks
+
+**Per-Track Controls**:
+- **R** (Arm) — Enable track for recording
+- **S** (Solo) / **M** (Mute) — Same behavior as stem tracks
+- **Volume** / **Pan** — Independent per track
+- **Expand** (chevron) — Shows device selector, input level meter, monitor volume, Save/Delete buttons
+
+**Saving**:
+- Expand the track and click **Save** to persist the recording to the server
+- Saved recordings turn green and are restored when you reload the mixer
+
+**Latency Calibration**:
+- Click **Calibrate** in the recording toolbar to run an automatic loopback test
+- Plays a test click through speakers, records it via mic, measures round-trip delay
+- Result is saved per device — only needs to be done once
+
+**Speaker Bleed Removal** (De-bleed):
+- Enabled by default (checkbox in recording toolbar)
+- Automatically removes stem audio that bleeds into the mic when recording without headphones
+- Disable when using headphones for faster processing
+
 ### Playback Controls
 
 **Play/Pause**:

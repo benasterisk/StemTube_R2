@@ -9,6 +9,7 @@ Submodules:
     admin       – Admin-facing queries and bulk operations
     cleanup     – Startup integrity checks
     user_views  – Per-user view management (remove from list)
+    recordings  – User recording CRUD (multi-track recording feature)
 """
 
 from core.db.connection import (
@@ -41,4 +42,9 @@ from core.db.cleanup import (
 from core.db.user_views import (
     clear_user_session_data, force_remove_all_user_access,
     remove_user_download_access, remove_user_extraction_access,
+)
+from core.db.recordings import (
+    init_recordings_table,
+    create_recording, list_recordings, get_recording,
+    rename_recording, delete_recording,
 )

@@ -103,6 +103,13 @@ class StemMixer {
         // Simple pitch/tempo controls managed by SimplePitchTempoController
         this.pitchTempoControls = null;
 
+        // Recording engine (desktop only)
+        if (!this.isMobile && typeof RecordingEngine !== 'undefined') {
+            this.recordingEngine = new RecordingEngine(this);
+        } else {
+            this.recordingEngine = null;
+        }
+
         // Log module initialization
         console.log('[StemMixer] Modules initialized');
     }
@@ -169,6 +176,11 @@ class StemMixer {
 
             this.isInitialized = true;
             this.log('Mixer initialized successfully!');
+
+            // Initialize recording controls (desktop only)
+            if (this.recordingEngine) {
+                this.setupRecordingControls();
+            }
 
             // Initialize visual metronome
             this.initMetronome();
@@ -274,6 +286,133 @@ class StemMixer {
         });
 
         this.log('Event listeners configured');
+    }
+
+    /**
+     * Setup recording controls (record button, add track, latency, bleed toggle).
+     * Device selector, level meter and monitor are per-track (in track-controls.js).
+     */
+    setupRecordingControls() {
+        const recEngine = this.recordingEngine;
+        if (!recEngine) return;
+
+        const recordBtn = document.getElementById('record-btn');
+        const addTrackBtn = document.getElementById('add-recording-track-btn');
+        const calibrateBtn = document.getElementById('calibrate-latency-btn');
+        const latencyValue = document.getElementById('latency-value');
+        const bleedToggle = document.getElementById('bleed-removal-toggle');
+
+        // "Add Track" button — creates an empty recording track
+        if (addTrackBtn) {
+            addTrackBtn.addEventListener('click', () => {
+                const track = recEngine.addEmptyTrack();
+                if (track) {
+                    this.trackControls.createRecordingTrackElement(track);
+                }
+            });
+        }
+
+        // Record button (DAW-style)
+        // Only starts/stops recording on armed tracks — never creates tracks
+        if (recordBtn) {
+            recordBtn.addEventListener('click', async () => {
+                if (recEngine.isRecording) {
+                    // Stop recording
+                    const processing = this._showProcessingIndicator('Processing recording...');
+                    try {
+                        await recEngine.stopRecording();
+                    } finally {
+                        processing.remove();
+                    }
+                    recordBtn.classList.remove('recording');
+                } else {
+                    // Check for armed tracks
+                    const armedTracks = recEngine.getArmedTracks();
+                    if (armedTracks.length === 0) {
+                        this.showToast('Arm a track first (click R on a recording track)', 'warning');
+                        return;
+                    }
+
+                    // Mark armed tracks as "is-recording"
+                    for (const t of armedTracks) {
+                        const trackEl = document.getElementById(`rec-track-${t.id}`);
+                        if (trackEl) trackEl.classList.add('is-recording');
+                    }
+
+                    // Start recording on all armed tracks
+                    const currentPos = this.currentTime || 0;
+                    const started = await recEngine.startRecording(currentPos);
+                    if (!started) {
+                        this.showToast('Could not start recording — check microphone permissions', 'error');
+                        return;
+                    }
+                    recordBtn.classList.add('recording');
+
+                    // Auto-play if not already playing
+                    if (!this.isPlaying) {
+                        this.togglePlayback();
+                    }
+                }
+            });
+        }
+
+        // Show existing calibration value
+        if (latencyValue) {
+            const existing = recEngine.getEffectiveLatency();
+            if (existing > 0) {
+                latencyValue.textContent = `${(existing * 1000).toFixed(0)}ms`;
+            }
+        }
+
+        // Calibrate latency button (automatic loopback test)
+        if (calibrateBtn) {
+            calibrateBtn.addEventListener('click', async () => {
+                if (recEngine.isCalibrating) return;
+                calibrateBtn.disabled = true;
+                calibrateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+                try {
+                    const latency = await recEngine.calibrateLatency();
+                    const ms = (latency * 1000).toFixed(0);
+                    if (latencyValue) latencyValue.textContent = `${ms}ms`;
+                    this.showToast(`Latency calibrated: ${ms}ms`, 'success');
+                } catch (err) {
+                    console.error('[StemMixer] Calibration failed:', err);
+                    this.showToast('Calibration failed — check mic permissions', 'error');
+                } finally {
+                    calibrateBtn.disabled = false;
+                    calibrateBtn.innerHTML = '<i class="fas fa-crosshairs"></i> Calibrate';
+                }
+            });
+        }
+
+        // Bleed removal toggle (global setting)
+        if (bleedToggle) {
+            bleedToggle.addEventListener('change', (e) => {
+                recEngine.bleedRemovalEnabled = e.target.checked;
+            });
+        }
+
+        // Load saved recordings from server
+        const extractionId = this.extractionId;
+        if (extractionId) {
+            recEngine.loadFromServer(extractionId).catch(err => {
+                console.warn('[StemMixer] Could not load recordings:', err);
+            });
+        }
+
+        this.log('Recording controls configured');
+    }
+
+    /**
+     * Show a temporary processing indicator
+     * @private
+     */
+    _showProcessingIndicator(message) {
+        const el = document.createElement('div');
+        el.className = 'recording-processing';
+        el.innerHTML = `<div class="spinner"></div><span>${message}</span>`;
+        document.body.appendChild(el);
+        return el;
     }
 
     /**
@@ -609,8 +748,21 @@ class StemMixer {
     /**
      * Stop playback
      */
-    stop() {
+    async stop() {
         this.log('Stopping playback');
+
+        // Stop active recording first (must complete before audio engine stops)
+        if (this.recordingEngine && this.recordingEngine.isRecording) {
+            const processing = this._showProcessingIndicator('Processing recording...');
+            try {
+                await this.recordingEngine.stopRecording();
+            } finally {
+                processing.remove();
+            }
+            const recordBtn = document.getElementById('record-btn');
+            if (recordBtn) recordBtn.classList.remove('recording');
+        }
+
         this.audioEngine.stop();
         this.updatePlayPauseButton();
         if (this.metronome) this.metronome.stop();
