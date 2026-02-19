@@ -43,7 +43,7 @@ class JamMetronome {
         this.hapticMode = localStorage.getItem('jam_haptic_mode') || 'off';
 
         // Click settings (simplified: on or off)
-        this.clickMode = localStorage.getItem('jam_click_mode') || 'all';
+        this.clickMode = localStorage.getItem('jam_click_mode') || 'off';
         // Normalize legacy modes to 'all' or 'off'
         if (this.clickMode !== 'off') this.clickMode = 'all';
         this.clickVolume = parseFloat(localStorage.getItem('jam_click_volume') || '0.5');

@@ -14,6 +14,8 @@ python reset_admin_password.py             # Reset admin credentials
 ./stop_service.sh                          # Stop services
 ```
 
+`setup_dependencies.py` automatically creates `.env` from `.env.example` with a generated `FLASK_SECRET_KEY` and sets `chmod 600`. No manual `.env` setup needed.
+
 Testing utilities (no automated test suite; manual testing scripts):
 ```bash
 python utils/database/debug_db.py                     # Inspect DB state
@@ -37,14 +39,17 @@ User Request → Check global_downloads → Use existing OR Process → Add user
 
 ### Processing Pipeline (4 phases)
 
-1. **Download** — yt-dlp downloads from YouTube, converts to MP3. File upload also supported.
+1. **Download** — yt-dlp downloads from YouTube, converts to MP3. File upload also supported (MP3, WAV, FLAC, M4A, AAC, OGG, WMA, MP4, AVI, MKV, MOV, WEBM).
 2. **Audio Analysis** (auto after download) — BPM/key detection (librosa/scipy), chord detection (BTC → madmom → hybrid fallback), structure analysis (MSAF), lyrics lookup (Musixmatch API only).
 3. **Stem Extraction** (user-triggered) — Demucs separation: `htdemucs` (4 stems), `htdemucs_6s` (6 stems), `mdx_extra` (4 stems). Auto GPU detection with CPU fallback.
 4. **Post-Extraction** (auto) — Lyrics re-detection using vocals stem (Musixmatch → faster-whisper fallback). Replaces download-phase lyrics with better source.
 
-### GPU Startup (`app.py` lines 1-55)
+### Startup Sequence (`app.py`)
 
-`configure_gpu_and_restart()` runs before any imports. Sets `LD_LIBRARY_PATH` for cuDNN, then uses `os.execv()` to restart Python — necessary because the dynamic linker needs the path before loading libraries. Guard flag `_STEMTUBE_GPU_CONFIGURED` prevents infinite restart loops.
+1. `configure_gpu_and_restart()` — sets `LD_LIBRARY_PATH` for cuDNN, uses `os.execv()` to restart Python. Guard flag `_STEMTUBE_GPU_CONFIGURED` prevents infinite loops. Falls back to CPU silently.
+2. `check_ytdlp_update()` — auto-updates yt-dlp on every startup (`pip install -U --pre yt-dlp[default]`).
+3. Bootstrap: `validate_and_fix_config_paths()` → `ensure_ffmpeg_available()` → `init_db()` → `init_downloads_table()` → `init_recordings_table()` → `comprehensive_cleanup()`.
+4. Flask/SocketIO setup, blueprint registration via `register_all_blueprints(app)`.
 
 ## Database Schema
 
@@ -57,11 +62,22 @@ Four tables in `stemtubes.db`:
 
 Analysis data queries use `COALESCE(global.field, user.field)` — prefer global data. JSON fields (`stems_paths`, `chords_data`, `structure_data`, `lyrics_data`) are stored as TEXT and parsed in application code. Database migrations are auto-applied on startup via `_add_extraction_fields_if_missing()` in `core/downloads_db.py`.
 
-## Key Backend Modules (`core/`)
+## Key Backend Modules
+
+### `extensions.py` (project root)
+
+Central anti-circular-dependency hub — all blueprints import from here. Contains:
+- Singleton instances: `socketio`, `login_manager`
+- `UserSessionManager` class — manages per-user WebSocket rooms, download/extraction queues, progress emission
+- `DownloadManager` and `StemsExtractor` instances
+- Decorators: `admin_required`, `login_or_guest_required`
+- Database function re-exports (prefixed `db_`)
+
+### `core/` modules
 
 | Module | Purpose |
 |--------|---------|
-| `downloads_db.py` | All database operations, deduplication logic, `_conn()` context manager |
+| `downloads_db.py` | Backwards-compatible re-export shim → actual code in `core/db/` |
 | `download_manager.py` | Queue-based download processing, BPM/key detection, analysis orchestration |
 | `stems_extractor.py` | Demucs integration, GPU auto-detection, silent stem detection |
 | `chord_detector.py` | BTC chord detector (170 chord vocabulary, GPU-optimized) |
@@ -75,14 +91,27 @@ Analysis data queries use `COALESCE(global.field, user.field)` — prefer global
 | `config.py` | Configuration management, `get_setting()` / `update_setting()` |
 | `auth_db.py` | User authentication, `create_user()`, `authenticate_user()` |
 
-`app.py` (~220 lines) handles bootstrap, Flask/SocketIO setup, and blueprint registration. `extensions.py` contains shared singletons (`socketio`, `login_manager`, `UserSessionManager`, decorators). Routes are organized in `routes/` as Flask Blueprints:
+### Database Layer (`core/db/`)
+
+- `connection.py` (DB_PATH, `_conn()`, path resolution)
+- `schema.py` (`init_table()`, migration)
+- `downloads.py` (CRUD for global_downloads/user_downloads)
+- `extractions.py` (extraction reservation, progress, completion)
+- `recordings.py` (recording CRUD — `recordings` table)
+- `admin.py` (admin queries, storage stats)
+- `cleanup.py` (stuck extraction cleanup, orphan removal)
+- `user_views.py` (user session/access management)
+
+### Routes (`routes/` as Flask Blueprints)
+
+`app.py` registers all blueprints via `routes/__init__.py:register_all_blueprints()`.
 
 | Blueprint | File | Scope |
 |-----------|------|-------|
 | `auth_bp` | `routes/auth.py` | Login, logout |
 | `pages_bp` | `routes/pages.py` | Index, mobile, mixer, service worker |
 | `admin_bp` | `routes/admin.py` | Admin pages, user management forms |
-| `admin_api_bp` | `routes/admin_api.py` | Admin REST API (24 routes) |
+| `admin_api_bp` | `routes/admin_api.py` | Admin REST API |
 | `downloads_bp` | `routes/downloads.py` | Search, download CRUD |
 | `extractions_bp` | `routes/extractions.py` | Stem extraction CRUD |
 | `media_bp` | `routes/media.py` | Lyrics, chords, beats, musixmatch |
@@ -92,19 +121,7 @@ Analysis data queries use `COALESCE(global.field, user.field)` — prefer global
 | `logging_bp` | `routes/logging_routes.py` | Browser log collection, log viewing |
 | `jam_bp` | `routes/jam.py` | Jam HTTP routes + SocketIO events |
 | `recordings_bp` | `routes/recordings.py` | Recording CRUD (upload, list, rename, delete) |
-| `mobile_bp` | `mobile_routes.py` | Mobile API config/toggle |
-
-### Database Layer (`core/db/`)
-
-`downloads_db.py` is a backwards-compatible re-export. Actual code lives in `core/db/`:
-- `connection.py` (DB_PATH, `_conn()`, path resolution)
-- `schema.py` (`init_table()`, migration)
-- `downloads.py` (CRUD for global_downloads/user_downloads)
-- `extractions.py` (extraction reservation, progress, completion)
-- `recordings.py` (recording CRUD — `recordings` table)
-- `admin.py` (admin queries, storage stats)
-- `cleanup.py` (stuck extraction cleanup, orphan removal)
-- `user_views.py` (user session/access management)
+| `mobile_bp` | `mobile_routes.py` (project root) | Mobile API config/toggle |
 
 ## Key Frontend Modules (`static/js/`)
 
@@ -115,7 +132,7 @@ Analysis data queries use `COALESCE(global.field, user.field)` — prefer global
 - `app-admin.js` — admin cleanup, user management, library tab
 - `app-extensions.js` — tab management, extraction status, mixer loading
 
-**Mobile app** (split from monolithic `mobile-app.js`):
+**Mobile app** (`mobile-app.js` is still monolithic at ~327KB):
 - `mobile-constants.js` — music theory constants, chord quality maps
 - `mobile-guitar-diagram.js` — GuitarDiagramSettings, GuitarDiagramHelper
 - `mobile-neumorphic-dial.js` — NeumorphicDial touch control
@@ -167,7 +184,7 @@ Flask session flags (`jam_guest`, `jam_code`, `jam_guest_name`) auto-cleared on 
 
 ## Code Style
 
-- **Python**: PEP 8, 4-space indent, type hints on public functions, docstrings on classes/public methods.
+- **Python**: PEP 8, 4-space indent, 100-char soft / 120-char hard line limit, type hints on public functions, docstrings on classes/public methods. Import order: stdlib → third-party → local.
 - **JavaScript**: ES6+, `const`/`let` (never `var`), `async/await`, class-based modules.
 - **All comments and UI text in English only** (no French).
 - **Commits**: Conventional format — `feat:`, `fix:`, `docs:`, `style:`, `refactor:`.

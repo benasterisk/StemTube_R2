@@ -198,8 +198,50 @@ def check_existing_pytorch():
     except ImportError:
         return {'installed': False}
 
+def is_package_installed(venv_python, package_name, version=None):
+    """Check if a package is already installed in the venv."""
+    try:
+        cmd = [venv_python, "-m", "pip", "show", package_name]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        if result.returncode != 0:
+            return False
+        if version:
+            for line in result.stdout.splitlines():
+                if line.startswith("Version:"):
+                    installed_ver = line.split(":", 1)[1].strip()
+                    return installed_ver == version
+        return True
+    except Exception:
+        return False
+
+
 def install_pytorch(platform_name, has_gpu, force_cpu=False, cuda_config=None):
     """Install appropriate PyTorch version based on platform and GPU availability."""
+    venv_python = get_venv_python()
+
+    # Check if PyTorch is already installed with the right configuration
+    try:
+        check_code = "import torch; print(torch.__version__); print(torch.cuda.is_available())"
+        result = subprocess.run(
+            [venv_python, "-c", check_code],
+            capture_output=True, text=True, timeout=30
+        )
+        if result.returncode == 0:
+            lines = result.stdout.strip().split('\n')
+            version = lines[0] if lines else "unknown"
+            cuda_available = lines[1].strip() == "True" if len(lines) > 1 else False
+            want_gpu = has_gpu and not force_cpu
+
+            if want_gpu and cuda_available:
+                logger.info(f"[SKIP] PyTorch {version} already installed with CUDA support.")
+                return True
+            elif not want_gpu and not cuda_available:
+                logger.info(f"[SKIP] PyTorch {version} already installed (CPU mode).")
+                return True
+            else:
+                logger.info(f"[REINSTALL] PyTorch {version} installed but GPU config mismatch — reinstalling...")
+    except Exception:
+        pass
 
     if force_cpu or not has_gpu:
         logger.info("Installing CPU-only PyTorch...")
@@ -241,8 +283,8 @@ def install_pytorch(platform_name, has_gpu, force_cpu=False, cuda_config=None):
         return False
 
 def install_requirements(venv_python):
-    """Install essential dependencies (excluding problematic packages from requirements.txt)."""
-    logger.info("\n[INSTALLING] Essential dependencies...")
+    """Install essential dependencies, skipping packages already present."""
+    logger.info("\n[CHECKING] Essential dependencies...")
 
     # List of essential packages to install
     # These are carefully selected to avoid dependency conflicts with PyTorch CUDA versions
@@ -269,12 +311,25 @@ def install_requirements(venv_python):
         "pychord",              # Chord notation
     ]
 
-    logger.info(f"Installing {len(essential_packages)} essential packages...")
+    # Determine which packages still need installing
+    to_install = []
+    for pkg in essential_packages:
+        # pip show uses the distribution name (hyphen/underscore normalized)
+        if is_package_installed(venv_python, pkg):
+            logger.info(f"✓ Already installed: {pkg}")
+        else:
+            to_install.append(pkg)
+
+    if not to_install:
+        logger.info(f"\n[SUCCESS] All {len(essential_packages)} essential packages already installed.")
+        return True
+
+    logger.info(f"\nInstalling {len(to_install)} missing packages...")
 
     success_count = 0
     failed_packages = []
 
-    for pkg in essential_packages:
+    for pkg in to_install:
         try:
             subprocess.run(
                 [venv_python, "-m", "pip", "install", pkg],
@@ -292,55 +347,62 @@ def install_requirements(venv_python):
             failed_packages.append(pkg)
             logger.info(f"⚠️  Warning: Installation of {pkg} timed out")
 
-    logger.info(f"\n[SUCCESS] Installed {success_count}/{len(essential_packages)} essential packages")
+    already_count = len(essential_packages) - len(to_install)
+    logger.info(f"\n[SUCCESS] {already_count} already installed, {success_count} newly installed, {len(failed_packages)} failed")
 
     if failed_packages:
         logger.info(f"[WARNING] Failed to install: {', '.join(failed_packages)}")
         logger.info("[INFO] Core functionality may still work despite these failures")
-        return success_count >= len(essential_packages) * 0.8  # Allow 80% success rate
+        return (already_count + success_count) >= len(essential_packages) * 0.8
 
     return True
 
 def create_virtual_environment():
-    """Create a new virtual environment."""
-    logger.info("Creating virtual environment...")
+    """Create a virtual environment, reusing the existing one if it works."""
+    venv_python = get_venv_python()
 
-    # Remove existing venv if it exists
-    if os.path.exists("venv"):
-        logger.info("Removing existing virtual environment...")
+    # Check if existing venv has a working Python
+    if os.path.exists(venv_python):
         try:
-            # Try multiple methods to remove the directory on Windows
+            result = subprocess.run(
+                [venv_python, "-c", "import sys; print(sys.version)"],
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0:
+                logger.info(f"[VENV] Existing virtual environment is functional — reusing it.")
+                logger.info(f"   Python: {result.stdout.strip()}")
+                return True
+        except Exception:
+            pass
+        logger.info("[VENV] Existing virtual environment is broken — recreating...")
+
+    logger.info("[VENV] Creating virtual environment...")
+
+    # Remove broken venv if it exists
+    if os.path.exists("venv"):
+        try:
             if get_platform() == "windows":
                 try:
-                    # Method 1: Regular removal
                     shutil.rmtree("venv")
                 except Exception:
                     try:
-                        # Method 2: Use Windows commands
                         subprocess.run(["rd", "/s", "/q", "venv"], shell=True, check=False)
                     except Exception:
-                        # Method 3: Rename and try again
                         try:
                             os.rename("venv", "venv_old")
                             shutil.rmtree("venv_old")
                         except Exception as e:
                             logger.info(f"[WARNING] Could not fully remove venv: {e}")
-                            logger.info("[INFO] Will try to create new venv anyway...")
             else:
                 shutil.rmtree("venv")
         except Exception as e:
             logger.info(f"[WARNING] Could not remove existing venv: {e}")
-            logger.info("[INFO] Will try to create new venv anyway...")
 
     try:
-        # Use the system Python, not any existing venv Python
         python_exe = sys.executable
-        # Make sure we're not using a venv python
         if "venv" in python_exe or "Scripts" in python_exe:
-            # Try to find system python
             python_exe = "python"
 
-        # Try creating with different name if venv still exists
         venv_name = "venv"
         if os.path.exists("venv"):
             venv_name = "venv_new"
@@ -348,7 +410,6 @@ def create_virtual_environment():
 
         subprocess.run([python_exe, "-m", "venv", venv_name], check=True)
 
-        # If we used alternate name, try to rename it
         if venv_name == "venv_new":
             try:
                 if os.path.exists("venv"):
@@ -356,7 +417,6 @@ def create_virtual_environment():
                 os.rename("venv_new", "venv")
             except Exception:
                 logger.info("[WARNING] Using alternate venv directory name")
-                # Update the global venv name for the rest of the script
                 global venv_dir_name
                 venv_dir_name = "venv_new"
 
@@ -407,16 +467,16 @@ def install_faster_whisper_gpu(venv_python, has_gpu, cuda_config=None):
         logger.info("[INFO] No GPU detected - faster-whisper will use CPU mode")
         return True
 
-    logger.info("[INSTALLING] faster-whisper GPU dependencies (cuDNN)...")
+    target_config = cuda_config or DEFAULT_CUDA_CONFIG
+    cudnn_package = target_config.get("cudnn_package", "nvidia-cudnn-cu11")
+
+    if is_package_installed(venv_python, cudnn_package):
+        logger.info(f"[SKIP] {cudnn_package} already installed for faster-whisper GPU support.")
+        return True
+
+    logger.info(f"[INSTALLING] {cudnn_package} ({target_config.get('label', 'CUDA fallback')})...")
 
     try:
-        # Use selected CUDA profile when available
-        target_config = cuda_config or DEFAULT_CUDA_CONFIG
-        cudnn_package = target_config.get("cudnn_package", "nvidia-cudnn-cu11")
-        logger.info(f"[INFO] Installing {cudnn_package} ({target_config.get('label', 'CUDA fallback')})")
-
-        # Install the appropriate cuDNN package
-        # This is required for faster-whisper to use GPU via ctranslate2
         cmd = [venv_python, "-m", "pip", "install", cudnn_package]
         result = subprocess.run(cmd, capture_output=True, text=True)
 
@@ -426,12 +486,12 @@ def install_faster_whisper_gpu(venv_python, has_gpu, cuda_config=None):
         else:
             logger.info(f"[WARNING] Could not install {cudnn_package}: {result.stderr}")
             logger.info("[INFO] faster-whisper will work in CPU mode")
-            return True  # Not a critical failure
+            return True
 
     except subprocess.CalledProcessError as e:
         logger.info(f"[WARNING] Failed to install cuDNN: {e}")
         logger.info("[INFO] faster-whisper will work in CPU mode")
-        return True  # Not a critical failure
+        return True
 
 def activate_venv_and_install():
     """Activate virtual environment and install dependencies."""
@@ -459,14 +519,18 @@ def activate_venv_and_install():
 
 def install_build_dependencies(venv_python):
     """Install build dependencies required by madmom and other packages with C extensions."""
-    logger.info("\n[INSTALLING] Build dependencies (Cython, numpy)...")
+    logger.info("\n[CHECKING] Build dependencies (Cython, numpy)...")
 
     build_deps = [
-        "Cython",           # Required for madmom to compile C extensions
-        "numpy==1.26.4",    # CRITICAL: madmom 0.16.1 incompatible with numpy 2.x
+        ("Cython", None),             # Required for madmom to compile C extensions
+        ("numpy", "1.26.4"),           # CRITICAL: madmom 0.16.1 incompatible with numpy 2.x
     ]
 
-    for dep in build_deps:
+    for pkg_name, pkg_version in build_deps:
+        if is_package_installed(venv_python, pkg_name, pkg_version):
+            logger.info(f"✓ Already installed: {pkg_name}" + (f"=={pkg_version}" if pkg_version else ""))
+            continue
+        dep = f"{pkg_name}=={pkg_version}" if pkg_version else pkg_name
         try:
             logger.info(f"Installing {dep}...")
             subprocess.run(
@@ -481,41 +545,44 @@ def install_build_dependencies(venv_python):
             return False
 
     # Install madmom explicitly here while Cython is available in the environment
-    # This prevents pip from creating an isolated build environment that lacks Cython
-    logger.info("\nInstalling madmom (requires Cython)...")
-    try:
-        subprocess.run(
-            [venv_python, "-m", "pip", "install", "--no-build-isolation", "madmom==0.16.1"],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=600  # madmom compilation can be slow
-        )
-        logger.info("✓ Installed: madmom==0.16.1")
-    except subprocess.TimeoutExpired:
-        logger.info("[WARNING] madmom installation timed out - it may still be installing")
-    except subprocess.CalledProcessError as e:
-        logger.info(f"[ERROR] Failed to install madmom: {e}")
-        logger.info("[WARNING] Madmom may not be available - chord detection will not work")
-        # Don't return False here - other dependencies can still be installed
+    if is_package_installed(venv_python, "madmom", "0.16.1"):
+        logger.info("✓ Already installed: madmom==0.16.1")
+    else:
+        logger.info("\nInstalling madmom (requires Cython)...")
+        try:
+            subprocess.run(
+                [venv_python, "-m", "pip", "install", "--no-build-isolation", "madmom==0.16.1"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=600  # madmom compilation can be slow
+            )
+            logger.info("✓ Installed: madmom==0.16.1")
+        except subprocess.TimeoutExpired:
+            logger.info("[WARNING] madmom installation timed out - it may still be installing")
+        except subprocess.CalledProcessError as e:
+            logger.info(f"[ERROR] Failed to install madmom: {e}")
+            logger.info("[WARNING] Madmom may not be available - chord detection will not work")
 
     # Install demucs here after PyTorch (removed from requirements.txt to avoid conflicts)
-    logger.info("\nInstalling demucs (stem extraction)...")
-    try:
-        subprocess.run(
-            [venv_python, "-m", "pip", "install", "demucs==4.0.1"],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=300
-        )
-        logger.info("✓ Installed: demucs==4.0.1")
-    except subprocess.CalledProcessError as e:
-        logger.info(f"[WARNING] Failed to install demucs: {e}")
-        logger.info("[WARNING] Stem extraction may not work")
-        # Don't return False - other dependencies can still be installed
+    if is_package_installed(venv_python, "demucs", "4.0.1"):
+        logger.info("✓ Already installed: demucs==4.0.1")
+    else:
+        logger.info("\nInstalling demucs (stem extraction)...")
+        try:
+            subprocess.run(
+                [venv_python, "-m", "pip", "install", "demucs==4.0.1"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            logger.info("✓ Installed: demucs==4.0.1")
+        except subprocess.CalledProcessError as e:
+            logger.info(f"[WARNING] Failed to install demucs: {e}")
+            logger.info("[WARNING] Stem extraction may not work")
 
-    logger.info("[SUCCESS] Build dependencies installed")
+    logger.info("[SUCCESS] Build dependencies ready")
     return True
 
 
@@ -582,6 +649,32 @@ def preload_whisper_large(venv_python, use_gpu):
     target_model = "large-v3"
     device = "cuda" if use_gpu else "cpu"
     compute_type = "float16" if use_gpu else "int8"
+
+    # Check if model is already cached (huggingface hub cache)
+    check_code = f"""
+import os, sys
+from huggingface_hub import scan_cache_dir
+try:
+    cache = scan_cache_dir()
+    for repo in cache.repos:
+        if 'large-v3' in repo.repo_id:
+            print('CACHED')
+            sys.exit(0)
+except Exception:
+    pass
+print('NOT_CACHED')
+"""
+    try:
+        result = subprocess.run(
+            [venv_python, "-c", check_code],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode == 0 and "CACHED" in result.stdout.split('\n')[0]:
+            logger.info(f"[SKIP] Whisper {target_model} model already cached.")
+            return True
+    except Exception:
+        pass
+
     logger.info(f"[LYRICS] Preloading faster-whisper {target_model} ({device}, {compute_type})...")
     preload_code = f"""
 from faster_whisper import WhisperModel
@@ -605,8 +698,8 @@ print('Whisper {target_model} cached on {device} ({compute_type})')
     return False
 
 def main():
-    """Main setup function."""
-    logger.info("StemTube Unified Setup Script")
+    """Main setup function. Safe to re-run — skips steps already completed."""
+    logger.info("StemTube Unified Setup Script (idempotent — safe to re-run)")
     logger.info("=" * 50)
 
     # Platform detection
@@ -801,7 +894,59 @@ except Exception as e:
     if install_gpu_pytorch:
         create_sitecustomize_for_gpu(venv_python)
 
+    # Create .env file with FLASK_SECRET_KEY if it doesn't exist
+    setup_env_file()
+
     return True
+
+def setup_env_file():
+    """
+    Create .env file with a generated FLASK_SECRET_KEY if it doesn't already exist.
+    Copies from .env.example as a base, then appends a secure random key.
+    Sets file permissions to 600 (owner read/write only) on Unix systems.
+    """
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    env_path = os.path.join(script_dir, '.env')
+    env_example_path = os.path.join(script_dir, '.env.example')
+
+    if os.path.exists(env_path):
+        logger.info("\n[ENV] .env file already exists — skipping creation.")
+        return
+
+    logger.info("\n[ENV] Creating .env file with secure FLASK_SECRET_KEY...")
+
+    try:
+        import secrets
+        secret_key = secrets.token_hex(32)
+
+        if os.path.exists(env_example_path):
+            # Copy .env.example and replace the placeholder key
+            with open(env_example_path, 'r') as f:
+                content = f.read()
+            content = content.replace(
+                'FLASK_SECRET_KEY=CHANGE_ME_GENERATE_WITH_python_-c_"import secrets; print(secrets.token_hex(32))"',
+                f'FLASK_SECRET_KEY={secret_key}'
+            )
+            with open(env_path, 'w') as f:
+                f.write(content)
+        else:
+            # No .env.example — create minimal .env
+            with open(env_path, 'w') as f:
+                f.write(f'FLASK_SECRET_KEY={secret_key}\n')
+
+        # Set restrictive permissions on Unix systems
+        if platform.system() != 'Windows':
+            os.chmod(env_path, 0o600)
+            logger.info("[SUCCESS] .env created with chmod 600 (owner read/write only).")
+        else:
+            logger.info("[SUCCESS] .env created.")
+
+        logger.info(f"   FLASK_SECRET_KEY generated ({len(secret_key)} hex chars).")
+
+    except Exception as e:
+        logger.info(f"[WARNING] Could not create .env: {e}")
+        logger.info("   You must create .env manually — see .env.example")
+
 
 def create_sitecustomize_for_gpu(venv_python):
     """
