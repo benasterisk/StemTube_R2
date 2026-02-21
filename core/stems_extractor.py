@@ -622,7 +622,8 @@ class StemsExtractor:
                                     last_progress_time = current_time
                                     last_progress_value = progress_value
 
-                                item.progress = min(progress_value, 99.0)  # Cap at 99% until completion
+                                # Scale demucs 0-100% to overall 0-75% range
+                                item.progress = min(progress_value * 0.75, 75.0)
 
                                 # Notify progress
                                 self._on_extraction_progress(item.extraction_id, item.progress)
@@ -638,7 +639,7 @@ class StemsExtractor:
 
                 # Update progress to completion if successful
                 if return_code == 0 and item.status != ExtractionStatus.CANCELLED:
-                    item.progress = 95.0  # Set to 95% before file operations
+                    item.progress = 75.0  # Demucs complete, file operations next
                     self._on_extraction_progress(item.extraction_id, item.progress)
                 
                 # Clean up process reference
@@ -664,9 +665,8 @@ class StemsExtractor:
                     error_output = "\n".join(output_lines[-20:]) if output_lines else "No output captured"
                     raise Exception(f"Demucs exited with code {return_code}. Output:\n{error_output}")
                 
-                # Indicate that we are now in finalization phase
-                item.progress = 90.0
-                self._on_extraction_progress(item.extraction_id, item.progress, "Finalization in progress...")
+                # Finalization phase — progress continues from 75%
+                self._on_extraction_progress(item.extraction_id, item.progress, "Copying stems...")
                 
                 # Copy extracted stems from temp directory to final destination
                 model_dir = os.path.join(temp_dir, item.model_name)
@@ -696,8 +696,8 @@ class StemsExtractor:
                 total_stems = len(stems_to_process)
 
                 for i, stem in enumerate(stems_to_process):
-                    # Update progress during file copying (from 90% to 99%)
-                    progress = 90.0 + (i / total_stems) * 9.0
+                    # Update progress during file copying (from 75% to 85%)
+                    progress = 75.0 + (i / total_stems) * 10.0
                     item.progress = progress
                     self._on_extraction_progress(item.extraction_id, progress, f"Copying {stem}...")
                     
@@ -748,9 +748,9 @@ class StemsExtractor:
                                 # Keep the file on disk for debugging but don't include in mixer
                                 print(f"✗ Stem '{stem}' excluded from mixer (mostly silent/empty)")
                 
-                # Maintain progress at 99% during finalization
-                item.progress = 99.0
-                self._on_extraction_progress(item.extraction_id, 99.0, "Finalizing...")
+                # Stems copied — beat detection + lyrics happen in extensions.py (85-98%)
+                item.progress = 85.0
+                self._on_extraction_progress(item.extraction_id, 85.0, "Finalizing...")
 
                 # Log stem analysis results
                 if get_setting("enable_silent_stem_detection", True):
@@ -761,10 +761,8 @@ class StemsExtractor:
                 # Save stem file paths
                 item.output_paths = stem_files
                 
-                # Create ZIP archive of all stems
-                zip_path = self._create_zip_archive(item, os.path.splitext(os.path.basename(item.audio_path))[0])
-                if zip_path:
-                    item.zip_path = zip_path
+                # ZIP archive created on-demand via /api/extractions/<id>/create-zip
+                item.zip_path = None
                 
                 # Update status
                 item.status = ExtractionStatus.COMPLETED

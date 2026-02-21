@@ -188,9 +188,19 @@ def admin_reload_download(video_id):
             user_session_manager.schedule_reload_user_access(video_id, affected_users)
 
         ai_client = get_aiotube_client()
-        video_info = ai_client.get_video_info(video_id)
+        if not ai_client:
+            return jsonify({'error': 'YouTube client not available'}), 503
+
+        # Fetch video info with fallback to cached data
+        try:
+            video_info = ai_client.get_video_info(video_id)
+        except Exception as fetch_err:
+            logger.warning(f"[ADMIN RELOAD] Video info fetch failed: {fetch_err}")
+            video_info = {'items': []}
+
         if video_info.get('error'):
-            return jsonify({'error': video_info['error']}), 400
+            logger.warning(f"[ADMIN RELOAD] Video info error: {video_info['error']}")
+            video_info = {'items': []}
 
         items = video_info.get('items') or []
         snippet = items[0].get('snippet', {}) if items else {}
@@ -209,6 +219,9 @@ def admin_reload_download(video_id):
         download_type = DownloadType.VIDEO if str(prev_media_type).lower() == 'video' else DownloadType.AUDIO
 
         dm = user_session_manager.get_download_manager()
+        if not dm:
+            return jsonify({'error': 'Download manager not available'}), 503
+
         item = DownloadItem(
             video_id=video_id,
             title=title,

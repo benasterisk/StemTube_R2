@@ -80,7 +80,12 @@ def main():
         # Analyze with madmom
         try:
             print(f"  🔍 Analyzing with madmom (BPM: {bpm or 'auto-detect'})...")
-            chords_data, beat_offset, beat_times = analyze_audio_file(file_path, bpm=bpm, use_madmom=True)
+            result = analyze_audio_file(file_path, bpm=bpm, use_madmom=True)
+            if len(result) == 4:
+                chords_data, beat_offset, beat_times, beat_positions = result
+            else:
+                chords_data, beat_offset, beat_times = result
+                beat_positions = []
 
             if chords_data:
                 # Parse to count chords
@@ -95,7 +100,8 @@ def main():
                     analysis_confidence=None,  # Keep existing confidence
                     chords_data=chords_data,
                     beat_offset=beat_offset,
-                    beat_times=beat_times
+                    beat_times=beat_times,
+                    beat_positions=beat_positions
                 )
 
                 print(f"  ✅ Success: {chord_count} chords, beat offset: {beat_offset:.3f}s")

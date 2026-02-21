@@ -466,93 +466,39 @@ class ChordDetector:
         }
 
 
-def analyze_audio_file(audio_file_path, bpm=None, detected_key=None, use_btc=True, use_hybrid=False, use_madmom=True):
+def analyze_audio_file(audio_file_path, bpm=None, **_kwargs):
     """
-    Main function to analyze an audio file for chords.
-
-    Detection priority:
-    1. BTC Transformer (default) - Professional transformer model with 170 chord vocabulary
-    2. Madmom CRF - Professional deep learning model, works on ALL music genres
-    3. Hybrid (madmom beats + templates + key-aware) - Good for clean folk/acoustic
-    4. Basic STFT (fallback)
+    Analyze an audio file: BTC for chords only.
+    Beat detection is handled post-extraction in extensions.py via madmom.
 
     Args:
         audio_file_path: Path to the audio file
-        bpm: Optional BPM for beat grid alignment (if not provided, will estimate)
-        detected_key: Optional musical key (e.g., "D", "G") - improves hybrid but not BTC/madmom
-        use_btc: Whether to use BTC transformer (default: True - RECOMMENDED for best accuracy)
-        use_hybrid: Whether to try hybrid detector (default: False)
-        use_madmom: Whether to use pure madmom CRF (default: True)
+        bpm: Optional BPM hint (unused here, kept for API compat)
 
     Returns:
-        tuple: (chords_json, beat_offset, beat_times) or (None, 0.0, []) if failed
-        chords_json: JSON string of chord timeline
-        beat_offset: float, time offset to first downbeat in seconds
-        beat_times: list of beat timestamps in seconds
+        tuple: (chords_json, beat_offset, beat_times, beat_positions)
     """
-    # Try BTC transformer first (professional, 170 chord vocabulary, best for complex music)
-    if use_btc:
-        try:
-            from core.btc_chord_detector import analyze_audio_file as btc_analyze, is_available
+    chords_json = None
 
-            if is_available():
-                print("[CHORD DETECTION] Using BTC Transformer (170 chord vocabulary, professional accuracy)...")
-                chords_json, beat_offset, beat_times = btc_analyze(audio_file_path, bpm)
+    # Chord detection — BTC Transformer only
+    try:
+        from core.btc_chord_detector import analyze_audio_file as btc_analyze, is_available
 
-                if chords_json:
-                    print("[CHORD DETECTION] ✓ BTC Transformer detection successful")
-                    return chords_json, beat_offset, beat_times
-                else:
-                    print("[CHORD DETECTION] BTC returned no results, trying madmom...")
-            else:
-                print("[CHORD DETECTION] BTC not available, trying madmom...")
-        except Exception as e:
-            print(f"[CHORD DETECTION] BTC error: {e}, trying madmom...")
-
-    # Try pure madmom CRF (professional, works on all genres)
-    if use_madmom:
-        try:
-            from core.madmom_chord_detector import analyze_audio_file as madmom_analyze, is_available
-
-            if is_available():
-                print("[CHORD DETECTION] Using professional madmom CRF engine (works on all genres)...")
-                chords_json, beat_offset, beat_times = madmom_analyze(audio_file_path, bpm)
-
-                if chords_json:
-                    print("[CHORD DETECTION] ✓ Madmom CRF detection successful")
-                    return chords_json, beat_offset, beat_times
-                else:
-                    print("[CHORD DETECTION] Madmom returned no results, trying hybrid...")
-            else:
-                print("[CHORD DETECTION] Madmom not available, trying hybrid...")
-        except Exception as e:
-            print(f"[CHORD DETECTION] Madmom error: {e}, trying hybrid...")
-
-    # Try hybrid detector (good for acoustic/folk with clean audio)
-    if use_hybrid:
-        try:
-            from core.hybrid_chord_detector import analyze_audio_file as hybrid_analyze
-
-            print("[CHORD DETECTION] Using hybrid engine (madmom beats + key-aware templates)...")
-            chords_json, beat_offset, beat_times = hybrid_analyze(audio_file_path, bpm, detected_key)
-
+        if is_available():
+            print("[CHORDS] Using BTC Transformer (170 chord vocabulary)...")
+            result = btc_analyze(audio_file_path, bpm)
+            chords_json = result[0]
             if chords_json:
-                print("[CHORD DETECTION] ✓ Hybrid detection successful")
-                return chords_json, beat_offset, beat_times
+                print("[CHORDS] ✓ BTC detection successful")
             else:
-                print("[CHORD DETECTION] Hybrid returned no results, falling back...")
-        except Exception as e:
-            print(f"[CHORD DETECTION] Hybrid error: {e}, falling back...")
+                print("[CHORDS] BTC returned no chords")
+        else:
+            print("[CHORDS] BTC not available")
+    except Exception as e:
+        print(f"[CHORDS] BTC error: {e}")
 
-    # Fallback to basic detector (no beat tracking)
-    print("[CHORD DETECTION] Using basic STFT-based detector...")
-    detector = ChordDetector()
-    chord_timeline = detector.detect_chords(audio_file_path, bpm=bpm)
-
-    chords_json = detector.format_for_database(chord_timeline)
-    beat_offset = getattr(detector, 'last_beat_offset', 0.0)
-
-    return chords_json, beat_offset, []
+    # Beat detection deferred to extraction phase (madmom in extensions.py)
+    return chords_json, 0.0, [], []
 
 
 if __name__ == "__main__":

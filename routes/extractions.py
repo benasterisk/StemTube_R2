@@ -168,6 +168,7 @@ def get_extraction_status(extraction_id):
                 'chords_data': download_data.get('chords_data'),
                 'beat_offset': download_data.get('beat_offset', 0.0),
                 'beat_times': download_data.get('beat_times'),
+                'beat_positions': download_data.get('beat_positions'),
                 'structure_data': download_data.get('structure_data'),
                 'lyrics_data': download_data.get('lyrics_data')
             }

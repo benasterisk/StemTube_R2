@@ -422,11 +422,21 @@ class SimplePitchTempoController {
 
         console.log(`[SimplePitchTempo] Applying effects - tempo=${safeTempoRatio.toFixed(3)} (${isAcceleration ? 'hybrid accel' : 'stretch'}), playbackRate=${playbackRate.toFixed(3)}, SoundTouch tempo=${soundTouchTempo.toFixed(3)}, SoundTouch pitch=${soundTouchPitch.toFixed(3)}`);
 
+        // Re-anchor audio engine position under the OLD ratio before switching
+        if (window.mixer?.audioEngine && window.mixer.isPlaying) {
+            window.mixer.audioEngine._reanchor();
+        }
+
         // Cache the parameters for when stems are created
         this.cachedTempoRatio = soundTouchTempo;
         this.cachedPitchRatio = soundTouchPitch;
         this.cachedPlaybackRate = playbackRate;
         this.cachedSyncRatio = syncRatio;
+
+        // Adopt new ratio for future position computation
+        if (window.mixer?.audioEngine && window.mixer.isPlaying) {
+            window.mixer.audioEngine._anchorRatio = syncRatio;
+        }
 
         // Accéder aux stems du mixer principal si disponible
         if (window.mixer && window.mixer.stems) {

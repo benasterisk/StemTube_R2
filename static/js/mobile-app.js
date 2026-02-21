@@ -2892,9 +2892,28 @@ class MobileApp {
             bpm: bpm,
             beatOffset: beatOffset,
             beatsPerBar: 4,
-            getCurrentTime: () => this.currentTime || 0,
-            audioContext: this.audioContext
+            getCurrentTime: (atAudioTime) => {
+                // If an audioContext time is provided, compute precise position
+                // at that exact instant (eliminates ~16ms rAF lag)
+                if (atAudioTime !== undefined && this.lastAudioTime !== null && this.isPlaying) {
+                    const delta = atAudioTime - this.lastAudioTime;
+                    const ratio = this.cachedSyncRatio || (this.currentBPM / this.originalBPM) || 1.0;
+                    return this.playbackPosition + delta * ratio;
+                }
+                return this.currentTime || 0;
+            },
+            audioContext: this.audioContext,
+            getPlaybackRate: () => {
+                return this.cachedSyncRatio || (this.currentBPM / this.originalBPM) || 1.0;
+            }
         });
+
+        // Load beat positions for downbeat accent (must be set BEFORE beat times for extrapolation)
+        const beatPosRaw = data?.beat_positions;
+        if (beatPosRaw) {
+            const bp = typeof beatPosRaw === 'string' ? JSON.parse(beatPosRaw) : beatPosRaw;
+            if (Array.isArray(bp) && bp.length > 0) this.metronome.setBeatPositions(bp);
+        }
 
         // Load beat map for variable-tempo metronome
         const beatTimesRaw = data?.beat_times;

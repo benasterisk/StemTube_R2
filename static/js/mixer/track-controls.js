@@ -366,6 +366,138 @@ class TrackControls {
         this.mixer.log(`Pan updated for ${name}: ${value}`);
     }
     
+    // ── Metronome Track ──────────────────────────────────────────
+
+    /**
+     * Create the metronome track element and insert it above drums.
+     */
+    createMetronomeTrackElement() {
+        if (!this.mixer.elements.tracks) return;
+
+        // Don't create if already exists
+        if (document.querySelector('.track[data-stem="metronome"]')) return;
+
+        const trackElement = document.createElement('div');
+        trackElement.className = 'track metronome-track';
+        trackElement.dataset.stem = 'metronome';
+
+        const stem = this.mixer.stems['metronome'];
+        const initVol = stem ? stem.volume : 0.5;
+        const initMuted = stem ? stem.muted : false;
+        const res = this.mixer.metronome ? this.mixer.metronome.clickResolution : 1;
+
+        trackElement.innerHTML = `
+            <div class="track-header">
+                <div class="track-title">
+                    Metronome
+                    <span class="track-status active"></span>
+                </div>
+                <div class="track-buttons">
+                    <button class="track-btn solo" title="Solo">S</button>
+                    <button class="track-btn mute${initMuted ? ' active' : ''}" title="Mute">M</button>
+                </div>
+                <div class="track-control">
+                    <div class="track-control-label">
+                        <span>Volume</span>
+                        <span class="track-control-value volume-value">${Math.round(initVol * 100)}%</span>
+                    </div>
+                    <input type="range" class="track-slider volume-slider" min="0" max="1" step="0.01" value="${initVol}">
+                </div>
+                <div class="track-control">
+                    <div class="track-control-label">
+                        <span>Pan</span>
+                        <span class="track-control-value pan-value">C</span>
+                    </div>
+                    <input type="range" class="track-slider pan-knob" min="-1" max="1" step="0.01" value="0">
+                </div>
+                <div class="track-control metronome-resolution">
+                    <div class="track-control-label"><span>Res</span></div>
+                    <div class="resolution-buttons">
+                        <button class="res-btn${res === 0.5 ? ' active' : ''}" data-res="0.5" title="Half time">½</button>
+                        <button class="res-btn${res === 1 ? ' active' : ''}" data-res="1" title="On time">1x</button>
+                        <button class="res-btn${res === 2 ? ' active' : ''}" data-res="2" title="Double time">2x</button>
+                    </div>
+                </div>
+            </div>
+            <div class="waveform-container">
+                <div class="waveform"></div>
+                <div class="track-playhead"></div>
+            </div>
+        `;
+
+        // Insert above drums track, or prepend if no drums
+        const drumsTrack = this.mixer.elements.tracks.querySelector('[data-stem="drums"]');
+        if (drumsTrack) {
+            this.mixer.elements.tracks.insertBefore(trackElement, drumsTrack);
+        } else {
+            this.mixer.elements.tracks.prepend(trackElement);
+        }
+
+        this.setupMetronomeTrackListeners(trackElement);
+        this.mixer.log('Metronome track created');
+    }
+
+    /**
+     * Wire up metronome track control listeners with bidirectional sync.
+     */
+    setupMetronomeTrackListeners(trackElement) {
+        const metronome = this.mixer.metronome;
+
+        // Solo — standard
+        trackElement.querySelector('.solo')?.addEventListener('click', () => {
+            this.toggleSolo('metronome');
+        });
+
+        // Mute — sync with transport bar speaker icon
+        trackElement.querySelector('.mute')?.addEventListener('click', () => {
+            this.toggleMute('metronome');
+            if (metronome) {
+                const stem = this.mixer.stems['metronome'];
+                metronome.clickMode = stem.muted ? 'off' : 'all';
+                localStorage.setItem('jam_click_mode', metronome.clickMode);
+                metronome._updateToggleIcons();
+            }
+        });
+
+        // Volume — maps 0-1 slider to metronome gain (with 3x boost)
+        trackElement.querySelector('.volume-slider')?.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            const stem = this.mixer.stems['metronome'];
+            if (stem) {
+                stem.volume = val;
+                if (stem.gainNode && !stem.muted) {
+                    stem.gainNode.gain.value = val * 3;
+                }
+            }
+            if (metronome) {
+                metronome.clickVolume = val * 3;
+                localStorage.setItem('jam_click_volume', metronome.clickVolume.toString());
+            }
+            const display = trackElement.querySelector('.volume-value');
+            if (display) display.textContent = `${Math.round(val * 100)}%`;
+        });
+
+        // Pan — standard
+        trackElement.querySelector('.pan-knob')?.addEventListener('input', (e) => {
+            this.updatePan('metronome', parseFloat(e.target.value));
+        });
+
+        // Resolution buttons
+        trackElement.querySelectorAll('.res-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                trackElement.querySelectorAll('.res-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                if (metronome) {
+                    metronome.setClickResolution(parseFloat(btn.dataset.res));
+                }
+                // Redraw beat grid
+                if (this.mixer.waveform) {
+                    this.mixer.waveform.drawMetronomeBeatGrid('metronome');
+                }
+            });
+        });
+    }
+
     // ── Recording Track Creation ──────────────────────────────────
 
     /**

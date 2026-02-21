@@ -79,6 +79,7 @@ def _add_extraction_fields_if_missing(conn):
         # Lyrics/karaoke fields
         ("lyrics_data", "TEXT"),  # JSON array of {start, end, text, words} for karaoke
         ("beat_times", "TEXT"),  # JSON array of beat timestamps in seconds (for variable-tempo metronome)
+        ("beat_positions", "TEXT"),  # JSON array of beat-in-bar positions (1,2,3,4) from downbeat detector
     ]
 
     for table_name in ["global_downloads", "user_downloads"]:

@@ -74,22 +74,23 @@ def add_or_update(user_id, meta):
         return global_download_id
 
 
-def update_download_analysis(video_id, detected_bpm, detected_key, analysis_confidence, chords_data=None, beat_offset=0.0, structure_data=None, lyrics_data=None, beat_times=None):
+def update_download_analysis(video_id, detected_bpm, detected_key, analysis_confidence, chords_data=None, beat_offset=0.0, structure_data=None, lyrics_data=None, beat_times=None, beat_positions=None):
     """Update audio analysis results for a download."""
     with _conn() as conn:
-        print(f"[DB DEBUG] Updating analysis for video_id='{video_id}': BPM={detected_bpm}, Key={detected_key}, Chords={bool(chords_data)}, BeatOffset={beat_offset:.3f}s, Structure={bool(structure_data)}, Lyrics={bool(lyrics_data)}, BeatTimes={len(beat_times) if beat_times else 0}")
+        print(f"[DB DEBUG] Updating analysis for video_id='{video_id}': BPM={detected_bpm}, Key={detected_key}, Chords={bool(chords_data)}, BeatOffset={beat_offset:.3f}s, Structure={bool(structure_data)}, Lyrics={bool(lyrics_data)}, BeatTimes={len(beat_times) if beat_times else 0}, BeatPositions={len(beat_positions) if beat_positions else 0}")
 
-        # Convert structure_data, lyrics_data, beat_times to JSON if necessary
+        # Convert structure_data, lyrics_data, beat_times, beat_positions to JSON if necessary
         structure_json = json.dumps(structure_data) if structure_data else None
         lyrics_json = json.dumps(lyrics_data) if lyrics_data else None
         beat_times_json = json.dumps(beat_times) if beat_times else None
+        beat_positions_json = json.dumps(beat_positions) if beat_positions else None
 
         # Update global_downloads table
         cursor = conn.execute("""
             UPDATE global_downloads
-            SET detected_bpm=?, detected_key=?, analysis_confidence=?, chords_data=?, beat_offset=?, structure_data=?, lyrics_data=?, beat_times=?
+            SET detected_bpm=?, detected_key=?, analysis_confidence=?, chords_data=?, beat_offset=?, structure_data=?, lyrics_data=?, beat_times=?, beat_positions=?
             WHERE video_id=?
-        """, (detected_bpm, detected_key, analysis_confidence, chords_data, beat_offset, structure_json, lyrics_json, beat_times_json, video_id))
+        """, (detected_bpm, detected_key, analysis_confidence, chords_data, beat_offset, structure_json, lyrics_json, beat_times_json, beat_positions_json, video_id))
 
         rows_updated = cursor.rowcount
         print(f"[DB DEBUG] Updated {rows_updated} rows in global_downloads")
@@ -97,9 +98,9 @@ def update_download_analysis(video_id, detected_bpm, detected_key, analysis_conf
         # Update all user_downloads entries for this video_id
         cursor2 = conn.execute("""
             UPDATE user_downloads
-            SET detected_bpm=?, detected_key=?, analysis_confidence=?, chords_data=?, beat_offset=?, structure_data=?, lyrics_data=?, beat_times=?
+            SET detected_bpm=?, detected_key=?, analysis_confidence=?, chords_data=?, beat_offset=?, structure_data=?, lyrics_data=?, beat_times=?, beat_positions=?
             WHERE video_id=?
-        """, (detected_bpm, detected_key, analysis_confidence, chords_data, beat_offset, structure_json, lyrics_json, beat_times_json, video_id))
+        """, (detected_bpm, detected_key, analysis_confidence, chords_data, beat_offset, structure_json, lyrics_json, beat_times_json, beat_positions_json, video_id))
 
         rows_updated2 = cursor2.rowcount
         print(f"[DB DEBUG] Updated {rows_updated2} rows in user_downloads")
@@ -245,7 +246,8 @@ def list_for(user_id):
                 COALESCE(gd.beat_offset, ud.beat_offset) as beat_offset,
                 COALESCE(gd.structure_data, ud.structure_data) as structure_data,
                 COALESCE(gd.lyrics_data, ud.lyrics_data) as lyrics_data,
-                COALESCE(gd.beat_times, ud.beat_times) as beat_times
+                COALESCE(gd.beat_times, ud.beat_times) as beat_times,
+                COALESCE(gd.beat_positions, ud.beat_positions) as beat_positions
             FROM user_downloads ud
             LEFT JOIN global_downloads gd ON ud.global_download_id = gd.id
             WHERE ud.user_id=?
@@ -282,7 +284,8 @@ def get_download_by_id(user_id, download_id):
                 COALESCE(gd.beat_offset, ud.beat_offset) as beat_offset,
                 COALESCE(gd.structure_data, ud.structure_data) as structure_data,
                 COALESCE(gd.lyrics_data, ud.lyrics_data) as lyrics_data,
-                COALESCE(gd.beat_times, ud.beat_times) as beat_times
+                COALESCE(gd.beat_times, ud.beat_times) as beat_times,
+                COALESCE(gd.beat_positions, ud.beat_positions) as beat_positions
             FROM user_downloads ud
             LEFT JOIN global_downloads gd ON ud.global_download_id = gd.id
             WHERE ud.user_id=? AND ud.id=?

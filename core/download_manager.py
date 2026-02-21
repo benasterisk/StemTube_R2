@@ -666,18 +666,22 @@ class DownloadManager:
                         chords_data = None
                         beat_offset = 0.0
                         beat_times = []
+                        beat_positions = []
                         try:
                             from .chord_detector import analyze_audio_file
                             print(f"🎸 [DOWNLOAD] Starting chord detection for: {item.title} (BPM: {item.detected_bpm}, Key: {item.detected_key})")
                             # Pass detected BPM and key to chord analyzer for better accuracy
-                            chords_data, beat_offset, beat_times = analyze_audio_file(
+                            result = analyze_audio_file(
                                 item.file_path,
-                                bpm=item.detected_bpm,
-                                detected_key=item.detected_key,
-                                use_madmom=True  # Use professional madmom CRF for all genres
+                                bpm=item.detected_bpm
                             )
+                            if len(result) == 4:
+                                chords_data, beat_offset, beat_times, beat_positions = result
+                            else:
+                                chords_data, beat_offset, beat_times = result
+                                beat_positions = []
                             if chords_data:
-                                print(f"🎸 [DOWNLOAD] Chord detection complete (beat offset: {beat_offset:.3f}s, {len(beat_times)} beats)")
+                                print(f"🎸 [DOWNLOAD] Chord detection complete (beat offset: {beat_offset:.3f}s, {len(beat_times)} beats, {len(beat_positions)} positions)")
                             else:
                                 print(f"⚠️ [DOWNLOAD] No chords detected")
                         except Exception as e:
@@ -687,6 +691,7 @@ class DownloadManager:
                                 chords_data = None
                                 beat_offset = 0.0
                                 beat_times = []
+                                beat_positions = []
 
                         # Detect song structure using simple MSAF segmentation
                         structure_data = None
@@ -749,7 +754,8 @@ class DownloadManager:
                                 beat_offset,
                                 structure_data,
                                 lyrics_data,
-                                beat_times=beat_times
+                                beat_times=beat_times,
+                                beat_positions=beat_positions
                             )
                         except Exception as e:
                             print(f"⚠️ [DOWNLOAD] Error updating database analysis: {e}")

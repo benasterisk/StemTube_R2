@@ -130,13 +130,18 @@ def regenerate_extraction_chords(extraction_id):
         use_hybrid = config.get('chords_use_hybrid', True)
         use_madmom = config.get('chords_use_madmom', True)
 
-        chords_json, beat_offset, beat_times = analyze_audio_file(
+        result = analyze_audio_file(
             audio_path,
             bpm=download.get('detected_bpm'),
             detected_key=download.get('detected_key'),
             use_hybrid=use_hybrid,
             use_madmom=use_madmom
         )
+        if len(result) == 4:
+            chords_json, beat_offset, beat_times, beat_positions = result
+        else:
+            chords_json, beat_offset, beat_times = result
+            beat_positions = []
 
         if not chords_json:
             return jsonify({'error': 'Chord detection failed'}), 500
@@ -159,24 +164,31 @@ def regenerate_extraction_chords(extraction_id):
         if not video_id:
             return jsonify({'error': 'Video ID not found'}), 400
 
+        # Use existing detected_bpm — don't recompute from beat_times
+        # (beat_times BPM may be in wrong octave; detected_bpm from autocorrelation is more reliable)
+        detected_bpm = download.get('detected_bpm')
+
         update_download_analysis(
             video_id,
-            download.get('detected_bpm'),
+            detected_bpm,
             download.get('detected_key'),
             download.get('analysis_confidence'),
             chords_json,
             beat_offset,
             structure_data,
             lyrics_data,
-            beat_times=beat_times
+            beat_times=beat_times,
+            beat_positions=beat_positions
         )
 
         parsed_chords = json.loads(chords_json)
         return jsonify({
             'success': True,
             'chords': parsed_chords,
+            'detected_bpm': detected_bpm,
             'beat_offset': beat_offset,
-            'beat_times': beat_times
+            'beat_times': beat_times,
+            'beat_positions': beat_positions
         })
 
     except Exception as e:
@@ -222,7 +234,7 @@ def regenerate_extraction_beats(extraction_id):
             return jsonify({'error': 'Audio file not found'}), 404
 
         detector = MadmomChordDetector()
-        beat_offset, beats = detector._detect_beats(audio_path, download.get('detected_bpm'))
+        beat_offset, beats, beat_positions = detector._detect_beats(audio_path, download.get('detected_bpm'))
         beat_times = [round(float(b), 4) for b in beats]
 
         # Preserve existing analysis fields, only update beat data
@@ -253,12 +265,14 @@ def regenerate_extraction_beats(extraction_id):
             beat_offset,
             structure_data,
             lyrics_data,
-            beat_times=beat_times
+            beat_times=beat_times,
+            beat_positions=beat_positions
         )
 
         return jsonify({
             'success': True,
             'beat_times': beat_times,
+            'beat_positions': beat_positions,
             'beat_offset': beat_offset,
             'beat_count': len(beat_times)
         })

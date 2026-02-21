@@ -714,3 +714,43 @@
     font-weight: bold;
 }
 
+/* =========================== */
+/* METRONOME TRACK             */
+/* =========================== */
+
+.track.metronome-track {
+    border-top: 2px solid rgba(76, 175, 80, 0.3);
+}
+
+.track.metronome-track .track-title {
+    color: #4CAF50;
+}
+
+.resolution-buttons {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+}
+
+.res-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #aaa;
+    padding: 2px 6px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.15s ease;
+}
+
+.res-btn:hover {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+.res-btn.active {
+    background: var(--accent-color);
+    color: #fff;
+    border-color: var(--accent-color);
+}
+

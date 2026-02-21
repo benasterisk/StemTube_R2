@@ -336,7 +336,8 @@ def list_extractions_for(user_id):
                 COALESCE(gd.beat_offset, ud.beat_offset) as beat_offset,
                 COALESCE(gd.structure_data, ud.structure_data) as structure_data,
                 COALESCE(gd.lyrics_data, ud.lyrics_data) as lyrics_data,
-                COALESCE(gd.beat_times, ud.beat_times) as beat_times
+                COALESCE(gd.beat_times, ud.beat_times) as beat_times,
+                COALESCE(gd.beat_positions, ud.beat_positions) as beat_positions
             FROM user_downloads ud
             LEFT JOIN global_downloads gd ON ud.global_download_id = gd.id
             WHERE ud.user_id=? AND ud.extracted=1

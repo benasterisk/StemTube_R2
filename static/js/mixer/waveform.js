@@ -138,10 +138,104 @@ class WaveformRenderer {
     }
 
     /**
+     * Draw beat grid visualization for metronome track.
+     * Renders vertical lines at beat positions (thicker for downbeats).
+     */
+    drawMetronomeBeatGrid(name) {
+        const metronome = this.mixer.metronome;
+        if (!metronome) return;
+
+        const waveformContainer = document.querySelector(`.track[data-stem="${name}"] .waveform`);
+        if (!waveformContainer) return;
+
+        let canvas = waveformContainer.querySelector('canvas');
+        if (!canvas) {
+            canvas = document.createElement('canvas');
+            waveformContainer.appendChild(canvas);
+        }
+
+        canvas.width = waveformContainer.offsetWidth * window.devicePixelRatio;
+        canvas.height = waveformContainer.offsetHeight * window.devicePixelRatio;
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+        const maxDuration = this.mixer.maxDuration;
+        if (maxDuration <= 0) return;
+
+        ctx.clearRect(0, 0, width, height);
+        this.drawGrid(ctx, width, height);
+
+        const hz = this.mixer.zoomLevels?.horizontal || 1;
+        const dpr = window.devicePixelRatio;
+
+        // Use resolution-aware beat grid if available
+        const effectiveBeats = (metronome._beatTimesReady && metronome.beatTimes?.length > 1)
+            ? metronome._getEffectiveBeats()
+            : null;
+        const beatPositions = metronome.beatPositions;
+        const bpb = metronome.beatsPerBar || 4;
+
+        if (effectiveBeats && effectiveBeats.length > 0) {
+            for (let i = 0; i < effectiveBeats.length; i++) {
+                const beatTime = effectiveBeats[i];
+                if (beatTime > maxDuration) break;
+                const x = (beatTime / maxDuration) * width * hz;
+                if (x > width) break;
+
+                const isDownbeat = beatPositions && i < beatPositions.length
+                    ? beatPositions[i] === 1
+                    : (i % bpb) === 0;
+
+                ctx.beginPath();
+                ctx.strokeStyle = isDownbeat
+                    ? 'rgba(76, 175, 80, 0.9)'
+                    : 'rgba(76, 175, 80, 0.35)';
+                ctx.lineWidth = isDownbeat ? 3 * dpr : 1 * dpr;
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+        } else if (metronome.bpm > 0) {
+            // Constant BPM fallback
+            const beatDuration = 60 / metronome.bpm;
+            const res = metronome.clickResolution || 1;
+            const step = 1 / res;
+            const clickDuration = beatDuration * step;
+            const offset = metronome.beatOffset || 0;
+
+            for (let t = offset; t <= maxDuration; t += clickDuration) {
+                const x = (t / maxDuration) * width * hz;
+                if (x > width) break;
+
+                const beatIdx = Math.round((t - offset) / beatDuration);
+                const isDownbeat = (beatIdx % bpb) === 0;
+
+                ctx.beginPath();
+                ctx.strokeStyle = isDownbeat
+                    ? 'rgba(76, 175, 80, 0.9)'
+                    : 'rgba(76, 175, 80, 0.35)';
+                ctx.lineWidth = isDownbeat ? 3 * dpr : 1 * dpr;
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+        }
+
+        this.canvasCache[name] = { canvas, timestamp: Date.now() };
+    }
+
+    /**
      * Update all waveforms
      */
     updateAllWaveforms() {
         Object.keys(this.mixer.stems).forEach(stemName => {
+            if (stemName === 'metronome') {
+                this.drawMetronomeBeatGrid(stemName);
+                return;
+            }
             this.drawWaveform(stemName);
         });
 
@@ -281,8 +375,12 @@ class WaveformRenderer {
             canvas.width = waveformContainer.offsetWidth * window.devicePixelRatio;
             canvas.height = waveformContainer.offsetHeight * window.devicePixelRatio;
 
-            // Redraw waveform
-            this.drawWaveform(stemName);
+            // Redraw waveform (or beat grid for metronome)
+            if (stemName === 'metronome') {
+                this.drawMetronomeBeatGrid(stemName);
+            } else {
+                this.drawWaveform(stemName);
+            }
         });
 
         // Also resize master waveform if in a practice tab

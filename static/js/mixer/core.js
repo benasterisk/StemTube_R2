@@ -264,11 +264,19 @@ class StemMixer {
             });
         }
 
-        // Regenerate Chords button
+        // Regenerate Chords button (librosa beats - fast)
         const regenerateChordsBtn = document.getElementById('regenerateChordsBtn');
         if (regenerateChordsBtn && this.chordDisplay) {
             regenerateChordsBtn.addEventListener('click', () => {
                 this.chordDisplay.regenerateChords();
+            });
+        }
+
+        // Madmom Beats button (downbeat-aware - slow but accurate)
+        const madmomBeatsBtn = document.getElementById('madmomBeatsBtn');
+        if (madmomBeatsBtn && this.chordDisplay) {
+            madmomBeatsBtn.addEventListener('click', () => {
+                this.chordDisplay.regenerateBeatsMadmom();
             });
         }
 
@@ -909,14 +917,52 @@ class StemMixer {
             bpm: bpm,
             beatOffset: beatOffset,
             beatsPerBar: 4,
-            getCurrentTime: () => {
+            getCurrentTime: (atAudioTime) => {
                 if (this.audioEngine) {
+                    // If an audioContext time is provided, compute position at that exact instant
+                    // (eliminates ~16ms rAF lag between cached playbackPosition and audioNow)
+                    if (atAudioTime !== undefined && this.audioEngine._anchorTime !== null) {
+                        return this.audioEngine._getAnchorBasedPosition(atAudioTime);
+                    }
                     return this.audioEngine.playbackPosition || 0;
                 }
                 return 0;
             },
-            audioContext: this.audioEngine?.audioContext || null
+            audioContext: this.audioEngine?.audioContext || null,
+            getPlaybackRate: () => {
+                if (this.audioEngine) {
+                    return this.audioEngine.getEffectiveSyncRatio();
+                }
+                return 1.0;
+            }
         });
+
+        // Update metronome latency compensation when tempo/pitch changes.
+        // At default settings (1x/0), SoundTouch is bypassed so no compensation needed.
+        // When SoundTouch is active, stems have processing latency that the click doesn't.
+        const updateMetronomeLatency = () => {
+            const spt = window.simplePitchTempo;
+            if (!spt || !spt.workletLoaded) {
+                this.metronome.clickLatencyOffset = 0;
+                return;
+            }
+            const t = spt.cachedTempoRatio || (spt.currentBPM / spt.originalBPM) || 1;
+            const p = spt.cachedPitchRatio || Math.pow(2, (spt.currentPitchShift || 0) / 12);
+            const active = Math.abs(t - 1.0) > 0.001 || Math.abs(p - 1.0) > 0.001;
+            const sr = this.audioEngine?.audioContext?.sampleRate || 48000;
+            // SoundTouch internal buffering adds ~2048 samples of latency
+            this.metronome.clickLatencyOffset = active ? 2048 / sr : 0;
+        };
+        updateMetronomeLatency();
+        window.addEventListener('tempoChanged', updateMetronomeLatency);
+        window.addEventListener('pitchChanged', updateMetronomeLatency);
+
+        // Load beat positions for downbeat accent (must be set BEFORE beat times for extrapolation)
+        const beatPosRaw = window.EXTRACTION_INFO?.beat_positions;
+        if (beatPosRaw) {
+            const bp = typeof beatPosRaw === 'string' ? JSON.parse(beatPosRaw) : beatPosRaw;
+            if (Array.isArray(bp) && bp.length > 0) this.metronome.setBeatPositions(bp);
+        }
 
         // Load beat map for variable-tempo metronome
         const beatTimesRaw = window.EXTRACTION_INFO?.beat_times;
@@ -932,7 +978,71 @@ class StemMixer {
             }
         });
 
+        // ── Metronome Track: virtual stem + audio routing + DOM ──
+        this._initMetronomeTrack();
+
         this.log('Metronome initialized');
+    }
+
+    /**
+     * Create metronome as a mixer track with gain/pan routing.
+     */
+    _initMetronomeTrack() {
+        if (!this.metronome || !this.audioEngine?.audioContext) return;
+
+        const ctx = this.audioEngine.audioContext;
+        const clickMode = this.metronome.clickMode || 'off';
+
+        // Register virtual stem
+        this.stems['metronome'] = {
+            name: 'metronome',
+            url: null,
+            buffer: null,
+            source: null,
+            gainNode: null,
+            panNode: null,
+            volume: 0.5,
+            pan: 0,
+            muted: clickMode === 'off',
+            solo: false,
+            active: true,
+            waveformData: null,
+            isVirtual: true
+        };
+
+        // Ensure clickGainNode exists then reroute through mixer chain
+        this.metronome._ensureClickGain();
+        if (this.metronome.clickGainNode) {
+            try { this.metronome.clickGainNode.disconnect(); } catch (e) { /* not connected yet */ }
+
+            // Create pan node for metronome
+            const panNode = ctx.createStereoPanner();
+            panNode.pan.value = 0;
+
+            // Route: clickGainNode → panNode → masterGainNode → destination
+            this.metronome.clickGainNode.connect(panNode);
+            panNode.connect(this.audioEngine.masterGainNode);
+
+            // Store refs in virtual stem
+            this.stems['metronome'].gainNode = this.metronome.clickGainNode;
+            this.stems['metronome'].panNode = panNode;
+
+            // Set initial gain (0-1 * 3 boost)
+            const initVol = this.stems['metronome'].volume;
+            this.metronome.clickGainNode.gain.value = this.stems['metronome'].muted ? 0 : initVol * 3;
+            this.metronome.clickVolume = initVol * 3;
+        }
+
+        // Create track DOM element (inserts above drums)
+        this.trackControls.createMetronomeTrackElement();
+
+        // Draw beat grid waveform
+        if (this.waveform) {
+            // Slight delay to let the DOM settle
+            requestAnimationFrame(() => {
+                this.waveform.drawMetronomeBeatGrid('metronome');
+            });
+        }
     }
 }
 

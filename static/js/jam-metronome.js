@@ -47,6 +47,8 @@ class JamMetronome {
         // Normalize legacy modes to 'all' or 'off'
         if (this.clickMode !== 'off') this.clickMode = 'all';
         this.clickVolume = parseFloat(localStorage.getItem('jam_click_volume') || '0.5');
+        // Resolution: 1 = on time (every beat), 0.5 = half time (every 2 beats), 2 = double time (twice per beat)
+        this.clickResolution = parseFloat(localStorage.getItem('jam_click_resolution') || '1');
         this.clickGainNode = null;
 
         // Toggle icon references
@@ -68,10 +70,23 @@ class JamMetronome {
         this.beatTimes = null;
         this._beatTimesReady = false;
 
+        // Beat positions from downbeat detector (1=downbeat, 2,3,4=regular beats in bar)
+        this.beatPositions = null;
+
         // Look-ahead click scheduling
         this._scheduledBeatIndex = -1;   // Last beat index scheduled for audio click
         this._scheduledNodes = [];        // Scheduled oscillators (for cleanup on stop)
         this._lookAheadTime = 0.1;       // Schedule clicks 100ms ahead
+
+        // Playback rate callback: returns the ratio between song-time and real-time
+        // (e.g., 1.5 means song advances 1.5x faster than real clock)
+        this.getPlaybackRate = options.getPlaybackRate || (() => 1.0);
+
+        // Audio pipeline latency compensation (seconds).
+        // When stems go through SoundTouch AudioWorklet, they arrive later than
+        // the metronome click (which is a direct oscillator). This delay shifts
+        // clicks forward to match the perceived audio output.
+        this.clickLatencyOffset = 0;
 
         // Long-press state
         this._longPressTimers = [];
@@ -130,6 +145,22 @@ class JamMetronome {
         this.clickMode = this.clickMode === 'off' ? 'all' : 'off';
         localStorage.setItem('jam_click_mode', this.clickMode);
         this._updateToggleIcons();
+
+        // Sync with metronome track mute button
+        const mixer = window.stemMixer;
+        if (mixer && mixer.stems['metronome']) {
+            const stem = mixer.stems['metronome'];
+            const newMuted = this.clickMode === 'off';
+            if (stem.muted !== newMuted) {
+                stem.muted = newMuted;
+                if (stem.gainNode) {
+                    stem.gainNode.gain.value = newMuted ? 0 : stem.volume * 3;
+                }
+                const muteBtn = document.querySelector('.track[data-stem="metronome"] .mute');
+                if (muteBtn) muteBtn.classList.toggle('active', newMuted);
+                mixer.trackControls?.updateTrackStatus('metronome', !newMuted);
+            }
+        }
     }
 
     _updateToggleIcons() {
@@ -215,15 +246,75 @@ class JamMetronome {
             popover.appendChild(item);
         }
 
-        // Position on document.body with fixed positioning to escape stacking contexts
+        // Volume slider
+        const volTitle = document.createElement('div');
+        volTitle.className = 'metronome-precount-title';
+        volTitle.style.marginTop = '6px';
+        volTitle.textContent = 'Volume';
+        popover.appendChild(volTitle);
+
+        const sliderRow = document.createElement('div');
+        sliderRow.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px 10px 6px';
+
+        const slider = document.createElement('input');
+        slider.type = 'range';
+        slider.min = '0';
+        slider.max = '3';
+        slider.step = '0.05';
+        slider.value = this.clickVolume.toString();
+        slider.className = 'metronome-volume-slider';
+        slider.addEventListener('input', (e) => {
+            e.stopPropagation();
+            this.setClickVolume(parseFloat(e.target.value));
+        });
+        slider.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+        sliderRow.appendChild(slider);
+        popover.appendChild(sliderRow);
+
+        // Resolution selector
+        const resTitle = document.createElement('div');
+        resTitle.className = 'metronome-precount-title';
+        resTitle.style.marginTop = '6px';
+        resTitle.textContent = 'Resolution';
+        popover.appendChild(resTitle);
+
+        const resOptions = [
+            { label: 'Half time', value: 0.5 },
+            { label: 'On time', value: 1 },
+            { label: 'Double time', value: 2 }
+        ];
+
+        for (const opt of resOptions) {
+            const item = document.createElement('div');
+            item.className = 'metronome-precount-option';
+            if (this.clickResolution === opt.value) item.classList.add('active');
+            item.textContent = opt.label;
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.setClickResolution(opt.value);
+                this._hidePrecountPopover();
+            });
+            popover.appendChild(item);
+        }
+
+        // Position on document.body with fixed positioning
         const rect = container.getBoundingClientRect();
         popover.style.position = 'fixed';
         popover.style.left = `${rect.left + rect.width / 2}px`;
         popover.style.transform = 'translateX(-50%)';
-        popover.style.bottom = `${window.innerHeight - rect.top + 8}px`;
 
         document.body.appendChild(popover);
         this._activePopover = popover;
+
+        // Choose direction: open downward if not enough space above
+        const popoverHeight = popover.offsetHeight;
+        const spaceAbove = rect.top;
+        if (spaceAbove >= popoverHeight + 8) {
+            popover.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+        } else {
+            popover.style.top = `${rect.bottom + 8}px`;
+        }
 
         // Close on click outside (after a small delay to avoid immediate close)
         setTimeout(() => {
@@ -288,7 +379,7 @@ class JamMetronome {
         this._precountBeatDuration = beatDuration;
         this._precountEndTime = baseTime + precountBeats * beatDuration;
 
-        // Pre-schedule ALL click sounds on the Web Audio clock (uniform sound)
+        // Pre-schedule ALL click sounds on the Web Audio clock (with downbeat accent)
         if (ctx) {
             for (let i = 0; i < precountBeats; i++) {
                 const beatTime = baseTime + i * beatDuration;
@@ -302,7 +393,6 @@ class JamMetronome {
 
     /**
      * Schedule a single precount click at an exact Web Audio time.
-     * Uniform sound — no downbeat differentiation.
      */
     _schedulePrecountClick(when) {
         if (!this.audioContext || !this.clickGainNode) return;
@@ -315,13 +405,13 @@ class JamMetronome {
         osc.type = 'sine';
 
         env.gain.setValueAtTime(0.8, when);
-        env.gain.exponentialRampToValueAtTime(0.001, when + 0.05);
+        env.gain.exponentialRampToValueAtTime(0.001, when + 0.04);
 
         osc.connect(env);
         env.connect(this.clickGainNode);
 
         osc.start(when);
-        osc.stop(when + 0.06);
+        osc.stop(when + 0.05);
 
         this._precountScheduledNodes.push(osc);
     }
@@ -416,9 +506,23 @@ class JamMetronome {
 
     setBeatTimes(beatTimes) {
         if (Array.isArray(beatTimes) && beatTimes.length > 1) {
+            // Compute BPM from median interval (robust to outliers unlike regression)
+            const intervals = [];
+            for (let i = 1; i < beatTimes.length; i++) {
+                intervals.push(beatTimes[i] - beatTimes[i - 1]);
+            }
+            intervals.sort((a, b) => a - b);
+            const medianInterval = intervals[Math.floor(intervals.length / 2)];
+            const medianBPM = 60 / medianInterval;
+
+            // Store the actual beat times as-is (no regularization).
+            // A constant grid drifts from real beats; the beat map stays locked.
+            this.bpm = medianBPM;
+            this.beatOffset = beatTimes[0];
+            console.log(`[Metronome] BPM from median: ${medianBPM.toFixed(2)} (interval: ${(medianInterval*1000).toFixed(1)}ms, offset: ${this.beatOffset.toFixed(4)}s, ${beatTimes.length} beats)`);
+
             // Extrapolate beats backwards to cover from time 0
-            // so the metronome clicks from the very start of the track
-            const interval = beatTimes[1] - beatTimes[0];
+            const interval = medianInterval;
             if (interval > 0 && beatTimes[0] > 0.01) {
                 const extra = [];
                 let t = beatTimes[0] - interval;
@@ -427,15 +531,42 @@ class JamMetronome {
                     t -= interval;
                 }
                 this.beatTimes = [...extra, ...beatTimes];
+
+                // Also prepend beat positions by cycling backward through the bar
+                if (this.beatPositions && extra.length > 0) {
+                    const firstPos = this.beatPositions[0];
+                    const bpb = this.beatsPerBar;
+                    const extraPositions = [];
+                    for (let i = extra.length; i > 0; i--) {
+                        const pos = ((firstPos - 1 - i) % bpb + bpb) % bpb + 1;
+                        extraPositions.push(pos);
+                    }
+                    this.beatPositions = [...extraPositions, ...this.beatPositions];
+                }
             } else {
-                this.beatTimes = beatTimes;
+                this.beatTimes = [...beatTimes];
             }
             this._beatTimesReady = true;
-            console.log(`[Metronome] Beat map loaded: ${beatTimes.length} original, ${this.beatTimes.length} total (extrapolated to 0)`);
+            this._effectiveBeats = null;
+            this._effectiveBeatsKey = null;
+            console.log(`[Metronome] Beat map loaded: ${beatTimes.length} original → ${this.beatTimes.length} regularized (extrapolated to 0)`);
         } else if (Array.isArray(beatTimes) && beatTimes.length === 1) {
             this.beatTimes = beatTimes;
             this._beatTimesReady = true;
+            this._effectiveBeats = null;
+            this._effectiveBeatsKey = null;
             console.log(`[Metronome] Beat map loaded: 1 beat`);
+        }
+    }
+
+    /**
+     * Set beat-in-bar positions from downbeat detector (1=downbeat, 2,3,4=regular).
+     * Must be called BEFORE setBeatTimes() for correct extrapolation alignment.
+     */
+    setBeatPositions(positions) {
+        if (Array.isArray(positions) && positions.length > 0) {
+            this.beatPositions = positions;
+            console.log(`[Metronome] Beat positions loaded: ${positions.length} positions`);
         }
     }
 
@@ -471,7 +602,7 @@ class JamMetronome {
     }
 
     /**
-     * Get beat info at a given time, using beat map if available.
+     * Get beat info at a given time, using effective beat grid (resolution-aware).
      * Returns { beatIndex, beatInBar, beatPhase, valid }.
      */
     _getBeatInfo(currentTime) {
@@ -482,10 +613,11 @@ class JamMetronome {
     }
 
     /**
-     * Binary search beat map to find current beat position.
+     * Binary search effective beat grid to find current beat position.
+     * Uses resolution-adjusted grid so visual matches audio clicks.
      */
     _getBeatInfoFromMap(currentTime) {
-        const beats = this.beatTimes;
+        const beats = this._getEffectiveBeats();
         const n = beats.length;
 
         if (currentTime < beats[0]) {
@@ -522,24 +654,24 @@ class JamMetronome {
 
     /**
      * Constant-BPM fallback: compute beat info from BPM and beat offset.
+     * Applies resolution so visual matches audio clicks.
      */
     _getBeatInfoConstant(currentTime) {
         if (this.bpm <= 0) {
             return { beatIndex: -1, beatInBar: -1, beatPhase: 0, valid: false };
         }
 
-        const beatDuration = 60 / this.bpm;
-        // Start from time 0 (don't skip the intro)
-        const timeSinceFirstBeat = currentTime;
+        const baseBeatDuration = 60 / this.bpm;
+        const step = 1 / this.clickResolution; // base beats per click
+        const clickDuration = baseBeatDuration * step;
+        // Align grid to first downbeat — allow negative to extrapolate before beatOffset
+        const timeSinceFirstBeat = currentTime - this.beatOffset;
 
-        if (timeSinceFirstBeat < 0) {
-            return { beatIndex: -1, beatInBar: -1, beatPhase: 0, valid: false };
-        }
-
-        const totalBeats = timeSinceFirstBeat / beatDuration;
-        const beatIndex = Math.floor(totalBeats);
-        const beatInBar = beatIndex % this.beatsPerBar;
-        const beatPhase = totalBeats - beatIndex;
+        const totalClicks = timeSinceFirstBeat / clickDuration;
+        const beatIndex = Math.floor(totalClicks);
+        // Modulo that works correctly for negative numbers
+        const beatInBar = ((beatIndex % this.beatsPerBar) + this.beatsPerBar) % this.beatsPerBar;
+        const beatPhase = totalClicks - beatIndex;
 
         return { beatIndex, beatInBar, beatPhase, valid: true };
     }
@@ -597,6 +729,14 @@ class JamMetronome {
         this._scheduledBeatIndex = -1;
     }
 
+    /**
+     * Reset scheduling state (call on seek to avoid stale beat indices).
+     */
+    resetScheduling() {
+        this._cancelScheduledClicks();
+        this.lastBeat = -1;
+    }
+
     _update() {
         if (!this.running) return;
 
@@ -652,27 +792,86 @@ class JamMetronome {
      */
     _scheduleUpcomingClicks(currentSongTime) {
         const ctx = this.audioContext;
-        if (!ctx) return;
+        if (!ctx || this.bpm <= 0) return;
         this._ensureClickGain();
 
         const audioNow = ctx.currentTime;
+        // Compute song position at this exact audioNow instant to eliminate
+        // ~16ms rAF lag between the cached playbackPosition and Web Audio clock
+        const preciseSongTime = this.getCurrentTime(audioNow);
+        const songTime = (preciseSongTime !== undefined && preciseSongTime !== null)
+            ? preciseSongTime : currentSongTime;
 
-        if (this._beatTimesReady) {
-            this._scheduleFromBeatMap(currentSongTime, audioNow);
-        } else if (this.bpm > 0) {
-            this._scheduleFromConstantBPM(currentSongTime, audioNow);
+        // Use beat map when available — stays locked to actual beat positions.
+        // Fall back to constant BPM grid only when no beat data exists.
+        if (this._beatTimesReady && this.beatTimes && this.beatTimes.length > 1) {
+            this._scheduleFromBeatMap(songTime, audioNow);
+        } else {
+            this._scheduleFromConstantBPM(songTime, audioNow);
         }
     }
 
-    _scheduleFromBeatMap(currentSongTime, audioNow) {
+    /**
+     * Build the effective click grid from beat map + resolution.
+     * Cached and invalidated when beatTimes or resolution changes.
+     */
+    _getEffectiveBeats() {
+        const res = this.clickResolution;
         const bt = this.beatTimes;
-        const startIdx = Math.max(0, this._scheduledBeatIndex + 1);
+        const cacheKey = `${bt.length}_${res}`;
+        if (this._effectiveBeatsKey === cacheKey && this._effectiveBeats) {
+            return this._effectiveBeats;
+        }
 
-        for (let i = startIdx; i < bt.length; i++) {
-            const audioTimeForBeat = audioNow + (bt[i] - currentSongTime);
+        let effective;
+        if (res === 0.5) {
+            // Half time: keep every other beat
+            effective = bt.filter((_, i) => i % 2 === 0);
+        } else if (res === 2) {
+            // Double time: insert midpoint between each pair
+            effective = [];
+            for (let i = 0; i < bt.length; i++) {
+                effective.push(bt[i]);
+                if (i + 1 < bt.length) {
+                    effective.push((bt[i] + bt[i + 1]) / 2);
+                }
+            }
+        } else {
+            effective = bt;
+        }
+
+        this._effectiveBeats = effective;
+        this._effectiveBeatsKey = cacheKey;
+        return effective;
+    }
+
+    _scheduleFromBeatMap(currentSongTime, audioNow) {
+        const eb = this._getEffectiveBeats();
+        if (!eb || eb.length === 0) return;
+        // Playback rate: how fast song-time advances relative to real-time
+        const rate = this.getPlaybackRate() || 1.0;
+
+        // Find the right starting index based on current song time.
+        // If _scheduledBeatIndex is behind current time (e.g. after seek), find
+        // the first beat at or after currentSongTime via binary search.
+        let startIdx = this._scheduledBeatIndex + 1;
+        if (startIdx < 0 || startIdx >= eb.length || eb[startIdx] < currentSongTime - 0.5) {
+            // Binary search for first beat >= currentSongTime - small margin
+            let lo = 0, hi = eb.length - 1;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (eb[mid] < currentSongTime - 0.05) lo = mid + 1;
+                else hi = mid;
+            }
+            startIdx = lo;
+        }
+
+        for (let i = startIdx; i < eb.length; i++) {
+            // Convert song-time delta to real-time delta by dividing by playback rate
+            const audioTimeForBeat = audioNow + (eb[i] - currentSongTime) / rate;
 
             if (audioTimeForBeat > audioNow + this._lookAheadTime) break;
-            if (audioTimeForBeat < audioNow - 0.01) continue; // Skip past beats
+            if (audioTimeForBeat < audioNow - 0.01) continue;
 
             this._scheduleClickAtTime(audioTimeForBeat);
             this._scheduledBeatIndex = i;
@@ -680,17 +879,33 @@ class JamMetronome {
     }
 
     _scheduleFromConstantBPM(currentSongTime, audioNow) {
-        const beatDuration = 60 / this.bpm;
-        // Start beats from time 0 (don't skip the intro)
-        const timeSinceFirst = currentSongTime;
-        if (timeSinceFirst < -this._lookAheadTime) return;
+        // Always use base beat duration (one beat at detected BPM)
+        const baseBeatDuration = 60 / this.bpm;
+        const timeSinceFirst = currentSongTime - this.beatOffset;
+        // Playback rate: song-time advances at rate × real-time
+        const rate = this.getPlaybackRate() || 1.0;
 
-        const currentBeatIndex = Math.max(0, Math.floor(timeSinceFirst / beatDuration));
-        const startIdx = Math.max(this._scheduledBeatIndex + 1, currentBeatIndex);
+        // Resolution determines which beats to click on:
+        // 1 (ontime) = every beat, 0.5 (halftime) = every 2nd beat, 2 (double) = twice per beat
+        const res = this.clickResolution;
+
+        // For double time, subdivide beats; for halftime, skip beats
+        // step = how many base-beat indices between clicks
+        // e.g. res=0.5 → step=2 (click every 2 beats), res=2 → step=0.5 (click twice per beat)
+        const step = 1 / res;
+
+        // Current position in base-beat units
+        const currentBeatPos = timeSinceFirst / baseBeatDuration;
+        // Snap to the grid: find the nearest click index at or before current position
+        const currentClickIdx = Math.floor(currentBeatPos / step);
+        const startIdx = Math.max(this._scheduledBeatIndex + 1, currentClickIdx);
 
         for (let i = startIdx; ; i++) {
-            const beatSongTime = i * beatDuration;
-            const audioTimeForBeat = audioNow + (beatSongTime - currentSongTime);
+            // Convert click index back to song time
+            const beatSongTime = this.beatOffset + i * step * baseBeatDuration;
+            if (beatSongTime < 0) continue;
+            // Convert song-time delta → real-time delta (divide by playback rate)
+            const audioTimeForBeat = audioNow + (beatSongTime - currentSongTime) / rate;
 
             if (audioTimeForBeat > audioNow + this._lookAheadTime) break;
             if (audioTimeForBeat < audioNow - 0.01) continue;
@@ -702,10 +917,14 @@ class JamMetronome {
 
     /**
      * Schedule a single click oscillator at an exact Web Audio time.
+     * Uniform tone for all beats.
      */
     _scheduleClickAtTime(when) {
         const ctx = this.audioContext;
         if (!ctx || !this.clickGainNode) return;
+
+        // Compensate for audio pipeline latency (SoundTouch worklet)
+        const t = when + this.clickLatencyOffset;
 
         const osc = ctx.createOscillator();
         const env = ctx.createGain();
@@ -713,18 +932,18 @@ class JamMetronome {
         osc.frequency.value = 1200;
         osc.type = 'sine';
 
-        env.gain.setValueAtTime(0.8, when);
-        env.gain.exponentialRampToValueAtTime(0.001, when + 0.04);
+        env.gain.setValueAtTime(0.8, t);
+        env.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
 
         osc.connect(env);
         env.connect(this.clickGainNode);
 
-        osc.start(when);
-        osc.stop(when + 0.05);
+        osc.start(t);
+        osc.stop(t + 0.05);
 
         this._scheduledNodes.push(osc);
 
-        // Clean up old nodes periodically (keep list manageable)
+        // Clean up old nodes periodically
         if (this._scheduledNodes.length > 20) {
             this._scheduledNodes = this._scheduledNodes.slice(-10);
         }
@@ -739,11 +958,13 @@ class JamMetronome {
 
     // ── Audio Gain ────────────────────────────────────────────────
 
-    _ensureClickGain() {
+    _ensureClickGain(destinationNode) {
         if (this.clickGainNode || !this.audioContext) return;
         this.clickGainNode = this.audioContext.createGain();
         this.clickGainNode.gain.value = this.clickVolume;
-        this.clickGainNode.connect(this.audioContext.destination);
+        // Route to provided destination (mixer chain) or direct to speakers
+        const dest = destinationNode || this.audioContext.destination;
+        this.clickGainNode.connect(dest);
     }
 
     // ── Setters / Getters ─────────────────────────────────────────
@@ -782,15 +1003,52 @@ class JamMetronome {
     }
 
     setClickVolume(volume) {
-        this.clickVolume = Math.max(0, Math.min(1, volume));
+        this.clickVolume = Math.max(0, Math.min(3, volume));
         localStorage.setItem('jam_click_volume', this.clickVolume.toString());
         if (this.clickGainNode) {
             this.clickGainNode.gain.value = this.clickVolume;
+        }
+        // Sync track slider (slider range 0-1, clickVolume range 0-3)
+        const trackSlider = document.querySelector('.track[data-stem="metronome"] .volume-slider');
+        if (trackSlider) {
+            const normalized = this.clickVolume / 3;
+            trackSlider.value = normalized;
+            const display = document.querySelector('.track[data-stem="metronome"] .volume-value');
+            if (display) display.textContent = `${Math.round(normalized * 100)}%`;
+            const mixer = window.stemMixer;
+            if (mixer && mixer.stems['metronome']) {
+                mixer.stems['metronome'].volume = normalized;
+            }
         }
     }
 
     getClickVolume() {
         return this.clickVolume;
+    }
+
+    setClickResolution(res) {
+        this.clickResolution = res;
+        localStorage.setItem('jam_click_resolution', res.toString());
+        // Invalidate effective beats cache and reset scheduling
+        this._effectiveBeats = null;
+        this._effectiveBeatsKey = null;
+        this.resetScheduling();
+        // Sync track resolution buttons
+        const trackEl = document.querySelector('.track[data-stem="metronome"]');
+        if (trackEl) {
+            trackEl.querySelectorAll('.res-btn').forEach(btn => {
+                btn.classList.toggle('active', parseFloat(btn.dataset.res) === res);
+            });
+        }
+        // Redraw beat grid
+        const mixer = window.stemMixer;
+        if (mixer?.waveform) {
+            mixer.waveform.drawMetronomeBeatGrid('metronome');
+        }
+    }
+
+    getClickResolution() {
+        return this.clickResolution;
     }
 
     destroy() {

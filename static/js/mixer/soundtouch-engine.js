@@ -555,7 +555,8 @@ class SoundTouchEngine {
             if (!stem.gainNode) return;
 
             const shouldBeMuted = stem.muted || (hasSolo && !stem.solo);
-            stem.gainNode.gain.value = shouldBeMuted ? 0 : stem.volume;
+            const gain = shouldBeMuted ? 0 : (stem.isVirtual ? stem.volume * 3 : stem.volume);
+            stem.gainNode.gain.value = gain;
 
             this.mixer.trackControls.updateTrackStatus(name, !shouldBeMuted);
         });

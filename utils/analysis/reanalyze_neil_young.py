@@ -56,12 +56,17 @@ def reanalyze_song(video_id):
 
     # Step 2: Re-run chord detection with key-aware mode
     print("Step 2: Chord Detection (Key-Aware Hybrid)...")
-    chords_json, beat_offset, beat_times = analyze_audio_file(
+    result = analyze_audio_file(
         audio_path,
         bpm=detected_bpm,
         detected_key=detected_key,
         use_hybrid=True
     )
+    if len(result) == 4:
+        chords_json, beat_offset, beat_times, beat_positions = result
+    else:
+        chords_json, beat_offset, beat_times = result
+        beat_positions = []
 
     if not chords_json:
         print("❌ Chord detection failed")
@@ -94,7 +99,8 @@ def reanalyze_song(video_id):
         analysis_confidence=confidence,
         chords_data=chords_json,
         beat_offset=beat_offset,
-        beat_times=beat_times
+        beat_times=beat_times,
+        beat_positions=beat_positions
     )
 
     print("✅ Re-analysis complete!\n")

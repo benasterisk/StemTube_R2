@@ -28,6 +28,11 @@ class AudioEngine {
         // Precise playback tracking (accounts for tempo changes)
         this.playbackPosition = 0;     // Position within the song (seconds)
         this.lastRealTime = null;      // audioContext.currentTime at last update
+
+        // Anchor-based position tracking (drift-free)
+        this._anchorPosition = 0;   // Song position at anchor point (seconds)
+        this._anchorTime = null;     // audioContext.currentTime at anchor point
+        this._anchorRatio = 1.0;     // Sync ratio at anchor point
     }
     
     /**
@@ -173,44 +178,37 @@ class AudioEngine {
         stem.panNode = this.audioContext.createStereoPanner();
         stem.panNode.pan.value = stem.pan;
         
-        // Tenter d'ajouter SoundTouch si disponible
-        if (window.simplePitchTempo && window.simplePitchTempo.workletLoaded) {
+        // Connect SoundTouch only when tempo or pitch is actually changed.
+        // At default settings (tempo=1, pitch=1), bypass SoundTouch to avoid
+        // unnecessary processing latency that desynchronizes the metronome.
+        const spt = window.simplePitchTempo;
+        const tempoRatio = spt?.cachedTempoRatio || (spt ? spt.currentBPM / spt.originalBPM : 1);
+        const pitchRatio = spt?.cachedPitchRatio || (spt ? Math.pow(2, spt.currentPitchShift / 12) : 1);
+        const needsSoundTouch = spt && spt.workletLoaded &&
+            (Math.abs(tempoRatio - 1.0) > 0.001 || Math.abs(pitchRatio - 1.0) > 0.001);
+
+        if (needsSoundTouch) {
             try {
-                // Créer un nœud SoundTouch pour ce stem
                 stem.soundTouchNode = new AudioWorkletNode(this.audioContext, 'soundtouch-processor');
-
-                // Use cached parameters from SimplePitchTempo if available
-                // This ensures changes made before playback are applied
-                const tempoRatio = window.simplePitchTempo.cachedTempoRatio ||
-                                 (window.simplePitchTempo.currentBPM / window.simplePitchTempo.originalBPM);
-                const pitchRatio = window.simplePitchTempo.cachedPitchRatio ||
-                                 Math.pow(2, window.simplePitchTempo.currentPitchShift / 12);
-
-                // Apply SoundTouch parameters for independent tempo/pitch control
-                // - tempo: changes speed WITHOUT affecting pitch
-                // - pitch: changes pitch WITHOUT affecting tempo
-                // - rate: must stay at 1.0 for independent control
-                stem.soundTouchNode.parameters.get('tempo').value = window.simplePitchTempo.cachedTempoRatio || tempoRatio;
-                stem.soundTouchNode.parameters.get('pitch').value = window.simplePitchTempo.cachedPitchRatio || pitchRatio;
+                stem.soundTouchNode.parameters.get('tempo').value = tempoRatio;
+                stem.soundTouchNode.parameters.get('pitch').value = pitchRatio;
                 stem.soundTouchNode.parameters.get('rate').value = 1.0;
 
-                // Connecter : source -> SoundTouch -> gain -> pan -> master
+                // source -> SoundTouch -> gain -> pan -> master
                 stem.source.connect(stem.soundTouchNode);
                 stem.soundTouchNode.connect(stem.gainNode);
                 stem.gainNode.connect(stem.panNode);
                 stem.panNode.connect(this.masterGainNode);
 
-                console.log(`[AudioEngine] ✓ SoundTouch enabled for ${name} (tempo: ${(window.simplePitchTempo.cachedTempoRatio || tempoRatio).toFixed(3)}, pitch: ${(window.simplePitchTempo.cachedPitchRatio || pitchRatio).toFixed(3)}, playbackRate: ${playbackRate.toFixed(3)})`);
+                console.log(`[AudioEngine] SoundTouch ON for ${name} (tempo: ${tempoRatio.toFixed(3)}, pitch: ${pitchRatio.toFixed(3)})`);
             } catch (error) {
-                console.warn(`[AudioEngine] ✗ SoundTouch failed for ${name}, using direct connection:`, error);
-                // Connexion normale en cas d'error
+                console.warn(`[AudioEngine] SoundTouch failed for ${name}, direct connection:`, error);
                 stem.source.connect(stem.gainNode);
                 stem.gainNode.connect(stem.panNode);
                 stem.panNode.connect(this.masterGainNode);
             }
         } else {
-            // Connexion normale sans SoundTouch
-            console.log(`[AudioEngine] No SoundTouch for ${name} - using direct connection (workletLoaded: ${window.simplePitchTempo?.workletLoaded})`);
+            // Direct connection — no latency
             stem.source.connect(stem.gainNode);
             stem.gainNode.connect(stem.panNode);
             stem.panNode.connect(this.masterGainNode);
@@ -266,6 +264,7 @@ class AudioEngine {
         
         // Update precise playback tracking
         this.playbackPosition = Math.max(0, Math.min(this.mixer.currentTime || 0, this.mixer.maxDuration));
+        this._reanchor(this.playbackPosition);
         this.lastRealTime = this.audioContext.currentTime;
         
         // Effectuer un nettoyage explicite des sources existing avant d'en créer de news
@@ -507,20 +506,64 @@ class AudioEngine {
     }
 
     /**
+     * Snapshot current position and time as a new anchor point.
+     * All subsequent position reads are computed from this single point,
+     * eliminating accumulated floating-point drift.
+     */
+    _reanchor(position = null) {
+        const now = this.audioContext
+            ? this.audioContext.currentTime
+            : performance.now() / 1000;
+
+        if (position !== null) {
+            this._anchorPosition = position;
+        } else {
+            this._anchorPosition = this._getAnchorBasedPosition(now);
+        }
+
+        this._anchorTime = now;
+        this._anchorRatio = this.getEffectiveSyncRatio();
+    }
+
+    /**
+     * Compute playback position purely from anchor + elapsed time.
+     * No accumulation, no drift.
+     */
+    _getAnchorBasedPosition(now) {
+        if (this._anchorTime === null) return this._anchorPosition;
+        return this._anchorPosition + (now - this._anchorTime) * this._anchorRatio;
+    }
+
+    /**
      * Update playbackPosition according to elapsed real time and tempo ratio
      */
     updatePlaybackClock() {
-        const now = this.audioContext ? this.audioContext.currentTime : performance.now() / 1000;
-        if (this.lastRealTime === null) {
-            this.lastRealTime = now;
+        const now = this.audioContext
+            ? this.audioContext.currentTime
+            : performance.now() / 1000;
+
+        if (this._anchorTime === null) {
+            // First call — establish anchor
+            this._anchorTime = now;
+            this._anchorRatio = this.getEffectiveSyncRatio();
         }
 
         if (this.mixer.isPlaying) {
-            const delta = now - this.lastRealTime;
-            const ratio = this.getEffectiveSyncRatio();
-            this.playbackPosition += delta * ratio;
+            // Auto-detect sync ratio changes and re-anchor
+            const currentRatio = this.getEffectiveSyncRatio();
+            if (Math.abs(currentRatio - this._anchorRatio) > 1e-6) {
+                this._anchorPosition = this._getAnchorBasedPosition(now);
+                this._anchorTime = now;
+                this._anchorRatio = currentRatio;
+            }
+
+            // Compute position from anchor (zero accumulated error)
+            this.playbackPosition = this._getAnchorBasedPosition(now);
+
+            // Clamp
             if (this.playbackPosition < 0) this.playbackPosition = 0;
-            const maxDuration = (typeof this.mixer.maxDuration === 'number' && this.mixer.maxDuration > 0)
+            const maxDuration = (typeof this.mixer.maxDuration === 'number'
+                && this.mixer.maxDuration > 0)
                 ? this.mixer.maxDuration
                 : null;
             if (maxDuration !== null) {
@@ -543,6 +586,7 @@ class AudioEngine {
         const clamped = maxDuration !== null ? Math.min(position, maxDuration) : position;
         this.playbackPosition = Math.max(0, clamped);
         this.mixer.currentTime = this.playbackPosition;
+        this._reanchor(this.playbackPosition);
         this.lastRealTime = this.audioContext ? this.audioContext.currentTime : performance.now() / 1000;
     }
     
@@ -578,6 +622,7 @@ class AudioEngine {
         // Update immédiatement la position
         this.mixer.currentTime = newPosition;
         this.playbackPosition = newPosition;
+        this._reanchor(newPosition);
         this.lastRealTime = this.audioContext.currentTime;
 
         // Update la position des têtes de lecture
@@ -606,6 +651,11 @@ class AudioEngine {
             this.mixer.recordingEngine.seekUpdate(newPosition);
         }
 
+        // Reset metronome scheduling so clicks align to new position
+        if (this.mixer.metronome) {
+            this.mixer.metronome.resetScheduling();
+        }
+
         // Si on était en train de jouer, reprendre automatiquement
         if (wasPlaying) {
             // Redémarrer immédiatement la lecture depuis la new position
@@ -629,10 +679,20 @@ class AudioEngine {
             if (!stem.gainNode) return;
 
             const shouldBeMuted = stem.muted || (hasSolo && !stem.solo);
-            stem.gainNode.gain.value = shouldBeMuted ? 0 : stem.volume;
+            // Virtual stems (metronome) use boosted volume (0-1 → 0-3)
+            const gain = shouldBeMuted ? 0 : (stem.isVirtual ? stem.volume * 3 : stem.volume);
+            stem.gainNode.gain.value = gain;
 
             this.mixer.trackControls.updateTrackStatus(name, !shouldBeMuted);
         });
+
+        // Sync transport bar metronome icon with track state
+        if (this.mixer.metronome && this.mixer.stems['metronome']) {
+            const metStem = this.mixer.stems['metronome'];
+            const metMuted = metStem.muted || (hasSolo && !metStem.solo);
+            this.mixer.metronome.clickMode = metMuted ? 'off' : 'all';
+            this.mixer.metronome._updateToggleIcons();
+        }
 
         // Update recording tracks
         if (this.mixer.recordingEngine) {

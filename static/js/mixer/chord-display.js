@@ -1782,7 +1782,7 @@ class ChordDisplay {
     async regenerateChords() {
         const targetId = this.mixer.extractionId;
         if (!targetId) {
-            alert('Load a track before regenerating chords.');
+            alert('Load a track before reanalyzing.');
             return;
         }
         if (this.chordRegenerating) return;
@@ -1792,12 +1792,13 @@ class ChordDisplay {
 
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Regenerating...</span>';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Analyzing...</span>';
         }
 
         this.chordRegenerating = true;
 
         try {
+            // Single call: chords/regenerate runs BTC + Madmom and returns everything
             const url = `/api/extractions/${targetId}/chords/regenerate`;
             const res = await fetch(url, { method: 'POST' });
             const data = await res.json();
@@ -1806,45 +1807,129 @@ class ChordDisplay {
                 throw new Error(data.error || ('HTTP ' + res.status));
             }
 
+            // Update chords
             const payload = Array.isArray(data.chords) ? data.chords : data.chords_data;
             let parsed = payload;
-            if (typeof payload === 'string') {
-                parsed = JSON.parse(payload);
+            if (typeof payload === 'string') parsed = JSON.parse(payload);
+
+            if (Array.isArray(parsed)) {
+                this.chords = parsed;
+                if (window.EXTRACTION_INFO) {
+                    window.EXTRACTION_INFO.chords_data = JSON.stringify(parsed);
+                }
+                this.displayChords();
+                console.log('[Reanalyze] Chords:', parsed.length, 'chords');
             }
 
-            if (!Array.isArray(parsed)) {
-                throw new Error('Chord data missing from response');
-            }
+            // Update beat data (returned by the same endpoint)
+            const beatOffset = data.beat_offset;
+            const beatTimes = data.beat_times;
+            const beatPositions = data.beat_positions;
 
-            this.chords = parsed;
-
-            if (typeof data.beat_offset === 'number') {
-                this.beatOffset = data.beat_offset;
-            }
-
-            // Update EXTRACTION_INFO if it exists
             if (window.EXTRACTION_INFO) {
-                window.EXTRACTION_INFO.chords_data = JSON.stringify(parsed);
-                if (typeof data.beat_offset === 'number') {
-                    window.EXTRACTION_INFO.beat_offset = data.beat_offset;
+                if (beatOffset != null) window.EXTRACTION_INFO.beat_offset = beatOffset;
+                if (beatTimes) window.EXTRACTION_INFO.beat_times = beatTimes;
+                if (beatPositions) window.EXTRACTION_INFO.beat_positions = beatPositions;
+            }
+
+            // Update metronome with new beat data
+            if (this.mixer.metronome) {
+                if (beatOffset != null) this.mixer.metronome.beatOffset = beatOffset;
+                if (Array.isArray(beatPositions) && beatPositions.length > 0) {
+                    this.mixer.metronome.setBeatPositions(beatPositions);
+                }
+                if (Array.isArray(beatTimes) && beatTimes.length > 0) {
+                    this.mixer.metronome.setBeatTimes(beatTimes);
+                    // setBeatTimes computes precise BPM via linear regression
+                    const bpm = this.mixer.metronome.bpm;
+                    if (window.EXTRACTION_INFO) window.EXTRACTION_INFO.detected_bpm = bpm;
+                    if (window.simplePitchTempo) {
+                        window.simplePitchTempo.originalBPM = bpm;
+                        window.simplePitchTempo.currentBPM = bpm;
+                        window.simplePitchTempo.updateDisplay();
+                    }
+                    console.log(`[Reanalyze] Beats: BPM=${bpm.toFixed(1)}, ${beatTimes.length} beats`);
                 }
             }
 
-            // Redisplay chords
-            this.displayChords();
-
             if (btn) {
-                btn.innerHTML = '<i class="fas fa-check"></i> <span>Updated!</span>';
-                setTimeout(() => {
-                    if (btn) btn.innerHTML = originalHTML;
-                }, 2000);
+                btn.innerHTML = '<i class="fas fa-check"></i> <span>Done!</span>';
+                setTimeout(() => { if (btn) btn.innerHTML = originalHTML; }, 2000);
             }
 
-            console.log('[ChordDisplay] Chords regenerated successfully:', parsed.length, 'chords');
+        } catch (error) {
+            console.error('[Reanalyze] Failed:', error);
+            alert('Reanalysis failed: ' + error.message);
+            if (btn) btn.innerHTML = originalHTML;
+        } finally {
+            if (btn) btn.disabled = false;
+            this.chordRegenerating = false;
+        }
+    }
+
+    async regenerateBeatsMadmom() {
+        const targetId = this.mixer.extractionId;
+        if (!targetId) {
+            alert('Load a track before running Madmom.');
+            return;
+        }
+        if (this.chordRegenerating) return;
+
+        const btn = document.getElementById('madmomBeatsBtn');
+        const originalHTML = btn ? btn.innerHTML : '';
+
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Madmom...</span>';
+        }
+
+        this.chordRegenerating = true;
+
+        try {
+            const url = `/api/extractions/${targetId}/beats/regenerate`;
+            const res = await fetch(url, { method: 'POST' });
+            const data = await res.json();
+
+            if (!res.ok || data.error) {
+                throw new Error(data.error || ('HTTP ' + res.status));
+            }
+
+            const beatOffset = data.beat_offset;
+            const beatTimes = data.beat_times;
+            const beatPositions = data.beat_positions;
+
+            if (window.EXTRACTION_INFO) {
+                if (beatOffset != null) window.EXTRACTION_INFO.beat_offset = beatOffset;
+                if (beatTimes) window.EXTRACTION_INFO.beat_times = beatTimes;
+                if (beatPositions) window.EXTRACTION_INFO.beat_positions = beatPositions;
+            }
+
+            if (this.mixer.metronome) {
+                if (beatOffset != null) this.mixer.metronome.beatOffset = beatOffset;
+                if (Array.isArray(beatPositions) && beatPositions.length > 0) {
+                    this.mixer.metronome.setBeatPositions(beatPositions);
+                }
+                if (Array.isArray(beatTimes) && beatTimes.length > 0) {
+                    this.mixer.metronome.setBeatTimes(beatTimes);
+                    const bpm = this.mixer.metronome.bpm;
+                    if (window.EXTRACTION_INFO) window.EXTRACTION_INFO.detected_bpm = bpm;
+                    if (window.simplePitchTempo) {
+                        window.simplePitchTempo.originalBPM = bpm;
+                        window.simplePitchTempo.currentBPM = bpm;
+                        window.simplePitchTempo.updateDisplay();
+                    }
+                    console.log(`[Madmom] Beats: BPM=${bpm.toFixed(1)}, ${beatTimes.length} beats, ${(beatPositions||[]).length} positions`);
+                }
+            }
+
+            if (btn) {
+                btn.innerHTML = '<i class="fas fa-check"></i> <span>Done!</span>';
+                setTimeout(() => { if (btn) btn.innerHTML = originalHTML; }, 2000);
+            }
 
         } catch (error) {
-            console.error('[ChordDisplay] Regeneration failed:', error);
-            alert('Failed to regenerate chords: ' + error.message);
+            console.error('[Madmom] Failed:', error);
+            alert('Madmom analysis failed: ' + error.message);
             if (btn) btn.innerHTML = originalHTML;
         } finally {
             if (btn) btn.disabled = false;

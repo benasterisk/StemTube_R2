@@ -91,7 +91,7 @@ def main():
             continue
 
         try:
-            beat_offset, beats = detector._detect_beats(file_path, bpm)
+            beat_offset, beats, beat_positions = detector._detect_beats(file_path, bpm)
             beat_times = [round(float(b), 4) for b in beats]
 
             if not beat_times:
@@ -124,10 +124,11 @@ def main():
                 beat_offset,
                 structure_data,
                 lyrics_data,
-                beat_times=beat_times
+                beat_times=beat_times,
+                beat_positions=beat_positions
             )
 
-            print(f"  {len(beat_times)} beats detected (offset: {beat_offset:.3f}s)")
+            print(f"  {len(beat_times)} beats detected, {len(beat_positions)} positions (offset: {beat_offset:.3f}s)")
             success_count += 1
 
         except Exception as e:

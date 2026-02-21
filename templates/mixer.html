@@ -100,9 +100,13 @@
                     </div>
 
                     <div class="chords-transport-controls" data-tab-visible="chords" data-tab-display="flex">
-                        <button class="chord-mode-toggle" id="regenerateChordsBtn" title="Re-detect chords with improved templates">
+                        <button class="chord-mode-toggle" id="regenerateChordsBtn" title="Re-analyze chords and beats" style="display: none;">
                             <i class="fas fa-sync-alt"></i>
-                            <span>Regenerate Chords</span>
+                            <span>Reanalyze</span>
+                        </button>
+                        <button class="chord-mode-toggle" id="madmomBeatsBtn" title="Madmom downbeat detection" style="display: none;">
+                            <i class="fas fa-drum"></i>
+                            <span>Madmom</span>
                         </button>
                         <button class="chord-mode-toggle" id="chord-grid-view-btn" title="Open chord grid view">
                             <i class="fas fa-th"></i>
@@ -486,18 +490,18 @@
     <script src="/static/js/mixer/waveform.js"></script>
     <script src="/static/js/mixer/track-controls.js"></script>
     <script src="/static/js/mixer/recording-engine.js"></script>
-    <script src="/static/js/mixer/chord-display.js"></script>
-    <script src="/static/js/mixer/structure-display.js"></script>
-    <script src="/static/js/mixer/karaoke-display.js"></script>
-    <script src="/static/js/mixer/tab-manager.js"></script>
-    <script src="/static/js/mixer/audio-engine.js"></script>
-    <script src="/static/js/mixer/mobile-audio-engine.js"></script>
-    <script src="/static/js/mixer/mobile-debug-fix.js"></script>
-    <script src="/static/js/mixer/mixer-persistence.js"></script>
-    <script src="/static/js/mixer/simple-pitch-tempo.js"></script>
-    <script src="/static/js/mixer/lyrics-popup.js"></script>
-    <script src="/static/js/mixer/core.js"></script>
-    <script src="/static/js/jam-metronome.js"></script>
+    <script src="{{ url_for('static', filename='js/mixer/chord-display.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/mixer/structure-display.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/mixer/karaoke-display.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/mixer/tab-manager.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/mixer/audio-engine.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/mixer/mobile-audio-engine.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/mixer/mobile-debug-fix.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/mixer/mixer-persistence.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/mixer/simple-pitch-tempo.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/mixer/lyrics-popup.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/mixer/core.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/jam-metronome.js') }}?v={{ cache_buster }}"></script>
     {% if not jam_guest_mode %}
     <script src="/static/js/jam-bridge.js"></script>
     {% else %}

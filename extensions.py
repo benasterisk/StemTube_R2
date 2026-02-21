@@ -502,6 +502,88 @@ class UserSessionManager:
                         logger.debug("[LYRICS] No vocals stem available for auto-detection")
                 except Exception as lyrics_error:
                     logger.warning(f"[LYRICS] Auto-detection error (non-fatal): {lyrics_error}")
+
+                # AUTO-DETECT BEATS after stems are ready (madmom downbeat detection)
+                try:
+                    audio_path = item.audio_path if hasattr(item, 'audio_path') else None
+                    if audio_path and os.path.exists(audio_path):
+                        logger.info(f"[BEATS] Running madmom downbeat detection on {audio_path}")
+                        socketio.emit('extraction_progress', {
+                            'extraction_id': item_id,
+                            'progress': 90,
+                            'message': 'Detecting beats...',
+                            'video_id': video_id
+                        }, room=room_key or self._key())
+
+                        from core.madmom_chord_detector import MadmomChordDetector
+                        from core.downloads_db import update_download_analysis
+
+                        detector = MadmomChordDetector()
+
+                        # Get existing BPM as hint from global_downloads
+                        known_bpm = None
+                        try:
+                            from core.db.connection import _conn
+                            with _conn() as conn:
+                                row = conn.execute(
+                                    "SELECT detected_bpm, detected_key, analysis_confidence, chords_data, structure_data, lyrics_data FROM global_downloads WHERE video_id=?",
+                                    (video_id,)
+                                ).fetchone()
+                                if row:
+                                    known_bpm = row['detected_bpm']
+                                    existing_key = row['detected_key']
+                                    existing_confidence = row['analysis_confidence']
+                                    existing_chords = row['chords_data']
+                                    existing_structure = row['structure_data']
+                                    existing_lyrics = row['lyrics_data']
+                                else:
+                                    existing_key = None
+                                    existing_confidence = None
+                                    existing_chords = None
+                                    existing_structure = None
+                                    existing_lyrics = None
+                        except Exception:
+                            existing_key = None
+                            existing_confidence = None
+                            existing_chords = None
+                            existing_structure = None
+                            existing_lyrics = None
+
+                        beat_offset, beats, beat_positions = detector._detect_beats(audio_path, known_bpm=known_bpm)
+                        beat_times_list = [round(float(t), 4) for t in beats] if len(beats) > 0 else []
+
+                        if beat_times_list:
+                            # Preserve existing chords/structure/lyrics — parse JSON back since update_download_analysis re-serializes
+                            import json as _json
+                            _existing_structure = _json.loads(existing_structure) if existing_structure else None
+                            _existing_lyrics = _json.loads(existing_lyrics) if existing_lyrics else None
+                            update_download_analysis(
+                                video_id,
+                                detected_bpm=known_bpm,
+                                detected_key=existing_key,
+                                analysis_confidence=existing_confidence,
+                                chords_data=existing_chords,
+                                structure_data=_existing_structure,
+                                lyrics_data=_existing_lyrics,
+                                beat_offset=beat_offset,
+                                beat_times=beat_times_list,
+                                beat_positions=beat_positions
+                            )
+                            logger.info(f"[BEATS] Detected {len(beat_times_list)} beats, "
+                                        f"{sum(1 for p in beat_positions if p == 1)} downbeats")
+                        else:
+                            logger.warning("[BEATS] No beats detected")
+
+                        socketio.emit('extraction_progress', {
+                            'extraction_id': item_id,
+                            'progress': 98,
+                            'message': 'Beat detection complete',
+                            'video_id': video_id
+                        }, room=room_key or self._key())
+                    else:
+                        logger.debug("[BEATS] No audio file available for beat detection")
+                except Exception as beat_error:
+                    logger.warning(f"[BEATS] Beat detection error (non-fatal): {beat_error}")
         else:
             print(f"[CALLBACK DEBUG] Missing user_id, video_id, or item data")
 

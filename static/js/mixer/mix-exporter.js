@@ -101,6 +101,10 @@ class MixExporter {
      * Process an AudioBuffer with SoundTouch for tempo/pitch changes
      */
     async processWithSoundTouch(buffer, tempo, pitchSemitones) {
+        if (typeof SoundTouch === 'undefined' || typeof WebAudioBufferSource === 'undefined' || typeof SimpleFilter === 'undefined') {
+            console.warn('[MixExporter] SoundTouch not available, skipping tempo/pitch processing');
+            return buffer;
+        }
         return new Promise((resolve) => {
             // Create SoundTouch instance
             const soundTouch = new SoundTouch();
@@ -135,9 +139,10 @@ class MixExporter {
                 }
             } while (framesExtracted > 0 && outputPosition < outputFrames);
 
-            // Create new AudioBuffer with processed data
+            // Create new AudioBuffer with processed data at target sample rate
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const processedBuffer = audioContext.createBuffer(2, outputPosition, buffer.sampleRate);
+            const targetSR = buffer.sampleRate; // Keep original SR — mixStems handles normalization
+            const processedBuffer = audioContext.createBuffer(2, outputPosition, targetSR);
             processedBuffer.copyToChannel(outputLeft.subarray(0, outputPosition), 0);
             processedBuffer.copyToChannel(outputRight.subarray(0, outputPosition), 1);
             audioContext.close();
@@ -233,6 +238,9 @@ class MixExporter {
             try {
                 const { left, right, sampleRate } = mixedBuffer;
 
+                if (typeof lamejs === 'undefined') {
+                    throw new Error('MP3 encoder (lamejs) not loaded');
+                }
                 // Initialize LAME encoder
                 const mp3encoder = new lamejs.Mp3Encoder(2, sampleRate, this.bitRate);
 

@@ -75,7 +75,12 @@ def reanalyze_all_chords():
             try:
                 # Re-analyze chords with BPM-based beat grid
                 print(f"  [ANALYZING] Using BPM={bpm} for beat grid...")
-                chords_data, beat_offset, beat_times = analyze_audio_file(file_path, bpm=bpm)
+                result = analyze_audio_file(file_path, bpm=bpm)
+                if len(result) == 4:
+                    chords_data, beat_offset, beat_times, beat_positions = result
+                else:
+                    chords_data, beat_offset, beat_times = result
+                    beat_positions = []
 
                 if chords_data:
                     # Update database
@@ -86,7 +91,8 @@ def reanalyze_all_chords():
                         analysis_confidence=confidence,
                         chords_data=chords_data,
                         beat_offset=beat_offset,
-                        beat_times=beat_times
+                        beat_times=beat_times,
+                        beat_positions=beat_positions
                     )
 
                     # Parse to count chords

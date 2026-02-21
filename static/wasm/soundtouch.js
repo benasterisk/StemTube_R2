@@ -783,5 +783,12 @@ class PitchShifter {
   }
 }
 
-export { AbstractFifoSamplePipe, PitchShifter, RateTransposer, SimpleFilter, SoundTouch, Stretch, WebAudioBufferSource, getWebAudioNode };
+// Make classes available globally (loaded as classic script, not ES module)
+if (typeof window !== 'undefined') {
+    window.SoundTouch = SoundTouch;
+    window.SimpleFilter = SimpleFilter;
+    window.WebAudioBufferSource = WebAudioBufferSource;
+    window.PitchShifter = PitchShifter;
+    window.getWebAudioNode = getWebAudioNode;
+}
 //# sourceMappingURL=soundtouch.js.map
