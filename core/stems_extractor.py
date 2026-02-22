@@ -363,8 +363,8 @@ class StemsExtractor:
             progress: Extraction progress.
             status_message: Optional status message.
         """
-        # Find extraction item
-        item = self.active_extractions.get(extraction_id)
+        # Find extraction item (check both dicts — item moves to completed before post-processing)
+        item = self.active_extractions.get(extraction_id) or self.completed_extractions.get(extraction_id)
         if not item:
             return
 
@@ -622,8 +622,8 @@ class StemsExtractor:
                                     last_progress_time = current_time
                                     last_progress_value = progress_value
 
-                                # Scale demucs 0-100% to overall 0-75% range
-                                item.progress = min(progress_value * 0.75, 75.0)
+                                # Scale demucs 0-100% to overall 0-45% range
+                                item.progress = min(progress_value * 0.45, 45.0)
 
                                 # Notify progress
                                 self._on_extraction_progress(item.extraction_id, item.progress)
@@ -639,7 +639,7 @@ class StemsExtractor:
 
                 # Update progress to completion if successful
                 if return_code == 0 and item.status != ExtractionStatus.CANCELLED:
-                    item.progress = 75.0  # Demucs complete, file operations next
+                    item.progress = 45.0  # Demucs complete, file operations next
                     self._on_extraction_progress(item.extraction_id, item.progress)
                 
                 # Clean up process reference
@@ -665,7 +665,7 @@ class StemsExtractor:
                     error_output = "\n".join(output_lines[-20:]) if output_lines else "No output captured"
                     raise Exception(f"Demucs exited with code {return_code}. Output:\n{error_output}")
                 
-                # Finalization phase — progress continues from 75%
+                # Finalization phase — progress continues from 45%
                 self._on_extraction_progress(item.extraction_id, item.progress, "Copying stems...")
                 
                 # Copy extracted stems from temp directory to final destination
@@ -696,8 +696,8 @@ class StemsExtractor:
                 total_stems = len(stems_to_process)
 
                 for i, stem in enumerate(stems_to_process):
-                    # Update progress during file copying (from 75% to 85%)
-                    progress = 75.0 + (i / total_stems) * 10.0
+                    # Update progress during file copying (from 45% to 48%)
+                    progress = 45.0 + (i / total_stems) * 3.0
                     item.progress = progress
                     self._on_extraction_progress(item.extraction_id, progress, f"Copying {stem}...")
                     
@@ -748,9 +748,9 @@ class StemsExtractor:
                                 # Keep the file on disk for debugging but don't include in mixer
                                 print(f"✗ Stem '{stem}' excluded from mixer (mostly silent/empty)")
                 
-                # Stems copied — beat detection + lyrics happen in extensions.py (85-98%)
-                item.progress = 85.0
-                self._on_extraction_progress(item.extraction_id, 85.0, "Finalizing...")
+                # Stems copied — lyrics + beat detection happen in extensions.py (48-97%)
+                item.progress = 48.0
+                self._on_extraction_progress(item.extraction_id, 48.0, "Finalizing...")
 
                 # Log stem analysis results
                 if get_setting("enable_silent_stem_detection", True):
@@ -764,20 +764,16 @@ class StemsExtractor:
                 # ZIP archive created on-demand via /api/extractions/<id>/create-zip
                 item.zip_path = None
                 
-                # Update status
-                item.status = ExtractionStatus.COMPLETED
-                item.progress = 100.0
-                
-                # Send explicit notification that we have reached 100%
-                self._on_extraction_progress(item.extraction_id, 100.0, "Extraction completed")
-                
-                # Move from active to completed
+                # Do NOT set COMPLETED or 100% here — post-processing (lyrics, beats)
+                # still runs in extensions.py via the on_extraction_complete callback.
+                # COMPLETED + 100% will be set after all post-processing finishes.
+
+                # Move from active to completed (_on_extraction_progress checks both dicts)
                 del self.active_extractions[item.extraction_id]
                 self.completed_extractions[item.extraction_id] = item
-                
-                # Notify extraction complete
+
+                # Trigger post-processing (lyrics, beats, DB persist) in extensions.py
                 if self.on_extraction_complete:
-                    # Pass the complete item data to avoid retrieval issues
                     self.on_extraction_complete(item.extraction_id, item.title, item.video_id, item)
             
             finally:

@@ -455,17 +455,26 @@ class UserSessionManager:
                     import traceback
                     traceback.print_exc()
 
-                # AUTO-DETECT LYRICS after stems are ready
+                # AUTO-DETECT LYRICS after stems are ready (Whisper only — Musixmatch reserved for Regenerate)
+                _room = room_key or self._key()
                 try:
                     vocals_path = item.output_paths.get('vocals') if item.output_paths else None
                     if vocals_path and os.path.exists(vocals_path):
                         logger.info(f"[LYRICS] Auto-detecting lyrics using vocals stem: {vocals_path}")
+
+                        # Emit unified extraction progress at 48% for lyrics phase
+                        socketio.emit('extraction_progress', {
+                            'extraction_id': item_id,
+                            'progress': 48,
+                            'message': 'Transcribing lyrics...',
+                            'video_id': video_id
+                        }, room=_room)
                         socketio.emit('lyrics_progress', {
                             'extraction_id': item_id,
                             'step': 'auto_start',
-                            'message': 'Auto-detecting lyrics...',
+                            'message': 'Transcribing lyrics...',
                             'video_id': video_id
-                        }, room=room_key or self._key())
+                        }, room=_room)
 
                         from core.lyrics_detector import detect_lyrics_unified
                         from core.downloads_db import update_download_lyrics
@@ -473,17 +482,32 @@ class UserSessionManager:
                         model_size = get_setting('lyrics_model_size') or 'medium'
                         use_gpu = get_setting('use_gpu_for_extraction', False)
 
+                        # Map lyrics steps to extraction progress (48-72% range)
+                        _lyrics_step_progress = {
+                            'metadata': 50, 'whisper': 55, 'whisper_done': 68,
+                            'done': 72, 'failed': 72,
+                        }
+
+                        def _lyrics_progress_cb(step, msg):
+                            # Emit lyrics_progress for karaoke-display.js compatibility
+                            socketio.emit('lyrics_progress', {
+                                'extraction_id': item_id, 'step': step,
+                                'message': msg, 'video_id': video_id
+                            }, room=_room)
+                            # Emit extraction_progress mapped to 48-72% range
+                            progress_val = _lyrics_step_progress.get(step, 55)
+                            socketio.emit('extraction_progress', {
+                                'extraction_id': item_id, 'progress': progress_val,
+                                'message': msg, 'video_id': video_id
+                            }, room=_room)
+
                         result = detect_lyrics_unified(
                             audio_path=vocals_path,
                             title=title,
                             model_size=model_size,
                             use_gpu=use_gpu,
-                            progress_callback=lambda step, msg: socketio.emit('lyrics_progress', {
-                                'extraction_id': item_id,
-                                'step': step,
-                                'message': msg,
-                                'video_id': video_id
-                            }, room=room_key or self._key())
+                            force_whisper=True,
+                            progress_callback=_lyrics_progress_cb
                         )
 
                         if result.get('lyrics'):
@@ -495,13 +519,28 @@ class UserSessionManager:
                                 'message': f"Lyrics ready: {len(result['lyrics'])} segments",
                                 'video_id': video_id,
                                 'source': result.get('source')
-                            }, room=room_key or self._key())
+                            }, room=_room)
                         else:
                             logger.warning("[LYRICS] Auto-detection failed - no lyrics found")
+
+                        # Ensure progress reaches 72% after lyrics phase
+                        socketio.emit('extraction_progress', {
+                            'extraction_id': item_id, 'progress': 72,
+                            'message': 'Lyrics detection complete', 'video_id': video_id
+                        }, room=_room)
                     else:
                         logger.debug("[LYRICS] No vocals stem available for auto-detection")
+                        # Skip lyrics — jump progress to 72%
+                        socketio.emit('extraction_progress', {
+                            'extraction_id': item_id, 'progress': 72,
+                            'message': 'No vocals for lyrics, skipping...', 'video_id': video_id
+                        }, room=_room)
                 except Exception as lyrics_error:
                     logger.warning(f"[LYRICS] Auto-detection error (non-fatal): {lyrics_error}")
+                    socketio.emit('extraction_progress', {
+                        'extraction_id': item_id, 'progress': 72,
+                        'message': 'Lyrics detection skipped', 'video_id': video_id
+                    }, room=_room)
 
                 # AUTO-DETECT BEATS after stems are ready (madmom downbeat detection)
                 try:
@@ -510,10 +549,10 @@ class UserSessionManager:
                         logger.info(f"[BEATS] Running madmom downbeat detection on {audio_path}")
                         socketio.emit('extraction_progress', {
                             'extraction_id': item_id,
-                            'progress': 90,
+                            'progress': 72,
                             'message': 'Detecting beats...',
                             'video_id': video_id
-                        }, room=room_key or self._key())
+                        }, room=_room)
 
                         from core.madmom_chord_detector import MadmomChordDetector
                         from core.downloads_db import update_download_analysis
@@ -576,16 +615,37 @@ class UserSessionManager:
 
                         socketio.emit('extraction_progress', {
                             'extraction_id': item_id,
-                            'progress': 98,
+                            'progress': 97,
                             'message': 'Beat detection complete',
                             'video_id': video_id
-                        }, room=room_key or self._key())
+                        }, room=_room)
                     else:
                         logger.debug("[BEATS] No audio file available for beat detection")
+                        socketio.emit('extraction_progress', {
+                            'extraction_id': item_id, 'progress': 97,
+                            'message': 'No audio for beats, skipping...', 'video_id': video_id
+                        }, room=_room)
                 except Exception as beat_error:
                     logger.warning(f"[BEATS] Beat detection error (non-fatal): {beat_error}")
+                    socketio.emit('extraction_progress', {
+                        'extraction_id': item_id, 'progress': 97,
+                        'message': 'Beat detection skipped', 'video_id': video_id
+                    }, room=_room)
         else:
             print(f"[CALLBACK DEBUG] Missing user_id, video_id, or item data")
+
+        # Mark extraction as COMPLETED now that all post-processing is done
+        if item:
+            item.status = ExtractionStatus.COMPLETED
+            item.progress = 100.0
+
+        # Emit final 100% progress
+        socketio.emit('extraction_progress', {
+            'extraction_id': item_id,
+            'progress': 100,
+            'message': 'Extraction completed',
+            'video_id': video_id
+        }, room=room_key or self._key())
 
         # Emit socket events (after database is updated)
         download_id = None

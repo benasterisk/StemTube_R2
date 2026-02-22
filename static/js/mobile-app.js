@@ -215,8 +215,19 @@ class MobileApp {
         this.socket.on('download_error', (data) => this.onDownloadError(data));
         this.socket.on('extraction_progress', (data) => this.onExtractionProgress(data));
         this.socket.on('extraction_complete', (data) => this.onExtractionComplete(data));
-        this.socket.on('extraction_completed_global', () => this.loadLibrary());
-        this.socket.on('extraction_refresh_needed', () => this.loadLibrary());
+        this.socket.on('extraction_completed_global', () => {
+            // Only refresh if no active extraction timer (avoid DOM rebuild mid-extraction)
+            if (!this._extractionTimers || Object.keys(this._extractionTimers).length === 0) {
+                clearTimeout(this._extractionRefreshTimer);
+                this._extractionRefreshTimer = setTimeout(() => this.loadLibrary(), 500);
+            }
+        });
+        this.socket.on('extraction_refresh_needed', () => {
+            if (!this._extractionTimers || Object.keys(this._extractionTimers).length === 0) {
+                clearTimeout(this._extractionRefreshTimer);
+                this._extractionRefreshTimer = setTimeout(() => this.loadLibrary(), 500);
+            }
+        });
         this.socket.on('extraction_error', (data) => this.onExtractionError(data));
         this.socket.on('lyrics_progress', (data) => this.onLyricsProgress(data));
 
@@ -2026,7 +2037,12 @@ class MobileApp {
             }
         }
 
-        const baseProgress = this.normalizeProgress(item.progress);
+        let baseProgress = this.normalizeProgress(item.progress);
+        // If a timer is running for this item, use the timer's progress instead of backend value
+        const vid = item.video_id || '';
+        if (this._extractionTimers && vid && this._extractionTimers[vid]) {
+            baseProgress = this._extractionTimers[vid].progress || baseProgress;
+        }
         const showProgress = !isGlobal && (this.statusNeedsProgress(statusKey) || (baseProgress > 0 && baseProgress < 100));
         const metaParts = [];
         if (item.speed) metaParts.push(item.speed);
@@ -2198,6 +2214,12 @@ class MobileApp {
     }
 
     updateLibraryAutoRefresh(items) {
+        // Don't auto-refresh while extraction timer is running — it rebuilds DOM
+        // and destroys the smooth timer-driven progress bar
+        if (this._extractionTimers && Object.keys(this._extractionTimers).length > 0) {
+            this.clearLibraryAutoRefresh();
+            return;
+        }
         const needsRefresh = items.some(item => {
             const rawStatus = (item.status && item.status.value) ? item.status.value : (item.status || '');
             return this.statusNeedsProgress(rawStatus.toString().toLowerCase());
@@ -2242,8 +2264,12 @@ class MobileApp {
         const fill = element.querySelector('.mobile-progress-fill');
         const value = element.querySelector('.mobile-progress-value');
         const extra = element.querySelector('.mobile-progress-extra');
-        if (fill) fill.style.width = this.formatProgressPercent(progress) + '%';
-        if (value) value.textContent = this.formatProgressPercent(progress) + '%';
+        const newVal = this.formatProgressPercent(progress);
+        // Regression guard: allow reset to 0, otherwise only move forward
+        const currentWidth = parseFloat(fill?.style.width) || 0;
+        const displayVal = newVal < 1 ? newVal : Math.max(currentWidth, newVal);
+        if (fill) fill.style.width = displayVal + '%';
+        if (value) value.textContent = displayVal + '%';
         if (extra) extra.textContent = meta || '';
     }
 
@@ -2300,20 +2326,95 @@ class MobileApp {
     }
 
     onExtractionProgress(data) {
+        const videoId = data.video_id || data.extraction_id;
         const element = this.findLibraryItem(data.download_id, data.video_id, data.extraction_id);
         if (!element) {
-            this.loadLibrary();
+            // Don't call loadLibrary() here — it rebuilds DOM and kills timer references
+            console.log('[MOBILE EXTRACTION] Element not found for', videoId, '— skipping');
             return;
         }
-        const progress = this.normalizeProgress(data.progress);
-        const meta = data.status_message || 'Extracting...';
+        const meta = data.message || data.status_message || 'Extracting...';
+
+        // Real 100% from backend = truly complete
+        if (data.progress >= 100) {
+            this._stopExtractionTimer(videoId);
+            this.updateStatusPill(element, 'extracting', 'Extracting', 'Extraction completed');
+            // Directly set 100% bypassing regression guard
+            const fill = element.querySelector('.mobile-progress-fill');
+            const pct = element.querySelector('.mobile-progress-value');
+            const extra = element.querySelector('.mobile-progress-extra');
+            if (fill) fill.style.width = '100%';
+            if (pct) pct.textContent = '100%';
+            if (extra) extra.textContent = 'Extraction completed';
+            return;
+        }
+
+        // First event (progress ~0): reset bar and start timer
+        if (data.progress < 1) {
+            this._stopExtractionTimer(videoId);
+            // Reset bar to 0% directly
+            const fill = element.querySelector('.mobile-progress-fill');
+            const pct = element.querySelector('.mobile-progress-value');
+            const extra = element.querySelector('.mobile-progress-extra');
+            if (fill) fill.style.width = '0%';
+            if (pct) pct.textContent = '0%';
+            if (extra) extra.textContent = 'Starting extraction...';
+            this.showProgressContainer(element);
+            this._startExtractionTimer(element, videoId);
+        } else if (!this._extractionTimers?.[videoId]) {
+            // Timer not running (e.g. page reload mid-extraction) — start it
+            this._startExtractionTimer(element, videoId);
+        }
+
+        // Backend events update status TEXT only — timer drives the bar percentage
         this.updateStatusPill(element, 'extracting', 'Extracting', meta);
-        this.updateProgressElements(element, progress, meta);
+        const extraEl = element.querySelector('.mobile-progress-extra');
+        if (extraEl) extraEl.textContent = meta;
+
         if (data.extraction_id) element.dataset.extractionId = data.extraction_id;
     }
 
-    onExtractionComplete() {
-        this.loadLibrary();
+    _startExtractionTimer(element, videoId) {
+        if (!this._extractionTimers) this._extractionTimers = {};
+        if (this._extractionTimers[videoId]) return;
+
+        const estimatedSec = 180;
+        const intervalMs = 500;
+        const totalTicks = estimatedSec * 1000 / intervalMs;
+        const state = { progress: 0, tick: 0, videoId: videoId };
+
+        state.interval = setInterval(() => {
+            state.tick++;
+            // Asymptotic curve: approaches 99% but never stops
+            state.progress = 99 * (1 - Math.exp(-2.5 * state.tick / totalTicks));
+            // Re-find element each tick (DOM may be rebuilt by loadLibrary)
+            const el = this.findLibraryItem(null, videoId);
+            if (el) {
+                const fill = el.querySelector('.mobile-progress-fill');
+                const pct = el.querySelector('.mobile-progress-value');
+                if (fill) fill.style.width = state.progress + '%';
+                if (pct) pct.textContent = Math.round(state.progress) + '%';
+            }
+        }, intervalMs);
+
+        this._extractionTimers[videoId] = state;
+    }
+
+    _stopExtractionTimer(videoId) {
+        if (!this._extractionTimers) return;
+        const state = this._extractionTimers[videoId];
+        if (state) {
+            clearInterval(state.interval);
+            delete this._extractionTimers[videoId];
+        }
+    }
+
+    onExtractionComplete(data) {
+        // Stop timer for this extraction
+        const videoId = data?.video_id || data?.extraction_id;
+        if (videoId) this._stopExtractionTimer(videoId);
+        clearTimeout(this._extractionRefreshTimer);
+        this._extractionRefreshTimer = setTimeout(() => this.loadLibrary(), 500);
     }
 
     onExtractionError(data) {

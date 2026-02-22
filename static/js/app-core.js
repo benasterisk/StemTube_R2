@@ -142,54 +142,42 @@ function initializeSocketIO() {
     socket.on('extraction_complete', (data) => {
         console.log('Extraction complete:', data);
         updateExtractionComplete(data);
+        // Debounce library refresh to avoid double render with extraction_completed_global
+        clearTimeout(window._extractionRefreshTimer);
+        window._extractionRefreshTimer = setTimeout(() => {
+            loadExtractions();
+            loadDownloads();
+        }, 500);
     });
-    
+
     // Handle global extraction completion notifications
-    // This refreshes extraction lists for all users when ANY user completes an extraction
     socket.on('extraction_completed_global', (data) => {
         console.log('[FRONTEND DEBUG] Global extraction completed event received:', data);
-        console.log('[FRONTEND DEBUG] Current user should refresh extraction lists');
-        
-        try {
-            // Refresh the extractions list to show the new extraction
-            console.log('[FRONTEND DEBUG] Calling loadExtractions()');
-            loadExtractions();
-            
-            // Also refresh downloads list to update "Extract Stems" buttons
-            console.log('[FRONTEND DEBUG] Calling loadDownloads()');
-            loadDownloads();
-            
-            // Show a subtle notification
-            console.log('[FRONTEND DEBUG] Showing toast notification');
-            showToast(`New extraction available: ${data.title}`, 'info');
-            
-            console.log('[FRONTEND DEBUG] Global extraction refresh completed successfully');
-        } catch (error) {
-            console.error('[FRONTEND DEBUG] Error handling global extraction completion:', error);
-        }
+        clearTimeout(window._extractionRefreshTimer);
+        window._extractionRefreshTimer = setTimeout(() => {
+            try {
+                loadExtractions();
+                loadDownloads();
+                showToast(`New extraction available: ${data.title}`, 'info');
+            } catch (error) {
+                console.error('[FRONTEND DEBUG] Error handling global extraction completion:', error);
+            }
+        }, 500);
     });
-    
+
     // Alternative global extraction refresh event handler
     socket.on('extraction_refresh_needed', (data) => {
         console.log('[FRONTEND DEBUG] Extraction refresh needed event received:', data);
-        console.log('[FRONTEND DEBUG] This is the backup global broadcast method');
-        
-        try {
-            // Refresh the extractions list to show the new extraction  
-            console.log('[FRONTEND DEBUG] Calling loadExtractions() from backup handler');
-            loadExtractions();
-            
-            // Also refresh downloads list
-            console.log('[FRONTEND DEBUG] Calling loadDownloads() from backup handler');
-            loadDownloads();
-            
-            // Show notification
-            showToast(data.message || `New extraction available: ${data.title}`, 'success');
-            
-            console.log('[FRONTEND DEBUG] Backup extraction refresh completed');
-        } catch (error) {
-            console.error('[FRONTEND DEBUG] Error in backup extraction refresh:', error);
-        }
+        clearTimeout(window._extractionRefreshTimer);
+        window._extractionRefreshTimer = setTimeout(() => {
+            try {
+                loadExtractions();
+                loadDownloads();
+                showToast(data.message || `New extraction available: ${data.title}`, 'success');
+            } catch (error) {
+                console.error('[FRONTEND DEBUG] Error in backup extraction refresh:', error);
+            }
+        }, 500);
     });
     
     socket.on('extraction_error', (data) => {

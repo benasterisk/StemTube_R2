@@ -848,6 +848,9 @@ async function updateExtractButton(button, extractionStatus, downloadElement) {
         newButton.innerHTML = '<i class="fas fa-music"></i> Extract Stems';
         newButton.className = 'item-button extract-button';
         newButton.addEventListener('click', () => {
+            // Disable immediately to prevent double-clicks
+            newButton.disabled = true;
+            newButton.style.opacity = '0.5';
             console.log('[EXTRACT BUTTON] Extract Stems clicked!', {
                 downloadId: newButton.dataset.downloadId,
                 title: newButton.dataset.title,
@@ -1658,6 +1661,48 @@ function updateDownloadError(data) {
     showToast(`Download failed: ${data.error_message}`, 'error');
 }
 
+// Timer-based extraction progress: smooth linear fill independent of backend events.
+// Ratio from logs: ~0.5s processing per 1s of audio (GPU, htdemucs_6s).
+// Total measured: 167s for 333s audio. Default estimate: 180s to have margin.
+// Uses asymptotic curve: fast at start, slows near 99% so it never truly stops.
+const _extractionTimers = {};  // keyed by video_id or extraction_id
+
+function _startExtractionTimer(element, videoId) {
+    if (_extractionTimers[videoId]) return; // already running
+
+    const estimatedDurationSec = 180; // generous estimate to avoid stalling
+    const intervalMs = 500; // update every 500ms
+    const totalTicks = estimatedDurationSec * 1000 / intervalMs;
+
+    const state = { progress: 0, tick: 0 };
+    const fill = element.querySelector('.progress-fill');
+    const pct = element.querySelector('.progress-percentage');
+
+    state.interval = setInterval(() => {
+        state.tick++;
+        // Asymptotic curve: approaches 99% but never reaches it.
+        // At tick == totalTicks (~180s), progress is ~63% of remaining = ~99%.
+        // If extraction takes longer, it keeps creeping toward 99.9%.
+        state.progress = 99 * (1 - Math.exp(-2.5 * state.tick / totalTicks));
+        if (fill) fill.style.width = `${state.progress}%`;
+        if (pct) {
+            const existing = pct.textContent;
+            const msgPart = existing.includes(' - ') ? existing.split(' - ').slice(1).join(' - ') : 'Extracting...';
+            pct.textContent = `${Math.round(state.progress)}% - ${msgPart}`;
+        }
+    }, intervalMs);
+
+    _extractionTimers[videoId] = state;
+}
+
+function _stopExtractionTimer(videoId) {
+    const state = _extractionTimers[videoId];
+    if (state) {
+        clearInterval(state.interval);
+        delete _extractionTimers[videoId];
+    }
+}
+
 function updateExtractionProgress(data) {
     console.log('[EXTRACTION PROGRESS] Received progress update:', JSON.stringify(data));
 
@@ -1742,18 +1787,40 @@ function updateExtractionProgress(data) {
 
     console.log(`[EXTRACTION PROGRESS] Using element found by: ${foundBy}`);
 
-    // Update progress bar and status
     const progressFill = downloadElement.querySelector('.progress-fill');
     const progressPercentage = downloadElement.querySelector('.progress-percentage');
     const statusElement = downloadElement.querySelector('.item-status');
+    const videoId = data.video_id || data.extraction_id;
 
-    if (progressFill) {
-        progressFill.style.width = `${data.progress}%`;
+    // Real 100% from backend = extraction truly complete
+    if (data.progress >= 100) {
+        _stopExtractionTimer(videoId);
+        if (progressFill) progressFill.style.width = '100%';
+        if (progressPercentage) {
+            const statusMsg = data.message || data.status_message || 'Extraction completed';
+            progressPercentage.textContent = `100% - ${statusMsg}`;
+        }
+        console.log('[EXTRACTION PROGRESS] Reached 100% — extraction complete');
+        return;
     }
 
-    if (progressPercentage) {
-        const statusMsg = data.status_message || data.status || 'Extracting...';
-        progressPercentage.textContent = `${Math.round(data.progress)}% - ${statusMsg}`;
+    // First event (progress ~0): reset bar and start timer-based linear fill
+    if (data.progress < 1) {
+        _stopExtractionTimer(videoId); // reset if re-starting
+        if (progressFill) progressFill.style.width = '0%';
+        if (progressPercentage) progressPercentage.textContent = '0% - Starting extraction...';
+        _startExtractionTimer(downloadElement, videoId);
+    } else if (!_extractionTimers[videoId]) {
+        // Timer not running yet (e.g. page reload mid-extraction) — start it
+        _startExtractionTimer(downloadElement, videoId);
+    }
+
+    // Backend events only update the STATUS MESSAGE, not the bar width
+    // (the timer handles the bar progression independently)
+    if (progressPercentage && data.progress > 0) {
+        const statusMsg = data.message || data.status_message || data.status || 'Extracting...';
+        const currentTimerProgress = _extractionTimers[videoId]?.progress || 0;
+        progressPercentage.textContent = `${Math.round(currentTimerProgress)}% - ${statusMsg}`;
     }
 
     if (statusElement && statusElement.textContent !== 'Extracting') {
@@ -1767,7 +1834,7 @@ function updateExtractionProgress(data) {
         extractButton.style.display = 'none';
     }
 
-    console.log('[EXTRACTION PROGRESS] Updated UI with progress:', data.progress);
+    console.log('[EXTRACTION PROGRESS] Status update:', data.message || data.status_message);
 }
 
 function updateExtractionComplete(data) {
@@ -1799,6 +1866,10 @@ function updateExtractionComplete(data) {
             console.log('[EXTRACTION COMPLETE] Found element using legacy extraction-id');
         }
     }
+
+    // Stop extraction timer
+    const videoId = data.video_id || data.extraction_id;
+    _stopExtractionTimer(videoId);
 
     if (!downloadElement) {
         console.warn('[EXTRACTION COMPLETE] Could not find element for extraction:', data.extraction_id, 'video_id:', data.video_id, 'download_id:', data.download_id);
