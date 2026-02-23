@@ -147,3 +147,326 @@ body.glassmorphism.mobile-body ::-webkit-scrollbar-thumb {
     background: rgba(0,212,255,0.3);
     border-radius: 4px;
 }
+
+/* ---- Chord Linear Scroll ---- */
+body.glassmorphism .chord-linear-scroll {
+    background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    scrollbar-color: rgba(0,212,255,0.3) transparent;
+}
+
+body.glassmorphism .chord-linear-track {
+    background: transparent;
+}
+
+body.glassmorphism .chord-linear-chord-row {
+    background: transparent;
+}
+
+body.glassmorphism .chord-linear-measure {
+    border-right-color: rgba(255,255,255,0.1);
+}
+
+body.glassmorphism .chord-linear-measure.active {
+    background: rgba(0,212,255,0.06);
+}
+
+body.glassmorphism .chord-linear-beat {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+}
+
+body.glassmorphism .chord-linear-beat:active {
+    background: rgba(0,212,255,0.12);
+}
+
+body.glassmorphism .chord-linear-beat.active {
+    background: rgba(0,212,255,0.18);
+    border-color: rgba(0,212,255,0.6);
+    box-shadow: 0 0 12px rgba(0,212,255,0.25);
+}
+
+body.glassmorphism .chord-linear-beat.empty {
+    background: rgba(255,255,255,0.02);
+    border-color: rgba(255,255,255,0.05);
+}
+
+body.glassmorphism .chord-linear-beat-name {
+    color: #e8eaf6;
+}
+
+body.glassmorphism .chord-linear-lyrics-row {
+    background: rgba(255,255,255,0.02);
+    border-top-color: rgba(255,255,255,0.06);
+    color: #9fa8da;
+}
+
+body.glassmorphism .chord-linear-playhead {
+    background: linear-gradient(180deg, #00d4ff 0%, #0099cc 100%);
+    box-shadow: 0 0 8px rgba(0,212,255,0.5);
+}
+
+body.glassmorphism .chord-linear-playhead::before {
+    border-top-color: #00d4ff;
+}
+
+/* ---- Popup Controls Bar ---- */
+body.glassmorphism .popup-controls-bar {
+    background: rgba(255,255,255,0.04);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+body.glassmorphism .popup-control-btn {
+    background: rgba(0,212,255,0.2);
+    border: 1px solid rgba(0,212,255,0.3);
+    color: #fff;
+}
+
+body.glassmorphism .popup-control-btn:active {
+    background: rgba(0,212,255,0.35);
+}
+
+body.glassmorphism .popup-slider {
+    background: rgba(255,255,255,0.1);
+}
+
+body.glassmorphism .popup-slider::-webkit-slider-thumb {
+    background: #00d4ff;
+    box-shadow: 0 0 6px rgba(0,212,255,0.4);
+}
+
+/* ---- Lyrics Popup ---- */
+body.glassmorphism .lyrics-popup-overlay {
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+body.glassmorphism .lyrics-popup-dialog {
+    background: rgba(15,12,41,0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.12);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+body.glassmorphism .lyrics-popup-header {
+    background: rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+body.glassmorphism .lyrics-popup-close {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+}
+
+body.glassmorphism .lyrics-popup-close:active {
+    background: rgba(255,255,255,0.15);
+}
+
+body.glassmorphism .lyrics-popup-content {
+    background: rgba(255,255,255,0.03);
+}
+
+body.glassmorphism .lyrics-popup-slider {
+    background: rgba(255,255,255,0.04);
+}
+
+/* ---- Fullscreen Lyrics ---- */
+body.glassmorphism .fullscreen-lyrics-overlay {
+    background: rgba(15,12,41,0.97);
+}
+
+body.glassmorphism .fullscreen-lyrics-dialog {
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+}
+
+body.glassmorphism .fullscreen-lyrics-header {
+    background: rgba(255,255,255,0.04);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+body.glassmorphism .fullscreen-lyrics-close {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+}
+
+body.glassmorphism .fullscreen-lyrics-close:active {
+    background: rgba(255,255,255,0.15);
+}
+
+body.glassmorphism .fullscreen-controls-bar {
+    background: rgba(255,255,255,0.04);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+body.glassmorphism .fullscreen-control-btn {
+    background: rgba(0,212,255,0.25);
+    color: #fff;
+}
+
+body.glassmorphism .fullscreen-lyrics-body {
+    background: transparent;
+}
+
+body.glassmorphism .fullscreen-lyrics-content .fs-lyrics-line {
+    color: rgba(255,255,255,0.4);
+}
+
+body.glassmorphism .fullscreen-lyrics-content .fs-lyrics-line.active {
+    color: #e8eaf6;
+}
+
+body.glassmorphism .fullscreen-lyrics-content .fs-lyrics-line.past {
+    color: rgba(255,255,255,0.3);
+}
+
+body.glassmorphism .fullscreen-lyrics-content .fs-lyrics-line.recent-past {
+    color: rgba(255,255,255,0.45);
+}
+
+body.glassmorphism .fullscreen-lyrics-content .fs-lyrics-line.up-next {
+    color: rgba(255,255,255,0.65);
+}
+
+body.glassmorphism .fullscreen-lyrics-content .fs-lyrics-line.future {
+    color: rgba(255,255,255,0.5);
+}
+
+body.glassmorphism .fullscreen-lyrics-content .fs-lyrics-line.hidden-past,
+body.glassmorphism .fullscreen-lyrics-content .fs-lyrics-line.hidden-future {
+    color: rgba(255,255,255,0.15);
+}
+
+body.glassmorphism .fullscreen-lyrics-content .fs-lyrics-line.active .fs-lyrics-chord {
+    text-shadow: 0 0 10px rgba(0,212,255,0.5);
+}
+
+body.glassmorphism .fullscreen-slider {
+    background: rgba(255,255,255,0.1);
+}
+
+body.glassmorphism .fullscreen-slider::-webkit-slider-thumb {
+    background: #00d4ff;
+    box-shadow: 0 2px 8px rgba(0,212,255,0.4);
+}
+
+body.glassmorphism .fullscreen-slider::-moz-range-thumb {
+    background: #00d4ff;
+    box-shadow: 0 2px 8px rgba(0,212,255,0.4);
+}
+
+/* ---- GridView2 ---- */
+body.glassmorphism .gridview2-overlay {
+    background: linear-gradient(135deg, rgba(15,12,41,0.98) 0%, rgba(48,43,99,0.98) 100%);
+}
+
+body.glassmorphism .gridview2-header {
+    background: rgba(255,255,255,0.04);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+body.glassmorphism .gridview2-close {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+}
+
+body.glassmorphism .gridview2-close:hover,
+body.glassmorphism .gridview2-close:active {
+    background: rgba(255,255,255,0.15);
+}
+
+body.glassmorphism .gridview2-transport {
+    background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+body.glassmorphism .gridview2-control-btn:first-child {
+    background: rgba(0,212,255,0.25);
+    color: #fff;
+}
+
+body.glassmorphism .gridview2-control-btn:first-child:hover,
+body.glassmorphism .gridview2-control-btn:first-child:active {
+    background: rgba(0,212,255,0.4);
+}
+
+body.glassmorphism .gridview2-control-btn:last-of-type {
+    background: rgba(255,255,255,0.08);
+}
+
+body.glassmorphism .gridview2-slider::-webkit-slider-thumb {
+    background: #00d4ff;
+    box-shadow: 0 2px 8px rgba(0,212,255,0.4);
+}
+
+body.glassmorphism .gridview2-slider::-moz-range-thumb {
+    background: #00d4ff;
+    box-shadow: 0 2px 8px rgba(0,212,255,0.4);
+}
+
+body.glassmorphism .gridview2-content {
+    scrollbar-color: rgba(0,212,255,0.3) transparent;
+}
+
+body.glassmorphism .gridview2-content::-webkit-scrollbar-thumb {
+    background: rgba(0,212,255,0.3);
+}
+
+body.glassmorphism .gridview2-measure {
+    background: rgba(255,255,255,0.04);
+    border-color: rgba(255,255,255,0.06);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+body.glassmorphism .gridview2-measure-number {
+    background: rgba(0,212,255,0.2);
+    color: rgba(255,255,255,0.6);
+}
+
+body.glassmorphism .gridview2-beat {
+    background: rgba(255,255,255,0.03);
+    color: rgba(255,255,255,0.5);
+}
+
+body.glassmorphism .gridview2-beat.active {
+    background: linear-gradient(135deg, rgba(0,212,255,0.3), rgba(0,180,220,0.25));
+    color: #fff;
+    border-color: rgba(0,212,255,0.5);
+    box-shadow:
+        0 4px 20px rgba(0,212,255,0.4),
+        0 0 40px rgba(0,212,255,0.2),
+        inset 0 1px 0 rgba(255,255,255,0.15);
+}
+
+@keyframes glass-gridview2-pulse {
+    0%, 100% {
+        box-shadow:
+            0 4px 20px rgba(0,212,255,0.4),
+            0 0 40px rgba(0,212,255,0.2);
+    }
+    50% {
+        box-shadow:
+            0 4px 30px rgba(0,212,255,0.6),
+            0 0 60px rgba(0,212,255,0.3);
+    }
+}
+
+body.glassmorphism .gridview2-beat.active {
+    animation: glass-gridview2-pulse 1.5s ease-in-out infinite;
+}
