@@ -6,3 +6,6 @@
 @import url('desktop/responsive.css');  /* Responsive design, mobile/touch adaptations */
 @import url('desktop/admin.css');       /* Admin cleanup, status badges, system settings */
 @import url('desktop/library.css');     /* Library tab, audio analysis, file upload */
+@import url('desktop/neumorphic.css'); /* Neumorphic theme overrides */
+@import url('desktop/glassmorphism.css'); /* Glassmorphism theme overrides */
+@import url('desktop/cyberpunk.css'); /* Cyberpunk Neon theme overrides */

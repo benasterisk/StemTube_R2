@@ -4,11 +4,96 @@
  * Depends on: app-core.js (globals, getCsrfToken)
  */
 
+// Spectrum picker instances (desktop only)
+var _accentPicker = null;
+var _bgPicker = null;
+var _textPicker = null;
+
+// Theme application — removes all theme classes, adds the active one
+function applyTheme(theme, customColor, customBgColor, customTextColor) {
+    // Clear any previous custom theme inline styles
+    clearCustomThemeVariables(document.body);
+
+    document.body.classList.remove('light-theme', 'neumorphic-white', 'neumorphic-anthracite', 'neumorphic-custom', 'glassmorphism', 'cyberpunk-neon');
+    if (theme && theme !== 'dark') {
+        document.body.classList.add(theme);
+    }
+
+    // Apply custom palette if neumorphic-custom
+    if (theme === 'neumorphic-custom') {
+        var accent = customColor || '#e63950';
+        var bg = customBgColor || '#2a2d35';
+        var txt = customTextColor || '#e0e0e0';
+        applyCustomThemeVariables(document.body, accent, bg, txt);
+    }
+
+    // Persist to localStorage for instant restore across sessions
+    try {
+        localStorage.setItem('stemtube_theme', theme || 'dark');
+        if (theme === 'neumorphic-custom') {
+            localStorage.setItem('stemtube_custom_color', customColor || '#e63950');
+            localStorage.setItem('stemtube_custom_bg', customBgColor || '#2a2d35');
+            localStorage.setItem('stemtube_custom_text', customTextColor || '#e0e0e0');
+        }
+    } catch (e) { /* localStorage unavailable */ }
+
+    const themeSelect = document.getElementById('themeSelect');
+    if (themeSelect) themeSelect.value = theme || 'dark';
+
+    // Show/hide color picker rows
+    const customColorRow = document.getElementById('customColorRow');
+    if (customColorRow) {
+        customColorRow.style.display = (theme === 'neumorphic-custom') ? 'block' : 'none';
+    }
+    const colorInput = document.getElementById('customThemeColor');
+    if (colorInput && customColor) colorInput.value = customColor;
+    const bgColorInput = document.getElementById('customThemeBgColor');
+    if (bgColorInput && customBgColor) bgColorInput.value = customBgColor;
+    const textColorInput = document.getElementById('customThemeTextColor');
+    if (textColorInput && customTextColor) textColorInput.value = customTextColor;
+
+    // Sync spectrum pickers if they exist
+    if (_accentPicker && customColor) _accentPicker.setColor(customColor);
+    if (_bgPicker && customBgColor) _bgPicker.setColor(customBgColor);
+    if (_textPicker && customTextColor) _textPicker.setColor(customTextColor);
+
+    // Propagate to mixer iframe
+    const mixerFrame = document.getElementById('mixerFrame');
+    if (mixerFrame && mixerFrame.contentWindow) {
+        mixerFrame.contentWindow.postMessage({
+            type: 'theme_change',
+            theme: theme || 'dark',
+            customColor: customColor || null,
+            customBgColor: customBgColor || null,
+            customTextColor: customTextColor || null
+        }, '*');
+    }
+}
+
+// Restore theme from localStorage immediately (before API call)
+(function() {
+    try {
+        var saved = localStorage.getItem('stemtube_theme');
+        if (saved && saved !== 'dark') {
+            document.body.classList.add(saved);
+        }
+    } catch (e) { /* localStorage unavailable */ }
+})();
+
 // Settings Functions - User settings (theme only)
 function saveSettings() {
-    const settings = {
-        theme: document.getElementById('themeSelect').value
-    };
+    const theme = document.getElementById('themeSelect').value;
+    const settings = { theme: theme };
+
+    // Include custom colors if neumorphic-custom
+    if (theme === 'neumorphic-custom') {
+        const colorInput = document.getElementById('customThemeColor');
+        const bgColorInput = document.getElementById('customThemeBgColor');
+        const textColorInput = document.getElementById('customThemeTextColor');
+        settings.custom_theme_color = colorInput ? colorInput.value : '#e63950';
+        settings.custom_theme_bg_color = bgColorInput ? bgColorInput.value : '#2a2d35';
+        settings.custom_theme_text_color = textColorInput ? textColorInput.value : '#e0e0e0';
+    }
 
     fetch('/api/config', {
         method: 'POST',
@@ -18,17 +103,14 @@ function saveSettings() {
         },
         body: JSON.stringify(settings)
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) throw new Error('Save failed: ' + response.status);
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             showToast('Settings saved', 'success');
-
-            // Apply theme
-            if (settings.theme === 'light') {
-                document.body.classList.add('light-theme');
-            } else {
-                document.body.classList.remove('light-theme');
-            }
+            applyTheme(settings.theme, settings.custom_theme_color, settings.custom_theme_bg_color, settings.custom_theme_text_color);
 
             // Close modal
             document.getElementById('settingsModal').style.display = 'none';
@@ -44,6 +126,85 @@ function saveSettings() {
         showToast('Error saving settings', 'error');
     });
 }
+
+// Spectrum pickers: show/hide on theme change + live preview
+document.addEventListener('DOMContentLoaded', function() {
+    const themeSelect = document.getElementById('themeSelect');
+    const customColorRow = document.getElementById('customColorRow');
+    if (themeSelect && customColorRow) {
+        themeSelect.addEventListener('change', function() {
+            customColorRow.style.display = (themeSelect.value === 'neumorphic-custom') ? 'block' : 'none';
+        });
+    }
+
+    const colorInput = document.getElementById('customThemeColor');
+    const bgColorInput = document.getElementById('customThemeBgColor');
+    const textColorInput = document.getElementById('customThemeTextColor');
+
+    function livePreviewCustomTheme() {
+        if (themeSelect && themeSelect.value === 'neumorphic-custom') {
+            var accent = colorInput ? colorInput.value : '#e63950';
+            var bg = bgColorInput ? bgColorInput.value : '#2a2d35';
+            var txt = textColorInput ? textColorInput.value : '#e0e0e0';
+            applyCustomThemeVariables(document.body, accent, bg, txt);
+            const mixerFrame = document.getElementById('mixerFrame');
+            if (mixerFrame && mixerFrame.contentWindow) {
+                mixerFrame.contentWindow.postMessage({
+                    type: 'theme_change',
+                    theme: 'neumorphic-custom',
+                    customColor: accent,
+                    customBgColor: bg,
+                    customTextColor: txt
+                }, '*');
+            }
+        }
+    }
+
+    // Instantiate spectrum pickers
+    if (typeof SpectrumPicker !== 'undefined') {
+        var accentContainer = document.getElementById('accentPickerContainer');
+        if (accentContainer) {
+            _accentPicker = new SpectrumPicker(accentContainer, {
+                color: (colorInput && colorInput.value) || '#e63950',
+                onChange: function(hex) {
+                    if (colorInput) colorInput.value = hex;
+                    livePreviewCustomTheme();
+                }
+            });
+        }
+        var bgContainer = document.getElementById('bgPickerContainer');
+        if (bgContainer) {
+            _bgPicker = new SpectrumPicker(bgContainer, {
+                color: (bgColorInput && bgColorInput.value) || '#2a2d35',
+                onChange: function(hex) {
+                    if (bgColorInput) bgColorInput.value = hex;
+                    livePreviewCustomTheme();
+                }
+            });
+        }
+        var textContainer = document.getElementById('textPickerContainer');
+        if (textContainer) {
+            _textPicker = new SpectrumPicker(textContainer, {
+                color: (textColorInput && textColorInput.value) || '#e0e0e0',
+                onChange: function(hex) {
+                    if (textColorInput) textColorInput.value = hex;
+                    livePreviewCustomTheme();
+                }
+            });
+        }
+    }
+
+    // Build preset pastilles
+    buildPresetPastilles(document.getElementById('presetPastilles'), function(preset) {
+        if (colorInput) colorInput.value = preset.accent;
+        if (bgColorInput) bgColorInput.value = preset.bg;
+        if (textColorInput) textColorInput.value = preset.text;
+        if (_accentPicker) _accentPicker.setColor(preset.accent);
+        if (_bgPicker) _bgPicker.setColor(preset.bg);
+        if (_textPicker) _textPicker.setColor(preset.text);
+        livePreviewCustomTheme();
+    });
+});
 
 function checkFfmpegStatus() {
     // Note: FFmpeg status is now in Admin > System Settings

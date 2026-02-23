@@ -4,9 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StemTube Web</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1762213749">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ cache_buster }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/desktop/base.css') }}?v={{ cache_buster }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/desktop/neumorphic.css') }}?v={{ cache_buster }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/jam.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/jam.css') }}?v={{ cache_buster }}">
     <!-- CSRF protection is disabled for this application -->
     <!-- Split.js pour le redimensionnement des colonnes -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/split.js/1.6.5/split.min.js"></script>
@@ -563,7 +565,31 @@
                         <select id="themeSelect">
                             <option value="dark">Dark</option>
                             <option value="light">Light</option>
+                            <option value="neumorphic-custom">Neumorphic Custom</option>
+                            <option value="glassmorphism">Glassmorphism</option>
+                            <option value="cyberpunk-neon">Cyberpunk Neon</option>
                         </select>
+                    </div>
+                    <div id="customColorRow" style="display: none;">
+                        <div class="setting-item">
+                            <label>Presets</label>
+                            <div id="presetPastilles" class="preset-pastilles"></div>
+                        </div>
+                        <div class="setting-item">
+                            <label>Accent Color</label>
+                            <div id="accentPickerContainer"></div>
+                            <input type="hidden" id="customThemeColor" value="#e63950">
+                        </div>
+                        <div class="setting-item">
+                            <label>Background Color</label>
+                            <div id="bgPickerContainer"></div>
+                            <input type="hidden" id="customThemeBgColor" value="#2a2d35">
+                        </div>
+                        <div class="setting-item">
+                            <label>Text Color</label>
+                            <div id="textPickerContainer"></div>
+                            <input type="hidden" id="customThemeTextColor" value="#e0e0e0">
+                        </div>
                     </div>
                 </div>
 
@@ -722,11 +748,13 @@
     <script src="{{ url_for('static', filename='js/logging-dynamic.js') }}?t=1761906276"></script>
     <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
     <!-- app.js split into modular files -->
-    <script src="{{ url_for('static', filename='js/app-core.js') }}?v=20260222b"></script>
-    <script src="{{ url_for('static', filename='js/app-downloads.js') }}?v=20260222b"></script>
-    <script src="{{ url_for('static', filename='js/app-utils.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/app-admin.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/app-extensions.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme-generator.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/spectrum-picker.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/app-core.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/app-downloads.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/app-utils.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/app-admin.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/app-extensions.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/jam-client.js') }}"></script>
     <script src="{{ url_for('static', filename='js/jam-tab.js') }}"></script>
 

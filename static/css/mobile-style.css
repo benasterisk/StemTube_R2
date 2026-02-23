@@ -9,3 +9,6 @@
 @import url('mobile/controls.css');   /* Neumorphic dials, trigger buttons, toast */
 @import url('mobile/admin.css');      /* Admin panel, modals, cleanup, users */
 @import url('mobile/settings.css');   /* System settings, user settings, cache, lyrics dialog */
+@import url('mobile/neumorphic.css'); /* Neumorphic theme overrides */
+@import url('mobile/glassmorphism.css'); /* Glassmorphism theme overrides */
+@import url('mobile/cyberpunk.css'); /* Cyberpunk Neon theme overrides */

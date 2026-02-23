@@ -1,0 +1,156 @@
+/* ================================================
+   Glassmorphism Theme Overrides — Mixer
+   Frosted glass panels, blurred backgrounds, cyan accents
+   ================================================ */
+
+/* ---- Mixer container ---- */
+body.glassmorphism {
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    background-attachment: fixed;
+}
+
+body.glassmorphism .mixer-app {
+    background: transparent;
+}
+
+/* ---- Song Title Bar ---- */
+body.glassmorphism .song-title-bar {
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    box-shadow: none;
+}
+
+/* ---- Tab Navigation ---- */
+body.glassmorphism .mixer-tabs {
+    background: rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    box-shadow: none;
+}
+
+body.glassmorphism .tab-btn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    margin: 4px;
+    box-shadow: none;
+}
+
+body.glassmorphism .tab-btn:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+body.glassmorphism .tab-btn.active {
+    background: rgba(0,212,255,0.12);
+    border-color: rgba(0,212,255,0.4);
+    box-shadow: none;
+}
+
+/* ---- Transport Controls ---- */
+body.glassmorphism .transport-container {
+    background: rgba(255,255,255,0.04);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+body.glassmorphism .transport-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    box-shadow: none;
+}
+
+body.glassmorphism .transport-btn:hover {
+    background: rgba(255,255,255,0.15);
+    border-color: rgba(0,212,255,0.3);
+}
+
+body.glassmorphism .transport-btn:active {
+    background: rgba(0,212,255,0.15);
+}
+
+body.glassmorphism .time-display {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: none;
+}
+
+/* ---- Track Controls ---- */
+body.glassmorphism .track-control,
+body.glassmorphism .track-row {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+}
+
+/* ---- Sliders ---- */
+body.glassmorphism input[type="range"]::-webkit-slider-thumb {
+    background: #00d4ff;
+    box-shadow: 0 0 6px rgba(0,212,255,0.4);
+}
+
+/* ---- Chord Display ---- */
+body.glassmorphism .chord-cell {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+}
+
+body.glassmorphism .chord-cell.active,
+body.glassmorphism .chord-cell.current {
+    background: rgba(0,212,255,0.15);
+    border-color: rgba(0,212,255,0.4);
+}
+
+/* ---- Timeline ---- */
+body.glassmorphism .timeline-container {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ---- Waveform ---- */
+body.glassmorphism .waveform-container {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+}
+
+/* ---- Export Modal ---- */
+body.glassmorphism .export-modal-content,
+body.glassmorphism .chord-grid-popup {
+    background: rgba(15,12,41,0.9);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px;
+}
+
+/* ---- Karaoke Display ---- */
+body.glassmorphism .karaoke-container {
+    background: rgba(255,255,255,0.04);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ---- Structure sections ---- */
+body.glassmorphism .structure-section {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+}
+
+/* ---- Scrollbar ---- */
+body.glassmorphism ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+body.glassmorphism ::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.03);
+}
+
+body.glassmorphism ::-webkit-scrollbar-thumb {
+    background: rgba(0,212,255,0.3);
+    border-radius: 4px;
+}

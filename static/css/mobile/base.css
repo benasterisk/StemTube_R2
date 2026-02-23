@@ -19,6 +19,81 @@
     --mobile-radius: 8px;
 }
 
+/* Glam Red - Mobile */
+body.neumorphic-white.mobile-body {
+    --mobile-primary: #e63950;
+    --mobile-primary-dark: #c42e42;
+    --accent-rgb: 230, 57, 80;
+    --mobile-bg: #2a0a10;
+    --mobile-bg-secondary: #301218;
+    --mobile-bg-tertiary: #1f0810;
+    --mobile-text: #f0d0d5;
+    --mobile-text-secondary: #c08090;
+    --mobile-border: rgba(255, 100, 120, 0.12);
+    --mobile-neu-shadow: 5px 5px 10px #1a0508, -5px -5px 10px #3d1520;
+    --mobile-neu-shadow-sm: 3px 3px 6px #1a0508, -3px -3px 6px #3d1520;
+    --mobile-neu-inset: inset 3px 3px 6px #1a0508, inset -3px -3px 6px #3d1520;
+    --mobile-neu-pressed: inset 2px 2px 5px #1a0508, inset -2px -2px 5px #3d1520;
+}
+
+/* Neumorphic Anthracite Steel - Mobile */
+body.neumorphic-anthracite.mobile-body {
+    --accent-rgb: 29, 185, 84;
+    --mobile-bg: #2a2d35;
+    --mobile-bg-secondary: #2a2d35;
+    --mobile-bg-tertiary: #23262d;
+    --mobile-text: #e0e4ea;
+    --mobile-text-secondary: #8a92a1;
+    --mobile-border: rgba(255, 255, 255, 0.08);
+    --mobile-neu-shadow: 6px 6px 12px #1c1e24, -6px -6px 12px #383c48;
+    --mobile-neu-shadow-sm: 3px 3px 6px #1c1e24, -3px -3px 6px #383c48;
+    --mobile-neu-inset: inset 3px 3px 6px #1c1e24, inset -3px -3px 6px #383c48;
+    --mobile-neu-pressed: inset 2px 2px 5px #1c1e24, inset -2px -2px 5px #383c48;
+}
+
+/* Neumorphic Custom - Mobile (fallback — overridden by JS-generated palette) */
+body.neumorphic-custom.mobile-body {
+    --mobile-primary: #e63950;
+    --mobile-primary-dark: #c42e42;
+    --accent-rgb: 230, 57, 80;
+    --mobile-bg: #2a0a10;
+    --mobile-bg-secondary: #301218;
+    --mobile-bg-tertiary: #1f0810;
+    --mobile-text: #f0d0d5;
+    --mobile-text-secondary: #c08090;
+    --mobile-border: rgba(255, 100, 120, 0.12);
+    --mobile-neu-shadow: 5px 5px 10px #1a0508, -5px -5px 10px #3d1520;
+    --mobile-neu-shadow-sm: 3px 3px 6px #1a0508, -3px -3px 6px #3d1520;
+    --mobile-neu-inset: inset 3px 3px 6px #1a0508, inset -3px -3px 6px #3d1520;
+    --mobile-neu-pressed: inset 2px 2px 5px #1a0508, inset -2px -2px 5px #3d1520;
+}
+
+/* Glassmorphism - Mobile */
+body.glassmorphism.mobile-body {
+    --mobile-primary: #00d4ff;
+    --mobile-primary-dark: #00a8cc;
+    --accent-rgb: 0, 212, 255;
+    --mobile-bg: #0f0c29;
+    --mobile-bg-secondary: rgba(255,255,255,0.08);
+    --mobile-bg-tertiary: rgba(255,255,255,0.03);
+    --mobile-text: #e8eaf6;
+    --mobile-text-secondary: #9fa8da;
+    --mobile-border: rgba(255,255,255,0.12);
+}
+
+/* Cyberpunk Neon - Mobile */
+body.cyberpunk-neon.mobile-body {
+    --mobile-primary: #ff2d95;
+    --mobile-primary-dark: #cc2477;
+    --accent-rgb: 255, 45, 149;
+    --mobile-bg: #0a0a0a;
+    --mobile-bg-secondary: #1a1a1a;
+    --mobile-bg-tertiary: #0d0d0d;
+    --mobile-text: #e0e0e0;
+    --mobile-text-secondary: #888888;
+    --mobile-border: rgba(255,45,149,0.3);
+}
+
 /* Reset and Base */
 * {
     margin: 0;

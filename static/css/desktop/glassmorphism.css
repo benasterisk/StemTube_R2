@@ -1,0 +1,187 @@
+/* ================================================
+   Glassmorphism Theme Overrides — Desktop
+   Frosted glass panels, blurred backgrounds, cyan accents
+   ================================================ */
+
+/* ---- Body background gradient ---- */
+body.glassmorphism {
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    background-attachment: fixed;
+    transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+/* ---- Header ---- */
+body.glassmorphism header {
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+
+/* ---- Buttons ---- */
+body.glassmorphism button,
+body.glassmorphism .segment,
+body.glassmorphism .settings-button,
+body.glassmorphism .logout-button {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+body.glassmorphism button:hover,
+body.glassmorphism .segment:hover,
+body.glassmorphism .settings-button:hover {
+    background: rgba(255,255,255,0.15);
+    border-color: rgba(0,212,255,0.3);
+}
+
+body.glassmorphism .segment.active {
+    background: rgba(0,212,255,0.15);
+    border-color: rgba(0,212,255,0.4);
+}
+
+/* ---- Inputs / Selects ---- */
+body.glassmorphism input,
+body.glassmorphism select,
+body.glassmorphism textarea,
+body.glassmorphism #searchInput,
+body.glassmorphism #resultsCount {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+    color: var(--text-color);
+}
+
+body.glassmorphism input:focus,
+body.glassmorphism select:focus,
+body.glassmorphism textarea:focus,
+body.glassmorphism #searchInput:focus {
+    border-color: rgba(0,212,255,0.5);
+    box-shadow: 0 0 8px rgba(0,212,255,0.2);
+    outline: none;
+}
+
+/* ---- Modals ---- */
+body.glassmorphism .modal-content,
+body.glassmorphism .settings-modal .modal-content {
+    background: rgba(15,12,41,0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+/* ---- Cards / Panels ---- */
+body.glassmorphism .column {
+    background: rgba(255,255,255,0.03);
+}
+
+body.glassmorphism .search-result,
+body.glassmorphism .download-item,
+body.glassmorphism .extraction-item,
+body.glassmorphism .library-item {
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    box-shadow: none;
+}
+
+body.glassmorphism .search-result:hover,
+body.glassmorphism .download-item:hover,
+body.glassmorphism .extraction-item:hover,
+body.glassmorphism .library-item:hover {
+    background: rgba(255,255,255,0.1);
+    border-color: rgba(0,212,255,0.25);
+}
+
+/* ---- Tabs ---- */
+body.glassmorphism .tab-buttons {
+    background: rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+body.glassmorphism .tab-buttons button.active {
+    background: rgba(0,212,255,0.12);
+    border-bottom: 2px solid #00d4ff;
+}
+
+/* ---- Settings sections ---- */
+body.glassmorphism .settings-section {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 16px;
+}
+
+/* ---- Toast ---- */
+body.glassmorphism .toast {
+    background: rgba(15,12,41,0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+}
+
+/* ---- User info ---- */
+body.glassmorphism .user-info {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* ---- Gutter (Split.js) ---- */
+body.glassmorphism .gutter {
+    background-color: rgba(255,255,255,0.08);
+}
+
+/* ---- Scrollbar ---- */
+body.glassmorphism ::-webkit-scrollbar {
+    width: 8px;
+}
+
+body.glassmorphism ::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.03);
+}
+
+body.glassmorphism ::-webkit-scrollbar-thumb {
+    background: rgba(0,212,255,0.3);
+    border-radius: 4px;
+}
+
+body.glassmorphism ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0,212,255,0.5);
+}
+
+/* ---- Status badges ---- */
+body.glassmorphism .status-completed {
+    color: #00e676;
+}
+
+body.glassmorphism .status-downloading,
+body.glassmorphism .status-extracting {
+    color: #00d4ff;
+}
+
+/* ---- Download modal ---- */
+body.glassmorphism .download-modal-content {
+    background: rgba(15,12,41,0.9);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.12);
+}
+
+/* ---- Progress bars ---- */
+body.glassmorphism .progress-bar {
+    background: rgba(255,255,255,0.08);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+body.glassmorphism .progress-fill {
+    background: linear-gradient(90deg, #00d4ff, #33dfff);
+}

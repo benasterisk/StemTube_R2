@@ -1,0 +1,159 @@
+/* ================================================
+   Cyberpunk Neon Theme Overrides — Mixer
+   Pure black bg, neon glow borders, magenta/cyan highlights
+   ================================================ */
+
+/* ---- Mixer container ---- */
+body.cyberpunk-neon {
+    background: #0a0a0a;
+}
+
+body.cyberpunk-neon .mixer-app {
+    background: #0a0a0a;
+}
+
+/* ---- Song Title Bar ---- */
+body.cyberpunk-neon .song-title-bar {
+    background: #0d0d0d;
+    border-bottom: 1px solid rgba(255,45,149,0.3);
+    box-shadow: 0 2px 8px rgba(255,45,149,0.1);
+}
+
+/* ---- Tab Navigation ---- */
+body.cyberpunk-neon .mixer-tabs {
+    background: #0d0d0d;
+    border-bottom: 1px solid rgba(255,45,149,0.2);
+    box-shadow: none;
+}
+
+body.cyberpunk-neon .tab-btn {
+    background: #111111;
+    border: 1px solid rgba(255,45,149,0.2);
+    border-radius: 4px;
+    margin: 4px;
+    box-shadow: none;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+body.cyberpunk-neon .tab-btn:hover {
+    border-color: rgba(255,45,149,0.5);
+    box-shadow: 0 0 8px rgba(255,45,149,0.2);
+}
+
+body.cyberpunk-neon .tab-btn.active {
+    background: rgba(255,45,149,0.1);
+    border-color: #ff2d95;
+    box-shadow: 0 0 10px rgba(255,45,149,0.4);
+    color: #ff2d95;
+    text-shadow: 0 0 6px rgba(255,45,149,0.4);
+}
+
+/* ---- Transport Controls ---- */
+body.cyberpunk-neon .transport-container {
+    background: #0d0d0d;
+}
+
+body.cyberpunk-neon .transport-btn {
+    background: #111111;
+    border: 1px solid rgba(255,45,149,0.3);
+    box-shadow: none;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+body.cyberpunk-neon .transport-btn:hover {
+    border-color: rgba(255,45,149,0.6);
+    box-shadow: 0 0 12px rgba(255,45,149,0.3);
+}
+
+body.cyberpunk-neon .transport-btn:active {
+    box-shadow: 0 0 16px rgba(255,45,149,0.5);
+}
+
+body.cyberpunk-neon .time-display {
+    background: #0d0d0d;
+    border: 1px solid rgba(255,45,149,0.2);
+    box-shadow: none;
+    color: #00f0ff;
+    text-shadow: 0 0 4px rgba(0,240,255,0.3);
+}
+
+/* ---- Track Controls ---- */
+body.cyberpunk-neon .track-control,
+body.cyberpunk-neon .track-row {
+    background: #111111;
+    border: 1px solid rgba(255,45,149,0.15);
+    border-radius: 4px;
+}
+
+/* ---- Sliders ---- */
+body.cyberpunk-neon input[type="range"]::-webkit-slider-thumb {
+    background: #ff2d95;
+    box-shadow: 0 0 8px rgba(255,45,149,0.5);
+}
+
+/* ---- Chord Display ---- */
+body.cyberpunk-neon .chord-cell {
+    background: #111111;
+    border: 1px solid rgba(255,45,149,0.15);
+    border-radius: 4px;
+}
+
+body.cyberpunk-neon .chord-cell.active,
+body.cyberpunk-neon .chord-cell.current {
+    background: rgba(255,45,149,0.15);
+    border-color: #ff2d95;
+    box-shadow: 0 0 10px rgba(255,45,149,0.3);
+    color: #ff2d95;
+    text-shadow: 0 0 4px rgba(255,45,149,0.4);
+}
+
+/* ---- Timeline ---- */
+body.cyberpunk-neon .timeline-container {
+    background: #0d0d0d;
+    border: 1px solid rgba(255,45,149,0.15);
+}
+
+/* ---- Waveform ---- */
+body.cyberpunk-neon .waveform-container {
+    background: #0d0d0d;
+    border: 1px solid rgba(255,45,149,0.15);
+    border-radius: 4px;
+}
+
+/* ---- Export Modal ---- */
+body.cyberpunk-neon .export-modal-content,
+body.cyberpunk-neon .chord-grid-popup {
+    background: #0d0d0d;
+    border: 1px solid rgba(255,45,149,0.4);
+    border-radius: 4px;
+    box-shadow: 0 0 24px rgba(255,45,149,0.2);
+}
+
+/* ---- Karaoke Display ---- */
+body.cyberpunk-neon .karaoke-container {
+    background: #0d0d0d;
+    border: 1px solid rgba(255,45,149,0.15);
+}
+
+/* ---- Structure sections ---- */
+body.cyberpunk-neon .structure-section {
+    background: #111111;
+    border: 1px solid rgba(255,45,149,0.15);
+    border-radius: 4px;
+}
+
+/* ---- Scrollbar ---- */
+body.cyberpunk-neon ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+body.cyberpunk-neon ::-webkit-scrollbar-track {
+    background: #0a0a0a;
+}
+
+body.cyberpunk-neon ::-webkit-scrollbar-thumb {
+    background: rgba(255,45,149,0.4);
+    border-radius: 2px;
+    box-shadow: 0 0 4px rgba(255,45,149,0.3);
+}

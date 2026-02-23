@@ -43,6 +43,129 @@ body.light-theme {
     --border-color: #dddddd;
 }
 
+/* Glam Red */
+body.neumorphic-white {
+    --bg-color: #2a0a10;
+    --bg-primary: #250910;
+    --bg-secondary: #301218;
+    --bg-tertiary: #1f0810;
+    --bg-hover: #3a1520;
+    --text-color: #f0d0d5;
+    --text-primary: #f0d0d5;
+    --text-secondary: #c08090;
+    --accent-color: #e63950;
+    --accent-hover: #ff4d65;
+    --accent-rgb: 230, 57, 80;
+    --border-color: rgba(255, 100, 120, 0.12);
+    --success-color: #e63950;
+    --info-color: #ff4d65;
+    --warning-color: #d4913a;
+    --shadow-sm: 3px 3px 6px #1a0508, -3px -3px 6px #3d1520;
+    --shadow-md: 5px 5px 10px #1a0508, -5px -5px 10px #3d1520;
+    --shadow-lg: 7px 7px 14px #1a0508, -7px -7px 14px #3d1520;
+    --neu-shadow-inset: inset 3px 3px 6px #1a0508, inset -3px -3px 6px #3d1520;
+    --neu-shadow-flat: 4px 4px 8px #1a0508, -4px -4px 8px #3d1520;
+    --neu-shadow-pressed: inset 3px 3px 6px #1a0508, inset -3px -3px 6px #3d1520;
+    --border-radius: 12px;
+}
+
+/* Neumorphic Anthracite Steel */
+body.neumorphic-anthracite {
+    --bg-color: #2a2d35;
+    --bg-primary: #24272e;
+    --bg-secondary: #2a2d35;
+    --bg-tertiary: #23262d;
+    --bg-hover: #32363f;
+    --text-color: #e0e4ea;
+    --text-primary: #e0e4ea;
+    --text-secondary: #8a92a1;
+    --accent-color: #1DB954;
+    --accent-hover: #1ed760;
+    --accent-rgb: 29, 185, 84;
+    --border-color: rgba(255, 255, 255, 0.08);
+    --shadow-sm: 4px 4px 8px #1c1e24, -4px -4px 8px #383c48;
+    --shadow-md: 6px 6px 12px #1c1e24, -6px -6px 12px #383c48;
+    --shadow-lg: 8px 8px 16px #1c1e24, -8px -8px 16px #383c48;
+    --neu-shadow-inset: inset 3px 3px 6px #1c1e24, inset -3px -3px 6px #383c48;
+    --neu-shadow-flat: 4px 4px 8px #1c1e24, -4px -4px 8px #383c48;
+    --neu-shadow-pressed: inset 3px 3px 6px #1c1e24, inset -3px -3px 6px #383c48;
+    --border-radius: 12px;
+}
+
+/* Neumorphic Custom (fallback — overridden by JS-generated palette) */
+body.neumorphic-custom {
+    --bg-color: #2a0a10;
+    --bg-primary: #250910;
+    --bg-secondary: #301218;
+    --bg-tertiary: #1f0810;
+    --bg-hover: #3a1520;
+    --text-color: #f0d0d5;
+    --text-primary: #f0d0d5;
+    --text-secondary: #c08090;
+    --accent-color: #e63950;
+    --accent-hover: #ff4d65;
+    --accent-rgb: 230, 57, 80;
+    --border-color: rgba(255, 100, 120, 0.12);
+    --success-color: #e63950;
+    --info-color: #ff4d65;
+    --warning-color: #d4913a;
+    --shadow-sm: 3px 3px 6px #1a0508, -3px -3px 6px #3d1520;
+    --shadow-md: 5px 5px 10px #1a0508, -5px -5px 10px #3d1520;
+    --shadow-lg: 7px 7px 14px #1a0508, -7px -7px 14px #3d1520;
+    --neu-shadow-inset: inset 3px 3px 6px #1a0508, inset -3px -3px 6px #3d1520;
+    --neu-shadow-flat: 4px 4px 8px #1a0508, -4px -4px 8px #3d1520;
+    --neu-shadow-pressed: inset 3px 3px 6px #1a0508, inset -3px -3px 6px #3d1520;
+    --border-radius: 12px;
+}
+
+/* Glassmorphism */
+body.glassmorphism {
+    --bg-color: #0f0c29;
+    --bg-primary: rgba(255,255,255,0.05);
+    --bg-secondary: rgba(255,255,255,0.08);
+    --bg-tertiary: rgba(255,255,255,0.03);
+    --bg-hover: rgba(255,255,255,0.12);
+    --text-color: #e8eaf6;
+    --text-primary: #e8eaf6;
+    --text-secondary: #9fa8da;
+    --accent-color: #00d4ff;
+    --accent-hover: #33dfff;
+    --accent-rgb: 0, 212, 255;
+    --border-color: rgba(255,255,255,0.12);
+    --error-color: #ff5252;
+    --success-color: #00e676;
+    --info-color: #40c4ff;
+    --warning-color: #ffab40;
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.3);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.4);
+    --border-radius: 16px;
+}
+
+/* Cyberpunk Neon */
+body.cyberpunk-neon {
+    --bg-color: #0a0a0a;
+    --bg-primary: #111111;
+    --bg-secondary: #1a1a1a;
+    --bg-tertiary: #0d0d0d;
+    --bg-hover: #222222;
+    --text-color: #e0e0e0;
+    --text-primary: #f0f0f0;
+    --text-secondary: #888888;
+    --accent-color: #ff2d95;
+    --accent-hover: #ff5aad;
+    --accent-rgb: 255, 45, 149;
+    --border-color: rgba(255,45,149,0.3);
+    --error-color: #ff5252;
+    --success-color: #00f0ff;
+    --info-color: #00f0ff;
+    --warning-color: #ffe040;
+    --shadow-sm: 0 0 8px rgba(255,45,149,0.3);
+    --shadow-md: 0 0 16px rgba(255,45,149,0.3);
+    --shadow-lg: 0 0 24px rgba(255,45,149,0.4);
+    --border-radius: 4px;
+}
+
 /* Reset and Base Styles */
 * {
     margin: 0;

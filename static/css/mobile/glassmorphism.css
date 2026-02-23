@@ -1,0 +1,149 @@
+/* ================================================
+   Glassmorphism Theme Overrides — Mobile
+   Frosted glass panels, blurred backgrounds, cyan accents
+   ================================================ */
+
+/* ---- Body background gradient ---- */
+body.glassmorphism.mobile-body {
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    background-attachment: fixed;
+    transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+/* ---- Header ---- */
+body.glassmorphism .mobile-header {
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+/* ---- Bottom Nav ---- */
+body.glassmorphism .mobile-nav {
+    background: rgba(15,12,41,0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+/* ---- Buttons ---- */
+body.glassmorphism .mobile-btn,
+body.glassmorphism .mobile-btn-primary,
+body.glassmorphism .mobile-btn-secondary,
+body.glassmorphism .mobile-btn-ghost,
+body.glassmorphism .mobile-btn-small,
+body.glassmorphism .mobile-btn-icon {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+body.glassmorphism .mobile-btn-primary {
+    background: rgba(0,212,255,0.2);
+    border-color: rgba(0,212,255,0.4);
+}
+
+body.glassmorphism .mobile-btn-icon {
+    background: rgba(0,212,255,0.2);
+    border: 1px solid rgba(0,212,255,0.3);
+}
+
+body.glassmorphism .mobile-btn:active,
+body.glassmorphism .mobile-btn-primary:active,
+body.glassmorphism .mobile-btn-icon:active {
+    background: rgba(0,212,255,0.25);
+}
+
+/* ---- Inputs ---- */
+body.glassmorphism .mobile-input,
+body.glassmorphism .mobile-select {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: var(--mobile-text);
+}
+
+body.glassmorphism .mobile-input:focus,
+body.glassmorphism .mobile-select:focus {
+    border-color: rgba(0,212,255,0.5);
+    box-shadow: 0 0 8px rgba(0,212,255,0.2);
+}
+
+/* ---- Cards / Items ---- */
+body.glassmorphism .mobile-search-result,
+body.glassmorphism .mobile-library-item,
+body.glassmorphism .mobile-upload-section {
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: none;
+}
+
+body.glassmorphism .mobile-settings-card {
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* ---- Progress bars ---- */
+body.glassmorphism .mobile-progress-track,
+body.glassmorphism .mobile-progress-bar {
+    background: rgba(255,255,255,0.08);
+}
+
+body.glassmorphism .mobile-progress-fill {
+    background: linear-gradient(90deg, #00d4ff, #33dfff);
+}
+
+/* ---- Bottom sheet / Dialogs ---- */
+body.glassmorphism .mobile-bottom-sheet,
+body.glassmorphism .mobile-dialog {
+    background: rgba(15,12,41,0.9);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.12);
+}
+
+/* ---- Status pills ---- */
+body.glassmorphism .mobile-status-pill.status-ready,
+body.glassmorphism .mobile-status-pill.status-completed {
+    background: rgba(0,230,118,0.18);
+    color: #00e676;
+}
+
+body.glassmorphism .mobile-status-pill.status-extracting,
+body.glassmorphism .mobile-status-pill.status-processing {
+    background: rgba(0,212,255,0.18);
+    color: #00d4ff;
+}
+
+/* ---- Toast ---- */
+body.glassmorphism .mobile-toast {
+    background: rgba(15,12,41,0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.15);
+}
+
+/* ---- Seek bar ---- */
+body.glassmorphism input[type="range"]::-webkit-slider-thumb {
+    background: #00d4ff;
+    box-shadow: 0 0 6px rgba(0,212,255,0.4);
+}
+
+/* ---- Scrollbar ---- */
+body.glassmorphism.mobile-body ::-webkit-scrollbar {
+    width: 4px;
+}
+
+body.glassmorphism.mobile-body ::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+body.glassmorphism.mobile-body ::-webkit-scrollbar-thumb {
+    background: rgba(0,212,255,0.3);
+    border-radius: 4px;
+}

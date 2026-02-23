@@ -4,6 +4,16 @@
  * Depends on: mobile-constants.js, mobile-guitar-diagram.js, mobile-neumorphic-dial.js
  */
 
+// Restore theme from localStorage immediately (before API call)
+(function() {
+    try {
+        var saved = localStorage.getItem('stemtube_theme');
+        if (saved && saved !== 'dark') {
+            document.body.classList.add(saved);
+        }
+    } catch (e) { /* localStorage unavailable */ }
+})();
+
 class MobileApp {
     constructor() {
         console.log('[MobileApp] Initializing Android-first architecture...');
@@ -119,6 +129,7 @@ class MobileApp {
         this.setupLoadingOverlay();
         this.setupBrowserLogging();
         this.setupSettings();
+        this.loadTheme();
 
         this.initJamClient();
 
@@ -787,7 +798,192 @@ class MobileApp {
     // User Settings Page
     // ========================================
 
+    applyTheme(theme, customColor, customBgColor, customTextColor) {
+        clearCustomThemeVariables(document.body);
+        document.body.classList.remove('light-theme', 'neumorphic-white', 'neumorphic-anthracite', 'neumorphic-custom', 'glassmorphism', 'cyberpunk-neon');
+        if (theme && theme !== 'dark') {
+            document.body.classList.add(theme);
+        }
+        if (theme === 'neumorphic-custom') {
+            var accent = customColor || '#e63950';
+            var bg = customBgColor || '#2a2d35';
+            var txt = customTextColor || '#e0e0e0';
+            applyCustomThemeVariables(document.body, accent, bg, txt);
+        }
+        const sel = document.getElementById('mobileThemeSelect');
+        if (sel) sel.value = theme || 'dark';
+        this._currentTheme = theme || 'dark';
+        this._customThemeColor = customColor || null;
+        this._customThemeBgColor = customBgColor || null;
+        this._customThemeTextColor = customTextColor || null;
+
+        // Persist to localStorage for instant restore across sessions
+        try {
+            localStorage.setItem('stemtube_theme', theme || 'dark');
+            if (theme === 'neumorphic-custom') {
+                localStorage.setItem('stemtube_custom_color', customColor || '#e63950');
+                localStorage.setItem('stemtube_custom_bg', customBgColor || '#2a2d35');
+                localStorage.setItem('stemtube_custom_text', customTextColor || '#e0e0e0');
+            }
+        } catch (e) { /* localStorage unavailable */ }
+
+        // Show/hide color picker
+        const customColorRow = document.getElementById('mobileCustomColorRow');
+        if (customColorRow) {
+            customColorRow.style.display = (theme === 'neumorphic-custom') ? 'block' : 'none';
+        }
+        const colorInput = document.getElementById('mobileCustomThemeColor');
+        if (colorInput && customColor) colorInput.value = customColor;
+        const bgColorInput = document.getElementById('mobileCustomThemeBgColor');
+        if (bgColorInput && customBgColor) bgColorInput.value = customBgColor;
+        const textColorInput = document.getElementById('mobileCustomThemeTextColor');
+        if (textColorInput && customTextColor) textColorInput.value = customTextColor;
+
+        // Sync spectrum pickers if they exist
+        if (this._mobileAccentPicker && customColor) this._mobileAccentPicker.setColor(customColor);
+        if (this._mobileBgPicker && customBgColor) this._mobileBgPicker.setColor(customBgColor);
+        if (this._mobileTextPicker && customTextColor) this._mobileTextPicker.setColor(customTextColor);
+    }
+
+    async loadTheme() {
+        try {
+            const res = await fetch('/api/config');
+            if (res.ok) {
+                const data = await res.json();
+                this.applyTheme(data.theme || 'dark', data.custom_theme_color || null, data.custom_theme_bg_color || null, data.custom_theme_text_color || null);
+            }
+        } catch (err) {
+            console.warn('[Theme] Failed to load theme:', err);
+        }
+    }
+
+    async saveTheme(theme, customColor, customBgColor, customTextColor) {
+        this.applyTheme(theme, customColor, customBgColor, customTextColor);
+        try {
+            const body = { theme };
+            if (theme === 'neumorphic-custom') {
+                body.custom_theme_color = customColor || '#e63950';
+                body.custom_theme_bg_color = customBgColor || '#2a2d35';
+                body.custom_theme_text_color = customTextColor || '#e0e0e0';
+            }
+            const res = await fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            if (res.ok) {
+                this.showToast('Theme saved', 'success');
+            } else {
+                console.error('[Theme] Server rejected save:', res.status);
+                this.showToast('Failed to save theme', 'error');
+            }
+        } catch (err) {
+            console.error('[Theme] Failed to save theme:', err);
+            this.showToast('Failed to save theme', 'error');
+        }
+    }
+
     setupSettings() {
+        // Theme selector
+        const themeSelect = document.getElementById('mobileThemeSelect');
+        if (themeSelect) {
+            themeSelect.addEventListener('change', () => {
+                const colorInput = document.getElementById('mobileCustomThemeColor');
+                const bgColorInput = document.getElementById('mobileCustomThemeBgColor');
+                const textColorInput = document.getElementById('mobileCustomThemeTextColor');
+                const color = colorInput ? colorInput.value : '#e63950';
+                const bgColor = bgColorInput ? bgColorInput.value : '#2a2d35';
+                const textColor = textColorInput ? textColorInput.value : '#e0e0e0';
+                if (themeSelect.value === 'neumorphic-custom') {
+                    this.saveTheme(themeSelect.value, color, bgColor, textColor);
+                } else {
+                    this.saveTheme(themeSelect.value, null, null, null);
+                }
+                // Show/hide color picker
+                const row = document.getElementById('mobileCustomColorRow');
+                if (row) row.style.display = (themeSelect.value === 'neumorphic-custom') ? 'block' : 'none';
+            });
+        }
+        // Spectrum pickers: live preview + auto-save
+        const colorInput = document.getElementById('mobileCustomThemeColor');
+        const bgColorInput = document.getElementById('mobileCustomThemeBgColor');
+        const textColorInput = document.getElementById('mobileCustomThemeTextColor');
+        const self = this;
+
+        function mobileLivePreview() {
+            if (self._currentTheme === 'neumorphic-custom') {
+                var accent = colorInput ? colorInput.value : '#e63950';
+                var bg = bgColorInput ? bgColorInput.value : '#2a2d35';
+                var txt = textColorInput ? textColorInput.value : '#e0e0e0';
+                applyCustomThemeVariables(document.body, accent, bg, txt);
+            }
+        }
+
+        // Debounced save (saves 500ms after last change)
+        var _saveTimer = null;
+        function mobileDebouncedSave() {
+            clearTimeout(_saveTimer);
+            _saveTimer = setTimeout(function() {
+                if (self._currentTheme === 'neumorphic-custom') {
+                    var accent = colorInput ? colorInput.value : '#e63950';
+                    var bg = bgColorInput ? bgColorInput.value : '#2a2d35';
+                    var txt = textColorInput ? textColorInput.value : '#e0e0e0';
+                    self.saveTheme('neumorphic-custom', accent, bg, txt);
+                }
+            }, 500);
+        }
+
+        // Instantiate spectrum pickers
+        if (typeof SpectrumPicker !== 'undefined') {
+            var accentContainer = document.getElementById('mobileAccentPickerContainer');
+            if (accentContainer) {
+                this._mobileAccentPicker = new SpectrumPicker(accentContainer, {
+                    color: (colorInput && colorInput.value) || '#e63950',
+                    onChange: function(hex) {
+                        if (colorInput) colorInput.value = hex;
+                        mobileLivePreview();
+                        mobileDebouncedSave();
+                    }
+                });
+            }
+            var bgContainer = document.getElementById('mobileBgPickerContainer');
+            if (bgContainer) {
+                this._mobileBgPicker = new SpectrumPicker(bgContainer, {
+                    color: (bgColorInput && bgColorInput.value) || '#2a2d35',
+                    onChange: function(hex) {
+                        if (bgColorInput) bgColorInput.value = hex;
+                        mobileLivePreview();
+                        mobileDebouncedSave();
+                    }
+                });
+            }
+            var textContainer = document.getElementById('mobileTextPickerContainer');
+            if (textContainer) {
+                this._mobileTextPicker = new SpectrumPicker(textContainer, {
+                    color: (textColorInput && textColorInput.value) || '#e0e0e0',
+                    onChange: function(hex) {
+                        if (textColorInput) textColorInput.value = hex;
+                        mobileLivePreview();
+                        mobileDebouncedSave();
+                    }
+                });
+            }
+        }
+
+        // Build preset pastilles (mobile)
+        if (typeof buildPresetPastilles === 'function') {
+            buildPresetPastilles(document.getElementById('mobilePresetPastilles'), (preset) => {
+                if (colorInput) colorInput.value = preset.accent;
+                if (bgColorInput) bgColorInput.value = preset.bg;
+                if (textColorInput) textColorInput.value = preset.text;
+                if (this._mobileAccentPicker) this._mobileAccentPicker.setColor(preset.accent);
+                if (this._mobileBgPicker) this._mobileBgPicker.setColor(preset.bg);
+                if (this._mobileTextPicker) this._mobileTextPicker.setColor(preset.text);
+                mobileLivePreview();
+                mobileDebouncedSave();
+            });
+        }
+
         const cacheEnabledToggle = document.getElementById('cacheEnabled');
         const maxCacheSizeSelect = document.getElementById('maxCacheSize');
         const clearCacheBtn = document.getElementById('clearCacheBtn');
@@ -851,6 +1047,26 @@ class MobileApp {
     }
 
     async loadSettingsPage() {
+        // Sync theme selector with current theme
+        const themeSelect = document.getElementById('mobileThemeSelect');
+        if (themeSelect) themeSelect.value = this._currentTheme || 'dark';
+        // Show/hide color picker based on current theme
+        const customColorRow = document.getElementById('mobileCustomColorRow');
+        if (customColorRow) {
+            customColorRow.style.display = (this._currentTheme === 'neumorphic-custom') ? 'block' : 'none';
+        }
+        const colorInput = document.getElementById('mobileCustomThemeColor');
+        if (colorInput && this._customThemeColor) colorInput.value = this._customThemeColor;
+        const bgColorInput = document.getElementById('mobileCustomThemeBgColor');
+        if (bgColorInput && this._customThemeBgColor) bgColorInput.value = this._customThemeBgColor;
+        const textColorInput = document.getElementById('mobileCustomThemeTextColor');
+        if (textColorInput && this._customThemeTextColor) textColorInput.value = this._customThemeTextColor;
+
+        // Sync spectrum pickers
+        if (this._mobileAccentPicker && this._customThemeColor) this._mobileAccentPicker.setColor(this._customThemeColor);
+        if (this._mobileBgPicker && this._customThemeBgColor) this._mobileBgPicker.setColor(this._customThemeBgColor);
+        if (this._mobileTextPicker && this._customThemeTextColor) this._mobileTextPicker.setColor(this._customThemeTextColor);
+
         if (!window.StemCache) {
             console.warn('[Settings] StemCache not available');
             return;

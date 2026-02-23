@@ -4,9 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StemTubes Mixer</title>
-    <link rel="stylesheet" href="/static/css/style.css">
-    <link rel="stylesheet" href="/static/css/mixer/mixer.css">
-    <link rel="stylesheet" href="/static/css/recording.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ cache_buster }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/desktop/base.css') }}?v={{ cache_buster }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/desktop/neumorphic.css') }}?v={{ cache_buster }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mixer/mixer.css') }}?v={{ cache_buster }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mixer/neumorphic.css') }}?v={{ cache_buster }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/recording.css') }}?v={{ cache_buster }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-style.css') }}?v={{ cache_buster }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jam.css') }}?v={{ cache_buster }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -707,5 +710,37 @@
     })();
     </script>
     {% endif %}
+
+    <script src="{{ url_for('static', filename='js/theme-generator.js') }}?v={{ cache_buster }}"></script>
+    <script>
+    // Theme initialization for mixer iframe
+    (function() {
+        function applyMixerTheme(theme, customColor, customBgColor, customTextColor) {
+            clearCustomThemeVariables(document.body);
+            document.body.classList.remove('light-theme', 'neumorphic-white', 'neumorphic-anthracite', 'neumorphic-custom', 'glassmorphism', 'cyberpunk-neon');
+            if (theme && theme !== 'dark') document.body.classList.add(theme);
+            if (theme === 'neumorphic-custom') {
+                var accent = customColor || '#e63950';
+                var bg = customBgColor || '#2a2d35';
+                var txt = customTextColor || '#e0e0e0';
+                applyCustomThemeVariables(document.body, accent, bg, txt);
+            }
+        }
+        // Restore from localStorage immediately for instant theme
+        try {
+            var saved = localStorage.getItem('stemtube_theme');
+            if (saved && saved !== 'dark') applyMixerTheme(saved, localStorage.getItem('stemtube_custom_color'), localStorage.getItem('stemtube_custom_bg'), localStorage.getItem('stemtube_custom_text'));
+        } catch (e) {}
+        // Load theme from config API (authoritative source)
+        fetch('/api/config', { credentials: 'same-origin' })
+            .then(function(r) { return r.ok ? r.json() : null; })
+            .then(function(data) { if (data && data.theme) applyMixerTheme(data.theme, data.custom_theme_color, data.custom_theme_bg_color, data.custom_theme_text_color); })
+            .catch(function() {});
+        // Listen for live theme changes from parent window
+        window.addEventListener('message', function(e) {
+            if (e.data && e.data.type === 'theme_change') applyMixerTheme(e.data.theme, e.data.customColor, e.data.customBgColor, e.data.customTextColor);
+        });
+    })();
+    </script>
 </body>
 </html>

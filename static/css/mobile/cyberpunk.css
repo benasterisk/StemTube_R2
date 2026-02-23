@@ -1,0 +1,147 @@
+/* ================================================
+   Cyberpunk Neon Theme Overrides — Mobile
+   Pure black bg, neon glow borders, magenta/cyan highlights
+   ================================================ */
+
+/* ---- Body ---- */
+body.cyberpunk-neon.mobile-body {
+    background: #0a0a0a;
+    transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+/* ---- Header ---- */
+body.cyberpunk-neon .mobile-header {
+    background: #0d0d0d;
+    border-bottom: 1px solid rgba(255,45,149,0.4);
+    box-shadow: 0 2px 12px rgba(255,45,149,0.1);
+}
+
+/* ---- Bottom Nav ---- */
+body.cyberpunk-neon .mobile-nav {
+    background: #0d0d0d;
+    border-top: 1px solid rgba(255,45,149,0.3);
+    box-shadow: 0 -2px 12px rgba(255,45,149,0.1);
+}
+
+body.cyberpunk-neon .mobile-nav .nav-item.active {
+    color: #ff2d95;
+    text-shadow: 0 0 6px rgba(255,45,149,0.5);
+}
+
+/* ---- Buttons ---- */
+body.cyberpunk-neon .mobile-btn,
+body.cyberpunk-neon .mobile-btn-primary,
+body.cyberpunk-neon .mobile-btn-secondary,
+body.cyberpunk-neon .mobile-btn-ghost,
+body.cyberpunk-neon .mobile-btn-small,
+body.cyberpunk-neon .mobile-btn-icon {
+    background: #111111;
+    border: 1px solid rgba(255,45,149,0.3);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+body.cyberpunk-neon .mobile-btn-primary,
+body.cyberpunk-neon .mobile-btn-icon {
+    background: rgba(255,45,149,0.15);
+    border-color: rgba(255,45,149,0.5);
+}
+
+body.cyberpunk-neon .mobile-btn:active,
+body.cyberpunk-neon .mobile-btn-primary:active,
+body.cyberpunk-neon .mobile-btn-icon:active {
+    box-shadow: 0 0 12px rgba(255,45,149,0.5);
+}
+
+/* ---- Inputs ---- */
+body.cyberpunk-neon .mobile-input,
+body.cyberpunk-neon .mobile-select {
+    background: #0d0d0d;
+    border: none;
+    border-bottom: 2px solid rgba(255,45,149,0.3);
+    border-radius: 2px;
+    color: var(--mobile-text);
+}
+
+body.cyberpunk-neon .mobile-input:focus,
+body.cyberpunk-neon .mobile-select:focus {
+    border-bottom-color: #ff2d95;
+    box-shadow: 0 2px 8px rgba(255,45,149,0.3);
+}
+
+/* ---- Cards / Items ---- */
+body.cyberpunk-neon .mobile-search-result,
+body.cyberpunk-neon .mobile-library-item,
+body.cyberpunk-neon .mobile-upload-section {
+    background: #111111;
+    border: 1px solid rgba(255,45,149,0.2);
+    border-radius: 4px;
+    box-shadow: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+body.cyberpunk-neon .mobile-settings-card {
+    background: #111111;
+    border: 1px solid rgba(255,45,149,0.2);
+    border-radius: 4px;
+}
+
+/* ---- Progress bars ---- */
+body.cyberpunk-neon .mobile-progress-track,
+body.cyberpunk-neon .mobile-progress-bar {
+    background: #1a1a1a;
+    border-radius: 2px;
+}
+
+body.cyberpunk-neon .mobile-progress-fill {
+    background: linear-gradient(90deg, #ff2d95, #ff5aad);
+    box-shadow: 0 0 6px rgba(255,45,149,0.5);
+}
+
+/* ---- Bottom sheet / Dialogs ---- */
+body.cyberpunk-neon .mobile-bottom-sheet,
+body.cyberpunk-neon .mobile-dialog {
+    background: #0d0d0d;
+    border: 1px solid rgba(255,45,149,0.4);
+    box-shadow: 0 0 24px rgba(255,45,149,0.15);
+}
+
+/* ---- Status pills — cyan for success/info ---- */
+body.cyberpunk-neon .mobile-status-pill.status-ready,
+body.cyberpunk-neon .mobile-status-pill.status-completed {
+    background: rgba(0,240,255,0.18);
+    color: #00f0ff;
+    text-shadow: 0 0 4px rgba(0,240,255,0.3);
+}
+
+body.cyberpunk-neon .mobile-status-pill.status-extracting,
+body.cyberpunk-neon .mobile-status-pill.status-processing {
+    background: rgba(255,45,149,0.18);
+    color: #ff2d95;
+}
+
+/* ---- Toast ---- */
+body.cyberpunk-neon .mobile-toast {
+    background: #0d0d0d;
+    border: 1px solid rgba(255,45,149,0.4);
+    box-shadow: 0 0 16px rgba(255,45,149,0.2);
+}
+
+/* ---- Seek bar ---- */
+body.cyberpunk-neon input[type="range"]::-webkit-slider-thumb {
+    background: #ff2d95;
+    box-shadow: 0 0 8px rgba(255,45,149,0.5);
+}
+
+/* ---- Scrollbar ---- */
+body.cyberpunk-neon.mobile-body ::-webkit-scrollbar {
+    width: 4px;
+}
+
+body.cyberpunk-neon.mobile-body ::-webkit-scrollbar-track {
+    background: #0a0a0a;
+}
+
+body.cyberpunk-neon.mobile-body ::-webkit-scrollbar-thumb {
+    background: rgba(255,45,149,0.4);
+    border-radius: 2px;
+}

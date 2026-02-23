@@ -1,0 +1,228 @@
+/* ================================================
+   Cyberpunk Neon Theme Overrides — Desktop
+   Pure black bg, neon glow borders, magenta/cyan highlights
+   ================================================ */
+
+/* ---- Body ---- */
+body.cyberpunk-neon {
+    background: #0a0a0a;
+    transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+/* Subtle scan-line overlay */
+body.cyberpunk-neon::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9999;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.03) 2px,
+        rgba(0,0,0,0.03) 4px
+    );
+}
+
+/* ---- Header ---- */
+body.cyberpunk-neon header {
+    background: #0d0d0d;
+    border-bottom: 1px solid rgba(255,45,149,0.4);
+    box-shadow: 0 2px 12px rgba(255,45,149,0.15);
+}
+
+/* ---- Buttons ---- */
+body.cyberpunk-neon button,
+body.cyberpunk-neon .segment,
+body.cyberpunk-neon .settings-button,
+body.cyberpunk-neon .logout-button {
+    background: #111111;
+    border: 1px solid rgba(255,45,149,0.3);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+body.cyberpunk-neon button:hover,
+body.cyberpunk-neon .segment:hover,
+body.cyberpunk-neon .settings-button:hover {
+    border-color: rgba(255,45,149,0.7);
+    box-shadow: 0 0 12px rgba(255,45,149,0.4);
+    background: #1a1a1a;
+}
+
+body.cyberpunk-neon .segment.active {
+    background: rgba(255,45,149,0.15);
+    border-color: #ff2d95;
+    box-shadow: 0 0 10px rgba(255,45,149,0.5);
+    color: #ff2d95;
+}
+
+body.cyberpunk-neon .logout-button:hover {
+    border-color: #ff5252;
+    box-shadow: 0 0 12px rgba(255,82,82,0.4);
+}
+
+/* ---- Inputs / Selects ---- */
+body.cyberpunk-neon input,
+body.cyberpunk-neon select,
+body.cyberpunk-neon textarea,
+body.cyberpunk-neon #searchInput,
+body.cyberpunk-neon #resultsCount {
+    background: #0d0d0d;
+    border: none;
+    border-bottom: 2px solid rgba(255,45,149,0.3);
+    border-radius: 2px;
+    color: var(--text-color);
+}
+
+body.cyberpunk-neon input:focus,
+body.cyberpunk-neon select:focus,
+body.cyberpunk-neon textarea:focus,
+body.cyberpunk-neon #searchInput:focus {
+    border-bottom-color: #ff2d95;
+    box-shadow: 0 2px 8px rgba(255,45,149,0.3);
+    outline: none;
+}
+
+/* ---- Modals ---- */
+body.cyberpunk-neon .modal-content,
+body.cyberpunk-neon .settings-modal .modal-content {
+    background: #0d0d0d;
+    border: 1px solid rgba(255,45,149,0.4);
+    border-radius: 4px;
+    box-shadow: 0 0 24px rgba(255,45,149,0.2), 0 0 48px rgba(255,45,149,0.1);
+}
+
+/* ---- Cards / Panels ---- */
+body.cyberpunk-neon .search-result,
+body.cyberpunk-neon .download-item,
+body.cyberpunk-neon .extraction-item,
+body.cyberpunk-neon .library-item {
+    background: #111111;
+    border: 1px solid rgba(255,45,149,0.2);
+    border-radius: 4px;
+    box-shadow: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+body.cyberpunk-neon .search-result:hover,
+body.cyberpunk-neon .download-item:hover,
+body.cyberpunk-neon .extraction-item:hover,
+body.cyberpunk-neon .library-item:hover {
+    border-color: rgba(255,45,149,0.5);
+    box-shadow: 0 0 16px rgba(255,45,149,0.15);
+}
+
+/* ---- Tabs ---- */
+body.cyberpunk-neon .tab-buttons {
+    background: #0d0d0d;
+    border-bottom: 1px solid rgba(255,45,149,0.2);
+}
+
+body.cyberpunk-neon .tab-buttons button.active {
+    background: transparent;
+    border-bottom: 2px solid #ff2d95;
+    color: #ff2d95;
+    text-shadow: 0 0 6px rgba(255,45,149,0.5);
+}
+
+/* ---- Settings sections ---- */
+body.cyberpunk-neon .settings-section {
+    background: #111111;
+    border: 1px solid rgba(255,45,149,0.15);
+    border-radius: 4px;
+    padding: 16px;
+}
+
+/* ---- Toast ---- */
+body.cyberpunk-neon .toast {
+    background: #0d0d0d;
+    border: 1px solid rgba(255,45,149,0.4);
+    border-radius: 4px;
+    box-shadow: 0 0 16px rgba(255,45,149,0.2);
+}
+
+body.cyberpunk-neon .toast.success {
+    border-color: rgba(0,240,255,0.5);
+    box-shadow: 0 0 16px rgba(0,240,255,0.2);
+}
+
+/* ---- User info ---- */
+body.cyberpunk-neon .user-info {
+    background: #111111;
+    border: 1px solid rgba(255,45,149,0.2);
+}
+
+/* ---- Gutter (Split.js) ---- */
+body.cyberpunk-neon .gutter {
+    background-color: rgba(255,45,149,0.2);
+}
+
+/* ---- Scrollbar ---- */
+body.cyberpunk-neon ::-webkit-scrollbar {
+    width: 8px;
+}
+
+body.cyberpunk-neon ::-webkit-scrollbar-track {
+    background: #0a0a0a;
+}
+
+body.cyberpunk-neon ::-webkit-scrollbar-thumb {
+    background: rgba(255,45,149,0.4);
+    border-radius: 2px;
+    box-shadow: 0 0 6px rgba(255,45,149,0.3);
+}
+
+body.cyberpunk-neon ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,45,149,0.6);
+}
+
+/* ---- Status badges — cyan for success/info ---- */
+body.cyberpunk-neon .status-completed {
+    color: #00f0ff;
+    text-shadow: 0 0 6px rgba(0,240,255,0.4);
+}
+
+body.cyberpunk-neon .status-downloading,
+body.cyberpunk-neon .status-extracting {
+    color: #ff2d95;
+    text-shadow: 0 0 6px rgba(255,45,149,0.4);
+}
+
+/* ---- Download modal ---- */
+body.cyberpunk-neon .download-modal-content {
+    background: #0d0d0d;
+    border: 1px solid rgba(255,45,149,0.4);
+    box-shadow: 0 0 32px rgba(255,45,149,0.15);
+}
+
+/* ---- Progress bars ---- */
+body.cyberpunk-neon .progress-bar {
+    background: #1a1a1a;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+body.cyberpunk-neon .progress-fill {
+    background: linear-gradient(90deg, #ff2d95, #ff5aad);
+    box-shadow: 0 0 8px rgba(255,45,149,0.5);
+}
+
+/* ---- Accent heading glow ---- */
+body.cyberpunk-neon h1,
+body.cyberpunk-neon h2,
+body.cyberpunk-neon h3 {
+    text-shadow: 0 0 4px rgba(255,45,149,0.15);
+}
+
+/* ---- Links / accent text ---- */
+body.cyberpunk-neon a {
+    color: #00f0ff;
+}
+
+body.cyberpunk-neon a:hover {
+    text-shadow: 0 0 6px rgba(0,240,255,0.4);
+}
