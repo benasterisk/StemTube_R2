@@ -121,8 +121,7 @@ body.cyberpunk-neon .waveform-container {
 }
 
 /* ---- Export Modal ---- */
-body.cyberpunk-neon .export-modal-content,
-body.cyberpunk-neon .chord-grid-popup {
+body.cyberpunk-neon .export-modal-content {
     background: #0d0d0d;
     border: 1px solid rgba(255,45,149,0.4);
     border-radius: 4px;
@@ -133,6 +132,217 @@ body.cyberpunk-neon .chord-grid-popup {
 body.cyberpunk-neon .karaoke-container {
     background: #0d0d0d;
     border: 1px solid rgba(255,45,149,0.15);
+}
+
+/* ---- Lyrics Focus Popup ---- */
+body.cyberpunk-neon .lyrics-popup-dialog {
+    background: #0a0a0a;
+    border: 1px solid rgba(255,45,149,0.4);
+    border-radius: 4px;
+    box-shadow: 0 0 32px rgba(255,45,149,0.2), 0 0 64px rgba(255,45,149,0.08);
+}
+
+body.cyberpunk-neon .lyrics-popup-header {
+    border-bottom: 1px solid rgba(255,45,149,0.2);
+}
+
+body.cyberpunk-neon .lyrics-popup-close {
+    background: #111111;
+    border: 1px solid rgba(255,45,149,0.3);
+    border-radius: 4px;
+}
+
+body.cyberpunk-neon .lyrics-popup-close:hover {
+    border-color: #ff2d95;
+    box-shadow: 0 0 10px rgba(255,45,149,0.4);
+}
+
+body.cyberpunk-neon .lyrics-popup-content {
+    background: #0d0d0d;
+}
+
+body.cyberpunk-neon .lyrics-popup-body {
+    background: transparent;
+}
+
+/* ---- Chord Grid Popup ---- */
+body.cyberpunk-neon .chords-grid-popup-overlay {
+    background: rgba(0,0,0,0.9);
+}
+
+body.cyberpunk-neon .chords-grid-popup-dialog {
+    background: #0a0a0a;
+    border: 1px solid rgba(255,45,149,0.4);
+    border-radius: 4px;
+    box-shadow: 0 0 32px rgba(255,45,149,0.2), 0 0 64px rgba(255,45,149,0.08);
+}
+
+body.cyberpunk-neon .chords-grid-popup-header {
+    border-bottom: 1px solid rgba(255,45,149,0.2);
+}
+
+body.cyberpunk-neon .chords-grid-popup-close {
+    background: #111111;
+    border: 1px solid rgba(255,45,149,0.3);
+    border-radius: 4px;
+}
+
+body.cyberpunk-neon .chords-grid-popup-close:hover {
+    border-color: #ff2d95;
+    box-shadow: 0 0 10px rgba(255,45,149,0.4);
+}
+
+body.cyberpunk-neon .chord-grid-measure {
+    background: #111111;
+    border-radius: 4px;
+}
+
+body.cyberpunk-neon .chord-grid-beat {
+    background: #0d0d0d;
+    border: 1px solid rgba(255,45,149,0.15);
+    border-radius: 4px;
+}
+
+body.cyberpunk-neon .chord-grid-beat:hover {
+    border-color: rgba(255,45,149,0.5);
+    box-shadow: 0 0 8px rgba(255,45,149,0.2);
+}
+
+body.cyberpunk-neon .chord-grid-beat.active {
+    background: rgba(255,45,149,0.1);
+    border-color: #ff2d95;
+    box-shadow: 0 0 12px rgba(255,45,149,0.4);
+    color: #ff2d95;
+    text-shadow: 0 0 4px rgba(255,45,149,0.4);
+}
+
+/* ---- Horizontal Chord Scroll (Linear) ---- */
+body.cyberpunk-neon .chord-linear-scroll {
+    background: #0a0a0a;
+    scrollbar-color: rgba(255,45,149,0.4) #0a0a0a;
+}
+
+body.cyberpunk-neon .chord-linear-measure {
+    border-right-color: rgba(255,45,149,0.1);
+}
+
+body.cyberpunk-neon .chord-linear-beat {
+    background: #0d0d0d;
+    border: 1px solid rgba(255,45,149,0.15);
+    border-radius: 4px;
+    margin: 2px;
+}
+
+body.cyberpunk-neon .chord-linear-beat:hover {
+    border-color: rgba(255,45,149,0.5);
+    box-shadow: 0 0 8px rgba(255,45,149,0.2);
+}
+
+body.cyberpunk-neon .chord-linear-beat.active {
+    background: rgba(255,45,149,0.1);
+    border-color: #ff2d95;
+    box-shadow: 0 0 12px rgba(255,45,149,0.4);
+    color: #ff2d95;
+    text-shadow: 0 0 4px rgba(255,45,149,0.4);
+}
+
+body.cyberpunk-neon .chord-linear-lyrics-row {
+    background: #0a0a0a;
+    border-top: 1px solid rgba(255,45,149,0.1);
+}
+
+/* ---- Chord Diagram Panel ---- */
+body.cyberpunk-neon .mobile-chord-diagram-panel {
+    background: #111111;
+    border: 1px solid rgba(255,45,149,0.2);
+    border-radius: 4px;
+}
+
+body.cyberpunk-neon .mobile-chord-instrument-toggle {
+    background: #0d0d0d;
+    border: 1px solid rgba(255,45,149,0.2);
+}
+
+body.cyberpunk-neon .mobile-chord-instrument-toggle button {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+}
+
+body.cyberpunk-neon .mobile-chord-instrument-toggle button.active {
+    background: rgba(255,45,149,0.2);
+    color: #ff2d95;
+    text-shadow: 0 0 4px rgba(255,45,149,0.4);
+}
+
+/* Guitar diagram */
+body.cyberpunk-neon .guitar-diagram {
+    background: transparent;
+}
+
+body.cyberpunk-neon .guitar-fret-label {
+    color: var(--text-secondary);
+}
+
+/* Piano diagram */
+body.cyberpunk-neon .piano-diagram {
+    background: transparent;
+}
+
+body.cyberpunk-neon .piano-white-key {
+    background: #1a1a1a;
+    border-color: rgba(255,45,149,0.15);
+    color: #888;
+}
+
+body.cyberpunk-neon .piano-white-key.active {
+    background: #ff2d95;
+    color: #000;
+    box-shadow: 0 0 10px rgba(255,45,149,0.5);
+}
+
+body.cyberpunk-neon .piano-black-key {
+    background: #050505;
+    border-color: rgba(255,45,149,0.1);
+}
+
+body.cyberpunk-neon .piano-black-key.active {
+    background: #ff2d95;
+    box-shadow: 0 0 8px rgba(255,45,149,0.5);
+}
+
+/* ---- Popup Controls Bar (shared by Grid & Lyrics) ---- */
+body.cyberpunk-neon .popup-controls-bar {
+    background: #0d0d0d;
+    border-top: 1px solid rgba(255,45,149,0.2);
+}
+
+body.cyberpunk-neon .popup-control-btn {
+    background: #111111;
+    border: 1px solid rgba(255,45,149,0.3);
+    box-shadow: none;
+}
+
+body.cyberpunk-neon .popup-control-btn:hover {
+    border-color: #ff2d95;
+    box-shadow: 0 0 12px rgba(255,45,149,0.4);
+}
+
+body.cyberpunk-neon .popup-slider {
+    background: #1a1a1a;
+}
+
+body.cyberpunk-neon .popup-slider::-webkit-slider-thumb {
+    background: #ff2d95;
+    box-shadow: 0 0 8px rgba(255,45,149,0.5);
+}
+
+body.cyberpunk-neon .popup-time-display {
+    background: #0d0d0d;
+    border: 1px solid rgba(255,45,149,0.2);
+    border-radius: 4px;
+    color: #00f0ff;
+    text-shadow: 0 0 4px rgba(0,240,255,0.3);
 }
 
 /* ---- Structure sections ---- */

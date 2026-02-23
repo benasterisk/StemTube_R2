@@ -116,8 +116,7 @@ body.glassmorphism .waveform-container {
 }
 
 /* ---- Export Modal ---- */
-body.glassmorphism .export-modal-content,
-body.glassmorphism .chord-grid-popup {
+body.glassmorphism .export-modal-content {
     background: rgba(15,12,41,0.9);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -131,6 +130,219 @@ body.glassmorphism .karaoke-container {
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ---- Lyrics Focus Popup ---- */
+body.glassmorphism .lyrics-popup-dialog {
+    background: rgba(15,12,41,0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+body.glassmorphism .lyrics-popup-header {
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+body.glassmorphism .lyrics-popup-close {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+}
+
+body.glassmorphism .lyrics-popup-close:hover {
+    background: rgba(255,255,255,0.15);
+    border-color: rgba(0,212,255,0.3);
+}
+
+body.glassmorphism .lyrics-popup-content {
+    background: rgba(255,255,255,0.03);
+    border-radius: 12px;
+}
+
+body.glassmorphism .lyrics-popup-body {
+    background: transparent;
+}
+
+/* ---- Chord Grid Popup ---- */
+body.glassmorphism .chords-grid-popup-overlay {
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+body.glassmorphism .chords-grid-popup-dialog {
+    background: rgba(15,12,41,0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+body.glassmorphism .chords-grid-popup-header {
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+body.glassmorphism .chords-grid-popup-close {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+}
+
+body.glassmorphism .chords-grid-popup-close:hover {
+    background: rgba(255,255,255,0.15);
+    border-color: rgba(0,212,255,0.3);
+}
+
+body.glassmorphism .chord-grid-measure {
+    background: rgba(255,255,255,0.04);
+    border-radius: 12px;
+}
+
+body.glassmorphism .chord-grid-beat {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+}
+
+body.glassmorphism .chord-grid-beat:hover {
+    background: rgba(255,255,255,0.1);
+    border-color: rgba(0,212,255,0.3);
+}
+
+body.glassmorphism .chord-grid-beat.active {
+    background: rgba(0,212,255,0.15);
+    border-color: rgba(0,212,255,0.5);
+    box-shadow: 0 0 10px rgba(0,212,255,0.2);
+}
+
+/* ---- Horizontal Chord Scroll (Linear) ---- */
+body.glassmorphism .chord-linear-scroll {
+    background: rgba(255,255,255,0.02);
+    scrollbar-color: rgba(0,212,255,0.3) rgba(255,255,255,0.03);
+}
+
+body.glassmorphism .chord-linear-measure {
+    border-right-color: rgba(255,255,255,0.08);
+}
+
+body.glassmorphism .chord-linear-beat {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    margin: 2px;
+}
+
+body.glassmorphism .chord-linear-beat:hover {
+    background: rgba(255,255,255,0.1);
+    border-color: rgba(0,212,255,0.3);
+}
+
+body.glassmorphism .chord-linear-beat.active {
+    background: rgba(0,212,255,0.15);
+    border-color: rgba(0,212,255,0.5);
+    box-shadow: 0 0 10px rgba(0,212,255,0.2);
+}
+
+body.glassmorphism .chord-linear-lyrics-row {
+    background: rgba(255,255,255,0.02);
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+/* ---- Chord Diagram Panel ---- */
+body.glassmorphism .mobile-chord-diagram-panel {
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+}
+
+body.glassmorphism .mobile-chord-instrument-toggle {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 999px;
+}
+
+body.glassmorphism .mobile-chord-instrument-toggle button {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+}
+
+body.glassmorphism .mobile-chord-instrument-toggle button.active {
+    background: rgba(0,212,255,0.2);
+    color: #00d4ff;
+}
+
+/* Guitar diagram */
+body.glassmorphism .guitar-diagram {
+    background: transparent;
+}
+
+body.glassmorphism .guitar-fret-label {
+    color: var(--text-secondary);
+}
+
+/* Piano diagram */
+body.glassmorphism .piano-diagram {
+    background: transparent;
+}
+
+body.glassmorphism .piano-white-key {
+    background: rgba(255,255,255,0.85);
+    border-color: rgba(255,255,255,0.2);
+    color: #333;
+}
+
+body.glassmorphism .piano-white-key.active {
+    background: #00d4ff;
+    color: #000;
+}
+
+body.glassmorphism .piano-black-key {
+    background: #1a1a2e;
+}
+
+body.glassmorphism .piano-black-key.active {
+    background: #00d4ff;
+}
+
+/* ---- Popup Controls Bar (shared by Grid & Lyrics) ---- */
+body.glassmorphism .popup-controls-bar {
+    background: rgba(255,255,255,0.04);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+body.glassmorphism .popup-control-btn {
+    background: rgba(0,212,255,0.2);
+    border: 1px solid rgba(0,212,255,0.3);
+    box-shadow: none;
+}
+
+body.glassmorphism .popup-control-btn:hover {
+    background: rgba(0,212,255,0.3);
+    border-color: rgba(0,212,255,0.5);
+}
+
+body.glassmorphism .popup-slider {
+    background: rgba(255,255,255,0.08);
+}
+
+body.glassmorphism .popup-slider::-webkit-slider-thumb {
+    background: #00d4ff;
+    box-shadow: 0 0 6px rgba(0,212,255,0.4);
+}
+
+body.glassmorphism .popup-time-display {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
 }
 
 /* ---- Structure sections ---- */
