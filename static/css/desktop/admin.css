@@ -93,6 +93,15 @@
     background-color: #e0a800;
 }
 
+.action-button.intro-detect {
+    background-color: #ff9800;
+    color: white;
+}
+
+.action-button.intro-detect:hover:not(:disabled) {
+    background-color: #e68a00;
+}
+
 .action-button.secondary {
     background-color: var(--bg-tertiary);
     color: var(--text-color);

@@ -195,7 +195,7 @@ Real-time collaborative playback — multiple musicians can listen and play alon
 - Each participant chooses their own active tab (Mixer, Lyrics, Chords) based on what they need
 - Each participant mutes/solos stems independently — the guitarist can mute the guitar track while others keep it
 - Metronome click can be turned off individually while keeping the visual pulse blinking as a silent guide
-- Precount (1 or 2 bars) ensures everyone starts together
+- Precount (2, 4, or 8 beats) ensures everyone starts together
 
 **Technical features:**
 - **Precount** - Host configures count-in; all participants hear the countdown simultaneously

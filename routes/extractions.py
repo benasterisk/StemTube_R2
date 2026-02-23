@@ -170,9 +170,10 @@ def get_extraction_status(extraction_id):
                 'beat_times': download_data.get('beat_times'),
                 'beat_positions': download_data.get('beat_positions'),
                 'structure_data': download_data.get('structure_data'),
-                'lyrics_data': download_data.get('lyrics_data')
+                'lyrics_data': download_data.get('lyrics_data'),
+                'music_start_time': download_data.get('music_start_time', 0.0)
             }
-            print(f"[API] Returning analysis data for {extraction_id}: BPM={response_data['detected_bpm']}, Key={response_data['detected_key']}, Chords={bool(response_data['chords_data'])}, Structure={bool(response_data['structure_data'])}, Lyrics={bool(response_data['lyrics_data'])}")
+            print(f"[API] Returning analysis data for {extraction_id}: BPM={response_data['detected_bpm']}, Key={response_data['detected_key']}, Chords={bool(response_data['chords_data'])}, Structure={bool(response_data['structure_data'])}, Lyrics={bool(response_data['lyrics_data'])}, MusicStart={response_data['music_start_time']}")
             return jsonify(response_data)
 
 

@@ -195,7 +195,12 @@ function initializeCleanupEventListeners() {
     if (bulkResetButton) {
         bulkResetButton.addEventListener('click', handleBulkReset);
     }
-    
+
+    const bulkDetectIntroButton = document.getElementById('bulkDetectIntroButton');
+    if (bulkDetectIntroButton) {
+        bulkDetectIntroButton.addEventListener('click', handleBulkDetectIntro);
+    }
+
     const refreshButton = document.getElementById('refreshCleanupButton');
     if (refreshButton) {
         refreshButton.addEventListener('click', loadCleanupData);
@@ -265,13 +270,18 @@ function updateBulkButtonStates() {
     
     const bulkDeleteButton = document.getElementById('bulkDeleteButton');
     const bulkResetButton = document.getElementById('bulkResetExtractionsButton');
-    
+    const bulkDetectIntroBtn = document.getElementById('bulkDetectIntroButton');
+
     if (bulkDeleteButton) {
         bulkDeleteButton.disabled = !hasSelection;
     }
-    
+
     if (bulkResetButton) {
         bulkResetButton.disabled = !hasSelection;
+    }
+
+    if (bulkDetectIntroBtn) {
+        bulkDetectIntroBtn.disabled = !hasSelection;
     }
 }
 
@@ -336,6 +346,23 @@ function handleBulkReset() {
     performBulkOperation('/api/admin/cleanup/downloads/bulk-reset', selectedIds, 'Resetting');
 }
 
+// Handle bulk detect intro
+function handleBulkDetectIntro() {
+    const selectedIds = Array.from(document.querySelectorAll('#cleanupTableBody input[type="checkbox"]:checked'))
+        .map(cb => parseInt(cb.value));
+
+    if (selectedIds.length === 0) {
+        showToast('No downloads selected', 'warning');
+        return;
+    }
+
+    if (!confirm(`Run intro detection on ${selectedIds.length} download(s)? This may take a moment per track.`)) {
+        return;
+    }
+
+    performBulkOperation('/api/admin/cleanup/downloads/bulk-detect-intro', selectedIds, 'Detecting intros');
+}
+
 // Perform bulk operation with progress tracking
 function performBulkOperation(endpoint, downloadIds, operationName) {
     const progressDiv = document.getElementById('bulkProgress');
@@ -348,12 +375,24 @@ function performBulkOperation(endpoint, downloadIds, operationName) {
         progressText.textContent = `${operationName} ${downloadIds.length} item(s)...`;
         progressFill.style.width = '0%';
     }
-    
+
+    // Animate progress gradually during the request (~10s per item estimate)
+    let progressPercent = 0;
+    const estimatedMs = downloadIds.length * 10000;
+    const progressInterval = setInterval(() => {
+        // Ease toward 90% (never reach 100% until done)
+        progressPercent += (90 - progressPercent) * 0.05;
+        if (progressFill) {
+            progressFill.style.width = Math.min(progressPercent, 90) + '%';
+        }
+    }, 500);
+
     // Disable buttons during operation
     document.getElementById('bulkDeleteButton').disabled = true;
     document.getElementById('bulkResetExtractionsButton').disabled = true;
+    if (document.getElementById('bulkDetectIntroButton')) document.getElementById('bulkDetectIntroButton').disabled = true;
     document.getElementById('refreshCleanupButton').disabled = true;
-    
+
     fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -364,22 +403,23 @@ function performBulkOperation(endpoint, downloadIds, operationName) {
     })
     .then(response => response.json())
     .then(data => {
+        clearInterval(progressInterval);
         if (data.success) {
-            const successCount = data.deleted_count || data.reset_count || 0;
+            const successCount = data.deleted_count || data.reset_count || data.detected_count || 0;
             const totalSize = data.total_size_freed || 0;
-            
+
             let message = `${operationName} completed: ${successCount}/${data.total_count} items processed`;
             if (totalSize > 0) {
                 message += `, ${formatFileSize(totalSize)} freed`;
             }
-            
+
             showToast(message, 'success');
-            
+
             // Animate progress to 100%
             if (progressFill) {
                 progressFill.style.width = '100%';
             }
-            
+
             // Reload data after a short delay
             setTimeout(() => {
                 loadCleanupData(); // Refresh admin table
@@ -392,6 +432,7 @@ function performBulkOperation(endpoint, downloadIds, operationName) {
         }
     })
     .catch(error => {
+        clearInterval(progressInterval);
         console.error(`Error in bulk ${operationName.toLowerCase()}:`, error);
         showToast(`Error: ${error.message}`, 'error');
         
@@ -402,6 +443,7 @@ function performBulkOperation(endpoint, downloadIds, operationName) {
         // Re-enable buttons
         document.getElementById('bulkDeleteButton').disabled = false;
         document.getElementById('bulkResetExtractionsButton').disabled = false;
+        if (document.getElementById('bulkDetectIntroButton')) document.getElementById('bulkDetectIntroButton').disabled = false;
         document.getElementById('refreshCleanupButton').disabled = false;
         
         updateBulkButtonStates();

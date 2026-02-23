@@ -511,6 +511,11 @@ class MobileAdmin {
         if (resetSelectedBtn) {
             resetSelectedBtn.addEventListener('click', () => this.resetSelected());
         }
+
+        const detectIntroBtn = document.getElementById('mobileDetectIntroSelected');
+        if (detectIntroBtn) {
+            detectIntroBtn.addEventListener('click', () => this.detectIntroSelected());
+        }
     }
 
     async loadCleanupData() {
@@ -664,6 +669,11 @@ class MobileAdmin {
             resetBtn.disabled = count === 0;
         }
 
+        const detectIntroBtn = document.getElementById('mobileDetectIntroSelected');
+        if (detectIntroBtn) {
+            detectIntroBtn.disabled = count === 0;
+        }
+
         // Update select all checkbox state
         if (selectAllCheckbox && this.cleanupData.length > 0) {
             selectAllCheckbox.checked = count === this.cleanupData.length;
@@ -789,6 +799,53 @@ class MobileAdmin {
         this.showProgress(false);
         window.mobileApp?.showToast(`Reset ${reset}/${count} item(s)`, reset === count ? 'success' : 'warning');
         this.loadCleanupData();
+    }
+
+    async detectIntroSelected() {
+        const count = this.selectedItems.size;
+        if (count === 0) return;
+        if (!confirm(`Run intro detection on ${count} selected item(s)?`)) return;
+
+        // Map video_ids to global_ids from cleanupData
+        const selectedVideoIds = Array.from(this.selectedItems);
+        const globalIds = selectedVideoIds
+            .map(vid => this.cleanupData.find(d => d.video_id === vid)?.global_id)
+            .filter(id => id != null);
+
+        if (globalIds.length === 0) {
+            window.mobileApp?.showToast('No valid items found', 'warning');
+            return;
+        }
+
+        this.showProgress(true, 0, `Detecting intros 0/${count}`);
+
+        try {
+            const response = await fetch('/api/admin/cleanup/downloads/bulk-detect-intro', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ download_ids: globalIds })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.showProgress(true, 100, `Done: ${data.detected_count}/${data.total_count}`);
+                window.mobileApp?.showToast(
+                    `Detected intros: ${data.detected_count}/${data.total_count}`,
+                    data.detected_count > 0 ? 'success' : 'warning'
+                );
+            } else {
+                window.mobileApp?.showToast(data.error || 'Detection failed', 'error');
+            }
+        } catch (error) {
+            console.error('Intro detection error:', error);
+            window.mobileApp?.showToast('Error during intro detection', 'error');
+        }
+
+        setTimeout(() => {
+            this.showProgress(false);
+            this.loadCleanupData();
+        }, 1500);
     }
 
     // ========== System Settings Section ==========

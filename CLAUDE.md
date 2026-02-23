@@ -174,7 +174,7 @@ Real-time collaborative playback — host shares transport control, no audio str
 Host creates session (`jam_create`) → gets 6-char code → guests join via `/jam/CODE` (no login required, auto-generated names). Host controls play/pause/seek; `jam-bridge.js` intercepts mixer transport to broadcast commands. Periodic sync heartbeats (5s) with drift correction (threshold: 0.5s). RTT measurement for latency compensation. 30-second grace period for host reconnection.
 
 ### Precount & Metronome
-Host-only control: off, 1 bar, or 2 bars (long-press metronome dot). Host broadcasts `play` with `precount_beats` before starting local precount, so both sides count down simultaneously. `jam-metronome.js` uses Web Audio look-ahead scheduling (100ms ahead) for sample-accurate clicks. Beat map extrapolation prepends virtual beats backward to time 0. Guest mode (`window.JAM_GUEST_MODE`) blocks transport controls and settings popover.
+Host-only control: off, 2, 4, or 8 beats (long-press metronome dot). Host broadcasts `play` with `precount_beats` before starting local precount, so both sides count down simultaneously. `jam-metronome.js` uses Web Audio look-ahead scheduling (100ms ahead) for sample-accurate clicks. Beat map extrapolation prepends virtual beats backward to time 0. Guest mode (`window.JAM_GUEST_MODE`) blocks transport controls and settings popover.
 
 ### Stale Session Handling
 Flask session flags (`jam_guest`, `jam_code`, `jam_guest_name`) auto-cleared on disconnect, on stale detection in `handle_connect()`, and on route entry. `jam_create` clears leftover guest flags.

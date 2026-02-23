@@ -556,6 +556,9 @@ class MobileApp {
                         this.currentExtractionVideoId = state.currentExtractionVideoId || null;
                         this.currentExtractionData = data;
 
+                        // Check Skip Intro for restored track
+                        if (this._skipIntroPendingCheck) this._skipIntroPendingCheck();
+
                         if (!this.audioContext) await this.initAudioContext();
                         await this.loadMixerData(data, { extractionId: state.currentExtractionId });
 
@@ -2602,6 +2605,9 @@ class MobileApp {
             this.currentExtractionId = id;
             this.currentExtractionData = data;
 
+            // Check if Skip Intro should be shown now that extraction data is available
+            if (this._skipIntroPendingCheck) this._skipIntroPendingCheck();
+
             if (!this.audioContext) await this.initAudioContext();
             await this.loadMixerData(data, { showLoader: false, extractionId: id });
 
@@ -3163,6 +3169,9 @@ class MobileApp {
             if (btn) btn.addEventListener('click', () => this.stop());
         });
 
+        // Skip Intro button
+        this._initMobileSkipIntro();
+
         // Seek bar (interactive scrubbing)
         const seekBar = document.getElementById('mobileSeekBar');
         if (seekBar) {
@@ -3210,6 +3219,34 @@ class MobileApp {
 
         // Ensure initial button state matches playback flag
         this.updatePlayPauseButtons();
+    }
+
+    _initMobileSkipIntro() {
+        const btn = document.getElementById('mobileSkipIntroBtn');
+        if (!btn) return;
+
+        this._skipIntroBtn = btn;
+        this._musicStartTime = 0;
+
+        // Called when extraction data changes — show/hide button accordingly
+        this._skipIntroPendingCheck = () => {
+            const musicStart = parseFloat(this.currentExtractionData?.music_start_time || 0);
+            console.log(`[SkipIntro] Checking music_start_time=${musicStart}`);
+            if (musicStart >= 3.0) {
+                this._musicStartTime = musicStart;
+                this._skipIntroBtn.style.display = '';
+            } else {
+                this._musicStartTime = 0;
+                this._skipIntroBtn.style.display = 'none';
+            }
+        };
+
+        btn.addEventListener('click', () => {
+            if (!this._musicStartTime) return;
+            console.log(`[SkipIntro] Seeking to ${this._musicStartTime.toFixed(2)}s`);
+            this.seek(this._musicStartTime);
+            this.showToast(`Skipped to ${this.formatTime(this._musicStartTime)}`);
+        });
     }
 
     setupNeumorphicDialControls() {
@@ -3490,21 +3527,26 @@ class MobileApp {
 
         // Determine precount beats
         let precountBeats = 0;
-        if (this.metronome && this.metronome.getPrecountBars() > 0) {
-            precountBeats = this.metronome.getPrecountBars() * this.metronome.beatsPerBar;
+        if (this.metronome && this.metronome.getPrecountBeats() > 0) {
+            precountBeats = this.metronome.getPrecountBeats();
         }
 
         if (precountBeats > 0 && this.metronome.bpm > 0) {
+            // Snap to beat-aligned position for seamless precount→metronome transition
+            const currentPos = this.currentTime || 0;
+            const firstRealBeat = this.metronome.getFirstRealBeat();
+            const targetPos = (currentPos < firstRealBeat)
+                ? firstRealBeat
+                : this.metronome.findBarDownbeat(currentPos);
+
             // Use beat map duration for accurate timing (matches startPrecount's internal click spacing)
             const precountDuration = this.metronome.getPrecountDuration(precountBeats);
             const stemStartTime = this.audioContext.currentTime + precountDuration;
 
-            const playbackStart = this.currentTime || 0;
+            console.log(`[Play] Precount: ${precountBeats} beats (${precountDuration.toFixed(2)}s), snapped ${currentPos.toFixed(3)} → ${targetPos.toFixed(3)}, stems at ${stemStartTime.toFixed(3)}`);
 
-            console.log(`[Play] Precount: ${precountBeats} beats (${precountDuration.toFixed(2)}s), stems scheduled at ${stemStartTime.toFixed(3)}`);
-
-            // Create and schedule stems NOW, but they start at stemStartTime (sample-accurate)
-            this.setPlaybackPosition(Math.max(0, Math.min(playbackStart, this.duration || Infinity)));
+            // Create and schedule stems NOW at snapped position, starting at stemStartTime (sample-accurate)
+            this.setPlaybackPosition(Math.max(0, Math.min(targetPos, this.duration || Infinity)));
             Object.keys(this.stems).forEach(name => this.startStemSource(name, stemStartTime));
 
             // Track time from when stems actually start

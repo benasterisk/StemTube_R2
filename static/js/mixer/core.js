@@ -184,6 +184,9 @@ class StemMixer {
 
             // Initialize visual metronome
             this.initMetronome();
+
+            // Initialize Skip Intro button
+            this.initSkipIntro();
         } catch (error) {
             this.log(`Error during initialization: ${error.message}`);
             this.showError(`Error: ${error.message}`);
@@ -982,6 +985,32 @@ class StemMixer {
         this._initMetronomeTrack();
 
         this.log('Metronome initialized');
+    }
+
+    /**
+     * Initialize Skip Intro button — shown when a non-musical intro is detected.
+     */
+    initSkipIntro() {
+        const btn = document.getElementById('skip-intro-btn');
+        if (!btn) return;
+
+        const musicStartTime = parseFloat(window.EXTRACTION_INFO?.music_start_time || 0);
+        if (!musicStartTime || musicStartTime < 3.0) return;
+
+        this._musicStartTime = musicStartTime;
+        btn.style.display = '';
+        btn.title = `Skip to ${this.formatTime(musicStartTime)}`;
+
+        btn.addEventListener('click', () => {
+            this.log(`Skip Intro: seeking to ${this._musicStartTime.toFixed(2)}s`);
+            this.audioEngine.seekToPosition(this._musicStartTime);
+
+            if (this.showToast) {
+                this.showToast(`Skipped to ${this.formatTime(this._musicStartTime)}`, 'info');
+            }
+        });
+
+        this.log(`Skip Intro enabled: music starts at ${musicStartTime.toFixed(1)}s`);
     }
 
     /**

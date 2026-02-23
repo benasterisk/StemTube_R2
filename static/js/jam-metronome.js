@@ -4,7 +4,7 @@
  *
  * Features:
  * - Tap the speaker icon to toggle audible click on/off
- * - Long-press the metronome to configure precount (off / 1 bar / 2 bars)
+ * - Long-press the metronome to configure precount (off / 2 / 4 / 8 beats)
  * - Precount plays a count-in sequence before playback starts
  * - Look-ahead scheduling on Web Audio clock for sample-accurate click timing
  */
@@ -54,8 +54,8 @@ class JamMetronome {
         // Toggle icon references
         this._toggleIcons = [];
 
-        // Precount settings
-        this.precountBars = parseInt(localStorage.getItem('jam_precount_bars') || '0', 10);
+        // Precount settings (stored as beat count: 0=off, 2, 4, 8)
+        this.precountBeats = parseInt(localStorage.getItem('jam_precount_beats') || '0', 10);
         this._precounting = false;
         this._precountAnimId = null;
         this._precountTotal = 0;
@@ -229,18 +229,19 @@ class JamMetronome {
 
         const options = [
             { label: 'Off', value: 0 },
-            { label: '1 Bar', value: 1 },
-            { label: '2 Bars', value: 2 }
+            { label: '2 Beats', value: 2 },
+            { label: '4 Beats', value: 4 },
+            { label: '8 Beats', value: 8 }
         ];
 
         for (const opt of options) {
             const item = document.createElement('div');
             item.className = 'metronome-precount-option';
-            if (this.precountBars === opt.value) item.classList.add('active');
+            if (this.precountBeats === opt.value) item.classList.add('active');
             item.textContent = opt.label;
             item.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.setPrecountBars(opt.value);
+                this.setPrecountBeats(opt.value);
                 this._hidePrecountPopover();
             });
             popover.appendChild(item);
@@ -373,16 +374,20 @@ class JamMetronome {
             beatDuration = 60 / this.bpm;
         }
 
+        // Apply resolution so precount clicks match metronome spacing
+        const step = 1 / this.clickResolution;
+        const clickInterval = beatDuration * step;
+
         const baseTime = ctx ? ctx.currentTime : performance.now() / 1000;
 
         this._precountStartTime = baseTime;
-        this._precountBeatDuration = beatDuration;
-        this._precountEndTime = baseTime + precountBeats * beatDuration;
+        this._precountBeatDuration = clickInterval;
+        this._precountEndTime = baseTime + precountBeats * clickInterval;
 
         // Pre-schedule ALL click sounds on the Web Audio clock (with downbeat accent)
         if (ctx) {
             for (let i = 0; i < precountBeats; i++) {
-                const beatTime = baseTime + i * beatDuration;
+                const beatTime = baseTime + i * clickInterval;
                 this._schedulePrecountClick(beatTime);
             }
         }
@@ -493,13 +498,13 @@ class JamMetronome {
         return this._precounting;
     }
 
-    setPrecountBars(bars) {
-        this.precountBars = Math.max(0, Math.floor(bars));
-        localStorage.setItem('jam_precount_bars', this.precountBars.toString());
+    setPrecountBeats(beats) {
+        this.precountBeats = Math.max(0, Math.floor(beats));
+        localStorage.setItem('jam_precount_beats', this.precountBeats.toString());
     }
 
-    getPrecountBars() {
-        return this.precountBars;
+    getPrecountBeats() {
+        return this.precountBeats;
     }
 
     // ── Beat Map (Variable Tempo) ──────────────────────────────────
@@ -585,6 +590,58 @@ class JamMetronome {
     }
 
     /**
+     * Get the timestamp of the first REAL detected beat (before backward extrapolation).
+     * This is where the actual musical beat grid begins.
+     */
+    getFirstRealBeat() {
+        return this.beatOffset || 0;
+    }
+
+    /**
+     * Find the downbeat (beat 1) of the bar containing the given position.
+     * Returns the timestamp of beat 1 at or before `position`.
+     * @param {number} position - Song time in seconds
+     * @returns {number} Timestamp of the bar's downbeat
+     */
+    findBarDownbeat(position) {
+        if (!this._beatTimesReady || !this.beatTimes || this.beatTimes.length < 2) {
+            // Constant BPM fallback
+            if (this.bpm <= 0) return position;
+            const beatDuration = 60 / this.bpm;
+            const barDuration = beatDuration * this.beatsPerBar;
+            const timeSinceOffset = position - (this.beatOffset || 0);
+            if (timeSinceOffset < 0) return this.beatOffset || 0;
+            const barIndex = Math.floor(timeSinceOffset / barDuration);
+            return (this.beatOffset || 0) + barIndex * barDuration;
+        }
+
+        // Binary search: find last beat at or before position
+        const bt = this.beatTimes;
+        let lo = 0, hi = bt.length - 1;
+        while (lo < hi) {
+            const mid = (lo + hi + 1) >>> 1;
+            if (bt[mid] <= position + 0.001) lo = mid;
+            else hi = mid - 1;
+        }
+        const beatIdx = lo;
+
+        // Walk backward through beatPositions to find downbeat (value === 1)
+        if (this.beatPositions && this.beatPositions.length === bt.length) {
+            for (let i = beatIdx; i >= 0; i--) {
+                if (this.beatPositions[i] === 1) {
+                    return bt[i];
+                }
+            }
+            return bt[0];
+        }
+
+        // Fallback: use beatsPerBar modular arithmetic
+        const posInBar = beatIdx % this.beatsPerBar;
+        const downbeatIdx = beatIdx - posInBar;
+        return bt[Math.max(0, downbeatIdx)];
+    }
+
+    /**
      * Get the exact precount duration in seconds for the given number of beats.
      * Uses beat map intervals when available (matches startPrecount's internal timing).
      */
@@ -598,7 +655,8 @@ class JamMetronome {
         } else {
             beatDuration = 60 / this.bpm;
         }
-        return precountBeats * beatDuration;
+        const step = 1 / this.clickResolution;
+        return precountBeats * beatDuration * step;
     }
 
     /**

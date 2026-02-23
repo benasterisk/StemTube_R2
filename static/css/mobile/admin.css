@@ -720,6 +720,15 @@
     background: #e0a800 !important;
 }
 
+.mobile-btn-intro {
+    background: #ff9800 !important;
+    color: white !important;
+}
+
+.mobile-btn-intro:active {
+    background: #e68a00 !important;
+}
+
 /* Loading State */
 .mobile-loading {
     display: flex;

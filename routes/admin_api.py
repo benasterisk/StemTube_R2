@@ -484,6 +484,94 @@ def admin_bulk_reset_extractions():
         return jsonify({'error': str(e)}), 500
 
 
+@admin_api_bp.route('/api/admin/cleanup/downloads/bulk-detect-intro', methods=['POST'])
+@api_login_required
+def admin_bulk_detect_intro():
+    """Bulk re-run music start detection on selected downloads."""
+    if not current_user.is_admin:
+        return jsonify({'error': 'Admin access required'}), 403
+
+    try:
+        data = request.json
+        download_ids = data.get('download_ids', [])
+
+        if not download_ids:
+            return jsonify({'error': 'No download IDs provided'}), 400
+
+        from core.downloads_db import get_all_downloads_for_admin
+        from core.music_start_detector import detect_music_start
+        from core.db.connection import _conn
+        import json
+
+        all_downloads = get_all_downloads_for_admin()
+        downloads_map = {d['global_id']: d for d in all_downloads if d['global_id'] in download_ids}
+
+        results = []
+        detected_count = 0
+
+        for download_id in download_ids:
+            try:
+                download_info = downloads_map.get(download_id)
+                if not download_info:
+                    results.append({'download_id': download_id, 'success': False, 'message': 'Not found'})
+                    continue
+
+                file_path = download_info.get('file_path')
+                if not file_path or not os.path.exists(file_path):
+                    results.append({'download_id': download_id, 'success': False, 'message': 'Audio file not found'})
+                    continue
+
+                # Parse beat_times from DB if available for snapping
+                beat_times = None
+                beat_times_raw = download_info.get('beat_times')
+                if beat_times_raw:
+                    try:
+                        beat_times = json.loads(beat_times_raw) if isinstance(beat_times_raw, str) else beat_times_raw
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+                music_start = detect_music_start(file_path, beat_times=beat_times)
+
+                # Update both global_downloads and user_downloads
+                video_id = download_info['video_id']
+                with _conn() as conn:
+                    conn.execute(
+                        "UPDATE global_downloads SET music_start_time=? WHERE video_id=?",
+                        (music_start, video_id)
+                    )
+                    conn.execute(
+                        "UPDATE user_downloads SET music_start_time=? WHERE video_id=?",
+                        (music_start, video_id)
+                    )
+                    conn.commit()
+
+                detected_count += 1
+                results.append({
+                    'download_id': download_id,
+                    'success': True,
+                    'music_start_time': music_start,
+                    'title': download_info.get('title', '')
+                })
+                logger.info(f"[INTRO DETECT] {download_info.get('title', video_id)}: music_start={music_start}s")
+
+            except Exception as e:
+                results.append({
+                    'download_id': download_id,
+                    'success': False,
+                    'message': str(e)
+                })
+
+        return jsonify({
+            'success': True,
+            'detected_count': detected_count,
+            'total_count': len(download_ids),
+            'results': results
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # ============================================
 # Admin User Management API
 # ============================================

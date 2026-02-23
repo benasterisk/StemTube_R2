@@ -579,6 +579,15 @@
     background-color: var(--error-color);
 }
 
+.transport-btn.skip-intro {
+    background-color: #ff9800;
+    font-size: 0.8rem;
+}
+
+.transport-btn.skip-intro:hover {
+    background-color: #f57c00;
+}
+
 .transport-btn i {
     margin-right: 0.3rem;
 }

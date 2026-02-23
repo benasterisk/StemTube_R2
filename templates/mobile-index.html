@@ -192,6 +192,9 @@
                         <button id="mobileStopBtn" class="mobile-control-btn mobile-stop-sync">
                             <i class="fas fa-stop"></i>
                         </button>
+                        <button id="mobileSkipIntroBtn" class="mobile-control-btn mobile-skip-intro" title="Skip non-musical intro" style="display:none;">
+                            <i class="fas fa-forward"></i>
+                        </button>
                         <div class="mobile-time-display">
                             <span id="mobileCurrentTime">0:00</span> / <span id="mobileDuration">0:00</span>
                         </div>
@@ -598,6 +601,9 @@
                     </button>
                     <button class="mobile-btn mobile-btn-warning mobile-btn-sm" id="mobileResetSelected" disabled>
                         <i class="fas fa-undo"></i> Reset Selected
+                    </button>
+                    <button class="mobile-btn mobile-btn-intro mobile-btn-sm" id="mobileDetectIntroSelected" disabled>
+                        <i class="fas fa-forward"></i> Detect Intro
                     </button>
                 </div>
 

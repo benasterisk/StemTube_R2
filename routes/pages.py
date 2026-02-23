@@ -103,7 +103,8 @@ def mixer():
             'chords_data': getattr(extraction, 'chords_data', None),
             'beat_offset': getattr(extraction, 'beat_offset', 0.0),
             'beat_times': getattr(extraction, 'beat_times', None),
-            'beat_positions': getattr(extraction, 'beat_positions', None)
+            'beat_positions': getattr(extraction, 'beat_positions', None),
+            'music_start_time': getattr(extraction, 'music_start_time', 0.0)
         }
     else:
         try:
@@ -144,7 +145,8 @@ def mixer():
                         'chords_data': db_extraction.get('chords_data'),
                         'beat_offset': db_extraction.get('beat_offset', 0.0),
                         'beat_times': db_extraction.get('beat_times'),
-                        'beat_positions': db_extraction.get('beat_positions')
+                        'beat_positions': db_extraction.get('beat_positions'),
+                        'music_start_time': db_extraction.get('music_start_time', 0.0)
                     }
                     break
         except Exception as e:

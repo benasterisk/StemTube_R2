@@ -49,17 +49,26 @@
 
         const engine = mixer.audioEngine;
 
+        // Snap playback to a beat-aligned position for seamless precount→metronome transition
+        function computePrecountTarget(engine, metronome) {
+            const pos = engine.playbackPosition || engine.mixer?.currentTime || 0;
+            const firstRealBeat = metronome.getFirstRealBeat();
+            if (pos < firstRealBeat) return firstRealBeat;
+            return metronome.findBarDownbeat(pos);
+        }
+
         // Wrap play (with precount support for jam sessions)
         const originalPlay = engine.play.bind(engine);
         engine.play = function() {
             const metronome = window.stemMixer?.metronome;
 
-            if (isJamActive() && metronome && metronome.getPrecountBars() > 0) {
-                const precountBeats = metronome.getPrecountBars() * metronome.beatsPerBar;
-                const pos = engine.playbackPosition || engine.mixer?.currentTime || 0;
+            if (isJamActive() && metronome && metronome.getPrecountBeats() > 0) {
+                const precountBeats = metronome.getPrecountBeats();
+                const targetPos = computePrecountTarget(engine, metronome);
+                engine.setPlaybackPosition(targetPos);
                 // Broadcast BEFORE starting local precount so guests precount simultaneously
-                parentJamClient.sendPlayback('play', pos, { precount_beats: precountBeats });
-                console.log(`[JamBridge] Starting precount: ${precountBeats} beats (broadcast sent)`);
+                parentJamClient.sendPlayback('play', targetPos, { precount_beats: precountBeats });
+                console.log(`[JamBridge] Starting precount: ${precountBeats} beats, snapped to ${targetPos.toFixed(3)}s`);
                 metronome.startPrecount(precountBeats, () => {
                     originalPlay();
                     metronome.start();
@@ -70,9 +79,12 @@
                 const pos = engine.playbackPosition || engine.mixer?.currentTime || 0;
                 parentJamClient.sendPlayback('play', pos);
                 startSyncHeartbeat();
-            } else if (metronome && metronome.getPrecountBars() > 0) {
+            } else if (metronome && metronome.getPrecountBeats() > 0) {
                 // Solo mode with precount
-                const precountBeats = metronome.getPrecountBars() * metronome.beatsPerBar;
+                const precountBeats = metronome.getPrecountBeats();
+                const targetPos = computePrecountTarget(engine, metronome);
+                engine.setPlaybackPosition(targetPos);
+                console.log(`[JamBridge] Solo precount: ${precountBeats} beats, snapped to ${targetPos.toFixed(3)}s`);
                 metronome.startPrecount(precountBeats, () => {
                     originalPlay();
                     metronome.start();

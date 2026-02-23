@@ -662,6 +662,18 @@ class DownloadManager:
 
                         print(f"📊 [DOWNLOAD] Analysis complete: BPM={item.detected_bpm}, Key={item.detected_key}")
 
+                        # Detect music start (non-musical intro detection)
+                        music_start_time = 0.0
+                        try:
+                            from .music_start_detector import detect_music_start
+                            music_start_time = detect_music_start(item.file_path)
+                            if music_start_time > 0:
+                                print(f"🎬 [DOWNLOAD] Non-musical intro detected: music starts at {music_start_time:.1f}s")
+                            else:
+                                print(f"🎬 [DOWNLOAD] Music starts immediately (no non-musical intro)")
+                        except Exception as e:
+                            print(f"⚠️ [DOWNLOAD] Music start detection error: {e}")
+
                         # Detect chords (pass BPM for beat grid alignment)
                         chords_data = None
                         beat_offset = 0.0
@@ -742,6 +754,12 @@ class DownloadManager:
                             print(f"⚠️ [DOWNLOAD] Musixmatch search error: {e}")
                             lyrics_data = None
 
+                        # Snap music_start_time to nearest beat if beat data available
+                        if music_start_time > 0 and beat_times and len(beat_times) > 0:
+                            from .music_start_detector import _snap_to_nearest_beat
+                            music_start_time = _snap_to_nearest_beat(music_start_time, beat_times)
+                            print(f"🎬 [DOWNLOAD] Music start snapped to beat: {music_start_time:.2f}s")
+
                         # Update database with analysis results
                         try:
                             from .downloads_db import update_download_analysis
@@ -755,7 +773,8 @@ class DownloadManager:
                                 structure_data,
                                 lyrics_data,
                                 beat_times=beat_times,
-                                beat_positions=beat_positions
+                                beat_positions=beat_positions,
+                                music_start_time=music_start_time
                             )
                         except Exception as e:
                             print(f"⚠️ [DOWNLOAD] Error updating database analysis: {e}")

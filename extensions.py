@@ -565,7 +565,7 @@ class UserSessionManager:
                             from core.db.connection import _conn
                             with _conn() as conn:
                                 row = conn.execute(
-                                    "SELECT detected_bpm, detected_key, analysis_confidence, chords_data, structure_data, lyrics_data FROM global_downloads WHERE video_id=?",
+                                    "SELECT detected_bpm, detected_key, analysis_confidence, chords_data, structure_data, lyrics_data, music_start_time FROM global_downloads WHERE video_id=?",
                                     (video_id,)
                                 ).fetchone()
                                 if row:
@@ -575,18 +575,21 @@ class UserSessionManager:
                                     existing_chords = row['chords_data']
                                     existing_structure = row['structure_data']
                                     existing_lyrics = row['lyrics_data']
+                                    existing_music_start = row['music_start_time'] or 0.0
                                 else:
                                     existing_key = None
                                     existing_confidence = None
                                     existing_chords = None
                                     existing_structure = None
                                     existing_lyrics = None
+                                    existing_music_start = 0.0
                         except Exception:
                             existing_key = None
                             existing_confidence = None
                             existing_chords = None
                             existing_structure = None
                             existing_lyrics = None
+                            existing_music_start = 0.0
 
                         beat_offset, beats, beat_positions = detector._detect_beats(audio_path, known_bpm=known_bpm)
                         beat_times_list = [round(float(t), 4) for t in beats] if len(beats) > 0 else []
@@ -606,7 +609,8 @@ class UserSessionManager:
                                 lyrics_data=_existing_lyrics,
                                 beat_offset=beat_offset,
                                 beat_times=beat_times_list,
-                                beat_positions=beat_positions
+                                beat_positions=beat_positions,
+                                music_start_time=existing_music_start
                             )
                             logger.info(f"[BEATS] Detected {len(beat_times_list)} beats, "
                                         f"{sum(1 for p in beat_positions if p == 1)} downbeats")

@@ -21,6 +21,7 @@ def get_all_downloads_for_admin():
                 gd.extraction_model,
                 gd.extracting,
                 gd.extracted_at,
+                gd.beat_times,
                 COUNT(ud.id) as user_count,
                 GROUP_CONCAT(u.username, ', ') as users
             FROM global_downloads gd
