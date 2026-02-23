@@ -221,12 +221,28 @@ body.glassmorphism .chord-grid-beat.active {
 
 /* ---- Horizontal Chord Scroll (Linear) ---- */
 body.glassmorphism .chord-linear-scroll {
-    background: rgba(255,255,255,0.02);
+    background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
     scrollbar-color: rgba(0,212,255,0.3) rgba(255,255,255,0.03);
 }
 
+body.glassmorphism .chord-linear-track {
+    background: transparent;
+}
+
 body.glassmorphism .chord-linear-measure {
-    border-right-color: rgba(255,255,255,0.08);
+    border-right-color: rgba(255,255,255,0.1);
+}
+
+body.glassmorphism .chord-linear-measure.active {
+    background: rgba(0,212,255,0.05);
+}
+
+body.glassmorphism .chord-linear-chord-row {
+    background: transparent;
 }
 
 body.glassmorphism .chord-linear-beat {
@@ -237,19 +253,34 @@ body.glassmorphism .chord-linear-beat {
 }
 
 body.glassmorphism .chord-linear-beat:hover {
-    background: rgba(255,255,255,0.1);
-    border-color: rgba(0,212,255,0.3);
+    background: rgba(255,255,255,0.12);
+    border-color: rgba(0,212,255,0.4);
 }
 
 body.glassmorphism .chord-linear-beat.active {
-    background: rgba(0,212,255,0.15);
-    border-color: rgba(0,212,255,0.5);
-    box-shadow: 0 0 10px rgba(0,212,255,0.2);
+    background: rgba(0,212,255,0.18);
+    border-color: rgba(0,212,255,0.6);
+    box-shadow: 0 0 12px rgba(0,212,255,0.25);
+}
+
+body.glassmorphism .chord-linear-beat.empty {
+    background: rgba(255,255,255,0.02);
+    border-color: rgba(255,255,255,0.06);
+}
+
+body.glassmorphism .chord-linear-beat-name {
+    color: #e8eaf6;
 }
 
 body.glassmorphism .chord-linear-lyrics-row {
     background: rgba(255,255,255,0.02);
     border-top: 1px solid rgba(255,255,255,0.06);
+    color: #9fa8da;
+}
+
+body.glassmorphism .chord-linear-playhead {
+    background: linear-gradient(180deg, #00d4ff 0%, #0099cc 100%);
+    box-shadow: 0 0 8px rgba(0,212,255,0.5);
 }
 
 /* ---- Chord Diagram Panel ---- */
