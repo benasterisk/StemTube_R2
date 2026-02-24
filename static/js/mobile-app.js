@@ -3929,6 +3929,8 @@ class MobileApp {
     stop() {
         // pause() handles precount cancellation + pre-scheduled stem cleanup
         this.pause();
+        // Ensure metronome stops even if pause() early-returned due to !isPlaying
+        if (this.metronome) this.metronome.stop();
         this.seek(0);
         // Jam session: broadcast stop command
         this._jamBroadcastPlayback('stop', 0);
@@ -6537,33 +6539,24 @@ class MobileApp {
         ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--mobile-bg-tertiary').trim() || '#282828';
         ctx.fillRect(0, 0, width, height);
 
-        const step = Math.ceil(data.length / width);
         const amp = height / 2;
+        const ratio = data.length / width;
 
         ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--mobile-primary').trim() || '#1DB954';
         ctx.globalAlpha = 0.6;
 
         for (let i = 0; i < width; i++) {
-            let min = 0;
-            let max = 0;
-            let hasData = false;
+            const start = Math.floor(i * ratio);
+            const end = Math.min(Math.floor((i + 1) * ratio), data.length);
+            if (start >= data.length) break;
 
-            for (let j = 0; j < step; j++) {
-                const idx = (i * step) + j;
-                if (idx >= data.length) break;
-                const datum = data[idx];
-                if (datum === undefined) break;
-                if (!hasData) {
-                    min = datum;
-                    max = datum;
-                    hasData = true;
-                } else {
-                    if (datum < min) min = datum;
-                    if (datum > max) max = datum;
-                }
+            let min = data[start];
+            let max = data[start];
+
+            for (let j = start + 1; j < end; j++) {
+                if (data[j] < min) min = data[j];
+                if (data[j] > max) max = data[j];
             }
-
-            if (!hasData) break;
 
             const yMin = (1 + min) * amp;
             const yMax = (1 + max) * amp;
