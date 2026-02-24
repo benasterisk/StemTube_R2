@@ -512,19 +512,17 @@
 .mobile-waveform-container {
     position: relative;
     width: 100%;
-    height: clamp(140px, 22vh, 220px);
+    height: clamp(180px, 28vh, 260px);
     background: var(--mobile-bg-tertiary);
     border-radius: var(--mobile-radius);
     margin: 12px 0;
     overflow: hidden;
-    padding-top: 20px;
-    /* Space for timeline */
 }
 
 /* Mode desktop - waveform plus compact pour voir accords + diagrammes */
 @media (min-width: 1025px) {
     .mobile-waveform-container {
-        height: clamp(100px, 15vh, 160px);
+        height: clamp(140px, 20vh, 200px);
         margin: 8px 0;
     }
 }
