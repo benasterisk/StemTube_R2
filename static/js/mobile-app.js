@@ -6534,13 +6534,13 @@ class MobileApp {
             return;
         }
 
-        ctx.fillStyle = '#282828';
+        ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--mobile-bg-tertiary').trim() || '#282828';
         ctx.fillRect(0, 0, width, height);
 
         const step = Math.ceil(data.length / width);
         const amp = height / 2;
 
-        ctx.fillStyle = '#1DB954';
+        ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--mobile-primary').trim() || '#1DB954';
         ctx.globalAlpha = 0.6;
 
         for (let i = 0; i < width; i++) {
