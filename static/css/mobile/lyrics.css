@@ -531,11 +531,12 @@
 }
 
 .mobile-waveform {
-    width: 100%;
-    height: calc(100% - 20px);
-    /* Subtract timeline height */
+    position: absolute;
+    top: 20px;
+    left: 0;
+    right: 0;
+    bottom: 0;
     display: block;
-    position: relative;
     z-index: 1;
 }
 
