@@ -6544,19 +6544,31 @@ class MobileApp {
         ctx.globalAlpha = 0.6;
 
         for (let i = 0; i < width; i++) {
-            let min = 1.0;
-            let max = -1.0;
+            let min = 0;
+            let max = 0;
+            let hasData = false;
 
             for (let j = 0; j < step; j++) {
-                const datum = data[(i * step) + j];
-                if (datum < min) min = datum;
-                if (datum > max) max = datum;
+                const idx = (i * step) + j;
+                if (idx >= data.length) break;
+                const datum = data[idx];
+                if (datum === undefined) break;
+                if (!hasData) {
+                    min = datum;
+                    max = datum;
+                    hasData = true;
+                } else {
+                    if (datum < min) min = datum;
+                    if (datum > max) max = datum;
+                }
             }
+
+            if (!hasData) break;
 
             const yMin = (1 + min) * amp;
             const yMax = (1 + max) * amp;
 
-            ctx.fillRect(i, yMin, 1, yMax - yMin);
+            ctx.fillRect(i, yMin, 1, Math.max(1, yMax - yMin));
         }
 
         ctx.globalAlpha = 1.0;
