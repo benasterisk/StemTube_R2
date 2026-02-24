@@ -6509,12 +6509,13 @@ class MobileApp {
 
         const ctx = canvas.getContext('2d');
 
-        // Read CSS-computed size, then set canvas buffer to match
+        // Lock display size from CSS layout, then match buffer to it
         const rect = canvas.getBoundingClientRect();
         const width = Math.round(rect.width) || Math.min(window.innerWidth - 24, 800);
         const height = Math.round(rect.height) || 120;
 
-        // Set buffer size to match CSS display size (1:1, no DPR scaling)
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
         canvas.width = width;
         canvas.height = height;
 
