@@ -6543,7 +6543,19 @@ class MobileApp {
         ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--mobile-bg-tertiary').trim() || '#282828';
         ctx.fillRect(0, 0, width, height);
 
-        const amp = height / 2;
+        // Find actual peak amplitude to normalize waveform
+        let peakAmp = 0;
+        for (let i = 0; i < data.length; i++) {
+            const abs = Math.abs(data[i]);
+            if (abs > peakAmp) peakAmp = abs;
+        }
+        if (peakAmp === 0) peakAmp = 1;
+
+        // Scale so peaks reach 2px from container edge
+        const padding = 2;
+        const drawHeight = height - padding * 2;
+        const center = height / 2;
+        const scale = (drawHeight / 2) / peakAmp;
         const ratio = data.length / width;
 
         ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--mobile-primary').trim() || '#1DB954';
@@ -6562,10 +6574,10 @@ class MobileApp {
                 if (data[j] > max) max = data[j];
             }
 
-            const yMin = (1 + min) * amp;
-            const yMax = (1 + max) * amp;
+            const yTop = center - max * scale;
+            const yBottom = center - min * scale;
 
-            ctx.fillRect(i, yMin, 1, Math.max(1, yMax - yMin));
+            ctx.fillRect(i, yTop, 1, Math.max(1, yBottom - yTop));
         }
 
         ctx.globalAlpha = 1.0;
