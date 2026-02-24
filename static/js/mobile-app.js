@@ -3117,9 +3117,13 @@ class MobileApp {
 
         await this.ensureMasterAudioBuffer(data);
 
-        // Render waveform
+        // Render waveform and re-render on resize/orientation change
         console.log('[LoadMixer] Rendering waveform...');
         this.renderWaveform();
+        if (!this._waveformResizeHandler) {
+            this._waveformResizeHandler = () => { if (this.masterAudioBuffer || Object.values(this.stems).some(s => s.buffer)) this.renderWaveform(); };
+            window.addEventListener('resize', this._waveformResizeHandler);
+        }
 
         if (typeof data.beat_offset === 'number') {
             this.beatOffset = data.beat_offset;
@@ -6505,15 +6509,15 @@ class MobileApp {
 
         const ctx = canvas.getContext('2d');
 
-        const parentWidth = canvas.parentElement.offsetWidth;
-        const parentHeight = canvas.parentElement.offsetHeight;
-        const width = parentWidth > 0 ? parentWidth : Math.min(window.innerWidth - 24, 800);
-        const height = parentHeight > 0 ? parentHeight : 120;
+        // Use the CSS-computed size so canvas always fills its container
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        const width = Math.round(rect.width) || Math.min(window.innerWidth - 24, 800);
+        const height = Math.round(rect.height) || 120;
 
-        canvas.width = width;
-        canvas.height = height;
-        canvas.style.width = width + 'px';
-        canvas.style.height = height + 'px';
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        ctx.scale(dpr, dpr);
 
         const pointCount = Math.max(500, Math.floor(width * window.devicePixelRatio));
         let data = null;
