@@ -6509,17 +6509,16 @@ class MobileApp {
 
         const ctx = canvas.getContext('2d');
 
-        // Use the CSS-computed size so canvas always fills its container
+        // Read CSS-computed size, then set canvas buffer to match
         const rect = canvas.getBoundingClientRect();
-        const dpr = window.devicePixelRatio || 1;
         const width = Math.round(rect.width) || Math.min(window.innerWidth - 24, 800);
         const height = Math.round(rect.height) || 120;
 
-        canvas.width = width * dpr;
-        canvas.height = height * dpr;
-        ctx.scale(dpr, dpr);
+        // Set buffer size to match CSS display size (1:1, no DPR scaling)
+        canvas.width = width;
+        canvas.height = height;
 
-        const pointCount = Math.max(500, Math.floor(width * window.devicePixelRatio));
+        const pointCount = Math.max(500, width);
         let data = null;
 
         if (this.masterAudioBuffer) {
