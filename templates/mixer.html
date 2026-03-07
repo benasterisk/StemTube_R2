@@ -131,6 +131,22 @@
                         </button>
                     </div>
 
+                    <!-- Recording controls (inline in transport) -->
+                    <div class="recording-transport-controls" data-tab-visible="mixer" data-tab-display="flex">
+                        <div class="rec-toolbar-separator"></div>
+                        <button class="rec-toolbar-btn" id="add-recording-track-btn" title="Add a new recording track">
+                            <i class="fas fa-plus"></i> Add Track
+                        </button>
+                        <button class="rec-toolbar-btn" id="calibrate-latency-btn" title="Plays a test click and measures round-trip delay">
+                            <i class="fas fa-crosshairs"></i> Calibrate
+                        </button>
+                        <span class="latency-value" id="latency-value"></span>
+                        <label class="bleed-toggle" title="Remove speaker bleed from recordings">
+                            <input type="checkbox" id="bleed-removal-toggle" checked>
+                            <span class="bleed-label">De-bleed</span>
+                        </label>
+                    </div>
+
                     <!-- Export Mix Button -->
                     <div class="export-controls" data-tab-visible="mixer" data-tab-display="flex">
                         <button class="transport-btn export" id="export-mix-btn" title="Export current mix to MP3">
@@ -176,34 +192,14 @@
 
         <!-- Scrollable content area -->
         <div class="scrollable-content">
+            <!-- Recording tracks (above stems) -->
+            <div class="recording-tracks-container" id="recording-tracks-container" data-tab-visible="mixer" data-tab-display="flex">
+                <!-- Recording tracks are generated dynamically here -->
+            </div>
+
             <!-- MIXER TAB: All stem tracks -->
             <div class="tracks-container" id="tracks-container" data-tab-visible="mixer" data-tab-display="flex">
                 <!-- Stem tracks are generated dynamically here -->
-            </div>
-
-            <!-- Recording tracks section -->
-            <div class="recording-section" id="recording-section" data-tab-visible="mixer" data-tab-display="block">
-                <!-- Recording toolbar: add track + settings -->
-                <div class="recording-toolbar">
-                    <button class="rec-toolbar-btn" id="add-recording-track-btn" title="Add a new recording track">
-                        <i class="fas fa-plus"></i> Add Track
-                    </button>
-                    <div class="rec-toolbar-separator"></div>
-                    <div class="latency-control" title="Auto-calibrate recording latency">
-                        <button class="rec-toolbar-btn" id="calibrate-latency-btn" title="Plays a test click and measures round-trip delay">
-                            <i class="fas fa-crosshairs"></i> Calibrate
-                        </button>
-                        <span class="latency-value" id="latency-value"></span>
-                    </div>
-                    <label class="bleed-toggle" title="Remove speaker bleed from recordings">
-                        <input type="checkbox" id="bleed-removal-toggle" checked>
-                        <span class="bleed-label">De-bleed</span>
-                    </label>
-                </div>
-                <!-- Recording tracks container -->
-                <div class="recording-tracks-container" id="recording-tracks-container">
-                    <!-- Recording tracks are generated dynamically here -->
-                </div>
             </div>
 
             <!-- PRACTICE TABS -->
