@@ -55,6 +55,7 @@ class JamMetronome {
         this._toggleIcons = [];
 
         // Precount settings (stored as beat count: 0=off, 2, 4, 8)
+        this.precountAudible = localStorage.getItem('jam_precount_audible') !== 'false';
         this.precountBeats = parseInt(localStorage.getItem('jam_precount_beats') || '0', 10);
         this._precounting = false;
         this._precountAnimId = null;
@@ -247,6 +248,30 @@ class JamMetronome {
             popover.appendChild(item);
         }
 
+        // Precount audio toggle
+        const pcAudioRow = document.createElement('div');
+        pcAudioRow.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px 10px;font-size:12px;color:#ccc;cursor:pointer';
+        const pcCheckbox = document.createElement('input');
+        pcCheckbox.type = 'checkbox';
+        pcCheckbox.checked = this.precountAudible;
+        pcCheckbox.style.cursor = 'pointer';
+        pcCheckbox.addEventListener('click', (e) => e.stopPropagation());
+        pcCheckbox.addEventListener('change', (e) => {
+            e.stopPropagation();
+            this.precountAudible = e.target.checked;
+            localStorage.setItem('jam_precount_audible', this.precountAudible.toString());
+        });
+        const pcLabel = document.createElement('span');
+        pcLabel.textContent = 'Precount audio';
+        pcAudioRow.appendChild(pcCheckbox);
+        pcAudioRow.appendChild(pcLabel);
+        pcAudioRow.addEventListener('click', (e) => {
+            e.stopPropagation();
+            pcCheckbox.checked = !pcCheckbox.checked;
+            pcCheckbox.dispatchEvent(new Event('change'));
+        });
+        popover.appendChild(pcAudioRow);
+
         // Volume slider
         const volTitle = document.createElement('div');
         volTitle.className = 'metronome-precount-title';
@@ -384,8 +409,8 @@ class JamMetronome {
         this._precountBeatDuration = clickInterval;
         this._precountEndTime = baseTime + precountBeats * clickInterval;
 
-        // Pre-schedule ALL click sounds on the Web Audio clock (with downbeat accent)
-        if (ctx) {
+        // Pre-schedule click sounds (only if precount audio is enabled)
+        if (ctx && this.precountAudible) {
             for (let i = 0; i < precountBeats; i++) {
                 const beatTime = baseTime + i * clickInterval;
                 this._schedulePrecountClick(beatTime);
@@ -400,7 +425,7 @@ class JamMetronome {
      * Schedule a single precount click at an exact Web Audio time.
      */
     _schedulePrecountClick(when) {
-        if (!this.audioContext || !this.clickGainNode) return;
+        if (!this.audioContext || !this.precountGainNode) return;
 
         const ctx = this.audioContext;
         const osc = ctx.createOscillator();
@@ -413,7 +438,7 @@ class JamMetronome {
         env.gain.exponentialRampToValueAtTime(0.001, when + 0.04);
 
         osc.connect(env);
-        env.connect(this.clickGainNode);
+        env.connect(this.precountGainNode);
 
         osc.start(when);
         osc.stop(when + 0.05);
@@ -1017,12 +1042,21 @@ class JamMetronome {
     // ── Audio Gain ────────────────────────────────────────────────
 
     _ensureClickGain(destinationNode) {
-        if (this.clickGainNode || !this.audioContext) return;
-        this.clickGainNode = this.audioContext.createGain();
-        this.clickGainNode.gain.value = this.clickVolume;
-        // Route to provided destination (mixer chain) or direct to speakers
-        const dest = destinationNode || this.audioContext.destination;
-        this.clickGainNode.connect(dest);
+        if (!this.audioContext) return;
+        if (!this.clickGainNode) {
+            this.clickGainNode = this.audioContext.createGain();
+            this.clickGainNode.gain.value = this.clickVolume;
+            // Route to provided destination (mixer chain) or direct to speakers
+            const dest = destinationNode || this.audioContext.destination;
+            this.clickGainNode.connect(dest);
+        }
+        // Separate gain for precount clicks — routes directly to destination
+        // so precount audio works even when the metronome track is muted
+        if (!this.precountGainNode) {
+            this.precountGainNode = this.audioContext.createGain();
+            this.precountGainNode.gain.value = this.clickVolume;
+            this.precountGainNode.connect(this.audioContext.destination);
+        }
     }
 
     // ── Setters / Getters ─────────────────────────────────────────
@@ -1038,6 +1072,7 @@ class JamMetronome {
     setAudioContext(ctx) {
         this.audioContext = ctx;
         this.clickGainNode = null;
+        this.precountGainNode = null;
     }
 
     setHapticMode(mode) {
@@ -1065,6 +1100,9 @@ class JamMetronome {
         localStorage.setItem('jam_click_volume', this.clickVolume.toString());
         if (this.clickGainNode) {
             this.clickGainNode.gain.value = this.clickVolume;
+        }
+        if (this.precountGainNode) {
+            this.precountGainNode.gain.value = this.clickVolume;
         }
         // Sync track slider (slider range 0-1, clickVolume range 0-3)
         const trackSlider = document.querySelector('.track[data-stem="metronome"] .volume-slider');

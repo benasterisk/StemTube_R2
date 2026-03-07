@@ -349,18 +349,53 @@ class StemMixer {
                         if (trackEl) trackEl.classList.add('is-recording');
                     }
 
-                    // Start recording on all armed tracks
-                    const currentPos = this.currentTime || 0;
-                    const started = await recEngine.startRecording(currentPos);
-                    if (!started) {
-                        this.showToast('Could not start recording — check microphone permissions', 'error');
-                        return;
-                    }
-                    recordBtn.classList.add('recording');
+                    // If precount is active and not already playing, start playback
+                    // first (which triggers precount), then start recording when
+                    // playback actually begins — otherwise the MediaRecorder captures
+                    // the entire precount duration as unwanted audio.
+                    const metronome = this.metronome;
+                    const hasPrecountPending = !this.isPlaying && metronome
+                        && metronome.getPrecountBeats() > 0 && metronome.bpm > 0;
 
-                    // Auto-play if not already playing
-                    if (!this.isPlaying) {
+                    if (hasPrecountPending) {
+                        // Hook into the precount: start playback (triggers precount),
+                        // then start recording when precount ends and audio plays.
+                        const origStartPrecount = metronome.startPrecount.bind(metronome);
+                        metronome.startPrecount = (beats, onComplete) => {
+                            // Restore original method immediately
+                            metronome.startPrecount = origStartPrecount;
+                            origStartPrecount(beats, async () => {
+                                // Precount finished — now start recording
+                                const recPos = this.currentTime || 0;
+                                const started = await recEngine.startRecording(recPos);
+                                if (!started) {
+                                    this.showToast('Could not start recording — check microphone permissions', 'error');
+                                    recordBtn.classList.remove('recording');
+                                    for (const t of armedTracks) {
+                                        const el = document.getElementById(`rec-track-${t.id}`);
+                                        if (el) el.classList.remove('is-recording');
+                                    }
+                                }
+                                // Then call the original callback (starts actual playback)
+                                if (onComplete) onComplete();
+                            });
+                        };
+                        recordBtn.classList.add('recording');
                         this.togglePlayback();
+                    } else {
+                        // No precount — start recording immediately
+                        const currentPos = this.currentTime || 0;
+                        const started = await recEngine.startRecording(currentPos);
+                        if (!started) {
+                            this.showToast('Could not start recording — check microphone permissions', 'error');
+                            return;
+                        }
+                        recordBtn.classList.add('recording');
+
+                        // Auto-play if not already playing
+                        if (!this.isPlaying) {
+                            this.togglePlayback();
+                        }
                     }
                 }
             });

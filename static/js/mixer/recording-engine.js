@@ -312,8 +312,11 @@ class RecordingEngine {
 
         if (clickPositionSample < 0) return null; // click not detected
 
+        // Full round-trip: outputLatency + airDelay + inputLatency + pipelineOverhead.
+        // All of these contribute to the recording being late, so use the full value
+        // (not /2 — that's for network one-way estimation, not audio recording).
         const roundTrip = (clickPositionSample / sampleRate) - (stabilizeMs / 1000);
-        return Math.max(0, roundTrip / 2);
+        return Math.max(0, roundTrip);
     }
 
     /**
@@ -386,15 +389,26 @@ class RecordingEngine {
         const baseLatency = ctx.baseLatency || 0;
         console.log(`[RecordingEngine] API latencies — base: ${(baseLatency * 1000).toFixed(1)}ms, output: ${(outputLatency * 1000).toFixed(1)}ms`);
 
-        // Total = pipeline processing + hardware output latency
-        // baseLatency is already included in pipeline measurement, so only add outputLatency
-        const totalLatency = pipelineLatency + outputLatency;
+        // Total compensation = pipeline + output latency + estimated input latency.
+        // outputLatency: delay from AudioContext output to speakers/headphones.
+        // Input latency (mic ADC + OS capture) has no Web API — estimate as baseLatency
+        // (one audio render quantum, ~2.7ms at 48kHz) plus a conservative fixed estimate
+        // for the OS audio capture pipeline (~10ms typical for modern systems).
+        const estimatedInputLatency = baseLatency + 0.010;
+        const totalLatency = pipelineLatency + outputLatency + estimatedInputLatency;
+        console.log(`[RecordingEngine] Estimated input latency: ${(estimatedInputLatency * 1000).toFixed(1)}ms, total: ${(totalLatency * 1000).toFixed(1)}ms`);
 
         return Math.max(0, totalLatency);
     }
 
     /** Load calibrated latency from localStorage (seconds). */
     _loadCalibratedLatency() {
+        // v2: invalidate old values computed with the /2 bug
+        const version = localStorage.getItem('stemtube_latency_version');
+        if (version !== '2') {
+            localStorage.removeItem('stemtube_calibrated_latency');
+            return 0;
+        }
         const val = localStorage.getItem('stemtube_calibrated_latency');
         return val ? parseFloat(val) : 0;
     }
@@ -402,6 +416,7 @@ class RecordingEngine {
     /** Save calibrated latency to localStorage (seconds). */
     _saveCalibratedLatency(seconds) {
         localStorage.setItem('stemtube_calibrated_latency', seconds.toString());
+        localStorage.setItem('stemtube_latency_version', '2');
     }
 
     /** Clear calibration and revert to auto-detect. */
