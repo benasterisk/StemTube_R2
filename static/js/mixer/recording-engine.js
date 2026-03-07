@@ -178,9 +178,10 @@ class RecordingEngine {
     }
 
     /**
-     * Automatic loopback calibration: plays a short click through speakers,
-     * records it via the mic, and measures the round-trip delay via cross-correlation.
-     * Result is stored in localStorage so the user only calibrates once per device.
+     * Automatic latency calibration with two strategies:
+     * 1. Acoustic loopback — plays a click through speakers, records via mic (best accuracy)
+     * 2. Digital loopback fallback — if mic doesn't capture the click (headphones),
+     *    measures software pipeline latency + browser-reported hardware latency
      * @returns {Promise<number>} calibrated latency in seconds
      */
     async calibrateLatency() {
@@ -198,80 +199,166 @@ class RecordingEngine {
             const entry = this.deviceStreams.values().next().value;
             if (!entry) throw new Error('No microphone available');
             const sampleRate = ctx.sampleRate;
-            const stabilizeMs = 150; // ms to wait before playing click
 
-            // 1. Create a short click signal (1ms impulse)
-            const clickSamples = Math.ceil(sampleRate * 0.001);
-            const clickBuffer = ctx.createBuffer(1, clickSamples, sampleRate);
-            const clickData = clickBuffer.getChannelData(0);
-            for (let i = 0; i < clickSamples; i++) {
-                clickData[i] = 1.0;
+            // Try acoustic loopback first
+            const acousticResult = await this._calibrateAcousticLoopback(ctx, entry, sampleRate);
+            if (acousticResult !== null) {
+                this.calibratedLatency = acousticResult;
+                this.calibrationMethod = 'acoustic';
+                this._saveCalibratedLatency(this.calibratedLatency);
+                console.log(`[RecordingEngine] Acoustic calibration: ${(this.calibratedLatency * 1000).toFixed(1)}ms`);
+                return this.calibratedLatency;
             }
 
-            // 2. Capture mic input via MediaRecorder (additive connect — doesn't affect existing graph)
-            const captureStream = ctx.createMediaStreamDestination();
-            entry.micSource.connect(captureStream);
-
-            const chunks = [];
-            const recorder = new MediaRecorder(captureStream.stream);
-            recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-            recorder.start();
-
-            // Wait for recorder to stabilize
-            await new Promise(r => setTimeout(r, stabilizeMs));
-
-            // 3. Play the click through speakers
-            const clickSource = ctx.createBufferSource();
-            clickSource.buffer = clickBuffer;
-            clickSource.connect(ctx.destination);
-            clickSource.start();
-
-            // 4. Capture for 400ms (enough for room echo)
-            await new Promise(r => setTimeout(r, 400));
-
-            // 5. Stop and decode
-            const recordedBlob = await this._stopMediaRecorder(recorder, chunks);
-            entry.micSource.disconnect(captureStream); // remove only the calibration tap
-
-            const arrayBuf = await recordedBlob.arrayBuffer();
-            const recordedBuffer = await ctx.decodeAudioData(arrayBuf);
-            const recorded = recordedBuffer.getChannelData(0);
-
-            // 6. Find the click peak in the recording
-            // Skip initial noise from recorder start (~50ms)
-            const skipSamples = Math.ceil(sampleRate * 0.05);
-            let clickPositionSample = -1;
-
-            // Use adaptive threshold: 4x the RMS of the quiet zone
-            let sumSq = 0;
-            const noiseEnd = Math.min(skipSamples, recorded.length);
-            for (let i = 0; i < noiseEnd; i++) sumSq += recorded[i] * recorded[i];
-            const rms = Math.sqrt(sumSq / Math.max(1, noiseEnd));
-            const threshold = Math.max(0.05, rms * 4);
-
-            for (let i = skipSamples; i < recorded.length; i++) {
-                if (Math.abs(recorded[i]) > threshold) {
-                    clickPositionSample = i;
-                    break;
-                }
-            }
-
-            if (clickPositionSample < 0) {
-                console.warn('[RecordingEngine] Calibration: click not detected — using API estimate');
-                this.calibratedLatency = (ctx.baseLatency || 0) + (ctx.outputLatency || 0);
-            } else {
-                // Round-trip = time from recorder start to click detection, minus stabilization wait
-                const roundTrip = (clickPositionSample / sampleRate) - (stabilizeMs / 1000);
-                // Recording latency ≈ half the round-trip
-                this.calibratedLatency = Math.max(0, roundTrip / 2);
-            }
-
+            // Acoustic loopback failed (headphones?) — use digital loopback + API
+            console.log('[RecordingEngine] Acoustic loopback failed, falling back to digital pipeline measurement');
+            this.calibratedLatency = await this._calibrateDigitalLoopback(ctx, entry, sampleRate);
+            this.calibrationMethod = 'digital';
             this._saveCalibratedLatency(this.calibratedLatency);
-            console.log(`[RecordingEngine] Calibrated latency: ${(this.calibratedLatency * 1000).toFixed(1)}ms (sample pos: ${clickPositionSample})`);
+            console.log(`[RecordingEngine] Digital calibration: ${(this.calibratedLatency * 1000).toFixed(1)}ms`);
             return this.calibratedLatency;
         } finally {
             this.isCalibrating = false;
         }
+    }
+
+    /**
+     * Acoustic loopback: play click through speakers, capture via mic.
+     * @returns {Promise<number|null>} latency in seconds, or null if click not detected
+     * @private
+     */
+    async _calibrateAcousticLoopback(ctx, entry, sampleRate) {
+        const stabilizeMs = 150;
+
+        // Create a short click signal (1ms impulse)
+        const clickSamples = Math.ceil(sampleRate * 0.001);
+        const clickBuffer = ctx.createBuffer(1, clickSamples, sampleRate);
+        const clickData = clickBuffer.getChannelData(0);
+        for (let i = 0; i < clickSamples; i++) clickData[i] = 1.0;
+
+        // Capture mic input via MediaRecorder
+        const captureStream = ctx.createMediaStreamDestination();
+        entry.micSource.connect(captureStream);
+
+        const chunks = [];
+        const recorder = new MediaRecorder(captureStream.stream);
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+        recorder.start();
+
+        await new Promise(r => setTimeout(r, stabilizeMs));
+
+        // Play the click through speakers
+        const clickSource = ctx.createBufferSource();
+        clickSource.buffer = clickBuffer;
+        clickSource.connect(ctx.destination);
+        clickSource.start();
+
+        await new Promise(r => setTimeout(r, 400));
+
+        const recordedBlob = await this._stopMediaRecorder(recorder, chunks);
+        entry.micSource.disconnect(captureStream);
+
+        const arrayBuf = await recordedBlob.arrayBuffer();
+        const recordedBuffer = await ctx.decodeAudioData(arrayBuf);
+        const recorded = recordedBuffer.getChannelData(0);
+
+        // Find the click peak
+        const skipSamples = Math.ceil(sampleRate * 0.05);
+        let sumSq = 0;
+        const noiseEnd = Math.min(skipSamples, recorded.length);
+        for (let i = 0; i < noiseEnd; i++) sumSq += recorded[i] * recorded[i];
+        const rms = Math.sqrt(sumSq / Math.max(1, noiseEnd));
+        const threshold = Math.max(0.05, rms * 4);
+
+        let clickPositionSample = -1;
+        for (let i = skipSamples; i < recorded.length; i++) {
+            if (Math.abs(recorded[i]) > threshold) {
+                clickPositionSample = i;
+                break;
+            }
+        }
+
+        if (clickPositionSample < 0) return null; // click not detected
+
+        const roundTrip = (clickPositionSample / sampleRate) - (stabilizeMs / 1000);
+        return Math.max(0, roundTrip / 2);
+    }
+
+    /**
+     * Digital loopback: measures the software pipeline latency by routing a click
+     * through the mic input → MediaRecorder path (without acoustic propagation),
+     * then adds browser-reported hardware latency.
+     * Works with headphones since it doesn't rely on speakers → mic pickup.
+     * @returns {Promise<number>} estimated latency in seconds
+     * @private
+     */
+    async _calibrateDigitalLoopback(ctx, entry, sampleRate) {
+        const stabilizeMs = 100;
+
+        // Create a click signal
+        const clickSamples = Math.ceil(sampleRate * 0.001);
+        const clickBuffer = ctx.createBuffer(1, clickSamples, sampleRate);
+        const clickData = clickBuffer.getChannelData(0);
+        for (let i = 0; i < clickSamples; i++) clickData[i] = 1.0;
+
+        // Create a digital loopback path:
+        // clickSource → loopbackDest (MediaStream) → loopbackSource → captureDest → MediaRecorder
+        // This measures the full MediaRecorder encode/decode pipeline delay
+        const loopbackDest = ctx.createMediaStreamDestination();
+        const loopbackSource = ctx.createMediaStreamSource(loopbackDest.stream);
+        const captureDest = ctx.createMediaStreamDestination();
+        loopbackSource.connect(captureDest);
+
+        const chunks = [];
+        const recorder = new MediaRecorder(captureDest.stream);
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+        recorder.start();
+
+        await new Promise(r => setTimeout(r, stabilizeMs));
+
+        // Inject click into the loopback path and record timestamp
+        const clickSource = ctx.createBufferSource();
+        clickSource.buffer = clickBuffer;
+        clickSource.connect(loopbackDest);
+        const sendTime = ctx.currentTime;
+        clickSource.start();
+
+        await new Promise(r => setTimeout(r, 400));
+
+        const recordedBlob = await this._stopMediaRecorder(recorder, chunks);
+        loopbackSource.disconnect();
+
+        const arrayBuf = await recordedBlob.arrayBuffer();
+        const recordedBuffer = await ctx.decodeAudioData(arrayBuf);
+        const recorded = recordedBuffer.getChannelData(0);
+
+        // Find click in the digital recording
+        const skipSamples = Math.ceil(sampleRate * 0.02);
+        let clickPositionSample = -1;
+        for (let i = skipSamples; i < recorded.length; i++) {
+            if (Math.abs(recorded[i]) > 0.05) {
+                clickPositionSample = i;
+                break;
+            }
+        }
+
+        // Software pipeline latency (MediaRecorder encode/decode overhead)
+        let pipelineLatency = 0;
+        if (clickPositionSample >= 0) {
+            pipelineLatency = Math.max(0, (clickPositionSample / sampleRate) - (stabilizeMs / 1000));
+            console.log(`[RecordingEngine] Digital pipeline latency: ${(pipelineLatency * 1000).toFixed(1)}ms`);
+        }
+
+        // Hardware latency from Web Audio API
+        const outputLatency = ctx.outputLatency || 0;
+        const baseLatency = ctx.baseLatency || 0;
+        console.log(`[RecordingEngine] API latencies — base: ${(baseLatency * 1000).toFixed(1)}ms, output: ${(outputLatency * 1000).toFixed(1)}ms`);
+
+        // Total = pipeline processing + hardware output latency
+        // baseLatency is already included in pipeline measurement, so only add outputLatency
+        const totalLatency = pipelineLatency + outputLatency;
+
+        return Math.max(0, totalLatency);
     }
 
     /** Load calibrated latency from localStorage (seconds). */

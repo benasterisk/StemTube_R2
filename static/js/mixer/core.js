@@ -384,7 +384,8 @@ class StemMixer {
                     const latency = await recEngine.calibrateLatency();
                     const ms = (latency * 1000).toFixed(0);
                     if (latencyValue) latencyValue.textContent = `${ms}ms`;
-                    this.showToast(`Latency calibrated: ${ms}ms`, 'success');
+                    const method = recEngine.calibrationMethod === 'digital' ? 'headphones mode' : 'speaker mode';
+                    this.showToast(`Latency calibrated: ${ms}ms (${method})`, 'success');
                 } catch (err) {
                     console.error('[StemMixer] Calibration failed:', err);
                     this.showToast('Calibration failed — check mic permissions', 'error');
