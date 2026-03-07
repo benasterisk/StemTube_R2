@@ -556,9 +556,6 @@ class TrackControls {
                         </div>
                     </div>
                     <div class="rec-action-buttons">
-                        <button class="track-btn rec-save-btn${recording.saved ? ' saved' : ''}" title="${recording.saved ? 'Saved' : 'Save to server'}">
-                            <i class="fas fa-save"></i> Save
-                        </button>
                         <button class="track-btn rec-delete-btn" title="Delete recording">
                             <i class="fas fa-trash"></i> Delete
                         </button>
@@ -658,32 +655,6 @@ class TrackControls {
             if (val < -0.05) panText = `${Math.round(Math.abs(val) * 100)}%L`;
             else if (val > 0.05) panText = `${Math.round(val * 100)}%R`;
             trackEl.querySelector('.pan-value').textContent = panText;
-        });
-
-        // Save
-        trackEl.querySelector('.rec-save-btn').addEventListener('click', async () => {
-            if (!recording.audioBuffer) {
-                this.mixer.showToast('Nothing to save — record something first', 'warning');
-                return;
-            }
-            try {
-                const downloadId = this.mixer.extractionId;
-                if (!downloadId) {
-                    this.mixer.showToast('Cannot save — no extraction ID', 'error');
-                    return;
-                }
-                await recEngine.saveToServer(recording.id, downloadId);
-                // Re-render waveform in green to indicate saved state
-                if (this.mixer.waveform) {
-                    this.mixer.waveform.renderRecordingWaveform(
-                        recording, trackEl.querySelector('.waveform')
-                    );
-                }
-                this.mixer.showToast('Recording saved', 'success');
-            } catch (err) {
-                console.error('[TrackControls] Save recording failed:', err);
-                this.mixer.showToast('Save failed: ' + err.message, 'error');
-            }
         });
 
         // Delete (also cancel level meter)

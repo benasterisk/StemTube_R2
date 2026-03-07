@@ -272,11 +272,6 @@
     gap: 3px;
 }
 
-.rec-save-btn.saved {
-    color: #2ecc71 !important;
-    border-color: #2ecc71 !important;
-}
-
 .rec-delete-btn {
     color: #e74c3c !important;
 }

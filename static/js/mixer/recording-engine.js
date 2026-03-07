@@ -580,6 +580,10 @@ class RecordingEngine {
 
         this.recordingTrackIds = [];
         console.log('[RecordingEngine] Recording stopped, filled', results.length, 'tracks');
+
+        // Auto-save all recorded tracks to server
+        this._autoSaveRecordings(results);
+
         return results;
     }
 
@@ -974,14 +978,33 @@ class RecordingEngine {
         rec.serverId = result.id;
         rec.saved = true;
 
-        const saveBtn = document.querySelector(`#rec-track-${id} .rec-save-btn`);
-        if (saveBtn) {
-            saveBtn.classList.add('saved');
-            saveBtn.title = 'Saved';
-        }
-
         console.log('[RecordingEngine] Saved to server:', result.id);
         return result;
+    }
+
+    /**
+     * Auto-save recordings to server after recording stops.
+     * @param {Object[]} recordings
+     * @private
+     */
+    async _autoSaveRecordings(recordings) {
+        const downloadId = this.mixer.extractionId;
+        if (!downloadId) return;
+
+        for (const rec of recordings) {
+            if (!rec.audioBuffer) continue;
+            try {
+                // If re-recording over a previously saved track, delete old server copy first
+                if (rec.serverId) {
+                    await this.deleteFromServer(rec.serverId).catch(() => {});
+                    rec.serverId = null;
+                }
+                await this.saveToServer(rec.id, downloadId);
+                console.log('[RecordingEngine] Auto-saved:', rec.name);
+            } catch (err) {
+                console.warn('[RecordingEngine] Auto-save failed for', rec.name, err);
+            }
+        }
     }
 
     async loadFromServer(downloadId) {
