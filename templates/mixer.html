@@ -743,10 +743,12 @@
         var tc = document.querySelector('.transport-controls');
         if (!tc || typeof ResizeObserver === 'undefined') return;
         function check() {
-            // Remove compact to measure full-text width
+            // Remove compact and force reflow to measure full-text width
             tc.classList.remove('compact');
-            var overflows = tc.scrollWidth > tc.clientWidth + 1;
-            if (overflows) tc.classList.add('compact');
+            void tc.offsetWidth; // force layout recalc
+            if (tc.scrollWidth > tc.clientWidth + 1) {
+                tc.classList.add('compact');
+            }
         }
         new ResizeObserver(check).observe(tc);
         check();
