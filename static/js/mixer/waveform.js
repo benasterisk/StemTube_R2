@@ -80,7 +80,7 @@ class WaveformRenderer {
 
         // Draw waveform
         ctx.beginPath();
-        ctx.strokeStyle = '#4CAF50';
+        ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--accent-color').trim() || '#4CAF50';
         ctx.lineWidth = 1 * window.devicePixelRatio;
 
         // Draw mirrored waveform (upward and downward)
@@ -109,9 +109,10 @@ class WaveformRenderer {
      */
     drawGrid(ctx, width, height) {
         const gridSize = 40 * window.devicePixelRatio;
+        const isLight = document.body.classList.contains('light-theme');
 
         ctx.beginPath();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.1)';
         ctx.lineWidth = 1;
 
         // Vertical lines
@@ -130,7 +131,7 @@ class WaveformRenderer {
 
         // More prominent center line
         ctx.beginPath();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.3)';
         ctx.lineWidth = 1;
         ctx.moveTo(0, height / 2);
         ctx.lineTo(width, height / 2);

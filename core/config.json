@@ -1,5 +1,5 @@
 {
-    "theme": "light",
+    "theme": "dark",
     "max_concurrent_downloads": 10,
     "max_concurrent_extractions": 3,
     "preferred_video_quality": "best",
@@ -21,5 +21,8 @@
     "chords_use_hybrid": true,
     "downloads_directory": "/home/michael/Documents/Dev/stemtube_dev_1.4/core/downloads",
     "enable_youtube_features": true,
-    "cookies_upload_token": null
+    "cookies_upload_token": null,
+    "custom_theme_color": "#5b7fea",
+    "custom_theme_bg_color": "#e4e8ef",
+    "custom_theme_text_color": "#2a2e3a"
 }

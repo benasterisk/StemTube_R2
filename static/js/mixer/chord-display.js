@@ -264,7 +264,7 @@ class GuitarDiagramSettings {
         const text = readCssVariable('--mobile-text', '#f5f5f5');
         const secondary = readCssVariable('--mobile-text-secondary', '#b5b5b5');
         const accent = readCssVariable('--mobile-primary', '#5ce1a5');
-        const border = readCssVariable('--mobile-border', 'rgba(255,255,255,0.2)');
+        const border = readCssVariable('--mobile-text-secondary', 'rgba(255,255,255,0.2)');
 
         this.stringSpace = 42;
         this.fretSpace = 46;
@@ -284,7 +284,7 @@ class GuitarDiagramSettings {
         };
         this.neck = {
             useRoman: true,
-            color: 'rgba(255,255,255,0.02)',
+            color: document.body.classList.contains('light-theme') ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)',
             nut: {
                 color: text,
                 visible: true,
@@ -298,7 +298,7 @@ class GuitarDiagramSettings {
             stringName: {
                 color: secondary,
                 size: 12,
-                margin: 6,
+                margin: 12,
                 visible: true
             },
             baseFret: {
@@ -490,8 +490,8 @@ class GuitarDiagramBuilder {
                     dominantBaseline: 'hanging',
                     fontSize: s.neck.stringName.size,
                     fill: s.neck.stringName.color,
-                    x: index * s.stringSpace,
-                    y: fretsOnChord * s.fretSpace + s.neck.stringName.margin
+                    x: index * s.stringSpace + 5,
+                    y: fretsOnChord * s.fretSpace + s.neck.stringName.margin + 7
                 });
                 tuningGroup.appendChild(GuitarDiagramHelper.appendText(text, note));
             });

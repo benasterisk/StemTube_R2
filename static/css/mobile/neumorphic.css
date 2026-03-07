@@ -1,0 +1,716 @@
+/* ================================================
+   Neumorphic Theme Overrides — Mobile
+   Active only when body has .neumorphic-white or .neumorphic-anthracite
+   ================================================ */
+
+/* ---- Base transition ---- */
+body.neumorphic-white.mobile-body,
+body.neumorphic-anthracite.mobile-body,
+body.neumorphic-custom.mobile-body {
+    transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+/* ---- Header ---- */
+body.neumorphic-white .mobile-header,
+body.neumorphic-anthracite .mobile-header,
+body.neumorphic-custom .mobile-header {
+    border-bottom: none;
+    box-shadow: var(--mobile-neu-shadow-sm);
+}
+
+/* ---- Bottom Nav ---- */
+body.neumorphic-white .mobile-nav,
+body.neumorphic-anthracite .mobile-nav,
+body.neumorphic-custom .mobile-nav {
+    border-top: none;
+    box-shadow: 0 -4px 8px rgba(0, 0, 0, 0.08);
+}
+
+body.neumorphic-white .mobile-nav,
+body.neumorphic-custom .mobile-nav {
+    background: var(--mobile-bg);
+    box-shadow: 0 -4px 8px rgba(0, 0, 0, 0.25);
+}
+
+body.neumorphic-anthracite .mobile-nav,
+body.neumorphic-custom .mobile-nav {
+    background: var(--mobile-bg);
+}
+
+/* ---- Buttons ---- */
+body.neumorphic-white .mobile-btn,
+body.neumorphic-white .mobile-btn-primary,
+body.neumorphic-white .mobile-btn-secondary,
+body.neumorphic-white .mobile-btn-ghost,
+body.neumorphic-white .mobile-btn-small,
+body.neumorphic-white .mobile-btn-icon,
+body.neumorphic-anthracite .mobile-btn,
+body.neumorphic-anthracite .mobile-btn-primary,
+body.neumorphic-anthracite .mobile-btn-secondary,
+body.neumorphic-anthracite .mobile-btn-ghost,
+body.neumorphic-anthracite .mobile-btn-small,
+body.neumorphic-anthracite .mobile-btn-icon,
+body.neumorphic-custom .mobile-btn,
+body.neumorphic-custom .mobile-btn-primary,
+body.neumorphic-custom .mobile-btn-secondary,
+body.neumorphic-custom .mobile-btn-ghost,
+body.neumorphic-custom .mobile-btn-small,
+body.neumorphic-custom .mobile-btn-icon {
+    border: none;
+    box-shadow: var(--mobile-neu-shadow-sm);
+    transition: box-shadow 0.15s ease, background 0.15s ease;
+}
+
+body.neumorphic-white .mobile-btn:active,
+body.neumorphic-white .mobile-btn-primary:active,
+body.neumorphic-white .mobile-btn-secondary:active,
+body.neumorphic-white .mobile-btn-ghost:active,
+body.neumorphic-white .mobile-btn-small:active,
+body.neumorphic-white .mobile-btn-icon:active,
+body.neumorphic-anthracite .mobile-btn:active,
+body.neumorphic-anthracite .mobile-btn-primary:active,
+body.neumorphic-anthracite .mobile-btn-secondary:active,
+body.neumorphic-anthracite .mobile-btn-ghost:active,
+body.neumorphic-anthracite .mobile-btn-small:active,
+body.neumorphic-anthracite .mobile-btn-icon:active,
+body.neumorphic-custom .mobile-btn:active,
+body.neumorphic-custom .mobile-btn-primary:active,
+body.neumorphic-custom .mobile-btn-secondary:active,
+body.neumorphic-custom .mobile-btn-ghost:active,
+body.neumorphic-custom .mobile-btn-small:active,
+body.neumorphic-custom .mobile-btn-icon:active {
+    box-shadow: var(--mobile-neu-pressed);
+}
+
+/* Secondary button text color fix for white theme */
+body.neumorphic-white .mobile-btn-secondary,
+body.neumorphic-custom .mobile-btn-secondary {
+    background: var(--mobile-bg);
+}
+
+body.neumorphic-white .mobile-btn-ghost,
+body.neumorphic-custom .mobile-btn-ghost {
+    background: var(--mobile-bg);
+}
+
+/* ---- Inputs / Selects ---- */
+body.neumorphic-white .mobile-input,
+body.neumorphic-white .mobile-select,
+body.neumorphic-white textarea,
+body.neumorphic-anthracite .mobile-input,
+body.neumorphic-anthracite .mobile-select,
+body.neumorphic-anthracite textarea,
+body.neumorphic-custom .mobile-input,
+body.neumorphic-custom .mobile-select,
+body.neumorphic-custom textarea {
+    border: none;
+    background: var(--mobile-bg);
+    box-shadow: var(--mobile-neu-inset);
+    border-radius: var(--mobile-radius);
+}
+
+body.neumorphic-white .mobile-input:focus,
+body.neumorphic-white .mobile-select:focus,
+body.neumorphic-anthracite .mobile-input:focus,
+body.neumorphic-anthracite .mobile-select:focus,
+body.neumorphic-custom .mobile-input:focus,
+body.neumorphic-custom .mobile-select:focus {
+    outline: 2px solid var(--mobile-primary);
+    outline-offset: -2px;
+}
+
+/* ---- Settings Cards ---- */
+body.neumorphic-white .mobile-settings-card,
+body.neumorphic-anthracite .mobile-settings-card,
+body.neumorphic-custom .mobile-settings-card {
+    border: none;
+    background: var(--mobile-bg);
+    box-shadow: var(--mobile-neu-shadow);
+    border-radius: 12px;
+}
+
+body.neumorphic-white .mobile-settings-card-header,
+body.neumorphic-anthracite .mobile-settings-card-header,
+body.neumorphic-custom .mobile-settings-card-header {
+    border-bottom: none;
+}
+
+/* ---- Library Items ---- */
+body.neumorphic-white .mobile-library-item,
+body.neumorphic-white .mobile-search-result,
+body.neumorphic-anthracite .mobile-library-item,
+body.neumorphic-anthracite .mobile-search-result,
+body.neumorphic-custom .mobile-library-item,
+body.neumorphic-custom .mobile-search-result {
+    border: none;
+    background: var(--mobile-bg);
+    box-shadow: var(--mobile-neu-shadow-sm);
+    border-radius: 12px;
+}
+
+/* ---- Upload Section ---- */
+body.neumorphic-white .mobile-upload-section,
+body.neumorphic-anthracite .mobile-upload-section,
+body.neumorphic-custom .mobile-upload-section {
+    border: none;
+    background: var(--mobile-bg);
+    box-shadow: var(--mobile-neu-shadow-sm);
+    border-radius: 12px;
+}
+
+/* ---- Progress Bars ---- */
+body.neumorphic-white .mobile-progress-track,
+body.neumorphic-white .cache-progress-bar,
+body.neumorphic-anthracite .mobile-progress-track,
+body.neumorphic-anthracite .cache-progress-bar,
+body.neumorphic-custom .mobile-progress-track,
+body.neumorphic-custom .cache-progress-bar {
+    box-shadow: var(--mobile-neu-inset);
+    border: none;
+    background: var(--mobile-bg);
+}
+
+/* ---- Status Badges ---- */
+body.neumorphic-white .mobile-status-badge,
+body.neumorphic-anthracite .mobile-status-badge,
+body.neumorphic-custom .mobile-status-badge {
+    border: none;
+    box-shadow: var(--mobile-neu-shadow-sm);
+}
+
+/* ---- Toggle Switch ---- */
+body.neumorphic-white .mobile-toggle,
+body.neumorphic-anthracite .mobile-toggle,
+body.neumorphic-custom .mobile-toggle {
+    box-shadow: var(--mobile-neu-inset);
+}
+
+/* ---- Toast ---- */
+body.neumorphic-white .mobile-toast,
+body.neumorphic-anthracite .mobile-toast,
+body.neumorphic-custom .mobile-toast {
+    box-shadow: var(--mobile-neu-shadow);
+    border: none;
+    border-radius: 12px;
+}
+
+/* ---- Neumorphic Controls (override existing neu variables for theme) ---- */
+body.neumorphic-white.mobile-body {
+    --neu-bg: #2a0a10;
+    --neu-shadow-dark: #1a0508;
+    --neu-shadow-light: #3d1520;
+}
+
+body.neumorphic-anthracite.mobile-body {
+    --neu-bg: #2a2d35;
+    --neu-shadow-dark: #1e2027;
+    --neu-shadow-light: #363a45;
+}
+
+body.neumorphic-custom.mobile-body {
+    --neu-bg: var(--mobile-bg);
+    --neu-shadow-dark: var(--neu-shadow-dark);
+    --neu-shadow-light: var(--neu-shadow-light);
+}
+
+/* ---- Offline Items ---- */
+body.neumorphic-white .mobile-library-item.offline-item,
+body.neumorphic-anthracite .mobile-library-item.offline-item,
+body.neumorphic-custom .mobile-library-item.offline-item {
+    border: none;
+    background: var(--mobile-bg);
+}
+
+/* ---- Section Headers ---- */
+body.neumorphic-white .mobile-section-header h2,
+body.neumorphic-anthracite .mobile-section-header h2,
+body.neumorphic-custom .mobile-section-header h2 {
+    color: var(--mobile-text);
+}
+
+/* ---- Scrollbar ---- */
+body.neumorphic-white.mobile-body ::-webkit-scrollbar {
+    width: 4px;
+}
+body.neumorphic-white.mobile-body ::-webkit-scrollbar-track {
+    background: var(--mobile-bg);
+}
+body.neumorphic-white.mobile-body ::-webkit-scrollbar-thumb {
+    background: #5a1a25;
+    border-radius: 4px;
+}
+
+body.neumorphic-anthracite.mobile-body ::-webkit-scrollbar {
+    width: 4px;
+}
+body.neumorphic-anthracite.mobile-body ::-webkit-scrollbar-track {
+    background: var(--mobile-bg);
+}
+body.neumorphic-anthracite.mobile-body ::-webkit-scrollbar-thumb {
+    background: #363a45;
+    border-radius: 4px;
+}
+
+body.neumorphic-custom.mobile-body ::-webkit-scrollbar {
+    width: 4px;
+}
+body.neumorphic-custom.mobile-body ::-webkit-scrollbar-track {
+    background: var(--mobile-bg);
+}
+body.neumorphic-custom.mobile-body ::-webkit-scrollbar-thumb {
+    background: var(--accent-color);
+    border-radius: 4px;
+}
+
+/* ---- Timeline Markers (CRITICAL: invisible white text on white bg) ---- */
+body.neumorphic-white .mobile-timeline-tick,
+body.neumorphic-custom .mobile-timeline-tick {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+body.neumorphic-white .mobile-timeline-label,
+body.neumorphic-custom .mobile-timeline-label {
+    color: rgba(255, 255, 255, 0.5);
+    text-shadow: none;
+}
+
+/* ---- Chord Segments (mixer timeline) ---- */
+body.neumorphic-white .mobile-chord-segment,
+body.neumorphic-anthracite .mobile-chord-segment,
+body.neumorphic-custom .mobile-chord-segment {
+    border-color: rgba(var(--accent-rgb), 0.4);
+    background: rgba(var(--accent-rgb), 0.15);
+}
+
+body.neumorphic-white .mobile-chord-segment.active,
+body.neumorphic-anthracite .mobile-chord-segment.active,
+body.neumorphic-custom .mobile-chord-segment.active {
+    background: rgba(var(--accent-rgb), 0.35);
+    border-color: var(--mobile-primary);
+}
+
+/* ---- Chord Boxes (lyrics timeline) ---- */
+body.neumorphic-white .mobile-chord-box,
+body.neumorphic-anthracite .mobile-chord-box,
+body.neumorphic-custom .mobile-chord-box {
+    background: rgba(var(--accent-rgb), 0.25);
+    border-color: rgba(var(--accent-rgb), 0.6);
+}
+
+body.neumorphic-white .mobile-chord-box:active,
+body.neumorphic-anthracite .mobile-chord-box:active,
+body.neumorphic-custom .mobile-chord-box:active {
+    background: rgba(var(--accent-rgb), 0.5);
+}
+
+/* ---- Progress Handle ---- */
+body.neumorphic-white .mobile-progress-handle,
+body.neumorphic-anthracite .mobile-progress-handle,
+body.neumorphic-custom .mobile-progress-handle {
+    box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.6);
+}
+
+/* ---- Fullscreen Lyrics (CRITICAL: white text on white bg) ---- */
+body.neumorphic-white .fullscreen-lyrics-content .fs-lyrics-line,
+body.neumorphic-custom .fullscreen-lyrics-content .fs-lyrics-line {
+    color: rgba(255, 255, 255, 0.35);
+}
+
+body.neumorphic-white .fullscreen-lyrics-content .fs-lyrics-line:hover,
+body.neumorphic-custom .fullscreen-lyrics-content .fs-lyrics-line:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+body.neumorphic-white .fullscreen-lyrics-content .fs-lyrics-line.active,
+body.neumorphic-custom .fullscreen-lyrics-content .fs-lyrics-line.active {
+    color: var(--mobile-text);
+}
+
+body.neumorphic-white .fullscreen-lyrics-content .fs-lyrics-line.past,
+body.neumorphic-custom .fullscreen-lyrics-content .fs-lyrics-line.past {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+body.neumorphic-white .fullscreen-lyrics-content .fs-lyrics-line.recent-past,
+body.neumorphic-custom .fullscreen-lyrics-content .fs-lyrics-line.recent-past {
+    color: rgba(255, 255, 255, 0.45);
+}
+
+body.neumorphic-white .fullscreen-lyrics-content .fs-lyrics-line.up-next,
+body.neumorphic-custom .fullscreen-lyrics-content .fs-lyrics-line.up-next {
+    color: rgba(255, 255, 255, 0.65);
+}
+
+body.neumorphic-white .fullscreen-lyrics-content .fs-lyrics-line.future,
+body.neumorphic-custom .fullscreen-lyrics-content .fs-lyrics-line.future {
+    color: rgba(255, 255, 255, 0.45);
+}
+
+body.neumorphic-white .fullscreen-lyrics-content .fs-lyrics-line.hidden-past,
+body.neumorphic-white .fullscreen-lyrics-content .fs-lyrics-line.hidden-future,
+body.neumorphic-custom .fullscreen-lyrics-content .fs-lyrics-line.hidden-past,
+body.neumorphic-custom .fullscreen-lyrics-content .fs-lyrics-line.hidden-future {
+    color: rgba(255, 255, 255, 0.15);
+}
+
+body.neumorphic-white .fullscreen-lyrics-content .fs-lyrics-line.active .fs-lyrics-chord,
+body.neumorphic-anthracite .fullscreen-lyrics-content .fs-lyrics-line.active .fs-lyrics-chord,
+body.neumorphic-custom .fullscreen-lyrics-content .fs-lyrics-line.active .fs-lyrics-chord {
+    text-shadow: 0 0 10px rgba(var(--accent-rgb), 0.5);
+}
+
+/* ---- GridView2 Controls ---- */
+body.neumorphic-white .gridview2-time,
+body.neumorphic-custom .gridview2-time {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+body.neumorphic-white .gridview2-slider::-webkit-slider-thumb,
+body.neumorphic-anthracite .gridview2-slider::-webkit-slider-thumb,
+body.neumorphic-custom .gridview2-slider::-webkit-slider-thumb {
+    background: var(--mobile-primary);
+    box-shadow: 0 2px 8px rgba(var(--accent-rgb), 0.4);
+}
+
+body.neumorphic-white .gridview2-slider::-moz-range-thumb,
+body.neumorphic-anthracite .gridview2-slider::-moz-range-thumb,
+body.neumorphic-custom .gridview2-slider::-moz-range-thumb {
+    background: var(--mobile-primary);
+    box-shadow: 0 2px 8px rgba(var(--accent-rgb), 0.4);
+}
+
+body.neumorphic-white .gridview2-beat.active,
+body.neumorphic-anthracite .gridview2-beat.active,
+body.neumorphic-custom .gridview2-beat.active {
+    background: linear-gradient(135deg, var(--mobile-primary), rgba(var(--accent-rgb), 0.8));
+    box-shadow:
+        0 4px 20px rgba(var(--accent-rgb), 0.5),
+        0 0 40px rgba(var(--accent-rgb), 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+body.neumorphic-white .gridview2-beat.active,
+body.neumorphic-custom .gridview2-beat.active {
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+@keyframes neu-gridview2-pulse {
+    0%, 100% {
+        box-shadow:
+            0 4px 20px rgba(var(--accent-rgb), 0.5),
+            0 0 40px rgba(var(--accent-rgb), 0.3);
+    }
+    50% {
+        box-shadow:
+            0 4px 30px rgba(var(--accent-rgb), 0.7),
+            0 0 60px rgba(var(--accent-rgb), 0.4);
+    }
+}
+
+body.neumorphic-white .gridview2-beat.active,
+body.neumorphic-anthracite .gridview2-beat.active,
+body.neumorphic-custom .gridview2-beat.active {
+    animation: neu-gridview2-pulse 1.5s ease-in-out infinite;
+}
+
+body.neumorphic-white .gridview2-content::-webkit-scrollbar-thumb,
+body.neumorphic-anthracite .gridview2-content::-webkit-scrollbar-thumb,
+body.neumorphic-custom .gridview2-content::-webkit-scrollbar-thumb {
+    background: rgba(var(--accent-rgb), 0.3);
+}
+
+/* ---- Chord Linear (mobile chords.css) ---- */
+body.neumorphic-white .chord-linear-measure.active,
+body.neumorphic-anthracite .chord-linear-measure.active,
+body.neumorphic-custom .chord-linear-measure.active {
+    background: rgba(var(--accent-rgb), 0.08);
+}
+
+body.neumorphic-white .chord-linear-beat.active,
+body.neumorphic-anthracite .chord-linear-beat.active,
+body.neumorphic-custom .chord-linear-beat.active {
+    background: rgba(var(--accent-rgb), 0.3);
+    border-color: var(--mobile-primary);
+    box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.3);
+}
+
+/* ---- Status Pills (accent-aware) ---- */
+body.neumorphic-white .mobile-status-pill.status-ready,
+body.neumorphic-white .mobile-status-pill.status-completed,
+body.neumorphic-custom .mobile-status-pill.status-ready,
+body.neumorphic-custom .mobile-status-pill.status-completed {
+    background: rgba(var(--accent-rgb), 0.18);
+    color: var(--mobile-primary);
+}
+
+body.neumorphic-white .mobile-status-pill.status-downloading,
+body.neumorphic-white .mobile-status-pill.status-active,
+body.neumorphic-custom .mobile-status-pill.status-downloading,
+body.neumorphic-custom .mobile-status-pill.status-active {
+    background: rgba(var(--accent-rgb), 0.12);
+    color: var(--mobile-primary);
+}
+
+body.neumorphic-white .mobile-status-pill.status-queued,
+body.neumorphic-white .mobile-status-pill.status-idle,
+body.neumorphic-white .mobile-status-pill.status-not-extracted,
+body.neumorphic-custom .mobile-status-pill.status-queued,
+body.neumorphic-custom .mobile-status-pill.status-idle,
+body.neumorphic-custom .mobile-status-pill.status-not-extracted {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--mobile-text-secondary);
+}
+
+/* ---- Offline Items ---- */
+body.neumorphic-white .mobile-library-item.offline-item,
+body.neumorphic-custom .mobile-library-item.offline-item {
+    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.1), var(--mobile-bg));
+    border: none;
+}
+
+body.neumorphic-white .mobile-library-item.offline-item .mobile-library-extracted,
+body.neumorphic-custom .mobile-library-item.offline-item .mobile-library-extracted {
+    color: var(--mobile-primary);
+}
+
+/* ---- Seek Bar ---- */
+body.neumorphic-white .mobile-seek-progress,
+body.neumorphic-anthracite .mobile-seek-progress,
+body.neumorphic-custom .mobile-seek-progress {
+    background: linear-gradient(90deg,
+            var(--mobile-primary) 0%,
+            rgba(var(--accent-rgb), 0.8) 100%);
+}
+
+body.neumorphic-white .mobile-seek-bar,
+body.neumorphic-custom .mobile-seek-bar {
+    background: rgba(255, 255, 255, 0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+body.neumorphic-white .mobile-seek-handle,
+body.neumorphic-custom .mobile-seek-handle {
+    background: var(--mobile-bg);
+    border-color: var(--mobile-primary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* ---- Bottom Sheet ---- */
+body.neumorphic-white .mobile-bottom-sheet-content,
+body.neumorphic-custom .mobile-bottom-sheet-content {
+    background: var(--mobile-bg);
+    box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.4);
+}
+
+body.neumorphic-anthracite .mobile-bottom-sheet-content,
+body.neumorphic-custom .mobile-bottom-sheet-content {
+    background: var(--mobile-bg);
+    box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.4);
+}
+
+body.neumorphic-white .mobile-download-option,
+body.neumorphic-anthracite .mobile-download-option,
+body.neumorphic-custom .mobile-download-option {
+    box-shadow: var(--mobile-neu-shadow-sm);
+    border: none;
+    border-radius: 10px;
+}
+
+body.neumorphic-white .mobile-download-option:active,
+body.neumorphic-anthracite .mobile-download-option:active,
+body.neumorphic-custom .mobile-download-option:active {
+    box-shadow: var(--mobile-neu-pressed);
+}
+
+/* ---- Button Secondary Active ---- */
+body.neumorphic-white .mobile-btn-secondary:active,
+body.neumorphic-anthracite .mobile-btn-secondary:active,
+body.neumorphic-custom .mobile-btn-secondary:active {
+    background: rgba(var(--accent-rgb), 0.15);
+}
+
+/* ---- Lyrics Dialog ---- */
+body.neumorphic-white .lyrics-dialog,
+body.neumorphic-anthracite .lyrics-dialog,
+body.neumorphic-custom .lyrics-dialog {
+    background: var(--mobile-bg);
+    border: none;
+    box-shadow: var(--mobile-neu-shadow);
+    border-radius: 12px;
+}
+
+body.neumorphic-white .lyrics-dialog-field input,
+body.neumorphic-anthracite .lyrics-dialog-field input,
+body.neumorphic-custom .lyrics-dialog-field input {
+    border: none;
+    background: var(--mobile-bg);
+    box-shadow: var(--mobile-neu-inset);
+}
+
+body.neumorphic-white .lyrics-dialog-field input:focus,
+body.neumorphic-anthracite .lyrics-dialog-field input:focus,
+body.neumorphic-custom .lyrics-dialog-field input:focus {
+    box-shadow: var(--mobile-neu-inset), 0 0 0 2px rgba(var(--accent-rgb), 0.2);
+}
+
+body.neumorphic-white .lyrics-dialog-musixmatch,
+body.neumorphic-anthracite .lyrics-dialog-musixmatch,
+body.neumorphic-custom .lyrics-dialog-musixmatch {
+    background: rgba(var(--accent-rgb), 0.15);
+    border-color: rgba(var(--accent-rgb), 0.4);
+    color: var(--mobile-primary);
+}
+
+body.neumorphic-white .lyrics-dialog-musixmatch:active,
+body.neumorphic-anthracite .lyrics-dialog-musixmatch:active,
+body.neumorphic-custom .lyrics-dialog-musixmatch:active {
+    background: rgba(var(--accent-rgb), 0.25);
+}
+
+body.neumorphic-white .lyrics-dialog-btn,
+body.neumorphic-anthracite .lyrics-dialog-btn,
+body.neumorphic-custom .lyrics-dialog-btn {
+    border: none;
+    box-shadow: var(--mobile-neu-shadow-sm);
+    border-radius: 8px;
+}
+
+body.neumorphic-white .lyrics-dialog-btn:active,
+body.neumorphic-anthracite .lyrics-dialog-btn:active,
+body.neumorphic-custom .lyrics-dialog-btn:active {
+    box-shadow: var(--mobile-neu-pressed);
+}
+
+/* ---- Cache Progress ---- */
+body.neumorphic-white .cache-progress-fill,
+body.neumorphic-anthracite .cache-progress-fill,
+body.neumorphic-custom .cache-progress-fill {
+    background: linear-gradient(90deg, var(--mobile-primary), rgba(var(--accent-rgb), 0.7));
+}
+
+/* ---- Bottom Nav Enhancement ---- */
+body.neumorphic-white .mobile-nav,
+body.neumorphic-custom .mobile-nav {
+    box-shadow: 0 -3px 6px #1a0508, 0 -1px 3px #3d1520;
+}
+
+body.neumorphic-anthracite .mobile-nav,
+body.neumorphic-custom .mobile-nav {
+    box-shadow: 0 -3px 6px #1c1e24, 0 -1px 3px #383c48;
+}
+
+/* ---- Fullscreen Lyrics Overlay & Dialog ---- */
+body.neumorphic-white .fullscreen-lyrics-overlay,
+body.neumorphic-custom .fullscreen-lyrics-overlay {
+    background: rgba(42, 10, 16, 0.97);
+}
+
+body.neumorphic-anthracite .fullscreen-lyrics-overlay,
+body.neumorphic-custom .fullscreen-lyrics-overlay {
+    background: rgba(42, 45, 53, 0.97);
+}
+
+body.neumorphic-white .fullscreen-lyrics-dialog,
+body.neumorphic-anthracite .fullscreen-lyrics-dialog,
+body.neumorphic-custom .fullscreen-lyrics-dialog {
+    background: var(--mobile-bg);
+    border: none;
+}
+
+body.neumorphic-white .fullscreen-lyrics-header,
+body.neumorphic-anthracite .fullscreen-lyrics-header,
+body.neumorphic-custom .fullscreen-lyrics-header {
+    background: var(--mobile-bg);
+    border-bottom: none;
+    box-shadow: var(--mobile-neu-shadow-sm);
+}
+
+body.neumorphic-white .fullscreen-lyrics-close,
+body.neumorphic-anthracite .fullscreen-lyrics-close,
+body.neumorphic-custom .fullscreen-lyrics-close {
+    border: none;
+    box-shadow: var(--mobile-neu-shadow-sm);
+    background: var(--mobile-bg);
+    border-radius: 8px;
+}
+
+body.neumorphic-white .fullscreen-lyrics-close:active,
+body.neumorphic-anthracite .fullscreen-lyrics-close:active,
+body.neumorphic-custom .fullscreen-lyrics-close:active {
+    box-shadow: var(--mobile-neu-pressed);
+}
+
+/* ---- Standard Popup (Tempo/Pitch popups) ---- */
+body.neumorphic-white .standard-popup,
+body.neumorphic-anthracite .standard-popup,
+body.neumorphic-custom .standard-popup {
+    background: var(--mobile-bg);
+    border: none;
+    box-shadow: var(--mobile-neu-shadow);
+    border-radius: 16px;
+}
+
+body.neumorphic-white .standard-close-btn,
+body.neumorphic-anthracite .standard-close-btn,
+body.neumorphic-custom .standard-close-btn {
+    border: none;
+    box-shadow: var(--mobile-neu-shadow-sm);
+    background: var(--mobile-bg);
+}
+
+body.neumorphic-white .standard-close-btn:active,
+body.neumorphic-anthracite .standard-close-btn:active,
+body.neumorphic-custom .standard-close-btn:active {
+    box-shadow: var(--mobile-neu-pressed);
+}
+
+/* ---- Standard Dial (Tempo/Pitch knob) ---- */
+body.neumorphic-white .standard-dial,
+body.neumorphic-anthracite .standard-dial,
+body.neumorphic-custom .standard-dial {
+    background: var(--mobile-bg);
+    border: none;
+    box-shadow: var(--mobile-neu-shadow);
+}
+
+body.neumorphic-white .standard-dial:active,
+body.neumorphic-anthracite .standard-dial:active,
+body.neumorphic-custom .standard-dial:active {
+    box-shadow: var(--mobile-neu-pressed);
+    border-color: transparent;
+}
+
+body.neumorphic-white .standard-reset-btn,
+body.neumorphic-anthracite .standard-reset-btn,
+body.neumorphic-custom .standard-reset-btn {
+    border: none;
+    background: var(--mobile-bg);
+    box-shadow: var(--mobile-neu-shadow-sm);
+    border-radius: 8px;
+}
+
+body.neumorphic-white .standard-reset-btn:active,
+body.neumorphic-anthracite .standard-reset-btn:active,
+body.neumorphic-custom .standard-reset-btn:active {
+    box-shadow: var(--mobile-neu-pressed);
+}
+
+/* ---- Mobile Lyrics Display ---- */
+body.neumorphic-white .mobile-lyrics-display,
+body.neumorphic-anthracite .mobile-lyrics-display,
+body.neumorphic-custom .mobile-lyrics-display {
+    background: var(--mobile-bg);
+    border: none;
+    box-shadow: var(--mobile-neu-inset);
+    border-radius: var(--mobile-radius);
+}
+
+/* ---- Chord Diagram Carousel ---- */
+body.neumorphic-white .mobile-chord-diagram-carousel,
+body.neumorphic-anthracite .mobile-chord-diagram-carousel,
+body.neumorphic-custom .mobile-chord-diagram-carousel {
+    background: var(--mobile-bg);
+    box-shadow: var(--mobile-neu-inset);
+    border-radius: 12px;
+}
+

@@ -55,11 +55,13 @@ def index():
             enable_youtube=enable_youtube
         )
 
+    cache_buster = int(time.time())
     return render_template(
         'index.html',
         current_username=current_user.username,
         current_user=current_user,
-        enable_youtube=enable_youtube
+        enable_youtube=enable_youtube,
+        cache_buster=cache_buster
     )
 
 
@@ -152,4 +154,5 @@ def mixer():
         except Exception as e:
             print(f"[MIXER] Error loading historical extraction data: {e}")
 
-    return render_template('mixer.html', extraction_id=extraction_id, extraction_info=extraction_info)
+    cache_buster = int(time.time())
+    return render_template('mixer.html', extraction_id=extraction_id, extraction_info=extraction_info, cache_buster=cache_buster)

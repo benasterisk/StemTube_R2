@@ -206,6 +206,88 @@ body.disclaimer-active #disclaimerModal {
     margin-right: var(--spacing-xs);
 }
 
+/* Spectrum color picker */
+.spectrum-picker-wrapper {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    margin-top: 4px;
+}
+
+.spectrum-picker-sl {
+    cursor: crosshair;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+}
+
+.spectrum-picker-hue {
+    cursor: pointer;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+}
+
+.spectrum-picker-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+    justify-content: flex-start;
+    padding-top: 2px;
+}
+
+.spectrum-picker-preview {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+
+.spectrum-picker-hex {
+    font-size: 0.7rem;
+    font-family: monospace;
+    color: var(--text-secondary);
+    user-select: all;
+}
+
+/* Neumorphic preset pastilles */
+.preset-pastilles {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.preset-pastille {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    cursor: pointer;
+    transition: transform 0.15s;
+}
+
+.preset-pastille:hover {
+    transform: scale(1.1);
+}
+
+.preset-pastille-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid var(--border-color, rgba(255,255,255,0.15));
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.preset-pastille.active .preset-pastille-dot {
+    border-color: var(--accent-color, #5a9cf5);
+    box-shadow: 0 0 0 2px var(--accent-color, #5a9cf5);
+}
+
+.preset-pastille-label {
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+}
+
 .ffmpeg-status, .gpu-status {
     padding: var(--spacing-sm);
     border-radius: var(--border-radius);

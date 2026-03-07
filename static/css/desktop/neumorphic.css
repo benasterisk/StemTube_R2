@@ -1,0 +1,395 @@
+/* ================================================
+   Neumorphic Theme Overrides — Desktop
+   Active only when body has .neumorphic-white or .neumorphic-anthracite
+   ================================================ */
+
+/* Selector shorthand */
+body.neumorphic-white,
+body.neumorphic-anthracite,
+body.neumorphic-custom {
+    transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+/* ---- Header ---- */
+body.neumorphic-white header,
+body.neumorphic-anthracite header,
+body.neumorphic-custom header {
+    border-bottom: none;
+    box-shadow: var(--shadow-sm);
+}
+
+/* ---- Buttons (generic) ---- */
+body.neumorphic-white button,
+body.neumorphic-white .segment,
+body.neumorphic-white .settings-button,
+body.neumorphic-white .logout-button,
+body.neumorphic-anthracite button,
+body.neumorphic-anthracite .segment,
+body.neumorphic-anthracite .settings-button,
+body.neumorphic-anthracite .logout-button,
+body.neumorphic-custom button,
+body.neumorphic-custom .segment,
+body.neumorphic-custom .settings-button,
+body.neumorphic-custom .logout-button {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    transition: box-shadow var(--transition-fast), background-color var(--transition-fast);
+}
+
+body.neumorphic-white button:active,
+body.neumorphic-white .segment:active,
+body.neumorphic-white .settings-button:active,
+body.neumorphic-white .logout-button:active,
+body.neumorphic-anthracite button:active,
+body.neumorphic-anthracite .segment:active,
+body.neumorphic-anthracite .settings-button:active,
+body.neumorphic-anthracite .logout-button:active,
+body.neumorphic-custom button:active,
+body.neumorphic-custom .segment:active,
+body.neumorphic-custom .settings-button:active,
+body.neumorphic-custom .logout-button:active {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+/* Active segment stays pressed */
+body.neumorphic-white .segment.active,
+body.neumorphic-anthracite .segment.active,
+body.neumorphic-custom .segment.active {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+/* ---- Inputs / Selects ---- */
+body.neumorphic-white input,
+body.neumorphic-white select,
+body.neumorphic-white textarea,
+body.neumorphic-white #searchInput,
+body.neumorphic-white #resultsCount,
+body.neumorphic-anthracite input,
+body.neumorphic-anthracite select,
+body.neumorphic-anthracite textarea,
+body.neumorphic-anthracite #searchInput,
+body.neumorphic-anthracite #resultsCount,
+body.neumorphic-custom input,
+body.neumorphic-custom select,
+body.neumorphic-custom textarea,
+body.neumorphic-custom #searchInput,
+body.neumorphic-custom #resultsCount {
+    border: none;
+    background-color: var(--bg-color);
+    box-shadow: var(--neu-shadow-inset);
+    border-radius: var(--border-radius);
+}
+
+body.neumorphic-white input:focus,
+body.neumorphic-white select:focus,
+body.neumorphic-white textarea:focus,
+body.neumorphic-anthracite input:focus,
+body.neumorphic-anthracite select:focus,
+body.neumorphic-anthracite textarea:focus,
+body.neumorphic-custom input:focus,
+body.neumorphic-custom select:focus,
+body.neumorphic-custom textarea:focus {
+    outline: 2px solid var(--accent-color);
+    outline-offset: -2px;
+}
+
+/* ---- Segmented Control ---- */
+body.neumorphic-white .segmented-control,
+body.neumorphic-anthracite .segmented-control,
+body.neumorphic-custom .segmented-control {
+    box-shadow: var(--neu-shadow-inset);
+    background-color: var(--bg-color);
+}
+
+/* ---- Cards / Containers ---- */
+body.neumorphic-white .column,
+body.neumorphic-anthracite .column,
+body.neumorphic-custom .column {
+    background-color: var(--bg-color);
+}
+
+/* ---- Search Results ---- */
+body.neumorphic-white .search-result,
+body.neumorphic-white .download-item,
+body.neumorphic-white .extraction-item,
+body.neumorphic-white .library-item,
+body.neumorphic-anthracite .search-result,
+body.neumorphic-anthracite .download-item,
+body.neumorphic-anthracite .extraction-item,
+body.neumorphic-anthracite .library-item,
+body.neumorphic-custom .search-result,
+body.neumorphic-custom .download-item,
+body.neumorphic-custom .extraction-item,
+body.neumorphic-custom .library-item {
+    border: none;
+    background-color: var(--bg-color);
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: var(--border-radius);
+}
+
+/* ---- Modals ---- */
+body.neumorphic-white .modal-content,
+body.neumorphic-anthracite .modal-content,
+body.neumorphic-custom .modal-content {
+    border: none;
+    box-shadow: var(--shadow-lg);
+    border-radius: var(--border-radius);
+}
+
+body.neumorphic-white .modal-header,
+body.neumorphic-white .modal-footer,
+body.neumorphic-anthracite .modal-header,
+body.neumorphic-anthracite .modal-footer,
+body.neumorphic-custom .modal-header,
+body.neumorphic-custom .modal-footer {
+    border-color: transparent;
+}
+
+/* ---- Settings Section ---- */
+body.neumorphic-white .settings-section,
+body.neumorphic-anthracite .settings-section,
+body.neumorphic-custom .settings-section {
+    background-color: var(--bg-color);
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+}
+
+/* ---- User Info Badge ---- */
+body.neumorphic-white .user-info,
+body.neumorphic-anthracite .user-info,
+body.neumorphic-custom .user-info {
+    box-shadow: var(--neu-shadow-flat);
+    border: none;
+    background-color: var(--bg-color);
+}
+
+/* ---- Gutter (Split.js) ---- */
+body.neumorphic-white .gutter,
+body.neumorphic-anthracite .gutter,
+body.neumorphic-custom .gutter {
+    background-color: var(--bg-color);
+    box-shadow: var(--neu-shadow-inset);
+}
+
+/* ---- Scrollbar (neumorphic feel) ---- */
+body.neumorphic-white ::-webkit-scrollbar {
+    width: 8px;
+}
+body.neumorphic-white ::-webkit-scrollbar-track {
+    background: var(--bg-color);
+}
+body.neumorphic-white ::-webkit-scrollbar-thumb {
+    background: #5a1a25;
+    border-radius: 4px;
+}
+
+body.neumorphic-anthracite ::-webkit-scrollbar {
+    width: 8px;
+}
+body.neumorphic-anthracite ::-webkit-scrollbar-track {
+    background: var(--bg-color);
+}
+body.neumorphic-anthracite ::-webkit-scrollbar-thumb {
+    background: #363a45;
+    border-radius: 4px;
+}
+
+body.neumorphic-custom ::-webkit-scrollbar {
+    width: 8px;
+}
+body.neumorphic-custom ::-webkit-scrollbar-track {
+    background: var(--bg-color);
+}
+body.neumorphic-custom ::-webkit-scrollbar-thumb {
+    background: var(--accent-color);
+    border-radius: 4px;
+}
+
+/* ---- Toast ---- */
+body.neumorphic-white .toast,
+body.neumorphic-anthracite .toast,
+body.neumorphic-custom .toast {
+    box-shadow: var(--shadow-md);
+    border: none;
+    border-radius: var(--border-radius);
+}
+
+/* ---- Tabs ---- */
+body.neumorphic-white .tab-button,
+body.neumorphic-anthracite .tab-button,
+body.neumorphic-custom .tab-button {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: var(--border-radius);
+    margin: 0 2px;
+}
+
+body.neumorphic-white .tab-button.active,
+body.neumorphic-anthracite .tab-button.active,
+body.neumorphic-custom .tab-button.active {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+/* ---- Progress Bars ---- */
+body.neumorphic-white .progress-bar,
+body.neumorphic-anthracite .progress-bar,
+body.neumorphic-custom .progress-bar {
+    box-shadow: var(--neu-shadow-inset);
+    border: none;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* ---- Library Audio Analysis Cards ---- */
+body.neumorphic-white .analysis-card,
+body.neumorphic-white .analysis-section,
+body.neumorphic-anthracite .analysis-card,
+body.neumorphic-anthracite .analysis-section,
+body.neumorphic-custom .analysis-card,
+body.neumorphic-custom .analysis-section {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: var(--border-radius);
+}
+
+/* ---- Admin Cards ---- */
+body.neumorphic-white .admin-card,
+body.neumorphic-white .admin-section,
+body.neumorphic-white .system-settings-card,
+body.neumorphic-anthracite .admin-card,
+body.neumorphic-anthracite .admin-section,
+body.neumorphic-anthracite .system-settings-card,
+body.neumorphic-custom .admin-card,
+body.neumorphic-custom .admin-section,
+body.neumorphic-custom .system-settings-card {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: var(--border-radius);
+}
+
+/* ---- Badge / Pill styling ---- */
+body.neumorphic-white .badge,
+body.neumorphic-white .status-badge,
+body.neumorphic-anthracite .badge,
+body.neumorphic-anthracite .status-badge,
+body.neumorphic-custom .badge,
+body.neumorphic-custom .status-badge {
+    box-shadow: var(--neu-shadow-flat);
+    border: none;
+}
+
+/* ---- Auth Forms ---- */
+body.neumorphic-white .auth-card,
+body.neumorphic-anthracite .auth-card,
+body.neumorphic-custom .auth-card {
+    box-shadow: var(--shadow-lg);
+    border: none;
+    border-radius: var(--border-radius);
+}
+
+body.neumorphic-white .auth-form input[type="text"],
+body.neumorphic-white .auth-form input[type="password"],
+body.neumorphic-white .auth-form input[type="email"],
+body.neumorphic-white .form-group input,
+body.neumorphic-anthracite .auth-form input[type="text"],
+body.neumorphic-anthracite .auth-form input[type="password"],
+body.neumorphic-anthracite .auth-form input[type="email"],
+body.neumorphic-anthracite .form-group input,
+body.neumorphic-custom .auth-form input[type="text"],
+body.neumorphic-custom .auth-form input[type="password"],
+body.neumorphic-custom .auth-form input[type="email"],
+body.neumorphic-custom .form-group input {
+    border: none;
+    box-shadow: var(--neu-shadow-inset);
+    background: var(--bg-color);
+}
+
+body.neumorphic-white .auth-form input:focus,
+body.neumorphic-white .form-group input:focus,
+body.neumorphic-anthracite .auth-form input:focus,
+body.neumorphic-anthracite .form-group input:focus,
+body.neumorphic-custom .auth-form input:focus,
+body.neumorphic-custom .form-group input:focus {
+    box-shadow: var(--neu-shadow-inset), 0 0 0 2px rgba(var(--accent-rgb), 0.25);
+}
+
+/* ---- Library Controls ---- */
+body.neumorphic-white .library-controls,
+body.neumorphic-anthracite .library-controls,
+body.neumorphic-custom .library-controls {
+    border: none;
+    background: var(--bg-color);
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: var(--border-radius);
+}
+
+body.neumorphic-white .library-item:hover,
+body.neumorphic-anthracite .library-item:hover,
+body.neumorphic-custom .library-item:hover {
+    box-shadow: var(--shadow-md);
+}
+
+/* ---- Jam Session ---- */
+body.neumorphic-white .jam-create-btn,
+body.neumorphic-anthracite .jam-create-btn,
+body.neumorphic-custom .jam-create-btn {
+    background: var(--accent-color);
+    box-shadow: var(--neu-shadow-flat);
+}
+
+body.neumorphic-white .jam-create-btn:hover,
+body.neumorphic-anthracite .jam-create-btn:hover,
+body.neumorphic-custom .jam-create-btn:hover {
+    box-shadow: var(--shadow-md);
+}
+
+body.neumorphic-white .metronome-precount-popover,
+body.neumorphic-anthracite .metronome-precount-popover,
+body.neumorphic-custom .metronome-precount-popover {
+    background: var(--bg-secondary);
+    border: none;
+    box-shadow: var(--shadow-lg);
+}
+
+body.neumorphic-white .metronome-precount-option:hover,
+body.neumorphic-anthracite .metronome-precount-option:hover,
+body.neumorphic-custom .metronome-precount-option:hover {
+    background: rgba(var(--accent-rgb), 0.08);
+}
+
+body.neumorphic-white .metronome-volume-slider {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+body.neumorphic-anthracite .metronome-volume-slider {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+body.neumorphic-custom .metronome-volume-slider {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+body.neumorphic-white .on-stage-indicator,
+body.neumorphic-anthracite .on-stage-indicator,
+body.neumorphic-custom .on-stage-indicator {
+    background: rgba(var(--accent-rgb), 0.15);
+    border-color: rgba(var(--accent-rgb), 0.4);
+    color: var(--accent-color);
+}
+
+body.neumorphic-white .on-stage-dot,
+body.neumorphic-anthracite .on-stage-dot,
+body.neumorphic-custom .on-stage-dot {
+    background: var(--accent-color);
+    color: var(--accent-color);
+}
+
+body.neumorphic-white .on-stage-banner,
+body.neumorphic-anthracite .on-stage-banner,
+body.neumorphic-custom .on-stage-banner {
+    background: rgba(var(--accent-rgb), 0.15);
+    border-bottom-color: rgba(var(--accent-rgb), 0.3);
+    color: var(--accent-color);
+}

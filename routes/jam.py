@@ -180,12 +180,14 @@ a{{color:#1DB954;text-decoration:none}}</style></head>
                                jam_extraction_data=json.dumps(extraction_data) if extraction_data else '{}')
 
     # Desktop: render the real mixer with guest mode flags
+    cache_buster = int(time.time())
     return render_template('mixer.html',
                            extraction_id=extraction_id,
                            extraction_info=extraction_data if extraction_data else None,
                            jam_guest_mode=True,
                            jam_code=full_code,
-                           jam_guest_name=session['jam_guest_name'])
+                           jam_guest_name=session['jam_guest_name'],
+                           cache_buster=cache_buster)
 
 
 @jam_bp.route('/api/jam/stems/<code>/<stem_name>', methods=['GET', 'HEAD'])

@@ -1,0 +1,964 @@
+/* ================================================
+   Neumorphic Theme Overrides — Mixer
+   Active only when body has .neumorphic-white or .neumorphic-anthracite
+   ================================================ */
+
+/* ---- Mixer App Container ---- */
+body.neumorphic-white .mixer-app,
+body.neumorphic-anthracite .mixer-app,
+body.neumorphic-custom .mixer-app {
+    background-color: var(--bg-color);
+    box-shadow: none;
+}
+
+/* ---- Song Title Bar ---- */
+body.neumorphic-white .song-title-bar,
+body.neumorphic-anthracite .song-title-bar,
+body.neumorphic-custom .song-title-bar {
+    background: var(--bg-color);
+    border-bottom: none;
+    box-shadow: var(--neu-shadow-flat);
+}
+
+/* ---- Tab Navigation ---- */
+body.neumorphic-white .mixer-tabs,
+body.neumorphic-anthracite .mixer-tabs,
+body.neumorphic-custom .mixer-tabs {
+    background-color: var(--bg-color);
+    border-bottom: none;
+    box-shadow: var(--neu-shadow-inset);
+}
+
+body.neumorphic-white .tab-btn,
+body.neumorphic-anthracite .tab-btn,
+body.neumorphic-custom .tab-btn {
+    border-bottom: none;
+    border-radius: 8px;
+    margin: 4px;
+    box-shadow: var(--neu-shadow-flat);
+    transition: box-shadow 0.2s ease, color 0.2s ease;
+}
+
+body.neumorphic-white .tab-btn:hover,
+body.neumorphic-anthracite .tab-btn:hover,
+body.neumorphic-custom .tab-btn:hover {
+    background-color: transparent;
+}
+
+body.neumorphic-white .tab-btn.active,
+body.neumorphic-anthracite .tab-btn.active,
+body.neumorphic-custom .tab-btn.active {
+    box-shadow: var(--neu-shadow-pressed);
+    border-bottom: none;
+    background-color: var(--bg-color);
+}
+
+/* ---- Transport Controls ---- */
+body.neumorphic-white .transport-container,
+body.neumorphic-anthracite .transport-container,
+body.neumorphic-custom .transport-container {
+    background: var(--bg-color);
+}
+
+body.neumorphic-white .transport-btn,
+body.neumorphic-anthracite .transport-btn,
+body.neumorphic-custom .transport-btn {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    transition: box-shadow 0.15s ease;
+}
+
+body.neumorphic-white .transport-btn:active,
+body.neumorphic-anthracite .transport-btn:active,
+body.neumorphic-custom .transport-btn:active {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+body.neumorphic-white .time-display,
+body.neumorphic-anthracite .time-display,
+body.neumorphic-custom .time-display {
+    box-shadow: var(--neu-shadow-inset);
+    border-radius: 8px;
+    padding: 4px 10px;
+    background: var(--bg-color);
+}
+
+/* ---- BPM / Key Controls ---- */
+body.neumorphic-white .bpm-control,
+body.neumorphic-white .key-control,
+body.neumorphic-anthracite .bpm-control,
+body.neumorphic-anthracite .key-control,
+body.neumorphic-custom .bpm-control,
+body.neumorphic-custom .key-control {
+    background: var(--bg-color);
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 10px;
+    padding: 6px 10px;
+    border: none;
+}
+
+body.neumorphic-white .bpm-input,
+body.neumorphic-anthracite .bpm-input,
+body.neumorphic-custom .bpm-input {
+    border: none;
+    box-shadow: var(--neu-shadow-inset);
+    background: var(--bg-color);
+    border-radius: 8px;
+}
+
+body.neumorphic-white .control-btn,
+body.neumorphic-anthracite .control-btn,
+body.neumorphic-custom .control-btn {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    background: var(--bg-color);
+    border-radius: 8px;
+}
+
+body.neumorphic-white .control-btn:hover,
+body.neumorphic-anthracite .control-btn:hover,
+body.neumorphic-custom .control-btn:hover {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+body.neumorphic-white .control-btn:active,
+body.neumorphic-anthracite .control-btn:active,
+body.neumorphic-custom .control-btn:active {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+/* ---- Pitch / Tempo Popup ---- */
+body.neumorphic-white #pitch-tempo-controls,
+body.neumorphic-anthracite #pitch-tempo-controls,
+body.neumorphic-custom #pitch-tempo-controls {
+    border: none;
+    background: var(--bg-color);
+    box-shadow: var(--shadow-lg);
+    border-radius: 16px;
+}
+
+body.neumorphic-white .pitch-tempo-header,
+body.neumorphic-anthracite .pitch-tempo-header,
+body.neumorphic-custom .pitch-tempo-header {
+    border-bottom: none;
+}
+
+body.neumorphic-white .control-group,
+body.neumorphic-anthracite .control-group,
+body.neumorphic-custom .control-group {
+    background: var(--bg-color);
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 12px;
+}
+
+body.neumorphic-white .current-value,
+body.neumorphic-anthracite .current-value,
+body.neumorphic-custom .current-value {
+    color: var(--accent-color);
+}
+
+body.neumorphic-white .transpose-section,
+body.neumorphic-anthracite .transpose-section,
+body.neumorphic-custom .transpose-section {
+    background: var(--bg-color);
+    box-shadow: var(--neu-shadow-inset);
+    border-radius: 12px;
+}
+
+body.neumorphic-white .note-btn,
+body.neumorphic-anthracite .note-btn,
+body.neumorphic-custom .note-btn {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    background: var(--bg-secondary);
+    border-radius: 8px;
+}
+
+body.neumorphic-white .note-btn:hover,
+body.neumorphic-anthracite .note-btn:hover,
+body.neumorphic-custom .note-btn:hover {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+body.neumorphic-white .note-btn.sharp,
+body.neumorphic-anthracite .note-btn.sharp,
+body.neumorphic-custom .note-btn.sharp {
+    background: var(--bg-tertiary);
+}
+
+/* ---- Chord Linear Scroll (Horizontal Timeline) ---- */
+body.neumorphic-white .chord-linear-scroll,
+body.neumorphic-anthracite .chord-linear-scroll,
+body.neumorphic-custom .chord-linear-scroll {
+    background: var(--bg-color);
+}
+
+body.neumorphic-white .chord-linear-measure,
+body.neumorphic-anthracite .chord-linear-measure,
+body.neumorphic-custom .chord-linear-measure {
+    border-right-color: transparent;
+}
+
+body.neumorphic-white .chord-linear-beat,
+body.neumorphic-anthracite .chord-linear-beat,
+body.neumorphic-custom .chord-linear-beat {
+    border: none;
+    background: var(--bg-color);
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 8px;
+    margin: 2px;
+}
+
+body.neumorphic-white .chord-linear-beat:hover,
+body.neumorphic-anthracite .chord-linear-beat:hover,
+body.neumorphic-custom .chord-linear-beat:hover {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+body.neumorphic-white .chord-linear-beat.active,
+body.neumorphic-anthracite .chord-linear-beat.active,
+body.neumorphic-custom .chord-linear-beat.active {
+    box-shadow: var(--neu-shadow-pressed), 0 0 0 2px var(--accent-color);
+}
+
+body.neumorphic-white .chord-linear-chord-row,
+body.neumorphic-anthracite .chord-linear-chord-row,
+body.neumorphic-custom .chord-linear-chord-row {
+    background: transparent;
+    gap: 4px;
+}
+
+/* ---- Chord Grid Popup ---- */
+body.neumorphic-white .chords-grid-popup-dialog,
+body.neumorphic-anthracite .chords-grid-popup-dialog,
+body.neumorphic-custom .chords-grid-popup-dialog {
+    background: var(--bg-color);
+    box-shadow: var(--shadow-lg);
+    border-radius: 16px;
+}
+
+body.neumorphic-white .chords-grid-popup-header,
+body.neumorphic-anthracite .chords-grid-popup-header,
+body.neumorphic-custom .chords-grid-popup-header {
+    border-bottom: none;
+}
+
+body.neumorphic-white .chords-grid-popup-close,
+body.neumorphic-anthracite .chords-grid-popup-close,
+body.neumorphic-custom .chords-grid-popup-close {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    background: var(--bg-color);
+    border-radius: 8px;
+}
+
+body.neumorphic-white .chords-grid-popup-close:hover,
+body.neumorphic-anthracite .chords-grid-popup-close:hover,
+body.neumorphic-custom .chords-grid-popup-close:hover {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+body.neumorphic-white .chord-grid-measure,
+body.neumorphic-anthracite .chord-grid-measure,
+body.neumorphic-custom .chord-grid-measure {
+    background: var(--bg-color);
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 10px;
+}
+
+body.neumorphic-white .chord-grid-beat,
+body.neumorphic-anthracite .chord-grid-beat,
+body.neumorphic-custom .chord-grid-beat {
+    border: none;
+    background: var(--bg-secondary);
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 8px;
+}
+
+body.neumorphic-white .chord-grid-beat.active,
+body.neumorphic-anthracite .chord-grid-beat.active,
+body.neumorphic-custom .chord-grid-beat.active {
+    box-shadow: var(--neu-shadow-pressed), 0 0 0 2px var(--accent-color);
+}
+
+/* ---- Popup Controls Bar (shared by Grid View & Focus Lyrics) ---- */
+body.neumorphic-white .popup-controls-bar,
+body.neumorphic-anthracite .popup-controls-bar,
+body.neumorphic-custom .popup-controls-bar {
+    background: var(--bg-color);
+    border-bottom: none;
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 0 0 12px 12px;
+}
+
+body.neumorphic-white .popup-control-btn,
+body.neumorphic-anthracite .popup-control-btn,
+body.neumorphic-custom .popup-control-btn {
+    box-shadow: var(--neu-shadow-flat);
+}
+
+body.neumorphic-white .popup-control-btn:active,
+body.neumorphic-anthracite .popup-control-btn:active,
+body.neumorphic-custom .popup-control-btn:active {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+body.neumorphic-white .popup-slider,
+body.neumorphic-anthracite .popup-slider,
+body.neumorphic-custom .popup-slider {
+    background: var(--bg-color);
+    box-shadow: var(--neu-shadow-inset);
+    height: 6px;
+    border-radius: 3px;
+}
+
+body.neumorphic-white .popup-time-display,
+body.neumorphic-anthracite .popup-time-display,
+body.neumorphic-custom .popup-time-display {
+    box-shadow: var(--neu-shadow-inset);
+    border-radius: 6px;
+    padding: 2px 8px;
+    background: var(--bg-color);
+}
+
+/* ---- Karaoke / Focus Lyrics Popup ---- */
+body.neumorphic-white .lyrics-popup-dialog,
+body.neumorphic-anthracite .lyrics-popup-dialog,
+body.neumorphic-custom .lyrics-popup-dialog {
+    background: var(--bg-color);
+    box-shadow: var(--shadow-lg);
+    border-radius: 16px;
+}
+
+body.neumorphic-white .lyrics-popup-header,
+body.neumorphic-anthracite .lyrics-popup-header,
+body.neumorphic-custom .lyrics-popup-header {
+    border-bottom: none;
+}
+
+body.neumorphic-white .lyrics-popup-close,
+body.neumorphic-anthracite .lyrics-popup-close,
+body.neumorphic-custom .lyrics-popup-close {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    background: var(--bg-color);
+    border-radius: 8px;
+}
+
+/* ---- Lyrics Popup Content & Body ---- */
+body.neumorphic-white .lyrics-popup-content,
+body.neumorphic-anthracite .lyrics-popup-content,
+body.neumorphic-custom .lyrics-popup-content {
+    background: var(--bg-color);
+    box-shadow: var(--neu-shadow-inset);
+    border-radius: 12px;
+}
+
+body.neumorphic-white .lyrics-popup-body,
+body.neumorphic-anthracite .lyrics-popup-body,
+body.neumorphic-custom .lyrics-popup-body {
+    background: var(--bg-color);
+}
+
+/* ---- Karaoke Container & Lyrics ---- */
+body.neumorphic-white #karaoke-container,
+body.neumorphic-anthracite #karaoke-container,
+body.neumorphic-custom #karaoke-container {
+    background: var(--bg-color);
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 12px;
+}
+
+body.neumorphic-white .karaoke-lyrics,
+body.neumorphic-anthracite .karaoke-lyrics,
+body.neumorphic-custom .karaoke-lyrics {
+    background: var(--bg-color);
+    box-shadow: var(--neu-shadow-inset);
+    border-radius: 10px;
+}
+
+body.neumorphic-white .karaoke-line,
+body.neumorphic-anthracite .karaoke-line,
+body.neumorphic-custom .karaoke-line {
+    border-left-color: transparent;
+    border-radius: 8px;
+}
+
+body.neumorphic-white .karaoke-line:hover,
+body.neumorphic-anthracite .karaoke-line:hover,
+body.neumorphic-custom .karaoke-line:hover {
+    background: var(--bg-secondary);
+    box-shadow: var(--neu-shadow-flat);
+}
+
+body.neumorphic-white .karaoke-controls button,
+body.neumorphic-anthracite .karaoke-controls button,
+body.neumorphic-custom .karaoke-controls button {
+    box-shadow: var(--neu-shadow-flat);
+    border: none;
+    border-radius: 8px;
+}
+
+body.neumorphic-white .karaoke-controls button:active,
+body.neumorphic-anthracite .karaoke-controls button:active,
+body.neumorphic-custom .karaoke-controls button:active {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+/* ---- Chord Mode Toggle Buttons ---- */
+body.neumorphic-white .chord-mode-toggle,
+body.neumorphic-anthracite .chord-mode-toggle,
+body.neumorphic-custom .chord-mode-toggle {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 8px;
+}
+
+body.neumorphic-white .chord-mode-toggle:active,
+body.neumorphic-anthracite .chord-mode-toggle:active,
+body.neumorphic-custom .chord-mode-toggle:active {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+/* ---- Waveform Container ---- */
+body.neumorphic-white .waveform-container,
+body.neumorphic-anthracite .waveform-container,
+body.neumorphic-custom .waveform-container {
+    background-color: var(--bg-primary);
+    box-shadow: var(--neu-shadow-inset);
+    border-radius: 10px;
+    border: none;
+}
+
+body.neumorphic-white .master-track .waveform-container,
+body.neumorphic-anthracite .master-track .waveform-container,
+body.neumorphic-custom .master-track .waveform-container {
+    background-color: var(--bg-primary);
+    box-shadow: var(--neu-shadow-inset);
+}
+
+/* Mobile waveform fix */
+body.neumorphic-white .track.mobile-track .waveform-container,
+body.neumorphic-anthracite .track.mobile-track .waveform-container,
+body.neumorphic-custom .track.mobile-track .waveform-container {
+    background: var(--bg-primary);
+    border: none;
+    box-shadow: var(--neu-shadow-inset);
+}
+
+/* ---- Track Controls ---- */
+body.neumorphic-white .tracks-container,
+body.neumorphic-anthracite .tracks-container,
+body.neumorphic-custom .tracks-container {
+    background: var(--bg-color);
+}
+
+body.neumorphic-white .track,
+body.neumorphic-anthracite .track,
+body.neumorphic-custom .track {
+    background: var(--bg-color);
+}
+
+body.neumorphic-white .track-header,
+body.neumorphic-anthracite .track-header,
+body.neumorphic-custom .track-header {
+    background: var(--bg-color);
+}
+
+body.neumorphic-white .track-btn,
+body.neumorphic-anthracite .track-btn,
+body.neumorphic-custom .track-btn {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 6px;
+}
+
+body.neumorphic-white .track-btn:active,
+body.neumorphic-anthracite .track-btn:active,
+body.neumorphic-custom .track-btn:active {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+body.neumorphic-white .track.mobile-track,
+body.neumorphic-anthracite .track.mobile-track,
+body.neumorphic-custom .track.mobile-track {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    background: var(--bg-color);
+    border-radius: 12px;
+}
+
+body.neumorphic-white .track.mobile-track .mobile-header,
+body.neumorphic-anthracite .track.mobile-track .mobile-header,
+body.neumorphic-custom .track.mobile-track .mobile-header {
+    border-bottom: none;
+}
+
+/* ---- Track Slider ---- */
+body.neumorphic-white .track-slider,
+body.neumorphic-anthracite .track-slider,
+body.neumorphic-custom .track-slider {
+    box-shadow: var(--neu-shadow-inset);
+    background: var(--bg-color);
+    border: none;
+    border-radius: 4px;
+}
+
+/* ---- Timeline ---- */
+body.neumorphic-white .timeline-container,
+body.neumorphic-anthracite .timeline-container,
+body.neumorphic-custom .timeline-container {
+    background: var(--bg-color);
+}
+
+body.neumorphic-white .timeline,
+body.neumorphic-anthracite .timeline,
+body.neumorphic-custom .timeline {
+    box-shadow: var(--neu-shadow-inset);
+    border-radius: 6px;
+    background: var(--bg-color);
+}
+
+/* ---- Structure Display ---- */
+body.neumorphic-white .structure-display-wrapper,
+body.neumorphic-anthracite .structure-display-wrapper,
+body.neumorphic-custom .structure-display-wrapper {
+    box-shadow: var(--neu-shadow-inset);
+    border-radius: 10px;
+}
+
+body.neumorphic-white .visibility-toggle,
+body.neumorphic-anthracite .visibility-toggle,
+body.neumorphic-custom .visibility-toggle {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 8px;
+    background: var(--bg-color);
+}
+
+body.neumorphic-white .visibility-toggle:hover,
+body.neumorphic-anthracite .visibility-toggle:hover,
+body.neumorphic-custom .visibility-toggle:hover {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+/* ---- Practice Panels ---- */
+body.neumorphic-white .practice-panel,
+body.neumorphic-anthracite .practice-panel,
+body.neumorphic-custom .practice-panel {
+    background: var(--bg-color);
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 12px;
+}
+
+body.neumorphic-white .master-track,
+body.neumorphic-anthracite .master-track,
+body.neumorphic-custom .master-track {
+    background: var(--bg-color);
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 12px;
+}
+
+body.neumorphic-white .karaoke-in-content,
+body.neumorphic-anthracite .karaoke-in-content,
+body.neumorphic-custom .karaoke-in-content {
+    background: var(--bg-color);
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 12px;
+}
+
+/* ---- Chord Diagram Panel ---- */
+body.neumorphic-white .mobile-chord-diagram-panel,
+body.neumorphic-anthracite .mobile-chord-diagram-panel,
+body.neumorphic-custom .mobile-chord-diagram-panel {
+    background: var(--bg-color);
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 12px;
+}
+
+body.neumorphic-white .mobile-chord-diagram,
+body.neumorphic-anthracite .mobile-chord-diagram,
+body.neumorphic-custom .mobile-chord-diagram {
+    background: var(--bg-color);
+    box-shadow: var(--neu-shadow-inset);
+    border-radius: 10px;
+}
+
+body.neumorphic-white .mobile-chord-instrument-toggle,
+body.neumorphic-anthracite .mobile-chord-instrument-toggle,
+body.neumorphic-custom .mobile-chord-instrument-toggle {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 8px;
+}
+
+/* ---- Export Modal ---- */
+body.neumorphic-white .export-modal-dialog,
+body.neumorphic-anthracite .export-modal-dialog,
+body.neumorphic-custom .export-modal-dialog {
+    background: var(--bg-color);
+    box-shadow: var(--shadow-lg);
+    border-radius: 16px;
+    border: none;
+}
+
+body.neumorphic-white .export-modal-header,
+body.neumorphic-anthracite .export-modal-header,
+body.neumorphic-custom .export-modal-header {
+    border-bottom: none;
+}
+
+body.neumorphic-white .export-modal-footer,
+body.neumorphic-anthracite .export-modal-footer,
+body.neumorphic-custom .export-modal-footer {
+    border-top: none;
+}
+
+body.neumorphic-white .export-input,
+body.neumorphic-anthracite .export-input,
+body.neumorphic-custom .export-input {
+    border: none;
+    box-shadow: var(--neu-shadow-inset);
+    background: var(--bg-color);
+    border-radius: 8px;
+}
+
+body.neumorphic-white .export-info,
+body.neumorphic-anthracite .export-info,
+body.neumorphic-custom .export-info {
+    box-shadow: var(--neu-shadow-inset);
+    border-radius: 10px;
+    background: var(--bg-color);
+    border: none;
+}
+
+body.neumorphic-white .export-btn-primary,
+body.neumorphic-white .export-btn-secondary,
+body.neumorphic-anthracite .export-btn-primary,
+body.neumorphic-anthracite .export-btn-secondary,
+body.neumorphic-custom .export-btn-primary,
+body.neumorphic-custom .export-btn-secondary {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 10px;
+}
+
+body.neumorphic-white .export-btn-primary:active,
+body.neumorphic-white .export-btn-secondary:active,
+body.neumorphic-anthracite .export-btn-primary:active,
+body.neumorphic-anthracite .export-btn-secondary:active,
+body.neumorphic-custom .export-btn-primary:active,
+body.neumorphic-custom .export-btn-secondary:active {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+body.neumorphic-white .export-progress-bar,
+body.neumorphic-anthracite .export-progress-bar,
+body.neumorphic-custom .export-progress-bar {
+    box-shadow: var(--neu-shadow-inset);
+    border-radius: 6px;
+    background: var(--bg-color);
+}
+
+/* ---- Zoom Controls ---- */
+body.neumorphic-white .zoom-btn,
+body.neumorphic-anthracite .zoom-btn,
+body.neumorphic-custom .zoom-btn {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 6px;
+    background: var(--bg-color);
+}
+
+body.neumorphic-white .zoom-btn:active,
+body.neumorphic-anthracite .zoom-btn:active,
+body.neumorphic-custom .zoom-btn:active {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+/* ---- Lyrics Dialog ---- */
+body.neumorphic-white .lyrics-dialog,
+body.neumorphic-anthracite .lyrics-dialog,
+body.neumorphic-custom .lyrics-dialog {
+    background: var(--bg-color);
+    box-shadow: var(--shadow-lg);
+    border-radius: 16px;
+    border: none;
+}
+
+body.neumorphic-white .lyrics-dialog-field input,
+body.neumorphic-anthracite .lyrics-dialog-field input,
+body.neumorphic-custom .lyrics-dialog-field input {
+    border: none;
+    box-shadow: var(--neu-shadow-inset);
+    background: var(--bg-color);
+    border-radius: 8px;
+}
+
+body.neumorphic-white .lyrics-dialog-btn,
+body.neumorphic-anthracite .lyrics-dialog-btn,
+body.neumorphic-custom .lyrics-dialog-btn {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 8px;
+}
+
+body.neumorphic-white .lyrics-dialog-btn:active,
+body.neumorphic-anthracite .lyrics-dialog-btn:active,
+body.neumorphic-custom .lyrics-dialog-btn:active {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+body.neumorphic-white .lyrics-dialog-track,
+body.neumorphic-anthracite .lyrics-dialog-track,
+body.neumorphic-custom .lyrics-dialog-track {
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 8px;
+    border: none;
+    background: var(--bg-color);
+}
+
+body.neumorphic-white .lyrics-dialog-track.selected,
+body.neumorphic-anthracite .lyrics-dialog-track.selected,
+body.neumorphic-custom .lyrics-dialog-track.selected {
+    box-shadow: var(--neu-shadow-pressed), 0 0 0 2px var(--accent-color);
+}
+
+/* ---- Karaoke Loading Overlay ---- */
+body.neumorphic-white .karaoke-loading-content,
+body.neumorphic-anthracite .karaoke-loading-content,
+body.neumorphic-custom .karaoke-loading-content {
+    background: var(--bg-color);
+    box-shadow: var(--shadow-lg);
+    border-radius: 16px;
+}
+
+/* ---- Metronome Resolution Buttons ---- */
+body.neumorphic-white .res-btn,
+body.neumorphic-anthracite .res-btn,
+body.neumorphic-custom .res-btn {
+    border: none;
+    box-shadow: var(--neu-shadow-flat);
+    border-radius: 6px;
+    background: var(--bg-color);
+}
+
+body.neumorphic-white .res-btn:active,
+body.neumorphic-anthracite .res-btn:active,
+body.neumorphic-custom .res-btn:active {
+    box-shadow: var(--neu-shadow-pressed);
+}
+
+/* ---- Loading Container ---- */
+body.neumorphic-white .loading-container,
+body.neumorphic-anthracite .loading-container,
+body.neumorphic-custom .loading-container {
+    background: var(--bg-color);
+}
+
+/* ---- Loading Spinner ---- */
+body.neumorphic-white .loading-spinner,
+body.neumorphic-custom .loading-spinner {
+    border-color: rgba(255, 255, 255, 0.1);
+    border-left-color: var(--accent-color);
+}
+
+body.neumorphic-anthracite .loading-spinner {
+    border-color: rgba(255, 255, 255, 0.1);
+    border-left-color: var(--accent-color);
+}
+
+/* ---- Beat Cells (chord timeline grid) ---- */
+body.neumorphic-white .beat-cell.has-chord,
+body.neumorphic-anthracite .beat-cell.has-chord,
+body.neumorphic-custom .beat-cell.has-chord {
+    background-color: rgba(var(--accent-rgb), 0.15);
+}
+
+body.neumorphic-white .beat-cell.first-in-bar,
+body.neumorphic-anthracite .beat-cell.first-in-bar,
+body.neumorphic-custom .beat-cell.first-in-bar {
+    border-left-color: var(--accent-color);
+    background-color: rgba(var(--accent-rgb), 0.05);
+}
+
+body.neumorphic-white .beat-cell.beat-current,
+body.neumorphic-anthracite .beat-cell.beat-current,
+body.neumorphic-custom .beat-cell.beat-current {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+    box-shadow: 0 0 15px rgba(var(--accent-rgb), 0.8);
+}
+
+/* ---- Chord Linear Beat Active ---- */
+body.neumorphic-white .chord-linear-beat.active,
+body.neumorphic-anthracite .chord-linear-beat.active,
+body.neumorphic-custom .chord-linear-beat.active {
+    background: rgba(var(--accent-rgb), 0.25);
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.3);
+}
+
+body.neumorphic-white .chord-linear-measure.active,
+body.neumorphic-anthracite .chord-linear-measure.active,
+body.neumorphic-custom .chord-linear-measure.active {
+    background: rgba(var(--accent-rgb), 0.05);
+}
+
+/* ---- Chord Grid Beat Active (export.css) ---- */
+body.neumorphic-white .chord-grid-beat.active,
+body.neumorphic-custom .chord-grid-beat.active {
+    background: rgba(var(--accent-rgb), 0.2);
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.1);
+}
+
+/* ---- Resolution Buttons ---- */
+body.neumorphic-white .res-btn,
+body.neumorphic-custom .res-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--text-secondary);
+}
+
+body.neumorphic-white .res-btn:hover,
+body.neumorphic-custom .res-btn:hover {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+body.neumorphic-white .res-btn.active,
+body.neumorphic-anthracite .res-btn.active,
+body.neumorphic-custom .res-btn.active {
+    background: var(--accent-color);
+    color: #fff;
+    border-color: var(--accent-color);
+}
+
+/* ---- Export Modal Accent Colors ---- */
+body.neumorphic-white .export-input:focus,
+body.neumorphic-anthracite .export-input:focus,
+body.neumorphic-custom .export-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+body.neumorphic-white .export-progress-fill,
+body.neumorphic-anthracite .export-progress-fill,
+body.neumorphic-custom .export-progress-fill {
+    background: linear-gradient(90deg, var(--accent-color), var(--accent-hover, var(--accent-color)));
+}
+
+body.neumorphic-white .export-btn-primary,
+body.neumorphic-anthracite .export-btn-primary,
+body.neumorphic-custom .export-btn-primary {
+    background: var(--accent-color);
+}
+
+body.neumorphic-white .export-btn-primary:hover,
+body.neumorphic-anthracite .export-btn-primary:hover,
+body.neumorphic-custom .export-btn-primary:hover {
+    filter: brightness(1.1);
+}
+
+/* ---- Karaoke Word Highlight ---- */
+body.neumorphic-white .karaoke-word.word-current,
+body.neumorphic-anthracite .karaoke-word.word-current,
+body.neumorphic-custom .karaoke-word.word-current {
+    text-shadow: 0 0 10px rgba(var(--accent-rgb), 0.6);
+    animation: neu-karaoke-glow 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes neu-karaoke-glow {
+    from {
+        text-shadow: 0 0 10px rgba(var(--accent-rgb), 0.6);
+    }
+    to {
+        text-shadow: 0 0 20px rgba(var(--accent-rgb), 0.9);
+    }
+}
+
+/* ---- Karaoke Spinner ---- */
+body.neumorphic-white .karaoke-spinner,
+body.neumorphic-anthracite .karaoke-spinner,
+body.neumorphic-custom .karaoke-spinner {
+    border-color: rgba(var(--accent-rgb), 0.2);
+    border-top-color: var(--accent-color);
+}
+
+/* ---- Metronome Track ---- */
+body.neumorphic-white .track.metronome-track,
+body.neumorphic-anthracite .track.metronome-track,
+body.neumorphic-custom .track.metronome-track {
+    border-top: 2px solid rgba(var(--accent-rgb), 0.3);
+}
+
+body.neumorphic-white .track.metronome-track .track-title,
+body.neumorphic-anthracite .track.metronome-track .track-title,
+body.neumorphic-custom .track.metronome-track .track-title {
+    color: var(--accent-color);
+}
+
+/* ---- Zoom button hover ---- */
+body.neumorphic-white .zoom-btn:hover,
+body.neumorphic-custom .zoom-btn:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ---- Export Transport Button (green→blue for white theme) ---- */
+body.neumorphic-white .transport-btn.export,
+body.neumorphic-custom .transport-btn.export {
+    background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+}
+
+body.neumorphic-white .transport-btn.export:hover,
+body.neumorphic-custom .transport-btn.export:hover {
+    background: linear-gradient(135deg, var(--accent-hover), var(--accent-color));
+}
+
+/* ---- Karaoke Step Done (green→blue for white theme) ---- */
+body.neumorphic-white .karaoke-step-done,
+body.neumorphic-custom .karaoke-step-done {
+    background: rgba(var(--accent-rgb), 0.08);
+    border-left-color: var(--accent-color);
+}
+
+body.neumorphic-white .karaoke-step-done .karaoke-step-text,
+body.neumorphic-custom .karaoke-step-done .karaoke-step-text {
+    color: var(--accent-color);
+}
+
+/* ---- Lyrics Dialog Musixmatch (green→blue for white theme) ---- */
+body.neumorphic-white .lyrics-dialog-musixmatch,
+body.neumorphic-custom .lyrics-dialog-musixmatch {
+    background: rgba(var(--accent-rgb), 0.15);
+    border-color: rgba(var(--accent-rgb), 0.4);
+    color: var(--accent-color);
+}
+
+body.neumorphic-white .lyrics-dialog-musixmatch:active,
+body.neumorphic-custom .lyrics-dialog-musixmatch:active {
+    background: rgba(var(--accent-rgb), 0.25);
+}
+
+/* ---- Lyrics Source Tag (green→blue for white theme) ---- */
+body.neumorphic-white .lyrics-source-tag.musixmatch,
+body.neumorphic-custom .lyrics-source-tag.musixmatch {
+    color: var(--accent-color);
+}
+
+/* ---- Richsync Badge (green→blue for white theme) ---- */
+body.neumorphic-white .lyrics-dialog-track-badge.badge-richsync,
+body.neumorphic-custom .lyrics-dialog-track-badge.badge-richsync {
+    background: rgba(var(--accent-rgb), 0.2);
+    color: var(--accent-color);
+}
+
+/* ---- Chord Grid Beat Active (green→accent for white theme) ---- */
+body.neumorphic-white .chord-grid-beat.active,
+body.neumorphic-custom .chord-grid-beat.active {
+    background: rgba(var(--accent-rgb), 0.2);
+    border-color: var(--accent-color);
+    box-shadow: var(--neu-shadow-pressed), 0 0 0 2px var(--accent-color);
+}
+

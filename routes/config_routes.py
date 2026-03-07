@@ -12,6 +12,10 @@ config_bp = Blueprint('config_routes', __name__)
 def get_config():
     se = user_session_manager.get_stems_extractor()
     return jsonify({
+        'theme': get_setting('theme', 'dark'),
+        'custom_theme_color': get_setting('custom_theme_color', '#e63950'),
+        'custom_theme_bg_color': get_setting('custom_theme_bg_color', '#2a2d35'),
+        'custom_theme_text_color': get_setting('custom_theme_text_color', '#e0e0e0'),
         'downloads_directory': ensure_valid_downloads_directory(),
         'max_concurrent_downloads': get_setting('max_concurrent_downloads', 3),
         'preferred_video_quality': get_setting('preferred_video_quality', 'best'),

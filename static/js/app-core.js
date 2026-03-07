@@ -193,20 +193,15 @@ function loadConfig() {
             'X-CSRF-Token': getCsrfToken()
         }
     })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) throw new Error('Config fetch failed: ' + response.status);
+            return response.json();
+        })
         .then(data => {
             appConfig = data;
 
             // Apply theme
-            if (appConfig.theme === 'light') {
-                document.body.classList.add('light-theme');
-                const themeSelect = document.getElementById('themeSelect');
-                if (themeSelect) themeSelect.value = 'light';
-            } else {
-                document.body.classList.remove('light-theme');
-                const themeSelect = document.getElementById('themeSelect');
-                if (themeSelect) themeSelect.value = 'dark';
-            }
+            applyTheme(appConfig.theme || 'dark', appConfig.custom_theme_color || null, appConfig.custom_theme_bg_color || null, appConfig.custom_theme_text_color || null);
 
             // Apply quality settings if elements exist (for download functionality)
             const videoQuality = document.getElementById('preferredVideoQuality');
