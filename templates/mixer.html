@@ -738,14 +738,18 @@
         });
     })();
 
-    // Compact transport buttons when space is tight
+    // Compact transport buttons when they overflow their container
     (function() {
         var tc = document.querySelector('.transport-controls');
-        if (tc && typeof ResizeObserver !== 'undefined') {
-            new ResizeObserver(function(entries) {
-                tc.classList.toggle('compact', entries[0].contentRect.width < 700);
-            }).observe(tc);
+        if (!tc || typeof ResizeObserver === 'undefined') return;
+        function check() {
+            // Remove compact to measure full-text width
+            tc.classList.remove('compact');
+            var overflows = tc.scrollWidth > tc.clientWidth + 1;
+            if (overflows) tc.classList.add('compact');
         }
+        new ResizeObserver(check).observe(tc);
+        check();
     })();
     </script>
 </body>

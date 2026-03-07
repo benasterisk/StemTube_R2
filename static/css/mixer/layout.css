@@ -452,8 +452,10 @@
 
 .transport-controls {
     display: flex;
+    flex-wrap: nowrap;
     gap: 0.5rem;
     align-items: center;
+    overflow: hidden;
 }
 
 .lyrics-transport-controls {
