@@ -309,8 +309,6 @@ class StemMixer {
 
         const recordBtn = document.getElementById('record-btn');
         const addTrackBtn = document.getElementById('add-recording-track-btn');
-        const calibrateBtn = document.getElementById('calibrate-latency-btn');
-        const latencyValue = document.getElementById('latency-value');
 
         // "Add Track" button — creates an empty recording track
         if (addTrackBtn) {
@@ -347,6 +345,16 @@ class StemMixer {
                     for (const t of armedTracks) {
                         const trackEl = document.getElementById(`rec-track-${t.id}`);
                         if (trackEl) trackEl.classList.add('is-recording');
+                    }
+
+                    // Auto-calibrate latency before every recording
+                    try {
+                        recordBtn.disabled = true;
+                        await recEngine.calibrateLatency();
+                    } catch (err) {
+                        console.warn('[StemMixer] Auto-calibration failed, using fallback:', err);
+                    } finally {
+                        recordBtn.disabled = false;
                     }
 
                     // If precount is active and not already playing, start playback
@@ -397,36 +405,6 @@ class StemMixer {
                             this.togglePlayback();
                         }
                     }
-                }
-            });
-        }
-
-        // Show existing calibration value
-        if (latencyValue) {
-            const existing = recEngine.getEffectiveLatency();
-            if (existing > 0) {
-                latencyValue.textContent = `${(existing * 1000).toFixed(0)}ms`;
-            }
-        }
-
-        // Calibrate latency button (automatic loopback test)
-        if (calibrateBtn) {
-            calibrateBtn.addEventListener('click', async () => {
-                if (recEngine.isCalibrating) return;
-                calibrateBtn.disabled = true;
-                calibrateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
-                try {
-                    const latency = await recEngine.calibrateLatency();
-                    const ms = (latency * 1000).toFixed(0);
-                    if (latencyValue) latencyValue.textContent = `${ms}ms`;
-                    const method = recEngine.calibrationMethod === 'digital' ? 'headphones mode' : 'speaker mode';
-                    this.showToast(`Latency calibrated: ${ms}ms (${method})`, 'success');
-                } catch (err) {
-                    console.error('[StemMixer] Calibration failed:', err);
-                    this.showToast('Calibration failed — check mic permissions', 'error');
-                } finally {
-                    calibrateBtn.disabled = false;
-                    calibrateBtn.innerHTML = '<i class="fas fa-crosshairs"></i> Calibrate';
                 }
             });
         }
@@ -1049,63 +1027,25 @@ class StemMixer {
     }
 
     /**
-     * Create metronome as a mixer track with gain/pan routing.
+     * Route metronome audio through the mixer's master gain.
+     * No track UI — metronome is controlled via the transport bar dot/icon.
      */
     _initMetronomeTrack() {
         if (!this.metronome || !this.audioEngine?.audioContext) return;
 
         const ctx = this.audioEngine.audioContext;
-        const clickMode = this.metronome.clickMode || 'off';
 
-        // Register virtual stem
-        this.stems['metronome'] = {
-            name: 'metronome',
-            url: null,
-            buffer: null,
-            source: null,
-            gainNode: null,
-            panNode: null,
-            volume: 0.5,
-            pan: 0,
-            muted: clickMode === 'off',
-            solo: false,
-            active: true,
-            waveformData: null,
-            isVirtual: true
-        };
-
-        // Ensure clickGainNode exists then reroute through mixer chain
+        // Ensure clickGainNode exists then route through master gain
         this.metronome._ensureClickGain();
         if (this.metronome.clickGainNode) {
-            try { this.metronome.clickGainNode.disconnect(); } catch (e) { /* not connected yet */ }
+            try { this.metronome.clickGainNode.disconnect(); } catch (e) {}
 
-            // Create pan node for metronome
-            const panNode = ctx.createStereoPanner();
-            panNode.pan.value = 0;
+            // Route: clickGainNode → masterGainNode → destination
+            this.metronome.clickGainNode.connect(this.audioEngine.masterGainNode);
 
-            // Route: clickGainNode → panNode → masterGainNode → destination
-            this.metronome.clickGainNode.connect(panNode);
-            panNode.connect(this.audioEngine.masterGainNode);
-
-            // Store refs in virtual stem
-            this.stems['metronome'].gainNode = this.metronome.clickGainNode;
-            this.stems['metronome'].panNode = panNode;
-
-            // Set initial gain (0-1 * 3 boost)
-            const initVol = this.stems['metronome'].volume;
-            this.metronome.clickGainNode.gain.value = this.stems['metronome'].muted ? 0 : initVol * 3;
-            this.metronome.clickVolume = initVol * 3;
-        }
-
-        // Create track DOM element (inserts above drums)
-        this.trackControls.createMetronomeTrackElement();
-
-        // Draw beat grid waveform
-        if (this.waveform) {
-            // Slight delay to let the DOM settle
-            requestAnimationFrame(() => {
-                this.waveform.drawMetronomeBeatGrid('metronome');
-            });
+            // Apply saved volume
+            const muted = this.metronome.clickMode === 'off';
+            this.metronome.clickGainNode.gain.value = muted ? 0 : this.metronome.clickVolume;
         }
     }
 }

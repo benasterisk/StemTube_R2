@@ -686,14 +686,6 @@ class AudioEngine {
             this.mixer.trackControls.updateTrackStatus(name, !shouldBeMuted);
         });
 
-        // Sync transport bar metronome icon with track state
-        if (this.mixer.metronome && this.mixer.stems['metronome']) {
-            const metStem = this.mixer.stems['metronome'];
-            const metMuted = metStem.muted || (hasSolo && !metStem.solo);
-            this.mixer.metronome.clickMode = metMuted ? 'off' : 'all';
-            this.mixer.metronome._updateToggleIcons();
-        }
-
         // Update recording tracks
         if (this.mixer.recordingEngine) {
             this.mixer.recordingEngine.updateSoloMuteStates(hasSolo);

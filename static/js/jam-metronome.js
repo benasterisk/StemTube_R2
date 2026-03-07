@@ -147,20 +147,9 @@ class JamMetronome {
         localStorage.setItem('jam_click_mode', this.clickMode);
         this._updateToggleIcons();
 
-        // Sync with metronome track mute button
-        const mixer = window.stemMixer;
-        if (mixer && mixer.stems['metronome']) {
-            const stem = mixer.stems['metronome'];
-            const newMuted = this.clickMode === 'off';
-            if (stem.muted !== newMuted) {
-                stem.muted = newMuted;
-                if (stem.gainNode) {
-                    stem.gainNode.gain.value = newMuted ? 0 : stem.volume * 3;
-                }
-                const muteBtn = document.querySelector('.track[data-stem="metronome"] .mute');
-                if (muteBtn) muteBtn.classList.toggle('active', newMuted);
-                mixer.trackControls?.updateTrackStatus('metronome', !newMuted);
-            }
+        // Directly control clickGainNode volume
+        if (this.clickGainNode) {
+            this.clickGainNode.gain.value = this.clickMode === 'off' ? 0 : this.clickVolume;
         }
     }
 
