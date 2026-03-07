@@ -737,6 +737,16 @@
             if (e.data && e.data.type === 'theme_change') applyMixerTheme(e.data.theme, e.data.customColor, e.data.customBgColor, e.data.customTextColor);
         });
     })();
+
+    // Compact transport buttons when space is tight
+    (function() {
+        var tc = document.querySelector('.transport-controls');
+        if (tc && typeof ResizeObserver !== 'undefined') {
+            new ResizeObserver(function(entries) {
+                tc.classList.toggle('compact', entries[0].contentRect.width < 700);
+            }).observe(tc);
+        }
+    })();
     </script>
 </body>
 </html>
