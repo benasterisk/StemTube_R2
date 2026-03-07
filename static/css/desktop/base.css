@@ -186,6 +186,34 @@ body.cyberpunk-neon {
     background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAeCAYAAADkftS9AAAAIklEQVQoU2M4c+bMfxAGAgYYmwGrIIiDjrELjpo5aiZeMwF+yNnOs5KSvgAAAABJRU5ErkJggg==');
 }
 
+/* Sidebar collapse restore tab */
+.split-restore-tab {
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 60px;
+    background-color: var(--bg-tertiary, #2a2a2a);
+    border: 1px solid var(--border-color, #444);
+    border-left: none;
+    border-radius: 0 6px 6px 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1000;
+    color: var(--text-secondary, #999);
+    font-size: 12px;
+    transition: background-color 0.2s, width 0.2s;
+}
+
+.split-restore-tab:hover {
+    background-color: var(--accent-color, #4a90e2);
+    color: #fff;
+    width: 30px;
+}
+
 /* Styles de base */
 html, body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;

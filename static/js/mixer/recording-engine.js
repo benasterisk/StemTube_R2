@@ -1000,6 +1000,11 @@ class RecordingEngine {
                     rec.serverId = null;
                 }
                 await this.saveToServer(rec.id, downloadId);
+                // Re-render waveform in green to confirm save
+                const trackEl = document.getElementById(`rec-track-${rec.id}`);
+                if (trackEl && this.mixer.waveform) {
+                    this.mixer.waveform.renderRecordingWaveform(rec, trackEl.querySelector('.waveform'));
+                }
                 console.log('[RecordingEngine] Auto-saved:', rec.name);
             } catch (err) {
                 console.warn('[RecordingEngine] Auto-save failed for', rec.name, err);
@@ -1034,6 +1039,25 @@ class RecordingEngine {
         }
 
         console.log(`[RecordingEngine] Loaded ${data.recordings.length} recordings from server`);
+        this._updateNextRecordingNumber();
+    }
+
+    /**
+     * Scan recording names and update nextRecordingNumber to avoid duplicates.
+     * @private
+     */
+    _updateNextRecordingNumber() {
+        let maxNum = this.recordings.length;
+        for (const rec of this.recordings) {
+            const match = rec.name.match(/^Recording (\d+)$/);
+            if (match) {
+                const num = parseInt(match[1], 10);
+                if (num > maxNum) maxNum = num;
+            }
+        }
+        if (maxNum >= this.nextRecordingNumber) {
+            this.nextRecordingNumber = maxNum + 1;
+        }
     }
 
     async deleteFromServer(serverId) {

@@ -50,7 +50,32 @@
         min-width: 80px;
         border-radius: 8px;
     }
-    
+
+    /* Icon-only mode for text+icon buttons on narrow widths */
+    .transport-btn.skip-intro,
+    .transport-btn.export {
+        font-size: 0;
+        padding: 0.75rem;
+        min-width: auto;
+        gap: 0;
+    }
+
+    .transport-btn.skip-intro i,
+    .transport-btn.export i {
+        font-size: 1rem;
+    }
+
+    .rec-toolbar-btn {
+        font-size: 0;
+        padding: 4px 8px;
+        min-width: auto;
+        gap: 0;
+    }
+
+    .rec-toolbar-btn i {
+        font-size: 0.85rem;
+    }
+
     .time-display {
         font-size: 1.2rem;
         margin: 0 1rem;

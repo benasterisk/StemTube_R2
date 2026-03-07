@@ -789,10 +789,14 @@
                     }
                 });
 
+                // Sidebar collapse state
+                let collapsedSizes = null;
+
                 // Sauvegarder les tailles des colonnes dans le localStorage
                 window.addEventListener('unload', () => {
                     if (split) {
-                        localStorage.setItem('split-sizes', JSON.stringify(split.getSizes()));
+                        const sizesToSave = collapsedSizes || split.getSizes();
+                        localStorage.setItem('split-sizes', JSON.stringify(sizesToSave));
                     }
                 });
 
@@ -805,6 +809,57 @@
                     } catch (e) {
                         console.error('Erreur lors de la restauration des tailles des colonnes:', e);
                     }
+                }
+
+                // Sidebar collapse/restore on gutter double-click
+                const restoreTab = document.createElement('div');
+                restoreTab.className = 'split-restore-tab';
+                restoreTab.innerHTML = '<i class="fas fa-chevron-right"></i>';
+                restoreTab.title = 'Restore sidebar';
+                document.body.appendChild(restoreTab);
+
+                const leftPanel = document.getElementById('left-panel');
+                const rightPanel = document.getElementById('right-panel');
+
+                function collapseSidebar() {
+                    collapsedSizes = split.getSizes();
+                    leftPanel.style.display = 'none';
+                    const gutter = document.querySelector('.gutter.gutter-horizontal');
+                    if (gutter) gutter.style.display = 'none';
+                    rightPanel.style.width = '100%';
+                    restoreTab.style.display = 'flex';
+                    localStorage.setItem('split-collapsed', 'true');
+                    window.dispatchEvent(new Event('resize'));
+                }
+
+                function restoreSidebar() {
+                    leftPanel.style.display = '';
+                    const gutter = document.querySelector('.gutter.gutter-horizontal');
+                    if (gutter) gutter.style.display = '';
+                    rightPanel.style.width = '';
+                    if (collapsedSizes) split.setSizes(collapsedSizes);
+                    collapsedSizes = null;
+                    restoreTab.style.display = 'none';
+                    localStorage.setItem('split-collapsed', 'false');
+                    window.dispatchEvent(new Event('resize'));
+                }
+
+                const gutter = document.querySelector('.gutter.gutter-horizontal');
+                if (gutter) {
+                    gutter.addEventListener('dblclick', () => {
+                        if (collapsedSizes) {
+                            restoreSidebar();
+                        } else {
+                            collapseSidebar();
+                        }
+                    });
+                }
+
+                restoreTab.addEventListener('click', restoreSidebar);
+
+                // Restore collapsed state from previous session
+                if (localStorage.getItem('split-collapsed') === 'true') {
+                    collapseSidebar();
                 }
             } else {
                 // Sur mobile, appliquer les styles de colonne pleine largeur
@@ -822,9 +877,14 @@
                     // Passage de desktop à mobile
                     split.destroy();
                     split = null;
+                    collapsedSizes = null;
+                    document.getElementById('left-panel').style.display = '';
                     document.getElementById('left-panel').style.width = '100%';
                     document.getElementById('right-panel').style.width = '100%';
                     document.getElementById('split-main').style.flexDirection = 'column';
+                    const rt = document.querySelector('.split-restore-tab');
+                    if (rt) rt.style.display = 'none';
+                    localStorage.removeItem('split-collapsed');
                 } else if (!nowMobile && wasMobile) {
                     // Passage de mobile à desktop
                     location.reload(); // Plus simple de recharger la page
