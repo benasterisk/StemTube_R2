@@ -555,6 +555,18 @@ class TrackControls {
                             <input type="range" class="monitor-slider" min="0" max="1" step="0.01" value="0">
                         </div>
                     </div>
+                    <div class="rec-debleed-row">
+                        <label class="rec-debleed-label" title="Remove speaker bleed using Demucs AI separation">
+                            <i class="fas fa-magic"></i> De-bleed:
+                        </label>
+                        <select class="rec-debleed-select" title="Select the source type to isolate">
+                            <option value="off">Off</option>
+                            <option value="vocals">Vocals</option>
+                            <option value="bass">Bass</option>
+                            <option value="drums">Drums</option>
+                            <option value="other">Other (Guitar/Keys)</option>
+                        </select>
+                    </div>
                     <div class="rec-action-buttons">
                         <button class="track-btn rec-delete-btn" title="Delete recording">
                             <i class="fas fa-trash"></i> Delete
@@ -616,6 +628,15 @@ class TrackControls {
         monitorSlider.addEventListener('input', (e) => {
             recEngine.setTrackMonitorVolume(recording.id, parseFloat(e.target.value));
         });
+
+        // De-bleed stem type selector
+        const debleedSelect = trackEl.querySelector('.rec-debleed-select');
+        if (debleedSelect) {
+            debleedSelect.value = recording.debleedStem || 'off';
+            debleedSelect.addEventListener('change', (e) => {
+                recEngine.setTrackDebleed(recording.id, e.target.value);
+            });
+        }
 
         // ── Arm button ──
         const armBtn = trackEl.querySelector('.rec-arm-btn');

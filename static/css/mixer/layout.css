@@ -592,10 +592,6 @@
     margin-right: 0;
 }
 
-.transport-controls.compact .bleed-label {
-    display: none;
-}
-
 .transport-btn:hover {
     background-color: var(--accent-color);
 }

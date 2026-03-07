@@ -300,8 +300,8 @@ class StemMixer {
     }
 
     /**
-     * Setup recording controls (record button, add track, latency, bleed toggle).
-     * Device selector, level meter and monitor are per-track (in track-controls.js).
+     * Setup recording controls (record button, add track, latency calibration).
+     * De-bleed and device selector are per-track (in track-controls.js).
      */
     setupRecordingControls() {
         const recEngine = this.recordingEngine;
@@ -311,7 +311,6 @@ class StemMixer {
         const addTrackBtn = document.getElementById('add-recording-track-btn');
         const calibrateBtn = document.getElementById('calibrate-latency-btn');
         const latencyValue = document.getElementById('latency-value');
-        const bleedToggle = document.getElementById('bleed-removal-toggle');
 
         // "Add Track" button — creates an empty recording track
         if (addTrackBtn) {
@@ -396,11 +395,11 @@ class StemMixer {
             });
         }
 
-        // Bleed removal toggle (global setting)
-        if (bleedToggle) {
-            bleedToggle.addEventListener('change', (e) => {
-                recEngine.bleedRemovalEnabled = e.target.checked;
-            });
+        // Setup de-bleed socket listeners
+        const debleedSocket = window.mixerSocket || (typeof io !== 'undefined' ? io() : null);
+        if (debleedSocket) {
+            if (!window.mixerSocket) window.mixerSocket = debleedSocket;
+            recEngine.setupDebleedSocketListeners(debleedSocket);
         }
 
         // Load saved recordings from server

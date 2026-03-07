@@ -77,25 +77,54 @@
     display: none;
 }
 
-/* Bleed toggle */
-.bleed-toggle {
+/* Per-track de-bleed control */
+.rec-debleed-row {
     display: flex;
     align-items: center;
     gap: 4px;
-    cursor: pointer;
-    font-size: 10px;
+    width: 100%;
+}
+
+.rec-debleed-label {
+    font-size: 9px;
     color: var(--text-secondary, #888);
     white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
 }
 
-.bleed-toggle input[type="checkbox"] {
-    width: 12px;
-    height: 12px;
+.rec-debleed-label .fa-magic {
+    font-size: 9px;
+    color: var(--accent-color, #3498db);
+}
+
+.rec-debleed-select {
+    flex: 1;
+    background: var(--bg-primary, #1e1e1e);
+    color: var(--text-primary, #e0e0e0);
+    border: 1px solid var(--border-color, #444);
+    border-radius: 3px;
+    padding: 2px 4px;
+    font-size: 9px;
     cursor: pointer;
 }
 
-.bleed-label {
-    user-select: none;
+.rec-debleed-select:focus {
+    border-color: var(--accent-color, #3498db);
+    outline: none;
+}
+
+/* De-bleed processing indicator on track */
+.recording-track.debleed-processing {
+    border-left-color: var(--accent-color, #3498db) !important;
+    animation: debleed-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes debleed-pulse {
+    0%, 100% { box-shadow: inset 0 0 0 0 rgba(52, 152, 219, 0); }
+    50% { box-shadow: inset 0 0 8px 0 rgba(52, 152, 219, 0.2); }
 }
 
 /* ── Recording Tracks ────────────────────────────────────────── */

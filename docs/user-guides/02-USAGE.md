@@ -249,9 +249,11 @@ Record yourself playing along with stems. Recordings are positioned on the timel
 - Result is saved per device — only needs to be done once
 
 **Speaker Bleed Removal** (De-bleed):
-- Enabled by default (checkbox in recording toolbar)
-- Automatically removes stem audio that bleeds into the mic when recording without headphones
-- Disable when using headphones for faster processing
+- Per-track setting in expanded recording controls (dropdown)
+- Uses server-side Demucs AI to isolate the selected instrument/voice from mic bleed
+- Options: Off, Vocals, Bass, Drums, Other (Guitar/Keys)
+- Set to match what you are recording — Demucs will remove everything else
+- Leave "Off" when using headphones for fastest workflow
 
 ### Playback Controls
 

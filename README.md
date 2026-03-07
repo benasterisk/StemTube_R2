@@ -15,7 +15,7 @@
 - 🎤 **Karaoke Mode** - LRCLIB synchronized lyrics with faster-whisper fallback (GPU-accelerated)
 - 🎼 **Structure Analysis** - MSAF automatic section detection (intro/verse/chorus)
 - 🎚️ **Interactive Mixer** - Independent pitch/tempo control (SoundTouch + Web Audio API)
-- 🎙️ **Multi-Track Recording** - DAW-style record-along with automatic latency calibration and speaker bleed removal
+- 🎙️ **Multi-Track Recording** - DAW-style record-along with latency calibration and AI de-bleed (Demucs)
 - 📁 **File Upload** - Support for MP3, WAV, FLAC, M4A, AAC, OGG, WMA, MP4, AVI, MKV, MOV, WEBM
 - 📱 **Mobile PWA** - Installable app with offline mode and audio caching
 - 🎵 **Jam Session** - Real-time collaborative playback with shared BPM, precount, and metronome *(dev stage)*

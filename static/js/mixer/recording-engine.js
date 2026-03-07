@@ -1,6 +1,6 @@
 /**
  * RecordingEngine — Multi-track recording with per-track input devices,
- * latency compensation and speaker bleed removal.
+ * latency compensation and server-side de-bleed via Demucs.
  *
  * Each recording track has its own input device selector. Multiple armed tracks
  * record simultaneously. The global Record button starts/stops recording on all
@@ -20,7 +20,7 @@ class RecordingEngine {
         // Per-device stream pool: deviceId → { stream, micSource, monitorGain, analyser }
         this.deviceStreams = new Map();
 
-        // Active recorders during recording: deviceId → { recorder, chunks, refRecorder, refChunks, refDestination }
+        // Active recorders during recording: deviceId → { recorder, chunks }
         this.activeRecorders = new Map();
 
         // Track IDs being recorded into (snapshot at recording start)
@@ -34,8 +34,8 @@ class RecordingEngine {
         this.calibratedLatency = this._loadCalibratedLatency();
         this.isCalibrating = false;
 
-        // Bleed removal
-        this.bleedRemovalEnabled = true;
+        // Pending de-bleed operations (serverId → { resolve, reject })
+        this.pendingDebleeds = new Map();
     }
 
     // ── Device Stream Management ─────────────────────────────────
@@ -343,6 +343,7 @@ class RecordingEngine {
             serverId: null,
             armed: false,
             deviceId: null,
+            debleedStem: 'off',
         };
 
         this.recordings.push(recording);
@@ -477,29 +478,7 @@ class RecordingEngine {
         };
         recorder.start(100);
 
-        const info = { recorder, chunks, refRecorder: null, refChunks: [], refDestination: null };
-
-        // Reference recorder for bleed removal
-        if (this.bleedRemovalEnabled) {
-            try {
-                const ctx = this._getAudioContext();
-                const refDest = ctx.createMediaStreamDestination();
-                this.mixer.audioEngine.masterGainNode.connect(refDest);
-                const refChunks = [];
-                const refRecorder = new MediaRecorder(refDest.stream, {
-                    mimeType: this._getSupportedMimeType(),
-                });
-                refRecorder.ondataavailable = (e) => {
-                    if (e.data.size > 0) refChunks.push(e.data);
-                };
-                refRecorder.start(100);
-                info.refRecorder = refRecorder;
-                info.refChunks = refChunks;
-                info.refDestination = refDest;
-            } catch (err) {
-                console.warn('[RecordingEngine] Reference recorder failed:', err);
-            }
-        }
+        const info = { recorder, chunks };
 
         this.activeRecorders.set(key, info);
         console.log('[RecordingEngine] Device recorder started:', key);
@@ -523,29 +502,10 @@ class RecordingEngine {
         // Stop all recorders and decode
         for (const [key, info] of this.activeRecorders) {
             const micBlob = await this._stopMediaRecorder(info.recorder, info.chunks);
-            let refBlob = null;
-            if (info.refRecorder && info.refRecorder.state !== 'inactive') {
-                refBlob = await this._stopMediaRecorder(info.refRecorder, info.refChunks);
-            }
-            if (info.refDestination) {
-                info.refDestination.disconnect();
-            }
 
             const arrayBuffer = await micBlob.arrayBuffer();
             let audioBuffer = await ctx.decodeAudioData(arrayBuffer);
             audioBuffer = this.applyLatencyCompensation(audioBuffer);
-
-            // Bleed removal
-            if (this.bleedRemovalEnabled && refBlob) {
-                try {
-                    const refArr = await refBlob.arrayBuffer();
-                    const refBuf = await ctx.decodeAudioData(refArr);
-                    audioBuffer = this.removeBleed(audioBuffer, refBuf);
-                    console.log('[RecordingEngine] Bleed removal applied for device:', key);
-                } catch (err) {
-                    console.warn('[RecordingEngine] Bleed removal failed for device:', key, err);
-                }
-            }
 
             decodedAudio.set(key, audioBuffer);
         }
@@ -723,93 +683,92 @@ class RecordingEngine {
         }
     }
 
-    // ── Bleed Removal ─────────────────────────────────────────────
+    // ── Server-side De-bleed via Demucs ─────────────────────────────
 
     /**
-     * Remove speaker bleed from a recording using phase cancellation.
-     * @param {AudioBuffer} recording — mic recording
-     * @param {AudioBuffer} reference — master output captured during recording
-     * @returns {AudioBuffer} cleaned recording
+     * Set the de-bleed stem type for a recording track.
+     * @param {string} trackId
+     * @param {string} stemType — 'off', 'vocals', 'bass', 'drums', 'other'
      */
-    removeBleed(recording, reference) {
-        const ctx = this._getAudioContext();
-        const sampleRate = recording.sampleRate;
-        const maxLagSamples = Math.round(0.1 * sampleRate);
-
-        const recData = recording.getChannelData(0);
-        const refData = reference.getChannelData(0);
-        const len = Math.min(recData.length, refData.length);
-        if (len < maxLagSamples * 2) return recording;
-
-        const bestLag = this._findDelay(recData, refData, len, maxLagSamples);
-        const alpha = this._computeAlpha(recData, refData, len, bestLag);
-        const clampedAlpha = Math.max(0, Math.min(alpha, 2));
-
-        if (clampedAlpha < 0.01) {
-            console.log('[RecordingEngine] Bleed negligible (alpha:', clampedAlpha.toFixed(4), ')');
-            return recording;
-        }
-
-        const numChannels = recording.numberOfChannels;
-        const cleaned = ctx.createBuffer(numChannels, recording.length, sampleRate);
-
-        for (let ch = 0; ch < numChannels; ch++) {
-            const recCh = recording.getChannelData(ch);
-            const refCh = ch < reference.numberOfChannels ? reference.getChannelData(ch) : reference.getChannelData(0);
-            const outCh = cleaned.getChannelData(ch);
-
-            for (let i = 0; i < recording.length; i++) {
-                const refIdx = i - bestLag;
-                const refSample = (refIdx >= 0 && refIdx < refCh.length) ? refCh[refIdx] : 0;
-                outCh[i] = recCh[i] - clampedAlpha * refSample;
-            }
-        }
-
-        console.log('[RecordingEngine] Bleed removed, delay:', bestLag, 'samples (',
-            (bestLag / sampleRate * 1000).toFixed(1), 'ms), alpha:', clampedAlpha.toFixed(3));
-        return cleaned;
+    setTrackDebleed(trackId, stemType) {
+        const rec = this._findRecording(trackId);
+        if (rec) rec.debleedStem = stemType;
     }
 
-    /** @private */
-    _findDelay(recData, refData, len, maxLag) {
-        const segLen = Math.min(len, 48000);
-        const segStart = Math.floor((len - segLen) / 2);
-        let bestLag = 0;
-        let bestCorr = -Infinity;
+    /**
+     * Request server-side de-bleed for a saved recording.
+     * @param {string} serverId — server recording ID
+     * @param {string} stemType — 'vocals', 'bass', 'drums', 'other'
+     * @returns {Promise<void>}
+     */
+    async requestDebleed(serverId, stemType) {
+        const resp = await fetch(`/api/recordings/${serverId}/debleed`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stem_type: stemType }),
+        });
 
-        for (let lag = 0; lag < maxLag; lag++) {
-            let corr = 0;
-            for (let i = 0; i < segLen; i++) {
-                const ri = segStart + i;
-                const fi = ri - lag;
-                if (fi >= 0 && fi < refData.length) {
-                    corr += recData[ri] * refData[fi];
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.error || 'De-bleed request failed');
+        }
+
+        // Server processes asynchronously and emits socketio events
+        console.log('[RecordingEngine] De-bleed requested:', serverId, stemType);
+    }
+
+    /**
+     * Setup SocketIO listeners for de-bleed progress/completion.
+     * Called once from mixer core after socket is ready.
+     */
+    setupDebleedSocketListeners(socket) {
+        socket.on('debleed_progress', (data) => {
+            console.log('[RecordingEngine] De-bleed progress:', data);
+            if (this.mixer.showToast) {
+                this.mixer.showToast(`De-bleed: ${data.message || 'processing...'}`, 'info');
+            }
+        });
+
+        socket.on('debleed_complete', async (data) => {
+            console.log('[RecordingEngine] De-bleed complete:', data);
+            // Reload the audio from server
+            const rec = this.recordings.find(r => r.serverId === data.recording_id);
+            if (rec && data.url) {
+                try {
+                    const ctx = this._getAudioContext();
+                    const fileResp = await fetch(data.url);
+                    if (fileResp.ok) {
+                        const arrayBuffer = await fileResp.arrayBuffer();
+                        rec.audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+                        // Re-render waveform
+                        const trackEl = document.getElementById(`rec-track-${rec.id}`);
+                        if (trackEl) {
+                            trackEl.classList.remove('debleed-processing');
+                            if (this.mixer.waveform) {
+                                this.mixer.waveform.renderRecordingWaveform(rec, trackEl.querySelector('.waveform'));
+                            }
+                        }
+                        if (this.mixer.showToast) {
+                            this.mixer.showToast(`De-bleed complete: ${data.stem_type}`, 'success');
+                        }
+                    }
+                } catch (err) {
+                    console.warn('[RecordingEngine] Failed to reload de-bleeded audio:', err);
                 }
             }
-            if (corr > bestCorr) {
-                bestCorr = corr;
-                bestLag = lag;
+        });
+
+        socket.on('debleed_error', (data) => {
+            console.error('[RecordingEngine] De-bleed error:', data);
+            const rec = this.recordings.find(r => r.serverId === data.recording_id);
+            if (rec) {
+                const trackEl = document.getElementById(`rec-track-${rec.id}`);
+                if (trackEl) trackEl.classList.remove('debleed-processing');
             }
-        }
-        return bestLag;
-    }
-
-    /** @private */
-    _computeAlpha(recData, refData, len, lag) {
-        let dotRR = 0;
-        let dotFF = 0;
-        const count = Math.min(len, recData.length);
-
-        for (let i = 0; i < count; i++) {
-            const fi = i - lag;
-            if (fi >= 0 && fi < refData.length) {
-                const refSample = refData[fi];
-                dotRR += recData[i] * refSample;
-                dotFF += refSample * refSample;
+            if (this.mixer.showToast) {
+                this.mixer.showToast(`De-bleed failed: ${data.error}`, 'error');
             }
-        }
-
-        return dotFF > 0 ? dotRR / dotFF : 0;
+        });
     }
 
     // ── Playback ──────────────────────────────────────────────────
@@ -1006,6 +965,17 @@ class RecordingEngine {
                     this.mixer.waveform.renderRecordingWaveform(rec, trackEl.querySelector('.waveform'));
                 }
                 console.log('[RecordingEngine] Auto-saved:', rec.name);
+
+                // Trigger server-side de-bleed if configured
+                if (rec.debleedStem && rec.debleedStem !== 'off' && rec.serverId) {
+                    try {
+                        if (trackEl) trackEl.classList.add('debleed-processing');
+                        await this.requestDebleed(rec.serverId, rec.debleedStem);
+                    } catch (err) {
+                        console.warn('[RecordingEngine] De-bleed request failed for', rec.name, err);
+                        if (trackEl) trackEl.classList.remove('debleed-processing');
+                    }
+                }
             } catch (err) {
                 console.warn('[RecordingEngine] Auto-save failed for', rec.name, err);
             }
@@ -1125,8 +1095,6 @@ class RecordingEngine {
         // Stop active recorders
         for (const [, info] of this.activeRecorders) {
             if (info.recorder && info.recorder.state !== 'inactive') info.recorder.stop();
-            if (info.refRecorder && info.refRecorder.state !== 'inactive') info.refRecorder.stop();
-            if (info.refDestination) info.refDestination.disconnect();
         }
         this.activeRecorders.clear();
 
@@ -1205,6 +1173,7 @@ class RecordingEngine {
             serverId: null,
             armed: false,
             deviceId: null,
+            debleedStem: 'off',
         };
     }
 

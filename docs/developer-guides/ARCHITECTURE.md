@@ -236,7 +236,7 @@ StemsExtractor.on_extraction_complete
 8. **waveform.js** - Canvas waveform visualization
 9. **timeline.js** - Playhead and time management
 10. **track-controls.js** - Per-stem volume/pan/mute + recording tracks
-11. **recording-engine.js** - Multi-track recording, latency calibration, bleed removal
+11. **recording-engine.js** - Multi-track recording, latency calibration, server-side de-bleed via Demucs
 12. **soundtouch-engine.js** - WASM processor loading
 
 **Modular Pattern:**

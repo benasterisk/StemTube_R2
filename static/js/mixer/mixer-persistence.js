@@ -61,9 +61,7 @@ class MixerPersistence {
             // Save recording track states (audio data is NOT stored — too large)
             const recEngine = this.mixer.recordingEngine;
             if (recEngine) {
-                state.recordingSettings = {
-                    bleedRemovalEnabled: recEngine.bleedRemovalEnabled,
-                };
+                state.recordingSettings = {};
                 state.recordingTracks = recEngine.recordings.map(r => ({
                     id: r.id,
                     name: r.name,
@@ -71,6 +69,7 @@ class MixerPersistence {
                     pan: r.pan,
                     muted: r.muted,
                     solo: r.solo,
+                    debleedStem: r.debleedStem || 'off',
                 }));
             }
 
@@ -127,16 +126,12 @@ class MixerPersistence {
             // Restore recording settings
             const recEngine = this.mixer.recordingEngine;
             if (recEngine && state.recordingSettings) {
-                recEngine.bleedRemovalEnabled = state.recordingSettings.bleedRemovalEnabled !== false;
-
                 // Restore UI elements
                 const latencyValue = document.getElementById('latency-value');
-                const bleedToggle = document.getElementById('bleed-removal-toggle');
                 if (latencyValue) {
                     const lat = recEngine.getEffectiveLatency();
                     latencyValue.textContent = lat > 0 ? `${(lat * 1000).toFixed(0)}ms` : '';
                 }
-                if (bleedToggle) bleedToggle.checked = recEngine.bleedRemovalEnabled;
             }
 
             // Restore recording track states (volume/pan/mute/solo for loaded recordings)
@@ -149,8 +144,15 @@ class MixerPersistence {
                             rec.pan = saved.pan ?? 0;
                             rec.muted = saved.muted ?? false;
                             rec.solo = saved.solo ?? false;
+                            rec.debleedStem = saved.debleedStem || 'off';
                             if (rec.gainNode) rec.gainNode.gain.value = rec.volume;
                             if (rec.panNode) rec.panNode.pan.value = rec.pan;
+                            // Restore de-bleed selector UI
+                            const trackEl = document.getElementById(`rec-track-${rec.id}`);
+                            if (trackEl) {
+                                const sel = trackEl.querySelector('.rec-debleed-select');
+                                if (sel) sel.value = rec.debleedStem;
+                            }
                         }
                     }
                     recEngine.updateSoloMuteStates(
