@@ -567,6 +567,18 @@ class TrackControls {
                             <option value="other">Other (Guitar/Keys)</option>
                         </select>
                     </div>
+                    <div class="rec-fx-row">
+                        <label class="rec-fx-label" title="Apply effects preset (compression, EQ, reverb)">
+                            <i class="fas fa-sliders-h"></i> FX:
+                        </label>
+                        <select class="rec-fx-select" title="Effects preset intensity">
+                            <option value="off">Off</option>
+                            <option value="subtle">Subtle</option>
+                            <option value="warm">Warm</option>
+                            <option value="heavy">Heavy</option>
+                        </select>
+                    </div>
+                    <span class="rec-fx-desc"></span>
                     <div class="rec-action-buttons">
                         <button class="track-btn rec-delete-btn" title="Delete recording">
                             <i class="fas fa-trash"></i> Delete
@@ -631,11 +643,38 @@ class TrackControls {
 
         // De-bleed stem type selector
         const debleedSelect = trackEl.querySelector('.rec-debleed-select');
+        const fxSelect = trackEl.querySelector('.rec-fx-select');
+        const fxDesc = trackEl.querySelector('.rec-fx-desc');
+
+        const updateFxDesc = () => {
+            if (!fxDesc) return;
+            const cat = debleedSelect ? debleedSelect.value : 'other';
+            const preset = fxSelect ? fxSelect.value : 'off';
+            fxDesc.textContent = (typeof RecordingEffects !== 'undefined')
+                ? RecordingEffects.describePreset(cat === 'off' ? 'other' : cat, preset)
+                : '';
+        };
+
         if (debleedSelect) {
             debleedSelect.value = recording.debleedStem || 'off';
             debleedSelect.addEventListener('change', (e) => {
                 recEngine.setTrackDebleed(recording.id, e.target.value);
+                // Re-apply FX preset with new instrument category
+                if (fxSelect && fxSelect.value !== 'off') {
+                    recEngine.setTrackFxPreset(recording.id, fxSelect.value);
+                }
+                updateFxDesc();
             });
+        }
+
+        // FX preset selector
+        if (fxSelect) {
+            fxSelect.value = recording.fxPreset || 'off';
+            fxSelect.addEventListener('change', (e) => {
+                recEngine.setTrackFxPreset(recording.id, e.target.value);
+                updateFxDesc();
+            });
+            updateFxDesc(); // Show description for restored preset
         }
 
         // ── Arm button ──

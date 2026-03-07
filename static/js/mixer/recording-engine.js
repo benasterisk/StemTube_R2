@@ -36,6 +36,9 @@ class RecordingEngine {
 
         // Pending de-bleed operations (serverId → { resolve, reject })
         this.pendingDebleeds = new Map();
+
+        // Shared effects manager (lazy-init on first AudioContext use)
+        this.effects = null;
     }
 
     // ── Device Stream Management ─────────────────────────────────
@@ -151,6 +154,7 @@ class RecordingEngine {
 
     /**
      * Set monitor volume for a track's input device.
+     * When FX is active, routes mic through the effects chain.
      * @param {string} trackId
      * @param {number} value — 0 to 1
      */
@@ -161,6 +165,34 @@ class RecordingEngine {
         const entry = this.deviceStreams.get(key);
         if (entry && entry.monitorGain) {
             entry.monitorGain.gain.value = value;
+            this._updateMonitorFxRouting(rec, entry);
+        }
+    }
+
+    /**
+     * Route mic monitoring through the FX chain (or bypass it).
+     * Called when monitor volume or FX preset changes.
+     * @private
+     */
+    _updateMonitorFxRouting(rec, entry) {
+        if (!entry || !rec.fxChain) return;
+        const fxActive = rec.fxPreset && rec.fxPreset !== 'off';
+        const monitorOn = entry.monitorGain.gain.value > 0;
+
+        if (fxActive && monitorOn && !rec._monitorFxActive) {
+            // Route mic through effects for monitoring
+            try { entry.micSource.disconnect(entry.monitorGain); } catch (e) {}
+            entry.micSource.connect(rec.fxChain.input);
+            rec.fxChain.dryOutput.connect(entry.monitorGain);
+            rec.fxChain.wetOutput.connect(entry.monitorGain);
+            rec._monitorFxActive = true;
+        } else if ((!fxActive || !monitorOn) && rec._monitorFxActive) {
+            // Revert to direct monitoring
+            try { entry.micSource.disconnect(rec.fxChain.input); } catch (e) {}
+            try { rec.fxChain.dryOutput.disconnect(entry.monitorGain); } catch (e) {}
+            try { rec.fxChain.wetOutput.disconnect(entry.monitorGain); } catch (e) {}
+            entry.micSource.connect(entry.monitorGain);
+            rec._monitorFxActive = false;
         }
     }
 
@@ -414,6 +446,9 @@ class RecordingEngine {
         gainNode.connect(panNode);
         panNode.connect(this.mixer.audioEngine.masterGainNode);
 
+        // Create effects chain
+        const fxChain = this._createFxChain(ctx, gainNode);
+
         const recording = {
             id,
             name: `Recording ${this.nextRecordingNumber++}`,
@@ -421,6 +456,7 @@ class RecordingEngine {
             startOffset: 0,
             gainNode,
             panNode,
+            fxChain,
             sourceNode: null,
             volume: 1.0,
             pan: 0,
@@ -431,6 +467,7 @@ class RecordingEngine {
             armed: false,
             deviceId: null,
             debleedStem: 'off',
+            fxPreset: 'off',
         };
 
         this.recordings.push(recording);
@@ -770,6 +807,41 @@ class RecordingEngine {
         }
     }
 
+    // ── Effects Chain ──────────────────────────────────────────────
+
+    /**
+     * Create and wire an effects chain for a recording track.
+     * @private
+     */
+    _createFxChain(ctx, gainNode) {
+        if (!this.effects) {
+            this.effects = new RecordingEffects(ctx);
+        }
+        const chain = this.effects.createChain();
+        // Wire: chain dry + wet → track's gainNode
+        chain.dryOutput.connect(gainNode);
+        chain.wetOutput.connect(gainNode);
+        return chain;
+    }
+
+    /**
+     * Set the FX preset for a recording track.
+     * Uses the track's debleedStem as the instrument category.
+     */
+    async setTrackFxPreset(trackId, presetName) {
+        const rec = this._findRecording(trackId);
+        if (!rec || !rec.fxChain) return;
+        rec.fxPreset = presetName;
+        const category = (rec.debleedStem && rec.debleedStem !== 'off')
+            ? rec.debleedStem : 'vocals';
+        await rec.fxChain.applyPreset(category, presetName);
+
+        // Update monitoring routing (FX on/off affects monitor path)
+        const key = rec.deviceId || 'default';
+        const entry = this.deviceStreams.get(key);
+        if (entry) this._updateMonitorFxRouting(rec, entry);
+    }
+
     // ── Server-side De-bleed via Demucs ─────────────────────────────
 
     /**
@@ -878,7 +950,12 @@ class RecordingEngine {
 
             const source = ctx.createBufferSource();
             source.buffer = rec.audioBuffer;
-            source.connect(rec.gainNode);
+            // Route through effects chain if available, otherwise direct to gain
+            if (rec.fxChain) {
+                source.connect(rec.fxChain.input);
+            } else {
+                source.connect(rec.gainNode);
+            }
             rec.sourceNode = source;
 
             this._applyRecordingGain(rec);
@@ -977,6 +1054,7 @@ class RecordingEngine {
 
         const rec = this.recordings[idx];
         this._stopRecordingSource(rec);
+        if (rec.fxChain) rec.fxChain.dispose();
         if (rec.gainNode) rec.gainNode.disconnect();
         if (rec.panNode) rec.panNode.disconnect();
         this.recordings.splice(idx, 1);
@@ -1244,6 +1322,8 @@ class RecordingEngine {
         gainNode.connect(panNode);
         panNode.connect(this.mixer.audioEngine.masterGainNode);
 
+        const fxChain = this._createFxChain(ctx, gainNode);
+
         return {
             id,
             name: name || `Recording ${this.nextRecordingNumber++}`,
@@ -1251,6 +1331,7 @@ class RecordingEngine {
             startOffset,
             gainNode,
             panNode,
+            fxChain,
             sourceNode: null,
             volume: 1.0,
             pan: 0,
@@ -1261,6 +1342,7 @@ class RecordingEngine {
             armed: false,
             deviceId: null,
             debleedStem: 'off',
+            fxPreset: 'off',
         };
     }
 
