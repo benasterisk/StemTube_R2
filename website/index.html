@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StemTube — AI-Powered Music Deconstruction</title>
+    <meta name="description" content="Open-source web app for YouTube audio downloading, AI stem separation, chord detection, synchronized lyrics, and collaborative jam sessions.">
+    <meta name="theme-color" content="#0a0a0f">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="StemTube — AI-Powered Music Deconstruction">
+    <meta property="og:description" content="Separate stems, detect chords, sync lyrics, record and jam — all from a YouTube link.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="img/og-image.png">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ── Navigation ─────────────────────────────────────────────── -->
+<nav class="nav">
+    <div class="nav-inner">
+        <a href="#" class="nav-logo">
+            <div class="nav-logo-icon"><i class="fas fa-wave-square"></i></div>
+            StemTube
+        </a>
+        <ul class="nav-links">
+            <li><a href="#features">Features</a></li>
+            <li><a href="#how-it-works">How It Works</a></li>
+            <li><a href="#screenshots">Screenshots</a></li>
+            <li><a href="#story">About</a></li>
+            <li><a href="https://github.com/benasterisk/stemtube" target="_blank" class="nav-cta">
+                <i class="fab fa-github"></i> GitHub
+            </a></li>
+        </ul>
+        <button class="nav-mobile-toggle" aria-label="Toggle menu">
+            <i class="fas fa-bars"></i>
+        </button>
+    </div>
+</nav>
+
+<!-- ── Hero ────────────────────────────────────────────────────── -->
+<section class="hero">
+    <div class="container">
+        <div class="hero-content">
+            <div class="hero-badge">
+                <span class="dot"></span>
+                Open Source &middot; Self-Hosted &middot; Free
+            </div>
+
+            <h1>Deconstruct any song<br>with <span class="accent">AI precision</span></h1>
+
+            <p class="hero-description">
+                Paste a YouTube link. StemTube separates stems, detects chords, syncs lyrics, and gives you a full mixer — ready to practice, learn, or jam with friends.
+            </p>
+
+            <div class="hero-actions">
+                <a href="https://github.com/benasterisk/stemtube" target="_blank" class="btn btn-primary">
+                    <i class="fab fa-github"></i> View on GitHub
+                </a>
+                <a href="#features" class="btn btn-secondary">
+                    <i class="fas fa-arrow-down"></i> Explore Features
+                </a>
+            </div>
+
+            <div class="hero-stats">
+                <div class="hero-stat">
+                    <div class="hero-stat-value">6</div>
+                    <div class="hero-stat-label">AI Models</div>
+                </div>
+                <div class="hero-stat">
+                    <div class="hero-stat-value">170</div>
+                    <div class="hero-stat-label">Chord Types</div>
+                </div>
+                <div class="hero-stat">
+                    <div class="hero-stat-value">PWA</div>
+                    <div class="hero-stat-label">Mobile Ready</div>
+                </div>
+                <div class="hero-stat">
+                    <div class="hero-stat-value">RT</div>
+                    <div class="hero-stat-label">Real-Time Jam</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── Features ────────────────────────────────────────────────── -->
+<section class="features" id="features">
+    <div class="container">
+        <div class="section-label fade-in">Features</div>
+        <h2 class="section-title fade-in">Everything you need to<br>practice and create</h2>
+        <p class="section-subtitle fade-in">From stem separation to live jam sessions — all running locally on your machine.</p>
+
+        <div class="features-grid">
+            <div class="feature-card fade-in">
+                <div class="feature-icon"><i class="fas fa-layer-group"></i></div>
+                <h3>AI Stem Separation</h3>
+                <p>Split any song into vocals, bass, drums, guitar, piano and more using Demucs. Choose between 4-stem and 6-stem models for the level of detail you need.</p>
+            </div>
+            <div class="feature-card fade-in">
+                <div class="feature-icon"><i class="fas fa-music"></i></div>
+                <h3>Chord Detection</h3>
+                <p>Hybrid BTC Transformer + madmom CRF pipeline detecting 170 chord types. Real-time chord display with guitar diagrams synchronized to playback.</p>
+            </div>
+            <div class="feature-card fade-in">
+                <div class="feature-icon"><i class="fas fa-closed-captioning"></i></div>
+                <h3>Synchronized Lyrics</h3>
+                <p>Synced lyrics from Musixmatch with fallback to Whisper AI transcription. Word-level timestamps with karaoke-style highlighting and a dedicated Focus mode.</p>
+            </div>
+            <div class="feature-card fade-in">
+                <div class="feature-icon"><i class="fas fa-sliders-h"></i></div>
+                <h3>Full Mixer</h3>
+                <p>Per-stem volume, pan, mute and solo controls. Tempo adjustment with pitch correction via SoundTouch. Waveform visualization with playhead scrubbing.</p>
+            </div>
+            <div class="feature-card fade-in">
+                <div class="feature-icon"><i class="fas fa-microphone-alt"></i></div>
+                <h3>Recording Studio</h3>
+                <p>Record your instrument or vocals over the stems. Latency compensation, live monitoring, de-bleed via Demucs to isolate your take from background bleed.</p>
+            </div>
+            <div class="feature-card fade-in">
+                <div class="feature-icon"><i class="fas fa-users"></i></div>
+                <h3>Jam Sessions</h3>
+                <p>Real-time collaborative jam rooms via WebSocket. Share BPM, synchronized playback controls, guest access with auto-generated names. No account required.</p>
+            </div>
+            <div class="feature-card fade-in">
+                <div class="feature-icon"><i class="fas fa-mobile-alt"></i></div>
+                <h3>Mobile PWA</h3>
+                <p>Full-featured progressive web app for iOS and Android. Touch-optimized mixer, recording, chord display and lyrics — same features as desktop.</p>
+            </div>
+            <div class="feature-card fade-in">
+                <div class="feature-icon"><i class="fas fa-palette"></i></div>
+                <h3>Themes</h3>
+                <p>Multiple visual themes including neumorphic designs and a cyberpunk neon mode. Custom theme generator to match your aesthetic.</p>
+            </div>
+            <div class="feature-card fade-in">
+                <div class="feature-icon"><i class="fas fa-server"></i></div>
+                <h3>Self-Hosted</h3>
+                <p>Runs on your own hardware. GPU-accelerated with CUDA auto-detection, automatic CPU fallback. Your data stays on your machine.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── How It Works ────────────────────────────────────────────── -->
+<section class="how-it-works" id="how-it-works">
+    <div class="container">
+        <div class="section-label fade-in">How It Works</div>
+        <h2 class="section-title fade-in">From YouTube link to full mixer in minutes</h2>
+
+        <div class="steps">
+            <div class="step fade-in">
+                <div class="step-icon"><i class="fas fa-link"></i></div>
+                <h3>Paste a Link</h3>
+                <p>Enter any YouTube URL. StemTube downloads the audio and checks for existing extractions to avoid duplicate processing.</p>
+            </div>
+            <div class="step fade-in">
+                <div class="step-icon"><i class="fas fa-brain"></i></div>
+                <h3>AI Extraction</h3>
+                <p>Demucs separates stems. BTC + madmom detect chords. Musixmatch or Whisper fetch lyrics. MSAF analyzes song structure. All in parallel.</p>
+            </div>
+            <div class="step fade-in">
+                <div class="step-icon"><i class="fas fa-sliders-h"></i></div>
+                <h3>Mix & Practice</h3>
+                <p>Open the full mixer. Mute the guitar and play along with chords displayed in real-time. Adjust tempo without changing pitch.</p>
+            </div>
+            <div class="step fade-in">
+                <div class="step-icon"><i class="fas fa-microphone-alt"></i></div>
+                <h3>Record & Jam</h3>
+                <p>Record your take over the stems. Invite friends to a jam session room. Share synchronized playback in real-time.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── Screenshots ─────────────────────────────────────────────── -->
+<section class="screenshots" id="screenshots">
+    <div class="container">
+        <div class="section-label fade-in">Screenshots</div>
+        <h2 class="section-title fade-in">See it in action</h2>
+        <p class="section-subtitle fade-in">Desktop and mobile interfaces, designed for musicians.</p>
+
+        <div class="screenshots-grid">
+            <div class="screenshot-card fade-in">
+                <div class="screenshot-img">
+                    <img src="img/Stem_Extracted.png" alt="Stem extraction with per-stem downloads" loading="lazy">
+                </div>
+                <div class="screenshot-caption">Stem Extraction — 6-stem AI separation with individual stem downloads</div>
+            </div>
+            <div class="screenshot-card fade-in">
+                <div class="screenshot-img">
+                    <img src="img/Chords_Main.png" alt="Chord detection with guitar diagrams" loading="lazy">
+                </div>
+                <div class="screenshot-caption">Chord Detection — Real-time chord grid with guitar fingering diagrams</div>
+            </div>
+            <div class="screenshot-card fade-in">
+                <div class="screenshot-img">
+                    <img src="img/Lyrics_Focus.png" alt="Lyrics focus mode with karaoke highlighting" loading="lazy">
+                </div>
+                <div class="screenshot-caption">Lyrics Focus — Karaoke-style word-by-word highlighting with tempo control</div>
+            </div>
+            <div class="screenshot-card fade-in">
+                <div class="screenshot-img">
+                    <img src="img/Jam_Session.png" alt="Jam session with QR code sharing" loading="lazy">
+                </div>
+                <div class="screenshot-caption">Jam Sessions — Share via QR code, WhatsApp, email or direct link</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── Tech Stack ──────────────────────────────────────────────── -->
+<section class="tech-stack" id="tech">
+    <div class="container" style="text-align: center;">
+        <div class="section-label fade-in" style="justify-content: center;">Tech Stack</div>
+        <h2 class="section-title fade-in">Built with proven open-source tools</h2>
+
+        <div class="tech-grid fade-in">
+            <span class="tech-tag"><i class="fab fa-python"></i> Python 3.12</span>
+            <span class="tech-tag"><i class="fas fa-flask"></i> Flask</span>
+            <span class="tech-tag"><i class="fas fa-bolt"></i> Flask-SocketIO</span>
+            <span class="tech-tag"><i class="fas fa-database"></i> SQLite</span>
+            <span class="tech-tag"><i class="fab fa-js"></i> Vanilla ES6+</span>
+            <span class="tech-tag"><i class="fas fa-headphones"></i> Web Audio API</span>
+            <span class="tech-tag"><i class="fas fa-brain"></i> Demucs</span>
+            <span class="tech-tag"><i class="fas fa-music"></i> BTC Transformer</span>
+            <span class="tech-tag"><i class="fas fa-music"></i> madmom</span>
+            <span class="tech-tag"><i class="fas fa-comment-dots"></i> faster-whisper</span>
+            <span class="tech-tag"><i class="fas fa-chart-bar"></i> MSAF</span>
+            <span class="tech-tag"><i class="fas fa-music"></i> Musixmatch</span>
+            <span class="tech-tag"><i class="fab fa-youtube"></i> yt-dlp</span>
+            <span class="tech-tag"><i class="fas fa-fire"></i> PyTorch + CUDA</span>
+            <span class="tech-tag"><i class="fas fa-mobile-alt"></i> PWA</span>
+        </div>
+    </div>
+</section>
+
+<!-- ── Open Source Story ───────────────────────────────────────── -->
+<section class="story" id="story">
+    <div class="container">
+        <div class="section-label fade-in">About</div>
+        <h2 class="section-title fade-in">Giving back to open source</h2>
+
+        <div class="story-content">
+            <div class="story-text fade-in">
+                <p>
+                    StemTube started as an experiment in vibe coding — exploring what happens when you let AI-assisted development guide the creative process without rigid planning.
+                </p>
+                <p>
+                    What began as a weekend hack turned into a full-featured music workstation. The project kept growing because the problems were genuinely fun to solve: how do you synchronize chord detection with waveform scrubbing? How do you compensate for recording latency across different browsers?
+                </p>
+                <blockquote>
+                    After 25 years in IT, I wanted to give back to the open-source ecosystem that gave me so much throughout my career. StemTube is that contribution.
+                </blockquote>
+                <p>
+                    The entire codebase is open, from the AI pipeline to the PWA frontend. No tracking, no accounts required for basic use, no cloud dependency. Your music, your machine.
+                </p>
+            </div>
+
+            <div class="story-card fade-in">
+                <h3>Project at a Glance</h3>
+                <div class="story-card-stats">
+                    <div class="story-card-stat">
+                        <div class="value">100%</div>
+                        <div class="label">Open Source</div>
+                    </div>
+                    <div class="story-card-stat">
+                        <div class="value">0</div>
+                        <div class="label">Cloud Dependency</div>
+                    </div>
+                    <div class="story-card-stat">
+                        <div class="value">6</div>
+                        <div class="label">AI Models</div>
+                    </div>
+                    <div class="story-card-stat">
+                        <div class="value">2</div>
+                        <div class="label">Platforms</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── CTA ──────────────────────────────────────────────────────── -->
+<section class="cta-section">
+    <div class="container">
+        <div class="cta-box fade-in">
+            <h2>Ready to deconstruct music?</h2>
+            <p>Clone the repo, run the setup script, and you're live in minutes.</p>
+            <div class="hero-actions">
+                <a href="https://github.com/benasterisk/stemtube" target="_blank" class="btn btn-primary">
+                    <i class="fab fa-github"></i> Get Started
+                </a>
+                <a href="https://github.com/benasterisk/stemtube/issues" target="_blank" class="btn btn-secondary">
+                    <i class="fas fa-bug"></i> Report an Issue
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── Footer ──────────────────────────────────────────────────── -->
+<footer class="footer">
+    <div class="container">
+        <div class="footer-inner">
+            <span class="footer-copy">&copy; 2025 StemTube. Open source under MIT License.</span>
+            <ul class="footer-links">
+                <li><a href="https://github.com/benasterisk/stemtube" target="_blank"><i class="fab fa-github"></i> GitHub</a></li>
+                <li><a href="#features">Features</a></li>
+                <li><a href="#story">About</a></li>
+            </ul>
+        </div>
+    </div>
+</footer>
+
+<script src="js/main.js"></script>
+</body>
+</html>
