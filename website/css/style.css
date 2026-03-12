@@ -127,6 +127,7 @@ section {
     max-width: var(--max-width);
     margin: 0 auto;
     padding: 0 24px;
+    overflow: hidden;
 }
 
 .nav-logo {
@@ -952,6 +953,10 @@ html[dir="rtl"] .badge-experimental {
         padding: 64px 0;
     }
 
+    .nav-inner {
+        padding: 0 16px;
+    }
+
     .nav-links {
         display: none;
         position: fixed;
@@ -974,6 +979,15 @@ html[dir="rtl"] .badge-experimental {
         display: block;
     }
 
+    .lang-switcher {
+        margin-left: auto;
+        margin-right: 8px;
+    }
+
+    .lang-dropdown {
+        right: -8px;
+    }
+
     .features-grid {
         grid-template-columns: 1fr;
     }
@@ -988,7 +1002,8 @@ html[dir="rtl"] .badge-experimental {
     }
 
     .hero-stats {
-        gap: 24px;
+        gap: 16px;
+        flex-wrap: wrap;
     }
 
     .hero-actions {
