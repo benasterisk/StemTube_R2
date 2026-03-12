@@ -55,8 +55,9 @@
     "tech.title": "Built with proven open-source tools",
     "contribute.label": "Contribute",
     "contribute.title": "This project needs you",
-    "contribute.desc": "StemTube is built and maintained by a small community. The core audio pipeline works, but there's plenty of room to grow. We're especially looking for help with:",
-    "contribute.item1": "<i class=\"fas fa-paint-brush\"></i> <strong>UI/UX Design</strong> \u2014 the current interface is functional but minimal. If you have design skills, we'd love your input.",
+    "contribute.motto": "Alone I went fast, together you'll go further.",
+    "contribute.desc": "StemTube is delivered as a fully functional solution. However, my professional and personal commitments don't allow me to take it further alone. This is where you come in:",
+    "contribute.item1": "<i class=\"fas fa-paint-brush\"></i> <strong>UI/UX Design</strong> \u2014 the current interface is functional but minimal. If you have design skills, your input would make a real difference.",
     "contribute.item2": "<i class=\"fas fa-code\"></i> <strong>Frontend Development</strong> \u2014 help improve the mobile experience, add polish to the mixer and interactions.",
     "contribute.item3": "<i class=\"fas fa-bug\"></i> <strong>Testing & Bug Reports</strong> \u2014 try it on different hardware and browsers, report issues, suggest improvements.",
     "contribute.item4": "<i class=\"fas fa-language\"></i> <strong>Translations</strong> \u2014 help make StemTube accessible in more languages.",
@@ -77,5 +78,7 @@
     "cta.desc": "Clone the repo, run the setup script, and you're up in minutes. Feedback and contributions welcome.",
     "cta.btn1": "Get Started",
     "cta.btn2": "Report an Issue",
+    "disclaimer.title": "Responsible Use",
+    "disclaimer.text": "StemTube is a tool for learning, practicing, and creating music. It is not intended to facilitate piracy or harm artists' rights. Each user is solely responsible for their use of this software in accordance with the laws of their country. Please respect the artists whose music you enjoy.",
     "footer.copy": "\u00a9 2025 StemTube. Open source under MIT License."
 }

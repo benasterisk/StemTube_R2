@@ -786,10 +786,62 @@ section {
     color: var(--text-primary);
 }
 
+.contribute-motto {
+    border-left: 3px solid var(--accent);
+    padding-left: 20px;
+    margin-bottom: 28px;
+    font-style: italic;
+    color: var(--text-primary);
+    font-size: 1.2rem;
+    line-height: 1.7;
+}
+
 .contribute-actions {
     display: flex;
     gap: 16px;
     flex-wrap: wrap;
+}
+
+/* ── Disclaimer ──────────────────────────────────────────────── */
+.disclaimer {
+    padding: 40px 0;
+}
+
+.disclaimer-box {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    background: var(--bg-card);
+    border: 1px solid rgba(255, 193, 7, 0.2);
+    border-radius: var(--radius-lg);
+    padding: 28px 32px;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.disclaimer-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 193, 7, 0.1);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    color: #ffc107;
+}
+
+.disclaimer-text h4 {
+    font-size: 0.95rem;
+    margin-bottom: 6px;
+    color: var(--text-primary);
+}
+
+.disclaimer-text p {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.7;
 }
 
 /* ── Language Switcher ───────────────────────────────────────── */
