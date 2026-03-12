@@ -8,7 +8,6 @@
     "hero.title": "用 <span class=\"accent\">AI 精准分析</span><br>探索每一首歌",
     "hero.description": "上传你的音频文件。StemTube 分离音轨、检测和弦、同步歌词，为你提供完整的混音台 — 随时练习、学习或创作。",
     "hero.btnGithub": "在 GitHub 上查看",
-    "hero.btnExplore": "探索功能",
     "hero.statModels": "AI 模型",
     "hero.statChords": "和弦类型",
     "hero.statMobile": "移动端适配",
@@ -39,7 +38,7 @@
     "step1.title": "上传文件",
     "step1.desc": "拖放任何 MP3、WAV、FLAC 或其他音频格式。StemTube 会检查已有的分析结果，避免重复处理。",
     "step2.title": "AI 分析",
-    "step2.desc": "Demucs 分离音轨。BTC + madmom 检测和弦。Musixmatch 或 Whisper 获取歌词。MSAF 分析歌曲结构。全部并行处理。",
+    "step2.desc": "Demucs 分离音轨。BTC + madmom 检测和弦。Musixmatch 或 Whisper 获取歌词。全部并行进行。",
     "step3.title": "混音与练习",
     "step3.desc": "打开完整混音台。静音吉他音轨，跟随实时显示的和弦一起演奏。调整速度而不改变音高。",
     "step4.title": "录音与合奏",
@@ -80,5 +79,9 @@
     "footer.copy": "© 2025 StemTube。基于 MIT 许可证开源。",
     "contribute.motto": "独自一人，我走得很快；大家一起，你们会走得更远。",
     "disclaimer.title": "负责任地使用",
-    "disclaimer.text": "StemTube 是一款用于学习、练习和创作音乐的工具。它无意促进盗版或侵害艺术家的权利。每位用户均应根据其所在国家的法律，对其使用本软件的行为承担全部责任。请尊重您所欣赏的音乐艺术家。"
+    "disclaimer.text": "StemTube 是一款用于学习、练习和创作音乐的工具。它无意促进盗版或侵害艺术家的权利。每位用户均应根据其所在国家的法律，对其使用本软件的行为承担全部责任。请尊重您所欣赏的音乐艺术家。",
+    "hero.demoBadge": "演示视频即将推出",
+    "tech.audioAI": "音频 AI",
+    "tech.backend": "后端",
+    "tech.frontend": "前端"
 }

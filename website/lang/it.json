@@ -8,7 +8,6 @@
     "hero.title": "Esplora qualsiasi brano<br>con <span class=\"accent\">precisione AI</span>",
     "hero.description": "Carica i tuoi file audio. StemTube separa le tracce, rileva gli accordi, sincronizza i testi e ti offre un mixer completo — pronto per esercitarti, imparare o creare.",
     "hero.btnGithub": "Vedi su GitHub",
-    "hero.btnExplore": "Scopri le Funzionalità",
     "hero.statModels": "Modelli AI",
     "hero.statChords": "Tipi di Accordi",
     "hero.statMobile": "Pronto per Mobile",
@@ -39,7 +38,7 @@
     "step1.title": "Carica un File",
     "step1.desc": "Trascina qualsiasi formato audio MP3, WAV, FLAC o altro. StemTube verifica le estrazioni esistenti per evitare elaborazioni duplicate.",
     "step2.title": "Analisi AI",
-    "step2.desc": "Demucs separa le tracce. BTC + madmom rilevano gli accordi. Musixmatch o Whisper recuperano i testi. MSAF analizza la struttura del brano. Tutto in parallelo.",
+    "step2.desc": "Demucs separa le tracce. BTC + madmom rilevano gli accordi. Musixmatch o Whisper recuperano i testi. Tutto in parallelo.",
     "step3.title": "Mixa e Pratica",
     "step3.desc": "Apri il mixer completo. Silenzia la chitarra e suona seguendo gli accordi visualizzati in tempo reale. Regola il tempo senza cambiare il pitch.",
     "step4.title": "Registra e Jamma",
@@ -80,5 +79,9 @@
     "footer.copy": "© 2025 StemTube. Open source con licenza MIT.",
     "contribute.motto": "Da solo sono andato veloce, insieme andrete più lontano.",
     "disclaimer.title": "Uso responsabile",
-    "disclaimer.text": "StemTube è uno strumento per imparare, esercitarsi e creare musica. Non è destinato a facilitare la pirateria o a ledere i diritti degli artisti. Ogni utente è il solo responsabile dell’uso che fa di questo software nel rispetto delle leggi del proprio Paese. Vi preghiamo di rispettare gli artisti la cui musica apprezzate."
+    "disclaimer.text": "StemTube è uno strumento per imparare, esercitarsi e creare musica. Non è destinato a facilitare la pirateria o a ledere i diritti degli artisti. Ogni utente è il solo responsabile dell’uso che fa di questo software nel rispetto delle leggi del proprio Paese. Vi preghiamo di rispettare gli artisti la cui musica apprezzate.",
+    "hero.demoBadge": "Video demo in arrivo",
+    "tech.audioAI": "Audio IA",
+    "tech.backend": "Backend",
+    "tech.frontend": "Frontend"
 }

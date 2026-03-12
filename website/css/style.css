@@ -545,12 +545,46 @@ section {
     font-weight: 500;
 }
 
+/* ── Hero Demo Badge ──────────────────────────────────────────── */
+.hero-demo-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 28px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    border: 1px dashed var(--border);
+    cursor: default;
+}
+
+.hero-demo-badge i {
+    font-size: 1rem;
+}
+
 /* ── Tech Stack ───────────────────────────────────────────────── */
+.tech-groups {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+    margin-top: 40px;
+    text-align: center;
+}
+
+.tech-group-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 16px;
+}
+
 .tech-grid {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
-    margin-top: 40px;
     justify-content: center;
 }
 
@@ -945,6 +979,11 @@ html[dir="rtl"] .badge-experimental {
     .story-content {
         grid-template-columns: 1fr;
         gap: 40px;
+    }
+
+    .tech-groups {
+        grid-template-columns: 1fr;
+        gap: 24px;
     }
 }
 

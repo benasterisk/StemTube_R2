@@ -8,7 +8,6 @@
     "hero.title": "あらゆる楽曲を<br><span class=\"accent\">AIの精度</span>で探求",
     "hero.description": "オーディオファイルをアップロードするだけ。StemTubeがステム分離、コード検出、歌詞同期を行い、フルミキサーを提供します — 練習、学習、制作にすぐ活用できます。",
     "hero.btnGithub": "GitHubで見る",
-    "hero.btnExplore": "機能を見る",
     "hero.statModels": "AIモデル",
     "hero.statChords": "コードタイプ",
     "hero.statMobile": "モバイル対応",
@@ -39,7 +38,7 @@
     "step1.title": "ファイルをアップロード",
     "step1.desc": "MP3、WAV、FLACなど、あらゆるオーディオ形式のファイルをドロップするだけ。StemTubeが既存の解析結果をチェックし、重複処理を回避します。",
     "step2.title": "AI解析",
-    "step2.desc": "Demucsがステムを分離。BTC + madmomがコードを検出。MusixmatchまたはWhisperが歌詞を取得。MSAFが楽曲構造を解析。すべて並列で実行されます。",
+    "step2.desc": "Demucsがステムを分離。BTC + madmomがコードを検出。MusixmatchまたはWhisperが歌詞を取得。すべて並行処理。",
     "step3.title": "ミックス＆練習",
     "step3.desc": "フルミキサーを開き、ギターをミュートしてリアルタイム表示されるコードに合わせて演奏。ピッチを変えずにテンポを調整できます。",
     "step4.title": "録音＆ジャム",
@@ -80,5 +79,9 @@
     "footer.copy": "© 2025 StemTube. MITライセンスに基づくオープンソース。",
     "contribute.motto": "一人で速く進んだ。みんなでなら、もっと遠くまで行ける。",
     "disclaimer.title": "責任ある利用",
-    "disclaimer.text": "StemTubeは音楽の学習、練習、創作のためのツールです。海賊版を促進したり、アーティストの権利を侵害することを目的としたものではありません。各ユーザーは、自国の法律に従って本ソフトウェアを使用する責任を負います。お楽しみいただいている音楽のアーティストを尊重してください。"
+    "disclaimer.text": "StemTubeは音楽の学習、練習、創作のためのツールです。海賊版を促進したり、アーティストの権利を侵害することを目的としたものではありません。各ユーザーは、自国の法律に従って本ソフトウェアを使用する責任を負います。お楽しみいただいている音楽のアーティストを尊重してください。",
+    "hero.demoBadge": "デモ動画近日公開",
+    "tech.audioAI": "オーディオAI",
+    "tech.backend": "バックエンド",
+    "tech.frontend": "フロントエンド"
 }

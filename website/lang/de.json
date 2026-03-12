@@ -8,7 +8,6 @@
     "hero.title": "Jeden Song erkunden<br>mit <span class=\"accent\">KI-Präzision</span>",
     "hero.description": "Lade deine Audiodateien hoch. StemTube trennt Spuren, erkennt Akkorde, synchronisiert Texte und bietet dir einen vollständigen Mixer — bereit zum Üben, Lernen oder Kreativsein.",
     "hero.btnGithub": "Auf GitHub ansehen",
-    "hero.btnExplore": "Funktionen entdecken",
     "hero.statModels": "KI-Modelle",
     "hero.statChords": "Akkordtypen",
     "hero.statMobile": "Mobilfähig",
@@ -39,7 +38,7 @@
     "step1.title": "Datei hochladen",
     "step1.desc": "Lade eine beliebige MP3-, WAV-, FLAC- oder andere Audiodatei hoch. StemTube prüft vorhandene Extraktionen, um doppelte Verarbeitung zu vermeiden.",
     "step2.title": "KI-Analyse",
-    "step2.desc": "Demucs trennt die Stems. BTC + madmom erkennen Akkorde. Musixmatch oder Whisper liefern Songtexte. MSAF analysiert die Songstruktur. Alles parallel.",
+    "step2.desc": "Demucs trennt Stems. BTC + madmom erkennen Akkorde. Musixmatch oder Whisper holen Liedtexte. Alles parallel.",
     "step3.title": "Mixen & Üben",
     "step3.desc": "Öffne den vollständigen Mixer. Schalte die Gitarre stumm und spiele mit den in Echtzeit angezeigten Akkorden mit. Passe das Tempo an, ohne die Tonhöhe zu ändern.",
     "step4.title": "Aufnehmen & Jammen",
@@ -80,5 +79,9 @@
     "footer.copy": "© 2025 StemTube. Open Source unter MIT-Lizenz.",
     "contribute.motto": "Allein war ich schnell, zusammen kommt ihr weiter.",
     "disclaimer.title": "Verantwortungsvolle Nutzung",
-    "disclaimer.text": "StemTube ist ein Werkzeug zum Lernen, Üben und Musikmachen. Es ist nicht dazu gedacht, Piraterie zu erleichtern oder die Rechte von Künstlern zu verletzen. Jeder Nutzer ist allein verantwortlich für die Nutzung dieser Software gemäß den Gesetzen seines Landes. Bitte respektiert die Künstler, deren Musik ihr genießt."
+    "disclaimer.text": "StemTube ist ein Werkzeug zum Lernen, Üben und Musikmachen. Es ist nicht dazu gedacht, Piraterie zu erleichtern oder die Rechte von Künstlern zu verletzen. Jeder Nutzer ist allein verantwortlich für die Nutzung dieser Software gemäß den Gesetzen seines Landes. Bitte respektiert die Künstler, deren Musik ihr genießt.",
+    "hero.demoBadge": "Demo-Video kommt bald",
+    "tech.audioAI": "Audio-KI",
+    "tech.backend": "Backend",
+    "tech.frontend": "Frontend"
 }

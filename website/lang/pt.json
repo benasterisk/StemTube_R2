@@ -8,7 +8,6 @@
     "hero.title": "Explore qualquer música<br>com <span class=\"accent\">precisão de IA</span>",
     "hero.description": "Envie seus arquivos de áudio. O StemTube separa stems, detecta acordes, sincroniza letras e oferece um mixer completo — pronto para praticar, aprender ou criar.",
     "hero.btnGithub": "Ver no GitHub",
-    "hero.btnExplore": "Explorar Funcionalidades",
     "hero.statModels": "Modelos de IA",
     "hero.statChords": "Tipos de Acordes",
     "hero.statMobile": "Pronto para Mobile",
@@ -39,7 +38,7 @@
     "step1.title": "Envie um Arquivo",
     "step1.desc": "Arraste qualquer MP3, WAV, FLAC ou outro formato de áudio. O StemTube verifica se já existem extrações anteriores para evitar processamento duplicado.",
     "step2.title": "Análise por IA",
-    "step2.desc": "Demucs separa os stems. BTC + madmom detectam acordes. Musixmatch ou Whisper buscam letras. MSAF analisa a estrutura da música. Tudo em paralelo.",
+    "step2.desc": "Demucs separa as faixas. BTC + madmom detectam acordes. Musixmatch ou Whisper buscam letras. Tudo em paralelo.",
     "step3.title": "Mixe e Pratique",
     "step3.desc": "Abra o mixer completo. Silencie a guitarra e toque junto com os acordes exibidos em tempo real. Ajuste o tempo sem alterar o tom.",
     "step4.title": "Grave e Toque Junto",
@@ -80,5 +79,9 @@
     "footer.copy": "© 2025 StemTube. Código aberto sob Licença MIT.",
     "contribute.motto": "Sozinho fui rápido, juntos vocês irão mais longe.",
     "disclaimer.title": "Uso responsável",
-    "disclaimer.text": "O StemTube é uma ferramenta para aprender, praticar e criar música. Não se destina a facilitar a pirataria ou prejudicar os direitos dos artistas. Cada usuário é o único responsável pelo uso deste software de acordo com as leis de seu país. Por favor, respeite os artistas cuja música você aprecia."
+    "disclaimer.text": "O StemTube é uma ferramenta para aprender, praticar e criar música. Não se destina a facilitar a pirataria ou prejudicar os direitos dos artistas. Cada usuário é o único responsável pelo uso deste software de acordo com as leis de seu país. Por favor, respeite os artistas cuja música você aprecia.",
+    "hero.demoBadge": "Vídeo demo em breve",
+    "tech.audioAI": "Áudio IA",
+    "tech.backend": "Backend",
+    "tech.frontend": "Frontend"
 }

@@ -81,9 +81,9 @@
                 <a href="https://github.com/benasterisk/stemtube" target="_blank" class="btn btn-primary">
                     <i class="fab fa-github"></i> <span data-i18n="hero.btnGithub">View on GitHub</span>
                 </a>
-                <a href="#features" class="btn btn-secondary">
-                    <i class="fas fa-arrow-down"></i> <span data-i18n="hero.btnExplore">Explore Features</span>
-                </a>
+                <span class="hero-demo-badge" data-i18n="hero.demoBadge">
+                    <i class="fas fa-play-circle"></i> Demo video coming soon
+                </span>
             </div>
 
             <!-- Hero showcase -->
@@ -185,7 +185,7 @@
             <div class="step fade-in">
                 <div class="step-icon"><i class="fas fa-brain"></i></div>
                 <h3 data-i18n="step2.title">AI Analysis</h3>
-                <p data-i18n="step2.desc">Demucs separates stems. BTC + madmom detect chords. Musixmatch or Whisper fetch lyrics. MSAF analyzes song structure. All in parallel.</p>
+                <p data-i18n="step2.desc">Demucs separates stems. BTC + madmom detect chords. Musixmatch or Whisper fetch lyrics. All in parallel.</p>
             </div>
             <div class="step fade-in">
                 <div class="step-icon"><i class="fas fa-sliders-h"></i></div>
@@ -243,53 +243,34 @@
         <div class="section-label fade-in" style="justify-content: center;" data-i18n="tech.label">Tech Stack</div>
         <h2 class="section-title fade-in" data-i18n="tech.title">Built with proven open-source tools</h2>
 
-        <div class="tech-grid fade-in">
-            <span class="tech-tag"><i class="fab fa-python"></i> Python 3.12</span>
-            <span class="tech-tag"><i class="fas fa-flask"></i> Flask</span>
-            <span class="tech-tag"><i class="fas fa-bolt"></i> Flask-SocketIO</span>
-            <span class="tech-tag"><i class="fas fa-database"></i> SQLite</span>
-            <span class="tech-tag"><i class="fab fa-js"></i> Vanilla ES6+</span>
-            <span class="tech-tag"><i class="fas fa-headphones"></i> Web Audio API</span>
-            <span class="tech-tag"><i class="fas fa-brain"></i> Demucs</span>
-            <span class="tech-tag"><i class="fas fa-music"></i> BTC Transformer</span>
-            <span class="tech-tag"><i class="fas fa-music"></i> madmom</span>
-            <span class="tech-tag"><i class="fas fa-comment-dots"></i> faster-whisper</span>
-            <span class="tech-tag"><i class="fas fa-chart-bar"></i> MSAF</span>
-            <span class="tech-tag"><i class="fas fa-music"></i> Musixmatch</span>
-            <span class="tech-tag"><i class="fas fa-fire"></i> PyTorch + CUDA</span>
-            <span class="tech-tag"><i class="fas fa-mobile-alt"></i> PWA</span>
-        </div>
-    </div>
-</section>
-
-<!-- ── Contribute ─────────────────────────────────────────────── -->
-<section class="contribute" id="contribute">
-    <div class="container">
-        <div class="section-label fade-in" data-i18n="contribute.label">Contribute</div>
-        <h2 class="section-title fade-in" data-i18n="contribute.title">This project needs you</h2>
-
-        <div class="contribute-content">
-            <div class="contribute-text fade-in">
-                <blockquote class="contribute-motto" data-i18n="contribute.motto">
-                    Alone I went fast, together you'll go further.
-                </blockquote>
-                <p data-i18n="contribute.desc">
-                    StemTube is delivered as a fully functional solution. However, my professional and personal commitments don't allow me to take it further alone. This is where you come in:
-                </p>
-                <ul class="contribute-list">
-                    <li data-i18n-html="contribute.item1"><i class="fas fa-paint-brush"></i> <strong>UI/UX Design</strong> — the current interface is functional but minimal. If you have design skills, your input would make a real difference.</li>
-                    <li data-i18n-html="contribute.item2"><i class="fas fa-code"></i> <strong>Frontend Development</strong> — help improve the mobile experience, add polish to the mixer and interactions.</li>
-                    <li data-i18n-html="contribute.item3"><i class="fas fa-bug"></i> <strong>Testing &amp; Bug Reports</strong> — try it on different hardware and browsers, report issues, suggest improvements.</li>
-                    <li data-i18n-html="contribute.item4"><i class="fas fa-language"></i> <strong>Translations</strong> — help make StemTube accessible in more languages.</li>
-                </ul>
+        <div class="tech-groups fade-in">
+            <div class="tech-group">
+                <h4 class="tech-group-label" data-i18n="tech.audioAI">Audio AI</h4>
+                <div class="tech-grid">
+                    <span class="tech-tag"><i class="fas fa-brain"></i> Demucs</span>
+                    <span class="tech-tag"><i class="fas fa-music"></i> BTC Transformer</span>
+                    <span class="tech-tag"><i class="fas fa-music"></i> madmom</span>
+                    <span class="tech-tag"><i class="fas fa-comment-dots"></i> faster-whisper</span>
+                    <span class="tech-tag"><i class="fas fa-music"></i> Musixmatch</span>
+                    <span class="tech-tag"><i class="fas fa-fire"></i> PyTorch + CUDA</span>
+                </div>
             </div>
-            <div class="contribute-actions fade-in">
-                <a href="https://github.com/benasterisk/stemtube" target="_blank" class="btn btn-primary">
-                    <i class="fab fa-github"></i> <span data-i18n="contribute.btn">Contribute on GitHub</span>
-                </a>
-                <a href="https://github.com/benasterisk/stemtube/issues" target="_blank" class="btn btn-secondary">
-                    <i class="fas fa-lightbulb"></i> <span data-i18n="contribute.btnIdeas">Share Ideas</span>
-                </a>
+            <div class="tech-group">
+                <h4 class="tech-group-label" data-i18n="tech.backend">Backend</h4>
+                <div class="tech-grid">
+                    <span class="tech-tag"><i class="fab fa-python"></i> Python 3.12</span>
+                    <span class="tech-tag"><i class="fas fa-flask"></i> Flask</span>
+                    <span class="tech-tag"><i class="fas fa-bolt"></i> Flask-SocketIO</span>
+                    <span class="tech-tag"><i class="fas fa-database"></i> SQLite</span>
+                </div>
+            </div>
+            <div class="tech-group">
+                <h4 class="tech-group-label" data-i18n="tech.frontend">Frontend</h4>
+                <div class="tech-grid">
+                    <span class="tech-tag"><i class="fab fa-js"></i> Vanilla ES6+</span>
+                    <span class="tech-tag"><i class="fas fa-headphones"></i> Web Audio API</span>
+                    <span class="tech-tag"><i class="fas fa-mobile-alt"></i> PWA</span>
+                </div>
             </div>
         </div>
     </div>
@@ -337,6 +318,39 @@
                         <div class="label" data-i18n="story.stat4">Platforms</div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── Contribute ─────────────────────────────────────────────── -->
+<section class="contribute" id="contribute">
+    <div class="container">
+        <div class="section-label fade-in" data-i18n="contribute.label">Contribute</div>
+        <h2 class="section-title fade-in" data-i18n="contribute.title">This project needs you</h2>
+
+        <div class="contribute-content">
+            <div class="contribute-text fade-in">
+                <blockquote class="contribute-motto" data-i18n="contribute.motto">
+                    Alone I went fast, together you'll go further.
+                </blockquote>
+                <p data-i18n="contribute.desc">
+                    StemTube is delivered as a fully functional solution. However, my professional and personal commitments don't allow me to take it further alone. This is where you come in:
+                </p>
+                <ul class="contribute-list">
+                    <li data-i18n-html="contribute.item1"><i class="fas fa-paint-brush"></i> <strong>UI/UX Design</strong> — the current interface is functional but minimal. If you have design skills, your input would make a real difference.</li>
+                    <li data-i18n-html="contribute.item2"><i class="fas fa-code"></i> <strong>Frontend Development</strong> — help improve the mobile experience, add polish to the mixer and interactions.</li>
+                    <li data-i18n-html="contribute.item3"><i class="fas fa-bug"></i> <strong>Testing &amp; Bug Reports</strong> — try it on different hardware and browsers, report issues, suggest improvements.</li>
+                    <li data-i18n-html="contribute.item4"><i class="fas fa-language"></i> <strong>Translations</strong> — help make StemTube accessible in more languages.</li>
+                </ul>
+            </div>
+            <div class="contribute-actions fade-in">
+                <a href="https://github.com/benasterisk/stemtube" target="_blank" class="btn btn-primary">
+                    <i class="fab fa-github"></i> <span data-i18n="contribute.btn">Contribute on GitHub</span>
+                </a>
+                <a href="https://github.com/benasterisk/stemtube/issues" target="_blank" class="btn btn-secondary">
+                    <i class="fas fa-lightbulb"></i> <span data-i18n="contribute.btnIdeas">Share Ideas</span>
+                </a>
             </div>
         </div>
     </div>
