@@ -1,0 +1,607 @@
+/* ================================================
+   Mobile Recording Studio — Full-Screen Overlay
+   ================================================ */
+
+/* ── Overlay Container ─────────────────────────── */
+.mobile-recording-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    background: var(--mobile-bg, #121212);
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+
+.mobile-recording-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ── Header ────────────────────────────────────── */
+.mobile-rec-header {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    gap: 12px;
+    border-bottom: 1px solid var(--mobile-border, #333);
+    flex-shrink: 0;
+}
+
+.mobile-rec-header h2 {
+    flex: 1;
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--mobile-text, #fff);
+}
+
+.mobile-rec-close {
+    background: none;
+    border: none;
+    color: var(--mobile-text-secondary, #b3b3b3);
+    font-size: 20px;
+    padding: 8px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Phase Container ───────────────────────────── */
+.mobile-rec-phase {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.mobile-rec-phase.active {
+    display: flex;
+}
+
+/* ── Setup Phase ───────────────────────────────── */
+.mobile-rec-setup {
+    padding: 20px 16px;
+    gap: 20px;
+}
+
+.mobile-rec-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mobile-rec-section-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--mobile-text-secondary, #b3b3b3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Instrument selector grid */
+.mobile-rec-instruments {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.mobile-rec-instrument {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 4px;
+    background: var(--mobile-bg-secondary, #1e1e1e);
+    border: 2px solid transparent;
+    border-radius: var(--mobile-radius, 8px);
+    color: var(--mobile-text-secondary, #b3b3b3);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-rec-instrument i {
+    font-size: 22px;
+}
+
+.mobile-rec-instrument.selected {
+    border-color: var(--mobile-primary, #1DB954);
+    color: var(--mobile-primary, #1DB954);
+    background: rgba(var(--accent-rgb, 29, 185, 84), 0.1);
+}
+
+/* Input device selector */
+.mobile-rec-device-select {
+    width: 100%;
+    background: var(--mobile-bg-tertiary, #282828);
+    color: var(--mobile-text, #fff);
+    border: 1px solid var(--mobile-border, #333);
+    border-radius: var(--mobile-radius, 8px);
+    padding: 10px 12px;
+    font-size: 14px;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+/* Level meter */
+.mobile-rec-level-bar {
+    height: 6px;
+    background: var(--mobile-bg-tertiary, #282828);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.mobile-rec-level-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--mobile-primary, #1DB954);
+    border-radius: 3px;
+    transition: width 0.05s linear;
+}
+
+/* Monitor row */
+.mobile-rec-monitor-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mobile-rec-monitor-icon {
+    font-size: 16px;
+    color: var(--mobile-text-secondary, #b3b3b3);
+    width: 24px;
+    text-align: center;
+}
+
+.mobile-rec-monitor-slider {
+    flex: 1;
+    accent-color: var(--mobile-primary, #1DB954);
+}
+
+.mobile-rec-monitor-val {
+    font-size: 12px;
+    color: var(--mobile-text-secondary, #b3b3b3);
+    width: 32px;
+    text-align: right;
+}
+
+/* FX preset row */
+.mobile-rec-fx-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mobile-rec-fx-select {
+    flex: 1;
+    background: var(--mobile-bg-tertiary, #282828);
+    color: var(--mobile-text, #fff);
+    border: 1px solid var(--mobile-border, #333);
+    border-radius: var(--mobile-radius, 8px);
+    padding: 8px 12px;
+    font-size: 14px;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.mobile-rec-fx-desc {
+    font-size: 11px;
+    color: var(--mobile-text-secondary, #b3b3b3);
+    line-height: 1.3;
+    min-height: 14px;
+}
+
+.mobile-rec-fx-desc:empty {
+    display: none;
+}
+
+/* Start button */
+.mobile-rec-start-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 16px;
+    margin-top: 8px;
+    background: #e53935;
+    color: #fff;
+    border: none;
+    border-radius: var(--mobile-radius, 8px);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s ease;
+}
+
+.mobile-rec-start-btn:active {
+    background: #c62828;
+}
+
+.mobile-rec-start-btn:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.mobile-rec-start-btn i {
+    font-size: 18px;
+}
+
+/* ── Recording Phase ───────────────────────────── */
+.mobile-rec-recording {
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    padding: 40px 24px;
+}
+
+.mobile-rec-indicator {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--mobile-text, #fff);
+}
+
+.mobile-rec-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #e53935;
+    animation: mobile-rec-pulse 1s ease-in-out infinite;
+}
+
+@keyframes mobile-rec-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+.mobile-rec-timer {
+    font-variant-numeric: tabular-nums;
+}
+
+.mobile-rec-live-level {
+    width: 100%;
+    max-width: 300px;
+    height: 8px;
+    background: var(--mobile-bg-tertiary, #282828);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.mobile-rec-live-level-fill {
+    height: 100%;
+    width: 0%;
+    background: #e53935;
+    border-radius: 4px;
+    transition: width 0.05s linear;
+}
+
+.mobile-rec-live-waveform {
+    width: 100%;
+    max-width: 340px;
+    height: 80px;
+    background: var(--mobile-bg-secondary, #1e1e1e);
+    border-radius: var(--mobile-radius, 8px);
+    overflow: hidden;
+}
+
+.mobile-rec-live-waveform canvas {
+    width: 100%;
+    height: 100%;
+}
+
+.mobile-rec-stop-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 80%;
+    max-width: 280px;
+    padding: 18px;
+    background: #e53935;
+    color: #fff;
+    border: none;
+    border-radius: var(--mobile-radius, 8px);
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-rec-stop-btn:active {
+    background: #c62828;
+}
+
+/* Minimize button during recording */
+.mobile-rec-minimize-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 60%;
+    max-width: 200px;
+    padding: 12px;
+    background: transparent;
+    color: var(--mobile-text-secondary, #b3b3b3);
+    border: 1px solid var(--mobile-border, #333);
+    border-radius: var(--mobile-radius, 8px);
+    font-size: 14px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-rec-minimize-btn:active {
+    background: var(--mobile-bg-tertiary, #282828);
+}
+
+/* ── Floating Mini Recording Bar ──────────────── */
+.mobile-rec-minibar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 8500;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    background: #1a0a0a;
+    border-bottom: 2px solid #e53935;
+    box-shadow: 0 2px 12px rgba(229, 57, 53, 0.3);
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-rec-minibar-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #e53935;
+    animation: mobile-rec-pulse 1s ease-in-out infinite;
+    flex-shrink: 0;
+}
+
+.mobile-rec-minibar-timer {
+    flex: 1;
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+}
+
+.mobile-rec-minibar-stop {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #e53935;
+    color: #fff;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.mobile-rec-minibar-stop:active {
+    background: #c62828;
+}
+
+.mobile-rec-minibar-expand {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--mobile-bg-tertiary, #282828);
+    color: var(--mobile-text-secondary, #b3b3b3);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.mobile-rec-minibar-expand:active {
+    background: var(--mobile-border, #333);
+}
+
+/* ── Review Phase ──────────────────────────────── */
+.mobile-rec-review {
+    padding: 24px 16px;
+    gap: 20px;
+}
+
+.mobile-rec-review-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--mobile-text, #fff);
+    text-align: center;
+}
+
+.mobile-rec-review-waveform {
+    width: 100%;
+    height: 64px;
+    background: var(--mobile-bg-secondary, #1e1e1e);
+    border-radius: var(--mobile-radius, 8px);
+    overflow: hidden;
+}
+
+.mobile-rec-review-waveform canvas {
+    width: 100%;
+    height: 100%;
+}
+
+.mobile-rec-playback-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+}
+
+.mobile-rec-play-btn,
+.mobile-rec-play-stop-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: var(--mobile-bg-secondary, #1e1e1e);
+    color: var(--mobile-text, #fff);
+    border: 1px solid var(--mobile-border, #333);
+    border-radius: var(--mobile-radius, 8px);
+    font-size: 14px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-rec-play-btn:active,
+.mobile-rec-play-stop-btn:active {
+    background: var(--mobile-bg-tertiary, #282828);
+}
+
+/* De-bleed status */
+.mobile-rec-debleed-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--mobile-bg-secondary, #1e1e1e);
+    border-radius: var(--mobile-radius, 8px);
+    font-size: 13px;
+    color: var(--mobile-text-secondary, #b3b3b3);
+}
+
+.mobile-rec-debleed-status.processing {
+    color: #42a5f5;
+}
+
+.mobile-rec-debleed-status.complete {
+    color: var(--mobile-primary, #1DB954);
+}
+
+.mobile-rec-debleed-status i {
+    font-size: 16px;
+}
+
+/* Action buttons row */
+.mobile-rec-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.mobile-rec-discard-btn,
+.mobile-rec-keep-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px;
+    border: none;
+    border-radius: var(--mobile-radius, 8px);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-rec-discard-btn {
+    background: var(--mobile-bg-tertiary, #282828);
+    color: var(--mobile-text-secondary, #b3b3b3);
+}
+
+.mobile-rec-discard-btn:active {
+    background: #3a3a3a;
+}
+
+.mobile-rec-keep-btn {
+    background: var(--mobile-primary, #1DB954);
+    color: #fff;
+}
+
+.mobile-rec-keep-btn:active {
+    background: var(--mobile-primary-dark, #148a3c);
+}
+
+.mobile-rec-another-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    color: var(--mobile-primary, #1DB954);
+    border: 1px solid var(--mobile-primary, #1DB954);
+    border-radius: var(--mobile-radius, 8px);
+    font-size: 14px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-rec-another-btn:active {
+    background: rgba(var(--accent-rgb, 29, 185, 84), 0.1);
+}
+
+/* ── Transport Bar Record Button ───────────────── */
+.mobile-rec-transport-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2.5px solid #e53935;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.15s ease;
+}
+
+.mobile-rec-inner-dot {
+    display: block;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #e53935;
+    transition: all 0.2s ease;
+    pointer-events: none;
+}
+
+.mobile-rec-transport-btn:active {
+    transform: scale(0.92);
+}
+
+/* Recording state: inner dot becomes a rounded square */
+.mobile-rec-transport-btn.recording .mobile-rec-inner-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    animation: mobile-rec-pulse 1s ease-in-out infinite;
+}
+
+@media (max-width: 767px) and (orientation: landscape) {
+    .mobile-rec-transport-btn {
+        width: 30px;
+        height: 30px;
+    }
+    .mobile-rec-inner-dot {
+        width: 13px;
+        height: 13px;
+    }
+    .mobile-rec-transport-btn.recording .mobile-rec-inner-dot {
+        width: 11px;
+        height: 11px;
+    }
+}

@@ -111,6 +111,7 @@ class MobileApp {
         this.wakeLockRequestPending = false;
         this.wakeLockVisibilityHandler = null;
         this.wakeLockSupported = typeof navigator !== 'undefined' && 'wakeLock' in navigator;
+        this.recordingEngine = null;
 
         this.init();
     }
@@ -132,6 +133,7 @@ class MobileApp {
         this.loadTheme();
 
         this.initJamClient();
+        this.initRecordingEngine();
 
         document.addEventListener('touchstart', () => {
             if (!this.audioContext) this.initAudioContext();
@@ -3184,6 +3186,12 @@ class MobileApp {
             // Initialize metronome
             this.initMetronome(data);
 
+            // Load existing recordings from server
+            if (this.recordingEngine && this.currentExtractionId) {
+                this.recordingEngine.clearTracks();
+                this.recordingEngine.loadFromServer(this.currentExtractionId);
+            }
+
             console.log('[LoadMixer] Complete!');
         } finally {
             if (showLoader) this.hideLoading();
@@ -3817,6 +3825,7 @@ class MobileApp {
         this.lastAudioTime = this.audioContext.currentTime;
 
         Object.keys(this.stems).forEach(name => this.startStemSource(name));
+        if (this.recordingEngine) this.recordingEngine.playAllTracks(this.currentTime || 0);
 
         this.isPlaying = true;
         this.updatePlayPauseButtons();
@@ -3911,6 +3920,7 @@ class MobileApp {
                 s.source = null;
             }
         });
+        if (this.recordingEngine) this.recordingEngine.stopAllTracks();
 
         this.isPlaying = false;
         this.updatePlayPauseButtons();
@@ -4273,7 +4283,7 @@ class MobileApp {
         const s = this.stems[name];
         if (!s) return;
         s.solo = !s.solo;
-        Object.keys(this.stems).forEach(n => this.updateStemGain(n));
+        this.updateAllGains();
     }
 
     updateStemGain(name) {
@@ -4284,6 +4294,18 @@ class MobileApp {
         let gain = s.volume;
         if (s.muted || (hasSolo && !s.solo)) gain = 0;
         s.gainNode.gain.value = gain;
+    }
+
+    updateAllGains() {
+        Object.keys(this.stems).forEach(n => this.updateStemGain(n));
+        if (this.recordingEngine) this.recordingEngine.updateAllTrackGains();
+    }
+
+    initRecordingEngine() {
+        if (typeof MobileRecordingEngine === 'undefined') return;
+        this.recordingEngine = new MobileRecordingEngine(this);
+        this.recordingEngine.setup();
+        console.log('[MobileApp] Recording engine initialized');
     }
 
     updateSoloButtons() {

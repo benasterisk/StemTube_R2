@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile/neumorphic.css') }}?v={{ cache_buster }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jam.css') }}?v={{ cache_buster }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile/recording.css') }}?v={{ cache_buster }}">
     {% if jam_guest_mode %}
     <style>
         /* Jam Guest Mode: Disable transport controls */
@@ -201,6 +202,9 @@
                             <span id="mobileCurrentTime">0:00</span> / <span id="mobileDuration">0:00</span>
                         </div>
                         <div id="mobileMetronomeContainer" class="mobile-metronome-container"></div>
+                        <button id="mobileRecordBtn" class="mobile-rec-transport-btn" title="Record">
+                            <span class="mobile-rec-inner-dot"></span>
+                        </button>
                     </div>
                     <div class="standard-trigger-row">
                         <button id="mobileTempoTrigger" class="standard-trigger tempo-popup-trigger">
@@ -1254,6 +1258,111 @@
     </div>
     {% endif %}
 
+    <!-- Recording Overlay -->
+    <div class="mobile-recording-overlay" id="mobileRecordingOverlay">
+        <div class="mobile-rec-header">
+            <h2><i class="fas fa-microphone-alt" style="color:#e53935;margin-right:8px;"></i>Recording Studio</h2>
+            <button class="mobile-rec-close" id="mobileRecClose"><i class="fas fa-times"></i></button>
+        </div>
+
+        <!-- Setup Phase -->
+        <div class="mobile-rec-phase active" id="mobileRecSetup">
+            <div class="mobile-rec-setup">
+                <div class="mobile-rec-section">
+                    <span class="mobile-rec-section-label">What are you recording?</span>
+                    <div class="mobile-rec-instruments">
+                        <button class="mobile-rec-instrument selected" data-instrument="off">
+                            <i class="fas fa-ban"></i> None
+                        </button>
+                        <button class="mobile-rec-instrument" data-instrument="vocals">
+                            <i class="fas fa-microphone"></i> Vocals
+                        </button>
+                        <button class="mobile-rec-instrument" data-instrument="bass">
+                            <i class="fas fa-guitar"></i> Bass
+                        </button>
+                        <button class="mobile-rec-instrument" data-instrument="drums">
+                            <i class="fas fa-drum"></i> Drums
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mobile-rec-section">
+                    <span class="mobile-rec-section-label">Input Device</span>
+                    <select class="mobile-rec-device-select" id="mobileRecDeviceSelect">
+                        <option value="">Default microphone</option>
+                    </select>
+                </div>
+
+                <div class="mobile-rec-section">
+                    <span class="mobile-rec-section-label">Input Level</span>
+                    <div class="mobile-rec-level-bar">
+                        <div class="mobile-rec-level-fill" id="mobileRecLevelFill"></div>
+                    </div>
+                </div>
+
+                <div class="mobile-rec-section">
+                    <span class="mobile-rec-section-label">Monitor</span>
+                    <div class="mobile-rec-monitor-row">
+                        <i class="fas fa-headphones mobile-rec-monitor-icon"></i>
+                        <input type="range" class="mobile-rec-monitor-slider" id="mobileRecMonitorSlider" min="0" max="1" step="0.01" value="0">
+                        <span class="mobile-rec-monitor-val" id="mobileRecMonitorVal">0%</span>
+                    </div>
+                </div>
+
+                <div class="mobile-rec-section">
+                    <span class="mobile-rec-section-label">FX Preset</span>
+                    <div class="mobile-rec-fx-row">
+                        <select class="mobile-rec-fx-select" id="mobileRecFxSelect">
+                            <option value="off">Off</option>
+                            <option value="subtle">Subtle</option>
+                            <option value="warm">Warm</option>
+                            <option value="heavy">Heavy</option>
+                        </select>
+                    </div>
+                    <span class="mobile-rec-fx-desc" id="mobileRecFxDesc"></span>
+                </div>
+
+                <button class="mobile-rec-start-btn" id="mobileRecStartBtn">
+                    <i class="fas fa-circle"></i> Start Recording
+                </button>
+            </div>
+        </div>
+
+        <!-- Recording Phase -->
+        <div class="mobile-rec-phase" id="mobileRecRecording">
+            <div class="mobile-rec-recording">
+                <div class="mobile-rec-indicator">
+                    <div class="mobile-rec-dot"></div>
+                    <span class="mobile-rec-timer" id="mobileRecTimer">0:00</span>
+                </div>
+
+                <div class="mobile-rec-live-level">
+                    <div class="mobile-rec-live-level-fill" id="mobileRecLiveLevelFill"></div>
+                </div>
+
+                <div class="mobile-rec-live-waveform">
+                    <canvas id="mobileRecLiveCanvas"></canvas>
+                </div>
+
+                <button class="mobile-rec-stop-btn" id="mobileRecStopBtn">
+                    <i class="fas fa-stop"></i> Stop Recording
+                </button>
+
+                <button class="mobile-rec-minimize-btn" id="mobileRecMinimizeBtn">
+                    <i class="fas fa-chevron-down"></i> Minimize
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recording Floating Minibar -->
+    <div class="mobile-rec-minibar" id="mobileRecMinibar" style="display:none;">
+        <div class="mobile-rec-minibar-dot"></div>
+        <span class="mobile-rec-minibar-timer" id="mobileRecMinibarTimer">0:00</span>
+        <button class="mobile-rec-minibar-stop" id="mobileRecMinibarStop"><i class="fas fa-stop"></i></button>
+        <button class="mobile-rec-minibar-expand" id="mobileRecMinibarExpand"><i class="fas fa-expand"></i></button>
+    </div>
+
     <!-- Scripts -->
     <!-- ngrok free-tier: inject bypass header on all socket.io XHR requests (iOS Safari fix) -->
     <script>
@@ -1299,6 +1408,8 @@
     <script src="{{ url_for('static', filename='js/mobile-constants.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/mobile-guitar-diagram.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/mobile-neumorphic-dial.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/recording-utils.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/mobile-recording.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/mobile-app.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/mobile-admin.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/pwa-init.js') }}?v={{ cache_buster }}"></script>
