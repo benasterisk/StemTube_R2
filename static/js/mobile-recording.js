@@ -483,7 +483,9 @@ class MobileRecordingEngine {
             const recordings = await RecordingUtils.fetchRecordings(downloadId);
             if (!recordings.length) return;
 
+            if (!this.app.audioContext) await this.app.initAudioContext();
             const ctx = this.app.audioContext;
+            if (!ctx) return;
             for (const recData of recordings) {
                 const fileResp = await fetch(recData.url);
                 if (!fileResp.ok) continue;

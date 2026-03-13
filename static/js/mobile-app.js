@@ -3450,30 +3450,32 @@ class MobileApp {
     }
 
     _initMobileSkipIntro() {
-        const btn = document.getElementById('mobileSkipIntroBtn');
-        if (!btn) return;
+        const btns = document.querySelectorAll('.mobile-skip-intro');
+        if (!btns.length) return;
 
-        this._skipIntroBtn = btn;
+        this._skipIntroBtns = btns;
         this._musicStartTime = 0;
 
-        // Called when extraction data changes — show/hide button accordingly
+        // Called when extraction data changes — show/hide all skip intro buttons
         this._skipIntroPendingCheck = () => {
             const musicStart = parseFloat(this.currentExtractionData?.music_start_time || 0);
             console.log(`[SkipIntro] Checking music_start_time=${musicStart}`);
             if (musicStart >= 3.0) {
                 this._musicStartTime = musicStart;
-                this._skipIntroBtn.style.display = '';
+                this._skipIntroBtns.forEach(b => b.style.display = '');
             } else {
                 this._musicStartTime = 0;
-                this._skipIntroBtn.style.display = 'none';
+                this._skipIntroBtns.forEach(b => b.style.display = 'none');
             }
         };
 
-        btn.addEventListener('click', () => {
-            if (!this._musicStartTime) return;
-            console.log(`[SkipIntro] Seeking to ${this._musicStartTime.toFixed(2)}s`);
-            this.seek(this._musicStartTime);
-            this.showToast(`Skipped to ${this.formatTime(this._musicStartTime)}`);
+        btns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (!this._musicStartTime) return;
+                console.log(`[SkipIntro] Seeking to ${this._musicStartTime.toFixed(2)}s`);
+                this.seek(this._musicStartTime);
+                this.showToast(`Skipped to ${this.formatTime(this._musicStartTime)}`);
+            });
         });
     }
 
@@ -4286,11 +4288,17 @@ class MobileApp {
         this.updateAllGains();
     }
 
+    hasAnySolo() {
+        const stemSolo = Object.values(this.stems).some(x => x.solo);
+        const recSolo = this.recordingEngine ? this.recordingEngine.tracks.some(t => t.solo) : false;
+        return stemSolo || recSolo;
+    }
+
     updateStemGain(name) {
         const s = this.stems[name];
         if (!s || !s.gainNode) return;
-        
-        const hasSolo = Object.values(this.stems).some(x => x.solo);
+
+        const hasSolo = this.hasAnySolo();
         let gain = s.volume;
         if (s.muted || (hasSolo && !s.solo)) gain = 0;
         s.gainNode.gain.value = gain;
