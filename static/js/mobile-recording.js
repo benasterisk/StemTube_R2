@@ -36,8 +36,8 @@ class MobileRecordingEngine {
         const recBtn = document.getElementById('mobileRecordBtn');
         if (recBtn) {
             recBtn.addEventListener('click', () => {
-                console.log('[Recording] Record button tapped, phase:', this.phase);
-                if (this.phase === 'recording') {
+                console.log('[Recording] Record button tapped, isRecording:', this.isRecording);
+                if (this.isRecording) {
                     this.stop();
                 } else {
                     this.openOverlay();
@@ -311,7 +311,15 @@ class MobileRecordingEngine {
         }
     }
 
-    // ── Recording Start / Stop ───────────────────────────────────
+    // ── Recording Start / Stop / Pause / Resume ─────────────────
+
+    get isRecording() {
+        return this.mediaRecorder && (this.mediaRecorder.state === 'recording' || this.mediaRecorder.state === 'paused');
+    }
+
+    get isPaused() {
+        return this.mediaRecorder && this.mediaRecorder.state === 'paused';
+    }
 
     async start() {
         const ctx = this.app.audioContext;
@@ -336,20 +344,12 @@ class MobileRecordingEngine {
 
         this.startTime = this.app.playbackPosition || this.app.currentTime || 0;
         this.liveWaveformData = [];
+        this._elapsedBeforePause = 0;
+        this._timerStartWall = Date.now();
         this._showPhase('recording');
 
         // Timer (updates both overlay and minibar)
-        const timerEl = document.getElementById('mobileRecTimer');
-        const minibarTimerEl = document.getElementById('mobileRecMinibarTimer');
-        const startWall = Date.now();
-        this.timerInterval = setInterval(() => {
-            const elapsed = Math.floor((Date.now() - startWall) / 1000);
-            const min = Math.floor(elapsed / 60);
-            const sec = elapsed % 60;
-            const text = `${min}:${sec.toString().padStart(2, '0')}`;
-            if (timerEl) timerEl.textContent = text;
-            if (minibarTimerEl) minibarTimerEl.textContent = text;
-        }, 250);
+        this._startTimer();
 
         const transportBtn = document.getElementById('mobileRecordBtn');
         if (transportBtn) transportBtn.classList.add('recording');
@@ -362,18 +362,76 @@ class MobileRecordingEngine {
         console.log('[Recording] Started at position:', this.startTime.toFixed(2));
     }
 
-    async stop() {
-        if (!this.mediaRecorder || this.mediaRecorder.state === 'inactive') return;
+    /**
+     * Pause an active recording (called when playback is paused).
+     */
+    pauseRecording() {
+        if (!this.mediaRecorder || this.mediaRecorder.state !== 'recording') return;
 
+        this.mediaRecorder.pause();
+        this._elapsedBeforePause += Date.now() - this._timerStartWall;
+        this._stopTimer();
+
+        const transportBtn = document.getElementById('mobileRecordBtn');
+        if (transportBtn) transportBtn.classList.add('paused');
+
+        console.log('[Recording] Paused');
+    }
+
+    /**
+     * Resume a paused recording (called when playback resumes).
+     */
+    resumeRecording() {
+        if (!this.mediaRecorder || this.mediaRecorder.state !== 'paused') return;
+
+        this.mediaRecorder.resume();
+        this._timerStartWall = Date.now();
+        this._startTimer();
+
+        const transportBtn = document.getElementById('mobileRecordBtn');
+        if (transportBtn) transportBtn.classList.remove('paused');
+
+        console.log('[Recording] Resumed');
+    }
+
+    _startTimer() {
+        this._stopTimer();
+        const timerEl = document.getElementById('mobileRecTimer');
+        const minibarTimerEl = document.getElementById('mobileRecMinibarTimer');
+        this.timerInterval = setInterval(() => {
+            const elapsed = Math.floor((this._elapsedBeforePause + Date.now() - this._timerStartWall) / 1000);
+            const min = Math.floor(elapsed / 60);
+            const sec = elapsed % 60;
+            const text = `${min}:${sec.toString().padStart(2, '0')}`;
+            if (timerEl) timerEl.textContent = text;
+            if (minibarTimerEl) minibarTimerEl.textContent = text;
+        }, 250);
+    }
+
+    _stopTimer() {
         if (this.timerInterval) {
             clearInterval(this.timerInterval);
             this.timerInterval = null;
         }
+    }
+
+    async stop() {
+        if (!this.mediaRecorder || this.mediaRecorder.state === 'inactive') return;
+
+        // If paused, resume briefly so onstop fires correctly
+        if (this.mediaRecorder.state === 'paused') {
+            this.mediaRecorder.resume();
+        }
+
+        this._stopTimer();
 
         const minibar = document.getElementById('mobileRecMinibar');
         if (minibar) minibar.style.display = 'none';
         const transportBtn = document.getElementById('mobileRecordBtn');
-        if (transportBtn) transportBtn.classList.remove('recording');
+        if (transportBtn) {
+            transportBtn.classList.remove('recording');
+            transportBtn.classList.remove('paused');
+        }
 
         // Stop MediaRecorder and collect blob
         const blob = await new Promise(resolve => {

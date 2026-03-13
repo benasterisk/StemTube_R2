@@ -3827,7 +3827,13 @@ class MobileApp {
         this.lastAudioTime = this.audioContext.currentTime;
 
         Object.keys(this.stems).forEach(name => this.startStemSource(name));
-        if (this.recordingEngine) this.recordingEngine.playAllTracks(this.currentTime || 0);
+        if (this.recordingEngine) {
+            this.recordingEngine.playAllTracks(this.currentTime || 0);
+            // Resume paused recording when playback resumes
+            if (this.recordingEngine.isPaused) {
+                this.recordingEngine.resumeRecording();
+            }
+        }
 
         this.isPlaying = true;
         this.updatePlayPauseButtons();
@@ -3922,7 +3928,13 @@ class MobileApp {
                 s.source = null;
             }
         });
-        if (this.recordingEngine) this.recordingEngine.stopAllTracks();
+        if (this.recordingEngine) {
+            this.recordingEngine.stopAllTracks();
+            // Pause active recording when playback is paused
+            if (this.recordingEngine.isRecording && !this.recordingEngine.isPaused) {
+                this.recordingEngine.pauseRecording();
+            }
+        }
 
         this.isPlaying = false;
         this.updatePlayPauseButtons();
@@ -3942,7 +3954,11 @@ class MobileApp {
         this.saveState();
     }
 
-    stop() {
+    async stop() {
+        // Stop active recording first (finalize and save)
+        if (this.recordingEngine && this.recordingEngine.isRecording) {
+            await this.recordingEngine.stop();
+        }
         // pause() handles precount cancellation + pre-scheduled stem cleanup
         this.pause();
         // Ensure metronome stops even if pause() early-returned due to !isPlaying

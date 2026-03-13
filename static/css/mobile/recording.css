@@ -591,6 +591,12 @@
     animation: mobile-rec-pulse 1s ease-in-out infinite;
 }
 
+/* Paused state: square but no pulse */
+.mobile-rec-transport-btn.recording.paused .mobile-rec-inner-dot {
+    animation: none;
+    opacity: 0.5;
+}
+
 @media (max-width: 767px) and (orientation: landscape) {
     .mobile-rec-transport-btn {
         width: 30px;
