@@ -320,9 +320,22 @@ def _run_debleed(recording_id: str, user_id: int, stem_type: str):
             }, room=f'user_{user_id}')
             return
 
-        # Replace the original recording with the de-bleeded stem
-        shutil.copy2(stem_file, filepath)
-        logger.info(f"[DEBLEED] Replaced {filepath} with {stem_type} stem")
+        # Replace the original recording with the de-bleeded, normalized stem
+        import numpy as np
+        import soundfile as sf
+
+        audio, sr = sf.read(stem_file)
+        peak = np.max(np.abs(audio))
+        if peak > 0:
+            # Normalize to -1dB headroom to prevent clipping
+            target_peak = 10 ** (-1.0 / 20)  # ~0.891
+            audio = audio * (target_peak / peak)
+            logger.info(f"[DEBLEED] Normalized: peak {peak:.4f} → {target_peak:.3f} (gain: {target_peak / peak:.1f}x)")
+        else:
+            logger.warning(f"[DEBLEED] Stem is silent (peak=0)")
+
+        sf.write(filepath, audio, sr, subtype='PCM_16')
+        logger.info(f"[DEBLEED] Replaced {filepath} with normalized {stem_type} stem")
 
         socketio.emit('debleed_complete', {
             'recording_id': recording_id,
