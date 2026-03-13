@@ -2953,40 +2953,19 @@ class MobileApp {
         this.masterAudioSource = null;
         console.log('[Cleanup] All stems cleared');
 
-        // CRITICAL: Close AudioContext and WAIT for it to complete
-        if (this.audioContext) {
-            const currentState = this.audioContext.state;
-            console.log('[Cleanup] AudioContext state before close:', currentState);
-
-            if (currentState !== 'closed') {
-                try {
-                    // Disconnect master gain first
-                    if (this.masterGainNode) {
-                        this.masterGainNode.disconnect();
-                        console.log('[Cleanup] Master gain disconnected');
-                        this.masterGainNode = null;
-                    }
-
-                    // Close AudioContext and WAIT for completion
-                    console.log('[Cleanup] Closing AudioContext...');
-                    await this.audioContext.close();
-                    console.log('[Cleanup] AudioContext.close() completed, final state:', this.audioContext.state);
-                } catch (e) {
-                    console.error('[Cleanup] Error closing AudioContext:', e);
-                }
+        // Keep AudioContext alive — closing and recreating it on iOS causes
+        // the new context to be permanently suspended (created outside user gesture).
+        // Just disconnect and reconnect masterGainNode to flush the audio graph.
+        if (this.audioContext && this.masterGainNode) {
+            try {
+                this.masterGainNode.disconnect();
+                this.masterGainNode.connect(this.audioContext.destination);
+                console.log('[Cleanup] Master gain reconnected (AudioContext preserved)');
+            } catch (e) {
+                console.warn('[Cleanup] Master gain reconnect failed:', e);
             }
-
-            // Reset AudioContext reference
-            this.audioContext = null;
-            this.workletLoaded = false;
-            console.log('[Cleanup] AudioContext reference cleared');
-
-            // CRITICAL: Wait a bit to ensure browser has fully cleaned up
-            await new Promise(resolve => setTimeout(resolve, 100));
-            console.log('[Cleanup] Waited 100ms for browser cleanup');
-        } else {
-            console.log('[Cleanup] No AudioContext to clean up');
         }
+        console.log('[Cleanup] AudioContext state:', this.audioContext?.state || 'null');
 
         // Reset playback state
         this.currentTime = 0;
