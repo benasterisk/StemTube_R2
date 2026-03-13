@@ -178,16 +178,14 @@ class AudioEngine {
         stem.panNode = this.audioContext.createStereoPanner();
         stem.panNode.pan.value = stem.pan;
         
-        // Connect SoundTouch only when tempo or pitch is actually changed.
-        // At default settings (tempo=1, pitch=1), bypass SoundTouch to avoid
-        // unnecessary processing latency that desynchronizes the metronome.
+        // Always create SoundTouch node when worklet is available, so that
+        // tempo/pitch changes during playback can take effect immediately
+        // without requiring a pause/play cycle to rebuild the audio graph.
         const spt = window.simplePitchTempo;
-        const tempoRatio = spt?.cachedTempoRatio || (spt ? spt.currentBPM / spt.originalBPM : 1);
-        const pitchRatio = spt?.cachedPitchRatio || (spt ? Math.pow(2, spt.currentPitchShift / 12) : 1);
-        const needsSoundTouch = spt && spt.workletLoaded &&
-            (Math.abs(tempoRatio - 1.0) > 0.001 || Math.abs(pitchRatio - 1.0) > 0.001);
+        const tempoRatio = spt?.cachedTempoRatio || 1;
+        const pitchRatio = spt?.cachedPitchRatio || 1;
 
-        if (needsSoundTouch) {
+        if (spt && spt.workletLoaded) {
             try {
                 stem.soundTouchNode = new AudioWorkletNode(this.audioContext, 'soundtouch-processor');
                 stem.soundTouchNode.parameters.get('tempo').value = tempoRatio;
@@ -208,7 +206,7 @@ class AudioEngine {
                 stem.panNode.connect(this.masterGainNode);
             }
         } else {
-            // Direct connection — no latency
+            // No worklet — direct connection
             stem.source.connect(stem.gainNode);
             stem.gainNode.connect(stem.panNode);
             stem.panNode.connect(this.masterGainNode);
