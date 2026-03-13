@@ -3459,22 +3459,49 @@ class MobileApp {
         // Called when extraction data changes — show/hide all skip intro buttons
         this._skipIntroPendingCheck = () => {
             const musicStart = parseFloat(this.currentExtractionData?.music_start_time || 0);
-            console.log(`[SkipIntro] Checking music_start_time=${musicStart}`);
+            console.log(`[SkipIntro] Checking music_start_time=${musicStart}, data keys:`, Object.keys(this.currentExtractionData || {}));
             if (musicStart >= 3.0) {
                 this._musicStartTime = musicStart;
-                this._skipIntroBtns.forEach(b => b.style.display = '');
+                this._skipIntroBtns.forEach(b => {
+                    b.style.display = '';
+                    b.title = `Skip to ${this.formatTime(musicStart)}`;
+                });
             } else {
                 this._musicStartTime = 0;
                 this._skipIntroBtns.forEach(b => b.style.display = 'none');
             }
         };
 
+        // Direct seek without pause/play cycle — same approach as desktop
+        // Avoids iOS AudioContext suspension issue from async play() outside gesture
         btns.forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 if (!this._musicStartTime) return;
-                console.log(`[SkipIntro] Seeking to ${this._musicStartTime.toFixed(2)}s`);
-                this.seek(this._musicStartTime);
-                this.showToast(`Skipped to ${this.formatTime(this._musicStartTime)}`);
+                const target = this._musicStartTime;
+                console.log(`[SkipIntro] Seeking to ${target.toFixed(2)}s`);
+
+                if (this.isPlaying) {
+                    // Stop current sources, reposition, restart — all in one gesture
+                    Object.values(this.stems).forEach(s => {
+                        if (s.source) {
+                            try { s.source.stop(); } catch(e) {}
+                            s.source = null;
+                        }
+                    });
+                    if (this.recordingEngine) this.recordingEngine.stopAllTracks();
+
+                    this.setPlaybackPosition(target);
+                    this.lastAudioTime = this.audioContext.currentTime;
+                    Object.keys(this.stems).forEach(name => this.startStemSource(name));
+                    if (this.recordingEngine) this.recordingEngine.playAllTracks(target);
+                } else {
+                    // Not playing — just reposition
+                    this.setPlaybackPosition(target);
+                }
+
+                this.updateTimeDisplay();
+                this.updateProgressBar();
+                this.showToast(`Skipped to ${this.formatTime(target)}`);
             });
         });
     }
