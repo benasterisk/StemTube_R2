@@ -3,6 +3,31 @@
  * Track controls management (volume, pan, solo, mute)
  */
 
+// Volume boost constants — slider 75% = unity gain (1.0), 100% = max boost
+const VOLUME_UNITY_SLIDER = 0.75;
+const VOLUME_MAX_GAIN = 1.5;
+
+/**
+ * Convert slider position (0–1) to audio gain (0–MAX_GAIN).
+ * [0, 0.75] maps linearly to [0, 1.0], [0.75, 1.0] maps to [1.0, 1.5].
+ */
+function sliderToGain(slider) {
+    if (slider <= VOLUME_UNITY_SLIDER) {
+        return slider / VOLUME_UNITY_SLIDER;
+    }
+    return 1.0 + (slider - VOLUME_UNITY_SLIDER) / (1.0 - VOLUME_UNITY_SLIDER) * (VOLUME_MAX_GAIN - 1.0);
+}
+
+/**
+ * Convert audio gain (0–MAX_GAIN) back to slider position (0–1).
+ */
+function gainToSlider(gain) {
+    if (gain <= 1.0) {
+        return gain * VOLUME_UNITY_SLIDER;
+    }
+    return VOLUME_UNITY_SLIDER + (gain - 1.0) / (VOLUME_MAX_GAIN - 1.0) * (1.0 - VOLUME_UNITY_SLIDER);
+}
+
 class TrackControls {
     /**
      * Track controls constructor
@@ -57,8 +82,8 @@ class TrackControls {
                     <label class="control-label">
                         Volume: <span class="volume-value">100%</span>
                     </label>
-                    <input type="range" class="volume-slider" data-stem="${name}" 
-                           min="0" max="1" step="0.01" value="1" 
+                    <input type="range" class="volume-slider" data-stem="${name}"
+                           min="0" max="1" step="0.01" value="0.75"
                            style="width: 100%; height: 35px;">
                 </div>
                 <div class="control-group">
@@ -89,7 +114,7 @@ class TrackControls {
                         <span>Volume</span>
                         <span class="track-control-value volume-value">100%</span>
                     </div>
-                    <input type="range" class="track-slider volume-slider" min="0" max="1" step="0.01" value="1">
+                    <input type="range" class="track-slider volume-slider" min="0" max="1" step="0.01" value="0.75">
                 </div>
                 <div class="track-control">
                     <div class="track-control-label">
@@ -297,33 +322,28 @@ class TrackControls {
     /**
      * Update track volume
      * @param {string} name - Stem name
-     * @param {number} value - New volume value (0-1)
+     * @param {number} value - Slider position (0-1)
      */
     updateVolume(name, value) {
         const stem = this.mixer.stems[name];
         if (!stem) return;
 
-        // Update volume value
-        stem.volume = value;
+        const gain = sliderToGain(value);
+        stem.volume = gain;
 
-        // Update gain if source is active
-        if (stem.gainNode) {
-            // Don't modify gain if muted
-            if (!stem.muted) {
-                stem.gainNode.gain.value = value;
-            }
+        if (stem.gainNode && !stem.muted) {
+            stem.gainNode.gain.value = gain;
         }
-        
-        // Update value display
+
         const trackElement = document.querySelector(`.track[data-stem="${name}"]`);
         if (trackElement) {
             const volumeValue = trackElement.querySelector('.volume-value');
             if (volumeValue) {
-                volumeValue.textContent = `${Math.round(value * 100)}%`;
+                volumeValue.textContent = `${Math.round(gain * 100)}%`;
             }
         }
 
-        this.mixer.log(`Volume updated for ${name}: ${Math.round(value * 100)}%`);
+        this.mixer.log(`Volume updated for ${name}: ${Math.round(gain * 100)}%`);
     }
     
     /**
@@ -528,9 +548,9 @@ class TrackControls {
                 <div class="track-control">
                     <div class="track-control-label">
                         <span>Volume</span>
-                        <span class="track-control-value volume-value">100%</span>
+                        <span class="track-control-value volume-value">${Math.round(recording.volume * 100)}%</span>
                     </div>
-                    <input type="range" class="track-slider volume-slider" min="0" max="1" step="0.01" value="${recording.volume}">
+                    <input type="range" class="track-slider volume-slider" min="0" max="1" step="0.01" value="${gainToSlider(recording.volume)}">
                 </div>
                 <div class="track-control">
                     <div class="track-control-label">
@@ -703,8 +723,9 @@ class TrackControls {
         // Volume
         trackEl.querySelector('.volume-slider').addEventListener('input', (e) => {
             const val = parseFloat(e.target.value);
-            recEngine.setVolume(recording.id, val);
-            trackEl.querySelector('.volume-value').textContent = `${Math.round(val * 100)}%`;
+            const gain = sliderToGain(val);
+            recEngine.setVolume(recording.id, gain);
+            trackEl.querySelector('.volume-value').textContent = `${Math.round(gain * 100)}%`;
         });
 
         // Pan

@@ -226,29 +226,30 @@ class MixerPersistence {
      * Obtenir le volume d'une track
      */
     getTrackVolume(stemName) {
+        const stem = this.mixer.stems[stemName];
+        if (stem) return stem.volume;
         const slider = document.querySelector(`[data-stem="${stemName}"] .volume-slider`);
-        return slider ? parseFloat(slider.value) : 0.8;
+        return slider ? sliderToGain(parseFloat(slider.value)) : 1.0;
     }
     
     /**
      * Définir le volume d'une track
      */
-    setTrackVolume(stemName, volume) {
+    setTrackVolume(stemName, gain) {
         const slider = document.querySelector(`[data-stem="${stemName}"] .volume-slider`);
         const valueDisplay = document.querySelector(`[data-stem="${stemName}"] .volume-value`);
-        
+
         if (slider) {
-            slider.value = volume;
-            
-            // Trigger plusieurs événements pour s'assurer que ça marche
+            slider.value = gainToSlider(gain);
+
             const inputEvent = new Event('input', { bubbles: true });
             const changeEvent = new Event('change', { bubbles: true });
             slider.dispatchEvent(inputEvent);
             slider.dispatchEvent(changeEvent);
         }
-        
+
         if (valueDisplay) {
-            valueDisplay.textContent = Math.round(volume * 100) + '%';
+            valueDisplay.textContent = Math.round(gain * 100) + '%';
         }
     }
     

@@ -674,7 +674,7 @@ class MobileRecordingEngine {
             + '</div></div>'
             + '<div class="mobile-track-controls">'
             + '<div class="mobile-track-control"><span class="mobile-track-label">Volume</span>'
-            + '<input type="range" class="mobile-track-slider volume-slider" min="0" max="100" value="100">'
+            + '<input type="range" class="mobile-track-slider volume-slider" min="0" max="100" value="75">'
             + '<span class="mobile-track-value">100%</span></div></div>';
 
         const engine = this;
@@ -682,8 +682,9 @@ class MobileRecordingEngine {
         // Volume slider
         div.querySelector('.volume-slider').addEventListener('input', (e) => {
             const v = parseInt(e.target.value);
-            e.target.nextElementSibling.textContent = v + '%';
-            track.volume = v / 100;
+            const gain = sliderToGain(v);
+            e.target.nextElementSibling.textContent = Math.round(gain * 100) + '%';
+            track.volume = gain;
             engine.updateTrackGain(track);
         });
 

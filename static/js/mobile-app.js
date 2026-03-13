@@ -14,6 +14,21 @@
     } catch (e) { /* localStorage unavailable */ }
 })();
 
+// Volume boost constants — slider 75% = unity gain (1.0), 100% = max boost
+const VOLUME_UNITY_SLIDER = 0.75;
+const VOLUME_MAX_GAIN = 1.5;
+
+function sliderToGain(slider) {
+    const norm = slider / 100;
+    if (norm <= VOLUME_UNITY_SLIDER) return norm / VOLUME_UNITY_SLIDER;
+    return 1.0 + (norm - VOLUME_UNITY_SLIDER) / (1.0 - VOLUME_UNITY_SLIDER) * (VOLUME_MAX_GAIN - 1.0);
+}
+
+function gainToSlider(gain) {
+    if (gain <= 1.0) return gain * VOLUME_UNITY_SLIDER * 100;
+    return (VOLUME_UNITY_SLIDER + (gain - 1.0) / (VOLUME_MAX_GAIN - 1.0) * (1.0 - VOLUME_UNITY_SLIDER)) * 100;
+}
+
 class MobileApp {
     constructor() {
         console.log('[MobileApp] Initializing Android-first architecture...');
@@ -3355,12 +3370,13 @@ class MobileApp {
         
         const div = document.createElement('div');
         div.className = 'mobile-track';
-        div.innerHTML = '<div class="mobile-track-header"><span class="mobile-track-name">' + name + '</span><div class="mobile-track-buttons"><button class="mobile-track-btn mute-btn" data-track="' + name + '">MUTE</button><button class="mobile-track-btn solo-btn" data-track="' + name + '">SOLO</button></div></div><div class="mobile-track-controls"><div class="mobile-track-control"><span class="mobile-track-label">Volume</span><input type="range" class="mobile-track-slider volume-slider" data-track="' + name + '" min="0" max="100" value="100"><span class="mobile-track-value">100%</span></div><div class="mobile-track-control"><span class="mobile-track-label">Pan</span><input type="range" class="mobile-track-slider pan-slider" data-track="' + name + '" min="-100" max="100" value="0"><span class="mobile-track-value">0</span></div></div>';
-        
+        div.innerHTML = '<div class="mobile-track-header"><span class="mobile-track-name">' + name + '</span><div class="mobile-track-buttons"><button class="mobile-track-btn mute-btn" data-track="' + name + '">MUTE</button><button class="mobile-track-btn solo-btn" data-track="' + name + '">SOLO</button></div></div><div class="mobile-track-controls"><div class="mobile-track-control"><span class="mobile-track-label">Volume</span><input type="range" class="mobile-track-slider volume-slider" data-track="' + name + '" min="0" max="100" value="75"><span class="mobile-track-value">100%</span></div><div class="mobile-track-control"><span class="mobile-track-label">Pan</span><input type="range" class="mobile-track-slider pan-slider" data-track="' + name + '" min="-100" max="100" value="0"><span class="mobile-track-value">0</span></div></div>';
+
         div.querySelector('.volume-slider').addEventListener('input', e => {
             const v = parseInt(e.target.value);
-            e.target.nextElementSibling.textContent = v + '%';
-            this.setVolume(name, v / 100);
+            const gain = sliderToGain(v);
+            e.target.nextElementSibling.textContent = Math.round(gain * 100) + '%';
+            this.setVolume(name, gain);
         });
         
         div.querySelector('.pan-slider').addEventListener('input', e => {
@@ -4306,7 +4322,7 @@ class MobileApp {
     setVolume(name, vol) {
         const s = this.stems[name];
         if (!s) return;
-        s.volume = Math.max(0, Math.min(1, vol));
+        s.volume = Math.max(0, Math.min(VOLUME_MAX_GAIN, vol));
         this.updateStemGain(name);
     }
 
