@@ -98,23 +98,6 @@ class MobileRecordingEngine {
         const minibarExpand = document.getElementById('mobileRecMinibarExpand');
         if (minibarExpand) minibarExpand.addEventListener('click', () => this._expand());
 
-        // De-bleed socket listeners
-        if (this.app.socket) {
-            this.app.socket.on('debleed_complete', (data) => {
-                const rec = this.tracks.find(r => r.serverId === data.recording_id);
-                if (rec && data.url) {
-                    this._reloadTrackAudio(rec, data.url);
-                    this.app.showToast('De-bleed complete', 'success');
-                }
-            });
-            this.app.socket.on('debleed_error', (data) => {
-                const rec = this.tracks.find(r => r.serverId === data.recording_id);
-                if (rec) {
-                    console.warn('[Recording] De-bleed failed for', rec.name);
-                    this.app.showToast('De-bleed failed', 'error');
-                }
-            });
-        }
     }
 
     // ── Overlay Management ───────────────────────────────────────
@@ -513,10 +496,6 @@ class MobileRecordingEngine {
             track.serverId = data.id;
             console.log('[Recording] Saved to server:', data.id);
 
-            if (this.instrument && this.instrument !== 'off') {
-                await RecordingUtils.requestDebleed(data.id, this.instrument);
-                this.app.showToast(`De-bleed (${this.instrument}) started`, 'info');
-            }
         } catch (err) {
             console.error('[Recording] Save failed:', err);
             this.app.showToast('Recording save failed', 'error');

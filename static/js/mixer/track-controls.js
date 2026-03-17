@@ -575,18 +575,6 @@ class TrackControls {
                             <input type="range" class="monitor-slider" min="0" max="1" step="0.01" value="0">
                         </div>
                     </div>
-                    <div class="rec-debleed-row">
-                        <label class="rec-debleed-label" title="Remove speaker bleed using Demucs AI separation">
-                            <i class="fas fa-magic"></i> De-bleed:
-                        </label>
-                        <select class="rec-debleed-select" title="Select the source type to isolate">
-                            <option value="off">Off</option>
-                            <option value="vocals">Vocals</option>
-                            <option value="bass">Bass</option>
-                            <option value="drums">Drums</option>
-                            <option value="other">Other (Guitar/Keys)</option>
-                        </select>
-                    </div>
                     <div class="rec-fx-row">
                         <label class="rec-fx-label" title="Apply effects preset (compression, EQ, reverb)">
                             <i class="fas fa-sliders-h"></i> FX:
@@ -661,40 +649,25 @@ class TrackControls {
             recEngine.setTrackMonitorVolume(recording.id, parseFloat(e.target.value));
         });
 
-        // De-bleed stem type selector
-        const debleedSelect = trackEl.querySelector('.rec-debleed-select');
+        // FX preset selector
         const fxSelect = trackEl.querySelector('.rec-fx-select');
         const fxDesc = trackEl.querySelector('.rec-fx-desc');
 
         const updateFxDesc = () => {
             if (!fxDesc) return;
-            const cat = debleedSelect ? debleedSelect.value : 'other';
             const preset = fxSelect ? fxSelect.value : 'off';
             fxDesc.textContent = (typeof RecordingEffects !== 'undefined')
-                ? RecordingEffects.describePreset(cat === 'off' ? 'other' : cat, preset)
+                ? RecordingEffects.describePreset('vocals', preset)
                 : '';
         };
 
-        if (debleedSelect) {
-            debleedSelect.value = recording.debleedStem || 'off';
-            debleedSelect.addEventListener('change', (e) => {
-                recEngine.setTrackDebleed(recording.id, e.target.value);
-                // Re-apply FX preset with new instrument category
-                if (fxSelect && fxSelect.value !== 'off') {
-                    recEngine.setTrackFxPreset(recording.id, fxSelect.value);
-                }
-                updateFxDesc();
-            });
-        }
-
-        // FX preset selector
         if (fxSelect) {
             fxSelect.value = recording.fxPreset || 'off';
             fxSelect.addEventListener('change', (e) => {
                 recEngine.setTrackFxPreset(recording.id, e.target.value);
                 updateFxDesc();
             });
-            updateFxDesc(); // Show description for restored preset
+            updateFxDesc();
         }
 
         // ── Arm button ──

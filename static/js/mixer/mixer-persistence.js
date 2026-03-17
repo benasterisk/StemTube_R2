@@ -69,7 +69,6 @@ class MixerPersistence {
                     pan: r.pan,
                     muted: r.muted,
                     solo: r.solo,
-                    debleedStem: r.debleedStem || 'off',
                     fxPreset: r.fxPreset || 'off',
                 }));
             }
@@ -145,15 +144,12 @@ class MixerPersistence {
                             rec.pan = saved.pan ?? 0;
                             rec.muted = saved.muted ?? false;
                             rec.solo = saved.solo ?? false;
-                            rec.debleedStem = saved.debleedStem || 'off';
                             rec.fxPreset = saved.fxPreset || 'off';
                             if (rec.gainNode) rec.gainNode.gain.value = rec.volume;
                             if (rec.panNode) rec.panNode.pan.value = rec.pan;
-                            // Restore de-bleed and FX selector UI
+                            // Restore FX selector UI
                             const trackEl = document.getElementById(`rec-track-${rec.id}`);
                             if (trackEl) {
-                                const sel = trackEl.querySelector('.rec-debleed-select');
-                                if (sel) sel.value = rec.debleedStem;
                                 const fxSel = trackEl.querySelector('.rec-fx-select');
                                 if (fxSel) fxSel.value = rec.fxPreset;
                             }

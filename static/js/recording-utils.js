@@ -111,22 +111,6 @@ class RecordingUtils {
     }
 
     /**
-     * Request server-side de-bleed via Demucs.
-     * @param {string} serverId
-     * @param {string} stemType - 'vocals'|'bass'|'drums'|'other'
-     */
-    static async requestDebleed(serverId, stemType) {
-        const resp = await fetch(`/api/recordings/${serverId}/debleed`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ stem_type: stemType }),
-            credentials: 'include',
-        });
-        if (!resp.ok) throw new Error(`De-bleed request failed: ${resp.status}`);
-        return await resp.json();
-    }
-
-    /**
      * Get best supported MIME type for MediaRecorder.
      * @returns {string|null}
      */

@@ -409,13 +409,6 @@ class StemMixer {
             });
         }
 
-        // Setup de-bleed socket listeners
-        const debleedSocket = window.mixerSocket || (typeof io !== 'undefined' ? io() : null);
-        if (debleedSocket) {
-            if (!window.mixerSocket) window.mixerSocket = debleedSocket;
-            recEngine.setupDebleedSocketListeners(debleedSocket);
-        }
-
         // Load saved recordings from server
         const extractionId = this.extractionId;
         if (extractionId) {

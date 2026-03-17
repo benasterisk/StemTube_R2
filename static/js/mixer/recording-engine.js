@@ -481,7 +481,6 @@ class RecordingEngine {
             serverId: null,
             armed: false,
             deviceId: null,
-            debleedStem: 'off',
             fxPreset: 'off',
         };
 
@@ -841,108 +840,17 @@ class RecordingEngine {
 
     /**
      * Set the FX preset for a recording track.
-     * Uses the track's debleedStem as the instrument category.
      */
     async setTrackFxPreset(trackId, presetName) {
         const rec = this._findRecording(trackId);
         if (!rec || !rec.fxChain) return;
         rec.fxPreset = presetName;
-        const category = (rec.debleedStem && rec.debleedStem !== 'off')
-            ? rec.debleedStem : 'vocals';
-        await rec.fxChain.applyPreset(category, presetName);
+        await rec.fxChain.applyPreset('vocals', presetName);
 
         // Update monitoring routing (FX on/off affects monitor path)
         const key = rec.deviceId || 'default';
         const entry = this.deviceStreams.get(key);
         if (entry) this._updateMonitorFxRouting(rec, entry);
-    }
-
-    // ── Server-side De-bleed via Demucs ─────────────────────────────
-
-    /**
-     * Set the de-bleed stem type for a recording track.
-     * @param {string} trackId
-     * @param {string} stemType — 'off', 'vocals', 'bass', 'drums', 'other'
-     */
-    setTrackDebleed(trackId, stemType) {
-        const rec = this._findRecording(trackId);
-        if (rec) rec.debleedStem = stemType;
-    }
-
-    /**
-     * Request server-side de-bleed for a saved recording.
-     * @param {string} serverId — server recording ID
-     * @param {string} stemType — 'vocals', 'bass', 'drums', 'other'
-     * @returns {Promise<void>}
-     */
-    async requestDebleed(serverId, stemType) {
-        const resp = await fetch(`/api/recordings/${serverId}/debleed`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ stem_type: stemType }),
-        });
-
-        if (!resp.ok) {
-            const err = await resp.json().catch(() => ({}));
-            throw new Error(err.error || 'De-bleed request failed');
-        }
-
-        // Server processes asynchronously and emits socketio events
-        console.log('[RecordingEngine] De-bleed requested:', serverId, stemType);
-    }
-
-    /**
-     * Setup SocketIO listeners for de-bleed progress/completion.
-     * Called once from mixer core after socket is ready.
-     */
-    setupDebleedSocketListeners(socket) {
-        socket.on('debleed_progress', (data) => {
-            console.log('[RecordingEngine] De-bleed progress:', data);
-            if (this.mixer.showToast) {
-                this.mixer.showToast(`De-bleed: ${data.message || 'processing...'}`, 'info');
-            }
-        });
-
-        socket.on('debleed_complete', async (data) => {
-            console.log('[RecordingEngine] De-bleed complete:', data);
-            // Reload the audio from server
-            const rec = this.recordings.find(r => r.serverId === data.recording_id);
-            if (rec && data.url) {
-                try {
-                    const ctx = this._getAudioContext();
-                    const fileResp = await fetch(data.url);
-                    if (fileResp.ok) {
-                        const arrayBuffer = await fileResp.arrayBuffer();
-                        rec.audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-                        // Re-render waveform
-                        const trackEl = document.getElementById(`rec-track-${rec.id}`);
-                        if (trackEl) {
-                            trackEl.classList.remove('debleed-processing');
-                            if (this.mixer.waveform) {
-                                this.mixer.waveform.renderRecordingWaveform(rec, trackEl.querySelector('.waveform'));
-                            }
-                        }
-                        if (this.mixer.showToast) {
-                            this.mixer.showToast(`De-bleed complete: ${data.stem_type}`, 'success');
-                        }
-                    }
-                } catch (err) {
-                    console.warn('[RecordingEngine] Failed to reload de-bleeded audio:', err);
-                }
-            }
-        });
-
-        socket.on('debleed_error', (data) => {
-            console.error('[RecordingEngine] De-bleed error:', data);
-            const rec = this.recordings.find(r => r.serverId === data.recording_id);
-            if (rec) {
-                const trackEl = document.getElementById(`rec-track-${rec.id}`);
-                if (trackEl) trackEl.classList.remove('debleed-processing');
-            }
-            if (this.mixer.showToast) {
-                this.mixer.showToast(`De-bleed failed: ${data.error}`, 'error');
-            }
-        });
     }
 
     // ── Playback ──────────────────────────────────────────────────
@@ -1145,17 +1053,6 @@ class RecordingEngine {
                     this.mixer.waveform.renderRecordingWaveform(rec, trackEl.querySelector('.waveform'));
                 }
                 console.log('[RecordingEngine] Auto-saved:', rec.name);
-
-                // Trigger server-side de-bleed if configured
-                if (rec.debleedStem && rec.debleedStem !== 'off' && rec.serverId) {
-                    try {
-                        if (trackEl) trackEl.classList.add('debleed-processing');
-                        await this.requestDebleed(rec.serverId, rec.debleedStem);
-                    } catch (err) {
-                        console.warn('[RecordingEngine] De-bleed request failed for', rec.name, err);
-                        if (trackEl) trackEl.classList.remove('debleed-processing');
-                    }
-                }
             } catch (err) {
                 console.warn('[RecordingEngine] Auto-save failed for', rec.name, err);
             }
@@ -1356,7 +1253,6 @@ class RecordingEngine {
             serverId: null,
             armed: false,
             deviceId: null,
-            debleedStem: 'off',
             fxPreset: 'off',
         };
     }
