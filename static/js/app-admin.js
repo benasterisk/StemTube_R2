@@ -423,6 +423,8 @@ function performBulkOperation(endpoint, downloadIds, operationName) {
             // Reload data after a short delay
             setTimeout(() => {
                 loadCleanupData(); // Refresh admin table
+                if (typeof loadDownloads === 'function') loadDownloads(); // Refresh My Library
+                if (typeof loadLibrary === 'function') loadLibrary(); // Refresh Global Library
                 if (progressDiv) {
                     progressDiv.style.display = 'none';
                 }
@@ -467,6 +469,8 @@ function deleteDownload(videoId) {
         if (data.success) {
             showToast('Download deleted successfully', 'success');
             loadCleanupData(); // Refresh admin table
+            if (typeof loadDownloads === 'function') loadDownloads(); // Refresh My Library
+            if (typeof loadLibrary === 'function') loadLibrary(); // Refresh Global Library
         } else {
             throw new Error(data.error || 'Delete failed');
         }
@@ -906,6 +910,11 @@ function createLibraryItem(item) {
             </div>
         </div>
         <div class="library-item-actions">
+            ${item.has_download && item.file_path ? `
+                <button class="library-action-button play-library-button" data-title="${item.title}" data-file-path="${item.file_path}" data-media-type="${item.media_type || 'audio'}">
+                    <i class="fas fa-play"></i> Play
+                </button>
+            ` : ''}
             ${item.can_add_download ? `
                 <button class="library-action-button" data-action="add-download" data-id="${item.id}">
                     <i class="fas fa-plus"></i> Add Download
@@ -924,12 +933,20 @@ function createLibraryItem(item) {
         </div>
     `;
     
+    // Play button
+    const playBtn = itemElement.querySelector('.play-library-button');
+    if (playBtn) {
+        playBtn.addEventListener('click', () => {
+            openMediaPlayer(playBtn.dataset.title, playBtn.dataset.filePath, playBtn.dataset.mediaType);
+        });
+    }
+
     // Add event listeners for action buttons
     itemElement.querySelectorAll('.library-action-button[data-action]').forEach(button => {
         button.addEventListener('click', () => {
             const action = button.dataset.action;
             const id = button.dataset.id;
-            
+
             if (action === 'add-download') {
                 addLibraryDownload(id, button);
             } else if (action === 'add-extraction') {
@@ -937,7 +954,7 @@ function createLibraryItem(item) {
             }
         });
     });
-    
+
     return itemElement;
 }
 

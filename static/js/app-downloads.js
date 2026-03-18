@@ -4,6 +4,85 @@
  * Depends on: app-core.js (globals, getCsrfToken, showToast, switchToTab)
  */
 
+// ── Media Player ─────────────────────────────────────────────────
+
+function openMediaPlayer(title, filePath, mediaType) {
+    const modal = document.getElementById('mediaPlayerModal');
+    const titleEl = document.getElementById('mediaPlayerTitle');
+    const bodyEl = document.getElementById('mediaPlayerBody');
+    const modalContent = modal?.querySelector('.media-player-modal');
+    if (!modal || !bodyEl) return;
+
+    if (!filePath) {
+        showToast('No file available for playback', 'warning');
+        return;
+    }
+
+    titleEl.textContent = title || 'Now Playing';
+    bodyEl.innerHTML = '';
+
+    const streamUrl = `/api/stream-audio?file_path=${encodeURIComponent(filePath)}`;
+    console.log('[MediaPlayer] Opening:', { title, filePath, mediaType, streamUrl });
+
+    let media;
+    if (mediaType === 'video') {
+        modalContent?.classList.add('video-player');
+        media = document.createElement('video');
+        media.setAttribute('playsinline', '');
+    } else {
+        modalContent?.classList.remove('video-player');
+        media = document.createElement('audio');
+    }
+
+    media.controls = true;
+    media.preload = 'auto';
+
+    // Error handling - show persistent message in the player itself
+    media.addEventListener('error', () => {
+        const err = media.error;
+        const codes = { 1: 'ABORTED', 2: 'NETWORK', 3: 'DECODE', 4: 'SRC_NOT_SUPPORTED' };
+        const code = codes[err?.code] || 'unknown';
+        const detail = err?.message || '';
+        console.error('[MediaPlayer] Error:', code, detail, '\nURL:', streamUrl, '\nFile:', filePath);
+
+        // Show error directly in the player modal (persistent, not a toast)
+        const errDiv = document.createElement('div');
+        errDiv.style.cssText = 'color:#ff6b6b;padding:12px;text-align:center;font-size:14px;';
+        errDiv.innerHTML = `<p><strong>Playback error: ${code}</strong></p>` +
+            (detail ? `<p style="font-size:12px;opacity:0.7">${detail}</p>` : '') +
+            `<p style="font-size:12px;opacity:0.5;margin-top:8px">File: ${filePath || 'unknown'}</p>` +
+            `<a href="${streamUrl}" target="_blank" style="color:#4d96ff;font-size:12px">Open stream URL directly</a>`;
+        bodyEl.appendChild(errDiv);
+    });
+
+    media.src = streamUrl;
+    bodyEl.appendChild(media);
+    modal.style.display = 'flex';
+}
+
+function closeMediaPlayer() {
+    const modal = document.getElementById('mediaPlayerModal');
+    const bodyEl = document.getElementById('mediaPlayerBody');
+    if (!bodyEl) return;
+    const media = bodyEl.querySelector('audio, video');
+    if (media) {
+        media.pause();
+        media.removeAttribute('src');
+        media.load();
+    }
+    bodyEl.innerHTML = '';
+    if (modal) modal.style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const closeBtn = document.getElementById('mediaPlayerClose');
+    if (closeBtn) closeBtn.addEventListener('click', closeMediaPlayer);
+    const modal = document.getElementById('mediaPlayerModal');
+    if (modal) modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeMediaPlayer();
+    });
+});
+
 // Search Functions
 function performSearch() {
     const query = document.getElementById('searchInput').value.trim();
@@ -270,7 +349,7 @@ function formatDuration(duration) {
 // Download Modal Functions
 function openDownloadModal(videoId, title, thumbnailUrl) {
     console.log('Opening download modal with:', { videoId, title, thumbnailUrl });
-    
+
     // Validate video ID before proceeding
     if (!isValidYouTubeVideoId(videoId)) {
         showToast(`Invalid YouTube video ID: "${videoId}" (length: ${videoId ? videoId.length : 0})`, 'error');
@@ -281,21 +360,91 @@ function openDownloadModal(videoId, title, thumbnailUrl) {
     // Store the decoded ID
     currentVideoId = videoId;
     console.log('Set currentVideoId to:', currentVideoId);
-    
+
     document.getElementById('downloadTitle').textContent = title;
     document.getElementById('downloadThumbnail').src = thumbnailUrl;
-    
+
     // Set default values from settings
     document.getElementById('downloadType').value = 'audio';
-    document.getElementById('videoQuality').value = appConfig.preferred_video_quality || '720p';
-    document.getElementById('audioQuality').value = appConfig.preferred_audio_quality || 'best';
-    
-    // Show/hide quality options based on download type
     document.getElementById('videoQualityContainer').style.display = 'none';
     document.getElementById('audioQualityContainer').style.display = 'block';
-    
-    // Show modal
+
+    // Show modal immediately with default audio options
     document.getElementById('downloadModal').style.display = 'flex';
+
+    // Fetch available formats in background and populate dropdowns
+    fetchAvailableFormats(videoId);
+}
+
+function fetchAvailableFormats(videoId) {
+    const videoSelect = document.getElementById('videoQuality');
+    const audioSelect = document.getElementById('audioQuality');
+
+    // Show loading state
+    videoSelect.innerHTML = '<option value="best">Loading...</option>';
+    videoSelect.disabled = true;
+
+    fetch(`/api/video/${encodeURIComponent(videoId)}/formats`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                console.warn('Format fetch failed:', data.error);
+                resetDefaultQualityOptions();
+                return;
+            }
+
+            // Populate video quality dropdown
+            videoSelect.innerHTML = '';
+            const preferredVideo = appConfig.preferred_video_quality || '720p';
+            let hasPreferred = false;
+            (data.video_qualities || []).forEach(q => {
+                const opt = document.createElement('option');
+                opt.value = q.value;
+                opt.textContent = q.label;
+                if (q.value === preferredVideo) {
+                    opt.selected = true;
+                    hasPreferred = true;
+                }
+                videoSelect.appendChild(opt);
+            });
+            if (!hasPreferred && videoSelect.options.length > 0) {
+                videoSelect.options[0].selected = true;
+            }
+            videoSelect.disabled = false;
+
+            // Populate audio quality dropdown
+            audioSelect.innerHTML = '';
+            const preferredAudio = appConfig.preferred_audio_quality || 'best';
+            (data.audio_qualities || []).forEach(q => {
+                const opt = document.createElement('option');
+                opt.value = q.value;
+                opt.textContent = q.label;
+                if (q.value === preferredAudio) opt.selected = true;
+                audioSelect.appendChild(opt);
+            });
+        })
+        .catch(err => {
+            console.warn('Format fetch error:', err);
+            resetDefaultQualityOptions();
+        });
+}
+
+function resetDefaultQualityOptions() {
+    const videoSelect = document.getElementById('videoQuality');
+    const audioSelect = document.getElementById('audioQuality');
+    videoSelect.innerHTML = `
+        <option value="best">Best</option>
+        <option value="1080p">1080p</option>
+        <option value="720p" selected>720p</option>
+        <option value="480p">480p</option>
+        <option value="360p">360p</option>
+    `;
+    videoSelect.disabled = false;
+    audioSelect.innerHTML = `
+        <option value="best" selected>Best</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+    `;
 }
 
 function startDownload() {
@@ -1026,6 +1175,9 @@ function createDownloadElement(item) {
         </div>
         <div class="item-actions">
             ${item.status === 'completed' ? `
+                <button class="item-button play-button" data-title="${item.title}" data-file-path="${item.file_path}" data-media-type="${item.type || 'audio'}">
+                    <i class="fas fa-play"></i> Play
+                </button>
                 <button class="item-button extract-button loading" data-download-id="${itemId}" data-title="${item.title}" data-file-path="${item.file_path}" data-video-id="${item.video_id}">
                     <i class="fas fa-spinner fa-spin"></i> Checking...
                 </button>
@@ -1077,6 +1229,14 @@ function createDownloadElement(item) {
     
     // Add event listeners (extraction status is now fetched in batch by loadDownloads)
     setTimeout(async () => {
+        // Play button
+        const playButton = downloadElement.querySelector('.play-button');
+        if (playButton) {
+            playButton.addEventListener('click', () => {
+                openMediaPlayer(playButton.dataset.title, playButton.dataset.filePath, playButton.dataset.mediaType);
+            });
+        }
+
         // Setup download dropdown
         const downloadDropdown = downloadElement.querySelector('.download-dropdown');
         if (downloadDropdown) {
@@ -1501,7 +1661,11 @@ function updateDownloadComplete(data) {
     const videoId = data.video_id || '';
     console.log('🔍 [DEBUG] Using video_id from WebSocket data:', videoId);
     
+    const mediaType = data.media_type || 'audio';
     actionsContainer.innerHTML = `
+        <button class="item-button play-button" data-title="${data.title}" data-file-path="${data.file_path}" data-media-type="${mediaType}">
+            <i class="fas fa-play"></i> Play
+        </button>
         <button class="item-button extract-button" data-download-id="${data.download_id}" data-title="${data.title}" data-file-path="${data.file_path}" data-video-id="${data.video_id}">
             <i class="fas fa-music"></i> Extract Stems
         </button>
@@ -1514,6 +1678,13 @@ function updateDownloadComplete(data) {
     `;
     
     // Add event listeners
+    const playButton = actionsContainer.querySelector('.play-button');
+    if (playButton) {
+        playButton.addEventListener('click', () => {
+            openMediaPlayer(playButton.dataset.title, playButton.dataset.filePath, playButton.dataset.mediaType);
+        });
+    }
+
     const extractButton = actionsContainer.querySelector('.extract-button');
     extractButton.addEventListener('click', () => {
         openExtractionModal(
@@ -1626,6 +1797,7 @@ function updateDownloadError(data) {
             errorIcon = 'fas fa-wifi';
         }
 
+        const videoId = data.video_id || downloadElement.dataset?.videoId || '';
         actionsContainer.innerHTML = `
             <div class="${errorClass}">
                 <i class="${errorIcon}"></i>
@@ -1637,6 +1809,9 @@ function updateDownloadError(data) {
                 </button>
                 <button class="item-button delete-button" data-download-id="${data.download_id}" title="Remove from list">
                     <i class="fas fa-trash"></i> Delete
+                </button>
+                <button class="item-button remove-from-list" data-video-id="${videoId}" title="Remove from my list">
+                    <i class="fas fa-eye-slash"></i> Remove
                 </button>
             </div>
         `;
@@ -1652,7 +1827,31 @@ function updateDownloadError(data) {
         const deleteButton = actionsContainer.querySelector('.delete-button');
         if (deleteButton) {
             deleteButton.addEventListener('click', () => {
-                deleteDownload(deleteButton.dataset.downloadId);
+                // Try API delete first, then remove DOM element as fallback
+                fetch(`/api/downloads/${encodeURIComponent(data.download_id)}/delete`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-Token': getCsrfToken() }
+                })
+                .then(r => r.json())
+                .then(result => {
+                    if (result.success || result.error) {
+                        // Remove from DOM regardless (item is failed, just get rid of it)
+                        downloadElement.remove();
+                        showToast('Download removed', 'success');
+                    }
+                })
+                .catch(() => {
+                    // Even if API fails, remove from DOM
+                    downloadElement.remove();
+                    showToast('Download removed', 'success');
+                });
+            });
+        }
+
+        const removeBtn = actionsContainer.querySelector('.remove-from-list');
+        if (removeBtn && videoId) {
+            removeBtn.addEventListener('click', () => {
+                removeDownloadFromList(videoId);
             });
         }
     }

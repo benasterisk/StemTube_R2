@@ -392,12 +392,17 @@ class UserSessionManager:
                     "file_size": file_size
                 })
 
+            media_type = 'audio'
+            if download_item and hasattr(download_item, 'download_type'):
+                media_type = download_item.download_type.value if hasattr(download_item.download_type, 'value') else str(download_item.download_type)
+
             socketio.emit('download_complete', {
                 'download_id': item_id,
                 'title': title,
                 'file_path': file_path,
                 'video_id': video_id,
-                'global_download_id': global_download_id
+                'global_download_id': global_download_id,
+                'media_type': media_type
             }, room=room_key or self._key())
 
     def _emit_error_with_room(self, item_id, error, room_key=None):

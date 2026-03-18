@@ -716,6 +716,9 @@ class MobileAdmin {
             if (response.ok) {
                 window.mobileApp?.showToast('Download deleted', 'success');
                 this.loadCleanupData();
+                // Refresh library views so deleted items disappear immediately
+                window.mobileApp?.loadLibrary?.();
+                window.mobileApp?.loadGlobalLibrary?.();
             } else {
                 window.mobileApp?.showToast('Failed to delete', 'error');
             }
@@ -770,6 +773,8 @@ class MobileAdmin {
         this.showProgress(false);
         window.mobileApp?.showToast(`Deleted ${deleted}/${count} item(s)`, deleted === count ? 'success' : 'warning');
         this.loadCleanupData();
+        window.mobileApp?.loadLibrary?.();
+        window.mobileApp?.loadGlobalLibrary?.();
     }
 
     async resetSelected() {

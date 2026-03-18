@@ -141,6 +141,7 @@ class MobileApp {
         this.setupRefreshButtons();
         this.setupExtractionModal();
         this.setupDownloadSheet();
+        this.setupMediaPlayer();
         this.setupExportModal();
         this.setupLoadingOverlay();
         this.setupBrowserLogging();
@@ -1629,6 +1630,64 @@ class MobileApp {
         }
     }
 
+    // ── Media Player ─────────────────────────────────────────
+
+    setupMediaPlayer() {
+        this.mediaPlayerSheet = document.getElementById('mobileMediaPlayerSheet');
+        if (!this.mediaPlayerSheet) return;
+        this.mediaPlayerTitle = document.getElementById('mobileMediaPlayerTitle');
+        this.mediaPlayerBody = document.getElementById('mobileMediaPlayerBody');
+
+        const backdrop = this.mediaPlayerSheet.querySelector('.mobile-bottom-sheet-backdrop');
+        if (backdrop) {
+            backdrop.addEventListener('click', () => this.closeMediaPlayer());
+        }
+    }
+
+    openMediaPlayer(item) {
+        if (!this.mediaPlayerSheet || !item?.file_path) return;
+
+        if (this.mediaPlayerTitle) {
+            this.mediaPlayerTitle.textContent = item.title || 'Now Playing';
+        }
+
+        if (this.mediaPlayerBody) {
+            this.mediaPlayerBody.innerHTML = '';
+            const streamUrl = `/api/stream-audio?file_path=${encodeURIComponent(item.file_path)}`;
+            const mediaType = item.type || item.media_type || 'audio';
+
+            if (mediaType === 'video') {
+                const video = document.createElement('video');
+                video.controls = true;
+                video.setAttribute('playsinline', '');
+                video.src = streamUrl;
+                this.mediaPlayerBody.appendChild(video);
+            } else {
+                const audio = document.createElement('audio');
+                audio.controls = true;
+                audio.src = streamUrl;
+                this.mediaPlayerBody.appendChild(audio);
+            }
+        }
+
+        this.mediaPlayerSheet.classList.add('active');
+    }
+
+    closeMediaPlayer() {
+        if (this.mediaPlayerBody) {
+            const media = this.mediaPlayerBody.querySelector('audio, video');
+            if (media) {
+                media.pause();
+                media.removeAttribute('src');
+                media.load();
+            }
+            this.mediaPlayerBody.innerHTML = '';
+        }
+        if (this.mediaPlayerSheet) {
+            this.mediaPlayerSheet.classList.remove('active');
+        }
+    }
+
     downloadOriginal() {
         if (!this.currentDownloadItem?.file_path) {
             alert('Original audio not available');
@@ -2093,6 +2152,10 @@ class MobileApp {
             div.dataset.status = statusInfo.statusKey;
             if (isOffline) div.dataset.offline = 'true';
 
+            // Play button (available whenever the file exists)
+            const canPlay = item.file_path || (item.has_download && item.file_path);
+            const playBtn = canPlay ? '<button class="play-btn" title="Play"><i class="fas fa-play"></i></button>' : '';
+
             let actions = '';
             if (isOffline) {
                 // Offline mode: only show Mix button for cached songs
@@ -2100,11 +2163,11 @@ class MobileApp {
                           '<button class="mobile-btn mobile-btn-primary mix-btn">Mix</button>';
             } else if (isGlobal) {
                 if (alreadyInLibrary) {
-                    actions = '<div class="mobile-library-status"><i class="fas fa-check"></i> In Library</div>';
+                    actions = playBtn + '<div class="mobile-library-status"><i class="fas fa-check"></i> In Library</div>';
                 } else if (hasStems) {
-                    actions = '<button class="mobile-btn mobile-btn-small add-btn">Add</button>';
+                    actions = playBtn + '<button class="mobile-btn mobile-btn-small add-btn">Add</button>';
                 } else {
-                    actions = '<div class="mobile-library-status">Not extracted</div>';
+                    actions = playBtn + '<div class="mobile-library-status">Not extracted</div>';
                 }
             } else {
                 // Don't show Extract button during extraction (extracting, queued, processing)
@@ -2113,6 +2176,7 @@ class MobileApp {
                 const removeBtn = '<button class="remove-btn" title="Remove from library"><i class="fas fa-trash-alt"></i></button>';
                 if (hasStems) {
                     actions = '<div class="mobile-library-extracted"><i class="fas fa-check-circle"></i> Ready</div>' +
+                              playBtn +
                               '<button class="mobile-btn mobile-btn-primary mix-btn">Mix</button>' +
                               '<button class="save-offline-btn" title="Save for offline"><i class="fas fa-cloud-download-alt"></i></button>' +
                               '<button class="download-btn" title="Download"><i class="fas fa-download"></i></button>' +
@@ -2121,7 +2185,7 @@ class MobileApp {
                     // Show remove button even during extraction
                     actions = removeBtn;
                 } else {
-                    actions = '<button class="mobile-btn mobile-btn-small extract-btn">Extract</button>' + removeBtn;
+                    actions = playBtn + '<button class="mobile-btn mobile-btn-small extract-btn">Extract</button>' + removeBtn;
                 }
             }
 
@@ -2153,6 +2217,10 @@ class MobileApp {
             `;
             div.__libraryItem = item;
             
+            // Play button (available in both global and my library)
+            const playBtnEl = div.querySelector('.play-btn');
+            if (playBtnEl) playBtnEl.addEventListener('click', e => { e.stopPropagation(); this.openMediaPlayer(item); });
+
             if (isGlobal) {
                 const btn = div.querySelector('.add-btn');
                 if (btn) btn.addEventListener('click', e => { e.stopPropagation(); this.addToMyLibrary(item); });

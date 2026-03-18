@@ -580,6 +580,57 @@ body.disclaimer-active #disclaimerModal {
     }
 }
 
+/* Media Player Modal */
+.media-player-modal {
+    max-width: 600px;
+    width: 90%;
+}
+
+.media-player-modal.video-player {
+    max-width: 900px;
+    width: 90%;
+}
+
+.media-player-modal .modal-body {
+    padding: var(--spacing-sm);
+}
+
+.media-player-modal audio {
+    width: 100%;
+}
+
+.media-player-modal video {
+    display: block;
+    width: 100%;
+    max-height: 70vh;
+    background: #000;
+    border-radius: var(--border-radius);
+}
+
+/* Play button in download items */
+.item-button.play-button {
+    background-color: rgba(29, 185, 84, 0.15);
+    color: #1db954;
+    border-color: rgba(29, 185, 84, 0.3);
+}
+
+.item-button.play-button:hover {
+    background-color: rgba(29, 185, 84, 0.25);
+    border-color: rgba(29, 185, 84, 0.5);
+}
+
+/* Play button in library items */
+.library-action-button.play-library-button {
+    background-color: rgba(29, 185, 84, 0.15);
+    color: #1db954;
+    border-color: rgba(29, 185, 84, 0.3);
+}
+
+.library-action-button.play-library-button:hover {
+    background-color: rgba(29, 185, 84, 0.25);
+    border-color: rgba(29, 185, 84, 0.5);
+}
+
 /* Utility Classes */
 .hidden {
     display: none !important;

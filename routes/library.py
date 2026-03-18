@@ -357,6 +357,7 @@ def get_library():
                     'created_at': item['created_at'],
                     'user_count': item['user_count'],
                     'file_size': file_size,
+                    'file_path': item['file_path'] if has_download else None,
 
                     # Availability flags
                     'has_download': has_download,

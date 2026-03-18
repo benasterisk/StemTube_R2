@@ -10,6 +10,15 @@ from werkzeug.utils import secure_filename
 
 from extensions import api_login_required, user_session_manager
 from core.config import get_ffmpeg_path, ensure_valid_downloads_directory
+
+# Legacy default downloads directory (for files downloaded before directory change)
+_LEGACY_DOWNLOADS_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'core', 'downloads'))
+
+
+def _is_path_allowed(abs_path):
+    """Check if a file path is within an allowed downloads directory."""
+    downloads_dir = os.path.abspath(ensure_valid_downloads_directory())
+    return abs_path.startswith(downloads_dir) or abs_path.startswith(_LEGACY_DOWNLOADS_DIR)
 from core.downloads_db import add_or_update as db_add_download
 from core.logging_config import get_logger
 
@@ -166,11 +175,9 @@ def download_file_route():
     from core.downloads_db import resolve_file_path
     file_path = resolve_file_path(file_path)
 
-    # Security check: ensure the file path is within allowed directories
     abs_file_path = os.path.abspath(file_path)
-    downloads_dir = os.path.abspath(ensure_valid_downloads_directory())
 
-    if not abs_file_path.startswith(downloads_dir):
+    if not _is_path_allowed(abs_file_path):
         return jsonify({'error': 'Access denied: file is outside downloads directory'}), 403
 
     if not os.path.exists(abs_file_path):
@@ -180,7 +187,6 @@ def download_file_route():
         return jsonify({'error': 'Path is not a file'}), 400
 
     try:
-        # Get the directory and filename
         directory = os.path.dirname(abs_file_path)
         filename = os.path.basename(abs_file_path)
 
@@ -191,10 +197,10 @@ def download_file_route():
         return jsonify({'error': f'Error serving file: {str(e)}'}), 500
 
 
-@files_bp.route('/api/stream-audio', methods=['GET'])
+@files_bp.route('/api/stream-audio', methods=['GET', 'HEAD'])
 @api_login_required
 def stream_audio_route():
-    """Stream audio for in-app playback without forcing download."""
+    """Stream audio or video for in-app playback without forcing download."""
     file_path = request.args.get('file_path', '')
 
     if not file_path:
@@ -204,9 +210,8 @@ def stream_audio_route():
     file_path = resolve_file_path(file_path)
 
     abs_file_path = os.path.abspath(file_path)
-    downloads_dir = os.path.abspath(ensure_valid_downloads_directory())
 
-    if not abs_file_path.startswith(downloads_dir):
+    if not _is_path_allowed(abs_file_path):
         return jsonify({'error': 'Access denied: file is outside downloads directory'}), 403
 
     if not os.path.exists(abs_file_path):
@@ -220,7 +225,7 @@ def stream_audio_route():
 
     mimetype, _ = mimetypes.guess_type(filename)
     if not mimetype:
-        mimetype = 'audio/mpeg'
+        mimetype = 'application/octet-stream'
 
     try:
         return send_from_directory(directory, filename, mimetype=mimetype, as_attachment=False)
@@ -237,11 +242,9 @@ def list_files_route():
     if not folder_path:
         return jsonify({'error': 'No folder path provided', 'success': False}), 400
 
-    # Security check: ensure the folder path is within allowed directories
     abs_folder_path = os.path.abspath(folder_path)
-    downloads_dir = os.path.abspath(ensure_valid_downloads_directory())
 
-    if not abs_folder_path.startswith(downloads_dir):
+    if not _is_path_allowed(abs_folder_path):
         return jsonify({'error': 'Access denied: folder is outside downloads directory', 'success': False}), 403
 
     if not os.path.exists(abs_folder_path):
@@ -319,11 +322,9 @@ def serve_extracted_stem(extraction_id, stem_name):
                         logger.debug(f"[Stems API] Resolved stem path: {stem_file_path}")
 
                     if stem_file_path and os.path.exists(stem_file_path):
-                        # Security check: ensure the file path is within allowed directories
                         abs_file_path = os.path.abspath(stem_file_path)
-                        downloads_dir = os.path.abspath(ensure_valid_downloads_directory())
 
-                        if abs_file_path.startswith(downloads_dir):
+                        if _is_path_allowed(abs_file_path):
                             logger.info(f"[Stems API] Serving stem '{stem_name}' for {extraction_id}: {abs_file_path}")
 
                             # For HEAD requests, just return 200 to confirm existence
@@ -367,9 +368,8 @@ def serve_extracted_stem(extraction_id, stem_name):
 
         # Security check: ensure the file path is within allowed directories
         abs_file_path = os.path.abspath(stem_file_path)
-        downloads_dir = os.path.abspath(ensure_valid_downloads_directory())
 
-        if not abs_file_path.startswith(downloads_dir):
+        if not _is_path_allowed(abs_file_path):
             return jsonify({'error': 'Access denied: file is outside downloads directory'}), 403
 
         # For HEAD requests, just return 200 to confirm existence
