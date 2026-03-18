@@ -12,7 +12,7 @@ from flask_login import current_user
 from werkzeug.utils import secure_filename
 
 from extensions import api_login_required
-from core.config import ensure_valid_downloads_directory, get_ffmpeg_path, get_setting
+from core.config import ensure_valid_downloads_directory
 from core.logging_config import get_logger
 from core.db.recordings import (
     create_recording,
