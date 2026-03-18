@@ -498,12 +498,8 @@ class DownloadManager:
             'sleep_interval': 2,
             'max_sleep_interval': 5,
             'sleep_interval_requests': 1,
-            # YouTube 403 Fix: Use iOS client to bypass SABR streaming blocks (Jan 2026)
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['ios', 'web']
-                }
-            },
+            # Let yt-dlp auto-select the best client (default handles SABR natively)
+            # Forcing player_client to iOS/android limits formats to 360p muxed only
             # Node.js runtime for YouTube JS challenge solving (Feb 2026)
             'js_runtimes': {'node': {}},
             # Cookies config added below
@@ -512,10 +508,14 @@ class DownloadManager:
         # Add cookies configuration (file or browser, with fallback)
         ydl_opts.update(get_youtube_cookies_config())
         
+        # Video: prefer h264+aac which naturally produces mp4 output
+        # Do NOT use merge_output_format='mp4' — it forces FFmpeg conversion
+        # on VP9/opus fallbacks which crashes on long videos
+        if item.download_type != DownloadType.AUDIO:
+            ydl_opts['format_sort'] = ['vcodec:h264', 'acodec:aac']
+
         # Add postprocessors for audio downloads
         if item.download_type == DownloadType.AUDIO:
-            # Use flexible format to handle iOS client where only combined formats exist
-            # 'bestaudio' alone fails when only format 18 (mp4 with video+audio) is available
             ydl_opts['format'] = 'bestaudio/best[acodec!=none]'
             ydl_opts['postprocessors'] = [{
                 'key': 'FFmpegExtractAudio',
@@ -1015,32 +1015,41 @@ class DownloadManager:
     
     def _get_format_string(self, item: DownloadItem) -> str:
         """Get the format string for yt-dlp.
-        
+
+        Prefers h264+aac (mp4-native) to avoid postprocessing conversion.
+        Falls back to any codec if h264/aac not available.
+        format_sort in ydl_opts also nudges toward h264+aac.
+
         Args:
             item: Download item.
-            
+
         Returns:
             Format string for yt-dlp.
         """
         if item.download_type == DownloadType.AUDIO:
-            # Flexible format: try audio-only first, fallback to any format with audio
             return "bestaudio/best[acodec!=none]"
-        
-        # Video format
-        if item.quality == "best":
-            return "bestvideo+bestaudio/best"
-        elif item.quality == "4K":
-            return "bestvideo[height<=2160]+bestaudio/best[height<=2160]"
-        elif item.quality == "1080p":
-            return "bestvideo[height<=1080]+bestaudio/best[height<=1080]"
-        elif item.quality == "720p":
-            return "bestvideo[height<=720]+bestaudio/best[height<=720]"
-        elif item.quality == "480p":
-            return "bestvideo[height<=480]+bestaudio/best[height<=480]"
-        elif item.quality == "360p":
-            return "bestvideo[height<=360]+bestaudio/best[height<=360]"
-        else:
-            return "bestvideo+bestaudio/best"
+
+        height_limits = {
+            "4K": 2160,
+            "1080p": 1080,
+            "720p": 720,
+            "480p": 480,
+            "360p": 360,
+        }
+
+        limit = height_limits.get(item.quality)
+        if limit:
+            return (
+                f"bestvideo[height<={limit}][vcodec^=avc1]+bestaudio[acodec^=mp4a]/"
+                f"bestvideo[height<={limit}]+bestaudio/"
+                f"best[height<={limit}]"
+            )
+
+        return (
+            "bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/"
+            "bestvideo+bestaudio/"
+            "best"
+        )
     
     def set_max_concurrent_downloads(self, max_downloads: int):
         """Set the maximum number of concurrent downloads.

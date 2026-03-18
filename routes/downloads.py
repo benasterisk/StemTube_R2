@@ -63,6 +63,68 @@ def get_video_info(video_id):
     return jsonify(info) if info else (jsonify({'error': 'Video not found'}), 404)
 
 
+# ── Format listing ─────────────────────────────────────────────────
+
+
+@downloads_bp.route('/api/video/<video_id>/formats', methods=['GET'])
+@api_login_required
+@youtube_access_required
+def get_video_formats(video_id):
+    """Return available download formats grouped by type for a YouTube video."""
+    try:
+        import yt_dlp
+        import os
+
+        cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'core', 'youtube_cookies.txt')
+        opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'js_runtimes': {'node': {}},
+        }
+        if os.path.exists(cookies_path) and os.path.getsize(cookies_path) > 0:
+            opts['cookiefile'] = cookies_path
+
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(f'https://www.youtube.com/watch?v={video_id}', download=False)
+
+        formats = info.get('formats', [])
+
+        # Collect unique video resolutions (separate streams only, ignore storyboards)
+        video_heights = set()
+        for f in formats:
+            vcodec = f.get('vcodec', 'none') or 'none'
+            height = f.get('height') or 0
+            note = (f.get('format_note', '') or '').lower()
+            if vcodec != 'none' and height > 0 and 'storyboard' not in note:
+                video_heights.add(height)
+
+        # Build sorted resolution options
+        height_labels = {2160: '4K', 1440: '1440p', 1080: '1080p', 720: '720p', 480: '480p', 360: '360p', 240: '240p', 144: '144p'}
+        video_options = [{'value': 'best', 'label': 'Best available'}]
+        for h in sorted(video_heights, reverse=True):
+            label = height_labels.get(h, f'{h}p')
+            video_options.append({'value': label.lower() if h != 2160 else '4K', 'label': label})
+
+        # Audio: always offer best/high/medium since yt-dlp handles this
+        audio_options = [
+            {'value': 'best', 'label': 'Best'},
+            {'value': 'high', 'label': 'High'},
+            {'value': 'medium', 'label': 'Medium'},
+        ]
+
+        return jsonify({
+            'success': True,
+            'video_id': video_id,
+            'title': info.get('title', ''),
+            'duration': info.get('duration', 0),
+            'video_qualities': video_options,
+            'audio_qualities': audio_options,
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # ── Downloads ──────────────────────────────────────────────────────
 
 

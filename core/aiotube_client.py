@@ -126,7 +126,6 @@ class AiotubeClient:
                 'quiet': True,
                 'extract_flat': True,
                 'no_warnings': True,
-                # YouTube 403 Fix: Use iOS client to bypass SABR streaming blocks (Jan 2026)
                 'extractor_args': {
                     'youtube': {
                         'player_client': ['ios', 'web']
