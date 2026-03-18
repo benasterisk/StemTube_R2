@@ -90,43 +90,44 @@ def admin_get_storage_stats():
 @admin_api_bp.route('/api/admin/cleanup/downloads/<video_id>', methods=['DELETE'])
 @api_login_required
 def admin_delete_download_by_video_id(video_id):
-    """Delete a download completely including all files and database records using video_id."""
+    """Delete ALL downloads for a video_id (all media_type/quality variants)."""
     if not current_user.is_admin:
         return jsonify({'error': 'Admin access required'}), 403
 
     try:
-        # Find the global download by video_id
         from core.downloads_db import get_all_downloads_for_admin, delete_download_completely
         from core.file_cleanup import delete_download_files
+        from core.db.cleanup import cleanup_orphaned_records
 
         all_downloads = get_all_downloads_for_admin()
-        download_info = next((d for d in all_downloads if d['video_id'] == video_id), None)
+        matching = [d for d in all_downloads if d['video_id'] == video_id]
 
-        if not download_info:
+        if not matching:
             return jsonify({'error': f'Download with video_id "{video_id}" not found'}), 404
 
-        global_download_id = download_info['global_id']
+        file_cleanup_stats = {'files_deleted': [], 'total_size_freed': 0, 'errors': []}
+        deleted_count = 0
 
-        # Delete from database first to get download info
-        success, message, detailed_info = delete_download_completely(global_download_id)
+        # Delete ALL global_downloads entries for this video_id
+        for download_info in matching:
+            success, message, detailed_info = delete_download_completely(download_info['global_id'])
+            if success:
+                deleted_count += 1
+                if detailed_info:
+                    file_success, _, stats = delete_download_files(detailed_info)
+                    file_cleanup_stats['files_deleted'].extend(stats.get('files_deleted', []))
+                    file_cleanup_stats['total_size_freed'] += stats.get('total_size_freed', 0)
+                    file_cleanup_stats['errors'].extend(stats.get('errors', []))
 
-        if not success:
-            return jsonify({'error': message}), 400
-
-        # Clear from all active user sessions so it disappears from their library
+        # Clear from all active user sessions
         user_session_manager.clear_download_from_all_sessions(video_id)
 
-        file_cleanup_stats = {'files_deleted': [], 'total_size_freed': 0, 'errors': []}
-
-        # Delete associated files if we have download info
-        if detailed_info:
-            file_success, file_message, file_cleanup_stats = delete_download_files(detailed_info)
-            if not file_success:
-                print(f"File cleanup warning: {file_message}")
+        # Clean up any orphaned user_downloads that may reference deleted global_downloads
+        cleanup_orphaned_records()
 
         return jsonify({
             'success': True,
-            'message': message,
+            'message': f'Deleted {deleted_count} record(s) for video_id {video_id}',
             'video_id': video_id,
             'file_cleanup': file_cleanup_stats
         })
@@ -403,6 +404,11 @@ def admin_bulk_delete_downloads():
                 })
 
         successful_deletions = sum(1 for r in results if r['success'])
+
+        # Clean up any orphaned user_downloads
+        if successful_deletions > 0:
+            from core.db.cleanup import cleanup_orphaned_records
+            cleanup_orphaned_records()
 
         return jsonify({
             'success': True,
