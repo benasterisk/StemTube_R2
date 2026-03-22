@@ -13,6 +13,7 @@ from werkzeug.utils import secure_filename
 
 from extensions import api_login_required
 from core.config import ensure_valid_downloads_directory
+from routes.files import _is_path_allowed
 from core.logging_config import get_logger
 from core.db.recordings import (
     create_recording,
@@ -89,9 +90,8 @@ def upload_recording():
     recordings_dir = os.path.join(download_dir, 'recordings')
     os.makedirs(recordings_dir, exist_ok=True)
 
-    # Security: ensure recordings_dir is within downloads root
-    downloads_root = os.path.abspath(ensure_valid_downloads_directory())
-    if not os.path.abspath(recordings_dir).startswith(downloads_root):
+    # Security: ensure recordings_dir is within an allowed downloads directory
+    if not _is_path_allowed(os.path.abspath(recordings_dir)):
         return jsonify({'error': 'Access denied'}), 403
 
     # Save file with a generated name
@@ -163,9 +163,8 @@ def serve_recording_file(recording_id):
         return jsonify({'error': 'Recording file not found'}), 404
 
     # Security check
-    downloads_root = os.path.abspath(ensure_valid_downloads_directory())
     abs_path = os.path.abspath(filepath)
-    if not abs_path.startswith(downloads_root):
+    if not _is_path_allowed(abs_path):
         return jsonify({'error': 'Access denied'}), 403
 
     directory = os.path.dirname(abs_path)

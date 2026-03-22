@@ -239,9 +239,9 @@ def serve_jam_stem(code, stem_name):
 
     # Security check
     abs_file_path = os.path.abspath(stem_file_path)
-    downloads_dir = os.path.abspath(ensure_valid_downloads_directory())
-    if not abs_file_path.startswith(downloads_dir):
-        logger.error(f"[Jam Stems] Security violation: {abs_file_path} not in {downloads_dir}")
+    from routes.files import _is_path_allowed
+    if not _is_path_allowed(abs_file_path):
+        logger.error(f"[Jam Stems] Security violation: {abs_file_path} not in allowed directories")
         return jsonify({'error': 'Access denied'}), 403
 
     if request.method == 'HEAD':

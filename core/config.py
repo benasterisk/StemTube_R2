@@ -276,8 +276,10 @@ def ensure_valid_downloads_directory():
     except (IOError, OSError, PermissionError) as e:
         print(f"Warning: Configured downloads directory is not accessible: {e}")
         print(f"Falling back to default downloads directory: {DOWNLOADS_DIR}")
-        # Update the setting to the default
-        update_setting("downloads_directory", DOWNLOADS_DIR)
+        # Do NOT overwrite the user's configured path — just use the default
+        # for this session. The configured path may become available later
+        # (e.g., external drive not yet mounted at startup).
+        os.makedirs(DOWNLOADS_DIR, exist_ok=True)
         return DOWNLOADS_DIR
 
 

@@ -4,7 +4,7 @@ import json
 import mimetypes
 import subprocess
 
-from flask import Blueprint, request, jsonify, send_from_directory
+from flask import Blueprint, request, jsonify, send_from_directory, Response, make_response
 from flask_login import current_user
 from werkzeug.utils import secure_filename
 
@@ -220,15 +220,50 @@ def stream_audio_route():
     if not os.path.isfile(abs_file_path):
         return jsonify({'error': 'Path is not a file'}), 400
 
-    directory = os.path.dirname(abs_file_path)
-    filename = os.path.basename(abs_file_path)
-
-    mimetype, _ = mimetypes.guess_type(filename)
+    mimetype, _ = mimetypes.guess_type(abs_file_path)
     if not mimetype:
         mimetype = 'application/octet-stream'
 
     try:
-        return send_from_directory(directory, filename, mimetype=mimetype, as_attachment=False)
+        file_size = os.path.getsize(abs_file_path)
+        range_header = request.headers.get('Range')
+
+        if range_header:
+            # Parse Range header (e.g. "bytes=0-1023")
+            byte_range = range_header.replace('bytes=', '').split('-')
+            start = int(byte_range[0])
+            end = int(byte_range[1]) if byte_range[1] else file_size - 1
+            end = min(end, file_size - 1)
+            length = end - start + 1
+
+            def generate():
+                with open(abs_file_path, 'rb') as f:
+                    f.seek(start)
+                    remaining = length
+                    while remaining > 0:
+                        chunk_size = min(8192, remaining)
+                        data = f.read(chunk_size)
+                        if not data:
+                            break
+                        remaining -= len(data)
+                        yield data
+
+            resp = Response(generate(), status=206, mimetype=mimetype)
+            resp.headers['Content-Range'] = f'bytes {start}-{end}/{file_size}'
+            resp.headers['Content-Length'] = str(length)
+            resp.headers['Accept-Ranges'] = 'bytes'
+            return resp
+        else:
+            # No Range header — serve full file
+            resp = make_response(send_from_directory(
+                os.path.dirname(abs_file_path),
+                os.path.basename(abs_file_path),
+                mimetype=mimetype,
+                as_attachment=False
+            ))
+            resp.headers['Accept-Ranges'] = 'bytes'
+            resp.headers['Content-Length'] = str(file_size)
+            return resp
     except Exception as e:
         return jsonify({'error': f'Error streaming file: {str(e)}'}), 500
 
