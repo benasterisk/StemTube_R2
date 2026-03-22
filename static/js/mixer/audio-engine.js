@@ -36,28 +36,65 @@ class AudioEngine {
     }
     
     /**
-     * Initialiser le contexte audio
+     * Initialize audio context, optionally aligned to a source sample rate.
+     * @param {number} [sampleRate] — force a specific sample rate (e.g. from source file)
      */
-    async initAudioContext() {
+    async initAudioContext(sampleRate) {
         try {
-            // Créer le contexte audio
             const AudioContext = window.AudioContext || window.webkitAudioContext;
-            this.audioContext = new AudioContext();
-            
-            // Créer le nœud de gain principal
+            const opts = sampleRate ? { sampleRate } : {};
+            this.audioContext = new AudioContext(opts);
+
             this.masterGainNode = this.audioContext.createGain();
             this.masterGainNode.connect(this.audioContext.destination);
-            
-            // Créer un nœud d'analyseur pour les visualisations
+
             this.analyserNode = this.audioContext.createAnalyser();
             this.analyserNode.fftSize = 2048;
             this.masterGainNode.connect(this.analyserNode);
-            
-            this.mixer.log('Contexte audio initialisé');
+
+            console.log(`[Audio] AudioContext initialized at ${this.audioContext.sampleRate} Hz`
+                + (sampleRate ? ` (aligned to source: ${sampleRate} Hz)` : ' (hardware default)'));
+            this.mixer.log('Audio context initialized');
             return true;
         } catch (error) {
-            this.mixer.log(`Error lors de l'initialisation du contexte audio: ${error.message}`);
+            this.mixer.log(`Error initializing audio context: ${error.message}`);
             return false;
+        }
+    }
+
+    /**
+     * Detect the sample rate of the first available stem file.
+     * Uses a temporary OfflineAudioContext to decode without creating
+     * the main AudioContext first.
+     * @param {string} url — URL of the audio file to probe
+     * @returns {Promise<number|null>} sample rate or null on failure
+     */
+    async detectSourceSampleRate(url) {
+        try {
+            // Fetch only the first 256KB — enough for any audio header
+            const response = await fetch(url, {
+                headers: { 'Range': 'bytes=0-262143' },
+            });
+            if (!response.ok && response.status !== 206) return null;
+            const arrayBuffer = await response.arrayBuffer();
+            const tempCtx = new OfflineAudioContext(1, 1, 44100);
+            const decoded = await tempCtx.decodeAudioData(arrayBuffer);
+            console.log(`[Audio] Source sample rate detected: ${decoded.sampleRate} Hz`);
+            return decoded.sampleRate;
+        } catch (e) {
+            // Range request or partial decode may fail — try full fetch as fallback
+            try {
+                const response = await fetch(url);
+                if (!response.ok) return null;
+                const arrayBuffer = await response.arrayBuffer();
+                const tempCtx = new OfflineAudioContext(1, 1, 44100);
+                const decoded = await tempCtx.decodeAudioData(arrayBuffer);
+                console.log(`[Audio] Source sample rate detected (full fetch): ${decoded.sampleRate} Hz`);
+                return decoded.sampleRate;
+            } catch (e2) {
+                console.warn('[Audio] Could not detect source sample rate:', e2.message);
+                return null;
+            }
         }
     }
     
@@ -302,8 +339,9 @@ class AudioEngine {
             }
         });
         
-        // Start recording track playback
+        // Start recording track playback + notify resume for segment tracking
         if (this.mixer.recordingEngine) {
+            this.mixer.recordingEngine.notifyResume(this.mixer.currentTime);
             this.mixer.recordingEngine.playAll(this.mixer.currentTime);
         }
 
@@ -327,8 +365,9 @@ class AudioEngine {
             this.mixer.log(`Pause à la position: ${this.mixer.currentTime.toFixed(2)}s`);
         }
 
-        // Stop recording track playback
+        // Notify recording engine of pause (segment tracking)
         if (this.mixer.recordingEngine) {
+            this.mixer.recordingEngine.notifyPause();
             this.mixer.recordingEngine.stopAll();
         }
 
@@ -644,8 +683,9 @@ class AudioEngine {
             this.mixer.karaokeDisplay.sync(newPosition);
         }
 
-        // Update recording playback positions
+        // Update recording playback positions + notify seek for segment tracking
         if (this.mixer.recordingEngine) {
+            this.mixer.recordingEngine.notifySeek(newPosition);
             this.mixer.recordingEngine.seekUpdate(newPosition);
         }
 

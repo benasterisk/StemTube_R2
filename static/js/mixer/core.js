@@ -138,8 +138,16 @@ class StemMixer {
             this.extractionId = extractionId;
             this.encodedExtractionId = encodeURIComponent(extractionId);
 
-            // Initialize audio context
-            await this.audioEngine.initAudioContext();
+            // Detect source sample rate before creating AudioContext
+            // so the entire audio chain runs at the same rate as the stems
+            const firstStemUrl = this._getFirstStemUrl();
+            let sourceSampleRate = null;
+            if (firstStemUrl) {
+                sourceSampleRate = await this.audioEngine.detectSourceSampleRate(firstStemUrl);
+            }
+
+            // Initialize audio context aligned to source sample rate
+            await this.audioEngine.initAudioContext(sourceSampleRate);
 
             // Expose audio context globally for SimplePitchTempo
             window.audioContext = this.audioEngine.audioContext;
@@ -454,6 +462,28 @@ class StemMixer {
         });
 
         this.log('Horizontal scroll synchronization configured');
+    }
+
+    /**
+     * Build the URL for the first available stem (for sample rate detection).
+     * @returns {string|null}
+     */
+    _getFirstStemUrl() {
+        let stemPaths = null;
+        if (window.EXTRACTION_INFO) {
+            stemPaths = window.EXTRACTION_INFO.output_paths || window.EXTRACTION_INFO.stems_paths;
+            if (typeof stemPaths === 'string') {
+                try { stemPaths = JSON.parse(stemPaths); } catch { stemPaths = null; }
+            }
+        }
+        const urlBase = window.JAM_STEM_URL_PREFIX || `/api/extracted_stems/${this.encodedExtractionId}`;
+        const cacheBuster = window.JAM_STEM_CACHE_BUSTER || '';
+        if (stemPaths && Object.keys(stemPaths).length > 0) {
+            const firstName = Object.keys(stemPaths)[0];
+            return `${urlBase}/${firstName}${cacheBuster}`;
+        }
+        // Fallback: try vocals (most common stem)
+        return `${urlBase}/vocals${cacheBuster}`;
     }
 
     /**

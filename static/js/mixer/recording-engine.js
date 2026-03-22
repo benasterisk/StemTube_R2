@@ -26,8 +26,17 @@ class RecordingEngine {
         // Track IDs being recorded into (snapshot at recording start)
         this.recordingTrackIds = [];
 
-        // Live waveform state
-        this.liveWaveformData = new Map(); // trackId → array of peak values
+        // Segment tracking for pause/seek sync
+        // Each segment: { recOffset, songPosition, duration }
+        // recOffset = cumulative seconds into the recorder output (excludes pauses)
+        // songPosition = timeline position at segment start
+        this._recSegments = [];
+        this._recCumulativeTime = 0; // total seconds of actual recording (excludes pauses)
+        this._segWallStart = 0;      // audioContext.currentTime when current segment started
+        this._recPaused = false;
+
+        // Live waveform state — each entry: { songTime, peak }
+        this.liveWaveformData = new Map();
         this.liveWaveformAnimId = null;
 
         // Latency compensation (seconds)
@@ -61,11 +70,15 @@ class RecordingEngine {
         const ctx = this._getAudioContext();
         if (!ctx) throw new Error('AudioContext not available');
 
+        // Disable all browser DSP — these destroy musical audio quality
+        // (pumping, muffled sound, wah-wah effect)
         const constraints = {
             audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
+                echoCancellation: false,
+                noiseSuppression: false,
                 autoGainControl: false,
+                channelCount: 2,
+                sampleRate: { ideal: ctx ? ctx.sampleRate : 44100 },
             },
         };
         if (deviceId) {
@@ -73,6 +86,23 @@ class RecordingEngine {
         }
 
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+        // Log actual track settings for debugging
+        const track = stream.getAudioTracks()[0];
+        if (track) {
+            const settings = track.getSettings();
+            console.log(`[Audio] Mic stream settings:`, {
+                sampleRate: settings.sampleRate,
+                channelCount: settings.channelCount,
+                echoCancellation: settings.echoCancellation,
+                noiseSuppression: settings.noiseSuppression,
+                autoGainControl: settings.autoGainControl,
+                deviceId: settings.deviceId,
+            });
+            if (ctx && settings.sampleRate && settings.sampleRate !== ctx.sampleRate) {
+                console.warn(`[Audio] Sample rate mismatch: mic at ${settings.sampleRate} Hz, AudioContext at ${ctx.sampleRate} Hz`);
+            }
+        }
         const micSource = ctx.createMediaStreamSource(stream);
 
         const monitorGain = ctx.createGain();
@@ -445,6 +475,69 @@ class RecordingEngine {
         return trimmed;
     }
 
+    /**
+     * Assemble recorded audio from segments onto the song timeline.
+     *
+     * The decoded buffer contains ONLY audio from active periods (MediaRecorder
+     * was paused during playback pauses, so silence is excluded).
+     * Each segment has: recOffset (where in the buffer), songPosition (where on
+     * the timeline), duration. Later segments overwrite earlier ones if they
+     * overlap (seek-before-pause-point = punch-in).
+     *
+     * @param {AudioBuffer} rawBuffer — decoded recording (active periods only)
+     * @param {AudioContext} ctx
+     * @returns {AudioBuffer} timeline-aligned buffer
+     */
+    _assembleSegments(rawBuffer, ctx) {
+        const sampleRate = rawBuffer.sampleRate;
+        const channels = rawBuffer.numberOfChannels;
+        const segments = this._recSegments.filter(s => s.duration > 0);
+
+        if (segments.length === 0) return rawBuffer;
+        if (segments.length === 1 && segments[0].recOffset === 0) {
+            // Single continuous segment — no assembly needed
+            return rawBuffer;
+        }
+
+        // Determine output span on the song timeline
+        let minSongPos = Infinity;
+        let maxSongEnd = 0;
+        for (const seg of segments) {
+            minSongPos = Math.min(minSongPos, seg.songPosition);
+            maxSongEnd = Math.max(maxSongEnd, seg.songPosition + seg.duration);
+        }
+
+        const totalDuration = maxSongEnd - minSongPos;
+        const totalSamples = Math.ceil(totalDuration * sampleRate);
+        if (totalSamples <= 0) return rawBuffer;
+
+        // Output buffer initialized to silence
+        const output = ctx.createBuffer(channels, totalSamples, sampleRate);
+
+        // Place segments in order — later segments overwrite (punch-in behavior)
+        for (const seg of segments) {
+            const srcStart = Math.round(seg.recOffset * sampleRate);
+            const srcLen = Math.round(seg.duration * sampleRate);
+            const srcEnd = Math.min(srcStart + srcLen, rawBuffer.length);
+            if (srcStart >= rawBuffer.length) continue;
+
+            const dstStart = Math.round((seg.songPosition - minSongPos) * sampleRate);
+
+            for (let ch = 0; ch < channels; ch++) {
+                const src = rawBuffer.getChannelData(ch);
+                const dst = output.getChannelData(ch);
+                const copyLen = Math.min(srcEnd - srcStart, totalSamples - dstStart);
+                for (let i = 0; i < copyLen; i++) {
+                    dst[dstStart + i] = src[srcStart + i];
+                }
+            }
+        }
+
+        console.log(`[RecordingEngine] Assembled ${segments.length} segments, ` +
+            `${totalDuration.toFixed(2)}s on timeline (from ${minSongPos.toFixed(2)}s)`);
+        return output;
+    }
+
     // ── Track Management (DAW-style) ─────────────────────────────
 
     /**
@@ -565,9 +658,25 @@ class RecordingEngine {
         const armedTracks = this.getArmedTracks();
         if (armedTracks.length === 0) return false;
 
+        // Stop playback of old audio on tracks we're about to re-record
+        for (const track of armedTracks) {
+            this._stopRecordingSource(track);
+        }
+
         this.recordingStartOffset = timelinePosition;
         this.recordingTrackIds = armedTracks.map(r => r.id);
         this.activeRecorders.clear();
+
+        // Initialize segment tracking
+        const ctx = this._getAudioContext();
+        this._recCumulativeTime = 0;
+        this._segWallStart = ctx ? ctx.currentTime : 0;
+        this._recPaused = false;
+        this._recSegments = [{
+            recOffset: 0,
+            songPosition: timelinePosition,
+            duration: null, // open — will be set on pause/stop
+        }];
 
         // Collect unique device keys from armed tracks
         const deviceKeys = new Set();
@@ -591,6 +700,133 @@ class RecordingEngine {
     }
 
     /**
+     * Notify the recording engine that playback was paused.
+     * Pauses all MediaRecorders so no silence is captured.
+     */
+    notifyPause() {
+        if (!this.isRecording || this._recPaused) return;
+        const ctx = this._getAudioContext();
+        if (!ctx) return;
+
+        // Close current segment
+        const seg = this._recSegments[this._recSegments.length - 1];
+        if (seg && seg.duration === null) {
+            seg.duration = ctx.currentTime - this._segWallStart;
+            this._recCumulativeTime += seg.duration;
+        }
+
+        // Pause all MediaRecorders (stops capturing, keeps session alive)
+        for (const [, info] of this.activeRecorders) {
+            if (info.recorder.state === 'recording') {
+                info.recorder.pause();
+            }
+        }
+
+        this._recPaused = true;
+        console.log('[RecordingEngine] Paused — segment closed at cumulative', this._recCumulativeTime.toFixed(2), 's');
+    }
+
+    /**
+     * Notify the recording engine that playback resumed.
+     * Resumes MediaRecorders and opens a new segment.
+     * @param {number} songPosition — current timeline position
+     */
+    notifyResume(songPosition) {
+        if (!this.isRecording || !this._recPaused) return;
+        const ctx = this._getAudioContext();
+        if (!ctx) return;
+
+        // Use pending seek position if user seeked while paused
+        const effectivePos = this._pendingSeekPosition ?? songPosition;
+        this._pendingSeekPosition = undefined;
+
+        // Remove waveform peaks at or past the resume point (they will be overwritten)
+        // Keep all peaks before effectivePos — only cut what the new recording replaces
+        for (const trackId of this.recordingTrackIds) {
+            const data = this.liveWaveformData.get(trackId);
+            if (data) {
+                const cutIdx = data.findIndex(d => d.songTime >= effectivePos);
+                if (cutIdx > 0) {
+                    data.splice(cutIdx);
+                } else if (cutIdx === 0) {
+                    // Resume point is before all existing data — clear everything
+                    // (all existing audio will be overwritten by the new take)
+                    data.length = 0;
+                }
+                // cutIdx === -1: resume point is after all data, nothing to remove
+            }
+        }
+
+        // Resume all MediaRecorders
+        for (const [, info] of this.activeRecorders) {
+            if (info.recorder.state === 'paused') {
+                info.recorder.resume();
+            }
+        }
+
+        // Open new segment
+        this._segWallStart = ctx.currentTime;
+        this._recSegments.push({
+            recOffset: this._recCumulativeTime,
+            songPosition: effectivePos,
+            duration: null,
+        });
+        this._recPaused = false;
+        console.log('[RecordingEngine] Resumed at song', effectivePos.toFixed(2), 's');
+    }
+
+    /**
+     * Notify the recording engine that the user seeked during recording.
+     * If paused: just updates where the next segment will start.
+     * If playing: closes current segment and opens new one.
+     * @param {number} newPosition — new timeline position
+     */
+    notifySeek(newPosition) {
+        if (!this.isRecording) return;
+
+        if (this._recPaused) {
+            // Not capturing — just remember where next resume will go
+            // Remove last segment if it had no duration (seek while paused)
+            const last = this._recSegments[this._recSegments.length - 1];
+            if (last && last.duration !== null) {
+                // Normal case: add a placeholder that notifyResume will replace
+            }
+            // notifyResume will create the segment at the right position
+            this._pendingSeekPosition = newPosition;
+            console.log('[RecordingEngine] Seek while paused — next resume at', newPosition.toFixed(2), 's');
+            return;
+        }
+
+        // Currently recording — close segment and open new one
+        const ctx = this._getAudioContext();
+        if (!ctx) return;
+
+        const seg = this._recSegments[this._recSegments.length - 1];
+        if (seg && seg.duration === null) {
+            seg.duration = ctx.currentTime - this._segWallStart;
+            this._recCumulativeTime += seg.duration;
+        }
+
+        // Remove waveform peaks that will be overwritten by the new position
+        for (const trackId of this.recordingTrackIds) {
+            const data = this.liveWaveformData.get(trackId);
+            if (data) {
+                const cutIdx = data.findIndex(d => d.songTime >= newPosition);
+                if (cutIdx > 0) data.splice(cutIdx);
+                else if (cutIdx === 0) data.length = 0;
+            }
+        }
+
+        this._segWallStart = ctx.currentTime;
+        this._recSegments.push({
+            recOffset: this._recCumulativeTime,
+            songPosition: newPosition,
+            duration: null,
+        });
+        console.log('[RecordingEngine] Seeked to', newPosition.toFixed(2), 's — new segment');
+    }
+
+    /**
      * Start a MediaRecorder for a given device key.
      * Used by startRecording() and by armTrack() for punch-in on a new device.
      * @param {string} key — device key ('default' or deviceId)
@@ -610,6 +846,7 @@ class RecordingEngine {
         const chunks = [];
         const recorder = new MediaRecorder(deviceEntry.stream, {
             mimeType: this._getSupportedMimeType(),
+            audioBitsPerSecond: 128000, // minimum 128kbps for musical audio
         });
         recorder.ondataavailable = (e) => {
             if (e.data.size > 0) chunks.push(e.data);
@@ -635,7 +872,19 @@ class RecordingEngine {
         this._stopLiveWaveform();
 
         const ctx = this._getAudioContext();
-        const decodedAudio = new Map(); // deviceKey → processed AudioBuffer
+
+        // Close the last open segment
+        const lastSeg = this._recSegments[this._recSegments.length - 1];
+        if (lastSeg && lastSeg.duration === null) {
+            lastSeg.duration = ctx.currentTime - this._segWallStart;
+            this._recCumulativeTime += lastSeg.duration;
+        }
+
+        console.log('[RecordingEngine] Segments:', this._recSegments.map(s =>
+            `song:${s.songPosition.toFixed(1)}s rec:${s.recOffset.toFixed(1)}s dur:${(s.duration||0).toFixed(1)}s`
+        ));
+
+        const decodedAudio = new Map();
 
         // Stop all recorders and decode
         for (const [key, info] of this.activeRecorders) {
@@ -645,9 +894,17 @@ class RecordingEngine {
             let audioBuffer = await ctx.decodeAudioData(arrayBuffer);
             audioBuffer = this.applyLatencyCompensation(audioBuffer);
 
+            // Assemble segments into a timeline-aligned buffer
+            audioBuffer = this._assembleSegments(audioBuffer, ctx);
+
             decodedAudio.set(key, audioBuffer);
         }
         this.activeRecorders.clear();
+
+        // Effective start = earliest song position across all segments
+        const effectiveStartOffset = this._recSegments.length > 0
+            ? Math.min(...this._recSegments.map(s => s.songPosition))
+            : this.recordingStartOffset;
 
         // Fill each armed track with its device's audio
         const results = [];
@@ -660,9 +917,8 @@ class RecordingEngine {
             if (!audioBuffer) continue;
 
             rec.audioBuffer = audioBuffer;
-            rec.startOffset = this.recordingStartOffset;
+            rec.startOffset = effectiveStartOffset;
             rec.saved = false;
-            // Keep armed for easy re-record
 
             // Update track UI
             const trackEl = document.getElementById(`rec-track-${rec.id}`);
@@ -677,6 +933,8 @@ class RecordingEngine {
         }
 
         this.recordingTrackIds = [];
+        this._recSegments = [];
+        this._pendingSeekPosition = undefined;
         console.log('[RecordingEngine] Recording stopped, filled', results.length, 'tracks');
 
         // Auto-save all recorded tracks to server
@@ -711,16 +969,29 @@ class RecordingEngine {
         const animate = () => {
             if (!this.isRecording) return;
 
-            // Sample current peak from each armed track's device analyser
-            for (const trackId of this.recordingTrackIds) {
-                const level = this.getTrackInputLevel(trackId);
-                const data = this.liveWaveformData.get(trackId);
-                if (data) data.push(level);
+            // Only accumulate data when not paused (mic is actually capturing)
+            if (!this._recPaused) {
+                const actx = this._getAudioContext();
+                const lastSeg = this._recSegments[this._recSegments.length - 1];
+                if (actx && lastSeg) {
+                    const elapsed = actx.currentTime - this._segWallStart;
+                    const songTime = lastSeg.songPosition + elapsed;
+
+                    for (const trackId of this.recordingTrackIds) {
+                        const level = this.getTrackInputLevel(trackId);
+                        const data = this.liveWaveformData.get(trackId);
+                        if (data) {
+                            data.push({ songTime, peak: level });
+                            // Debug: log every 60 frames (~1s)
+                            if (data.length % 60 === 0) {
+                                console.log(`[LiveWaveform] trackId=${trackId} points=${data.length} songTime=${songTime.toFixed(2)}s peak=${level.toFixed(3)}`);
+                            }
+                        }
+                    }
+                }
             }
 
-            // Render live waveforms
             this._renderLiveWaveforms();
-
             this.liveWaveformAnimId = requestAnimationFrame(animate);
         };
 
@@ -745,13 +1016,9 @@ class RecordingEngine {
      * @private
      */
     _renderLiveWaveforms() {
-        const totalDuration = this.mixer.maxDuration || 300; // fallback 5 min
+        const totalDuration = this.mixer.maxDuration || 300;
         const hz = this.mixer.zoomLevels.horizontal;
         const vz = this.mixer.zoomLevels.vertical;
-        const currentTime = this.mixer.currentTime || 0;
-        const elapsed = Math.max(0, currentTime - this.recordingStartOffset);
-        const elapsedRatio = elapsed / totalDuration;
-        const offsetRatio = this.recordingStartOffset / totalDuration;
 
         for (const trackId of this.recordingTrackIds) {
             const data = this.liveWaveformData.get(trackId);
@@ -766,7 +1033,6 @@ class RecordingEngine {
             const canvas = waveContainer.querySelector('canvas');
             if (!canvas) continue;
 
-            // Size canvas to container (only when dimensions change)
             const w = waveContainer.offsetWidth * window.devicePixelRatio;
             const h = waveContainer.offsetHeight * window.devicePixelRatio;
             if (canvas.width !== w || canvas.height !== h) {
@@ -776,48 +1042,46 @@ class RecordingEngine {
                 canvas.style.height = '100%';
             }
 
-            const ctx = canvas.getContext('2d');
+            const canvasCtx = canvas.getContext('2d');
             const width = canvas.width;
             const height = canvas.height;
             const centerY = height / 2;
 
-            ctx.clearRect(0, 0, width, height);
+            canvasCtx.clearRect(0, 0, width, height);
 
-            // Draw grid
             if (this.mixer.waveform) {
-                this.mixer.waveform.drawGrid(ctx, width, height);
+                this.mixer.waveform.drawGrid(canvasCtx, width, height);
             }
 
-            // Start X position (where recording begins on timeline)
-            const startX = offsetRatio * width * hz;
-
-            // Available canvas width for the waveform so far
-            const waveWidth = Math.max(1, elapsedRatio * width * hz);
-
-            // Draw offset spacer (dimmed area before recording start)
+            // Dimmed area before first recorded point
+            const startX = (data[0].songTime / totalDuration) * width * hz;
             if (startX > 0) {
-                ctx.fillStyle = 'rgba(231, 76, 60, 0.05)';
-                ctx.fillRect(0, 0, Math.min(startX, width), height);
+                canvasCtx.fillStyle = 'rgba(231, 76, 60, 0.05)';
+                canvasCtx.fillRect(0, 0, Math.min(startX, width), height);
             }
 
-            // Draw waveform from accumulated peak data
-            ctx.beginPath();
-            ctx.strokeStyle = '#e74c3c';
-            ctx.lineWidth = 1 * window.devicePixelRatio;
+            // Each peak is plotted at its absolute timeline position
+            // No stretching possible — position is baked into the data
+            canvasCtx.beginPath();
+            canvasCtx.strokeStyle = '#e74c3c';
+            canvasCtx.lineWidth = 1 * window.devicePixelRatio;
 
-            const step = data.length > 0 ? waveWidth / data.length : 1;
+            const minStep = 0.5; // skip sub-pixel draws for performance
+            let lastX = -minStep;
 
             for (let i = 0; i < data.length; i++) {
-                const x = startX + i * step;
-                if (x > width) break;
+                const x = (data[i].songTime / totalDuration) * width * hz;
                 if (x < 0) continue;
+                if (x > width) continue;
+                if (x - lastX < minStep) continue;
+                lastX = x;
 
-                const amplitude = data[i] * vz * height * 0.8;
-                ctx.moveTo(x, centerY - amplitude / 2);
-                ctx.lineTo(x, centerY + amplitude / 2);
+                const amplitude = data[i].peak * vz * height * 0.8;
+                canvasCtx.moveTo(x, centerY - amplitude / 2);
+                canvasCtx.lineTo(x, centerY + amplitude / 2);
             }
 
-            ctx.stroke();
+            canvasCtx.stroke();
         }
     }
 

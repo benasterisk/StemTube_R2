@@ -40,11 +40,11 @@ class SoundTouchEngine {
     /**
      * Initialize the audio context and load SoundTouch
      */
-    async initAudioContext() {
+    async initAudioContext(sampleRate) {
         try {
-            // Create audio context
             const AudioContext = window.AudioContext || window.webkitAudioContext;
-            this.audioContext = new AudioContext();
+            const opts = sampleRate ? { sampleRate } : {};
+            this.audioContext = new AudioContext(opts);
             
             // Create master gain node
             this.masterGainNode = this.audioContext.createGain();
