@@ -1,5 +1,5 @@
-// StemTube Service Worker v2.17 - Remove beat-snap from Skip Intro
-const CACHE_NAME = 'stemtube-v2.39';
+// StemTube Service Worker v2.18 - Sample rate alignment + DSP fix
+const CACHE_NAME = 'stemtube-v2.40';
 const STEMS_CACHE_NAME = 'stemtube-stems-v1';
 
 // Stem file names to cache (no ZIP, no source)
@@ -122,17 +122,18 @@ self.addEventListener('fetch', (event) => {
   // Skip other API calls (always fetch fresh)
   if (url.pathname.startsWith('/api/')) return;
 
-  // Static files: cache-first
+  // Static files: network-first with cache fallback
+  // Ensures code updates are picked up immediately while still working offline
   if (url.pathname.startsWith('/static/')) {
     event.respondWith(
-      caches.match(event.request).then((cached) => {
-        return cached || fetch(event.request).then((response) => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
-          return response;
-        });
+      fetch(event.request).then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => {
+        return caches.match(event.request);
       })
     );
     return;
