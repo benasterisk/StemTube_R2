@@ -431,17 +431,23 @@
 .mobile-stem-download[data-stem="piano"] i { color: #c084fc; }
 .mobile-stem-download[data-stem="other"] i { color: #a0a0a0; }
 
-/* Download button in library item */
+/* Icon buttons in library item (download, remove) */
 .mobile-library-actions .download-btn,
 .mobile-library-actions .remove-btn {
     background: transparent;
     border: 1px solid var(--mobile-border, #333);
     border-radius: 8px;
-    padding: 8px 12px;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
     color: var(--mobile-text-secondary, #aaa);
     font-size: 14px;
     cursor: pointer;
     transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .mobile-library-actions .download-btn:active {
@@ -464,20 +470,26 @@
     pointer-events: none;
 }
 
-/* Play button in library item */
+/* Play button in library item — match icon button style (download, remove) */
 .mobile-library-actions .play-btn {
-    background: rgba(29, 185, 84, 0.15);
+    background: transparent;
     border: 1px solid rgba(29, 185, 84, 0.3);
     border-radius: 8px;
-    padding: 8px 12px;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     color: #1db954;
     font-size: 14px;
     cursor: pointer;
+    padding: 0;
     transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .mobile-library-actions .play-btn:active {
-    background: rgba(29, 185, 84, 0.3);
+    background: rgba(29, 185, 84, 0.25);
 }
 
 .mobile-library-actions .play-btn i {
@@ -486,9 +498,6 @@
 
 /* Media player bottom sheet */
 #mobileMediaPlayerBody {
-    display: flex;
-    justify-content: center;
-    align-items: center;
     padding: 8px 0 16px;
 }
 
@@ -497,8 +506,9 @@
 }
 
 #mobileMediaPlayerBody video {
+    display: block;
     width: 100%;
-    max-height: 50vh;
+    max-height: 60vh;
     background: #000;
     border-radius: 8px;
 }
@@ -602,6 +612,28 @@
 
 .mobile-toggle input:checked + .mobile-toggle-slider:before {
     transform: translateX(22px);
+}
+
+/* Download options group */
+.mobile-option-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+}
+
+.mobile-option-group label {
+    font-size: 14px;
+    color: var(--mobile-text-secondary);
+    font-weight: 500;
+}
+
+.mobile-btn-full {
+    width: 100%;
+    margin-top: 12px;
+    padding: 14px;
+    font-size: 15px;
+    justify-content: center;
 }
 
 /* Select */
@@ -787,15 +819,17 @@
     background: transparent;
     border: 1px solid var(--mobile-primary);
     border-radius: 8px;
-    padding: 8px 12px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
     color: var(--mobile-primary);
     font-size: 14px;
     cursor: pointer;
     transition: all 0.2s ease;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 40px;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .mobile-library-actions .save-offline-btn:active {

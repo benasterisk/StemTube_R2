@@ -1066,6 +1066,48 @@
         </div>
     </div>
 
+    <!-- Download Options Bottom Sheet (type + quality before YouTube download) -->
+    <div class="mobile-bottom-sheet" id="mobileDownloadOptionsSheet">
+        <div class="mobile-bottom-sheet-backdrop"></div>
+        <div class="mobile-bottom-sheet-content">
+            <div class="mobile-bottom-sheet-header">
+                <div class="mobile-bottom-sheet-handle"></div>
+                <h3 id="mobileDownloadOptionsTitle">Download Options</h3>
+            </div>
+            <div class="mobile-bottom-sheet-body">
+                <div class="mobile-option-group">
+                    <label for="mobileDownloadType">Type</label>
+                    <select id="mobileDownloadType" class="mobile-select">
+                        <option value="audio" selected>Audio (MP3)</option>
+                        <option value="video">Video (MP4)</option>
+                    </select>
+                </div>
+                <div class="mobile-option-group" id="mobileAudioQualityGroup">
+                    <label for="mobileAudioQuality">Audio Quality</label>
+                    <select id="mobileAudioQuality" class="mobile-select">
+                        <option value="best" selected>Best</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <div class="mobile-option-group" id="mobileVideoQualityGroup" style="display:none">
+                    <label for="mobileVideoQuality">Video Quality</label>
+                    <select id="mobileVideoQuality" class="mobile-select">
+                        <option value="best">Best</option>
+                        <option value="1080p">1080p</option>
+                        <option value="720p" selected>720p</option>
+                        <option value="480p">480p</option>
+                        <option value="360p">360p</option>
+                    </select>
+                </div>
+                <button class="mobile-btn mobile-btn-primary mobile-btn-full" id="mobileStartDownloadBtn">
+                    <i class="fas fa-download"></i> Start Download
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Media Player Bottom Sheet -->
     <div class="mobile-bottom-sheet" id="mobileMediaPlayerSheet">
         <div class="mobile-bottom-sheet-backdrop"></div>

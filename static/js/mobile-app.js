@@ -767,12 +767,74 @@ class MobileApp {
             video.thumbnail_url ||
             `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
 
+        // Show download options bottom sheet
+        this._showDownloadOptionsSheet(videoId, video.title || 'Untitled', thumbnailUrl);
+    }
+
+    _showDownloadOptionsSheet(videoId, title, thumbnailUrl) {
+        const sheet = document.getElementById('mobileDownloadOptionsSheet');
+        if (!sheet) {
+            // Fallback: direct download if sheet not in DOM
+            this._executeDownload(videoId, title, thumbnailUrl, 'audio', 'best');
+            return;
+        }
+
+        const titleEl = document.getElementById('mobileDownloadOptionsTitle');
+        if (titleEl) titleEl.textContent = title;
+
+        const typeSelect = document.getElementById('mobileDownloadType');
+        const audioGroup = document.getElementById('mobileAudioQualityGroup');
+        const videoGroup = document.getElementById('mobileVideoQualityGroup');
+
+        // Reset to audio
+        if (typeSelect) typeSelect.value = 'audio';
+        if (audioGroup) audioGroup.style.display = '';
+        if (videoGroup) videoGroup.style.display = 'none';
+
+        // Toggle quality selectors on type change
+        const onTypeChange = () => {
+            const isVideo = typeSelect.value === 'video';
+            if (audioGroup) audioGroup.style.display = isVideo ? 'none' : '';
+            if (videoGroup) videoGroup.style.display = isVideo ? '' : 'none';
+        };
+        typeSelect.removeEventListener('change', typeSelect._handler);
+        typeSelect._handler = onTypeChange;
+        typeSelect.addEventListener('change', onTypeChange);
+
+        // Start download button
+        const startBtn = document.getElementById('mobileStartDownloadBtn');
+        const onStart = () => {
+            startBtn.removeEventListener('click', onStart);
+            const downloadType = typeSelect.value;
+            const quality = downloadType === 'video'
+                ? document.getElementById('mobileVideoQuality').value
+                : document.getElementById('mobileAudioQuality').value;
+            sheet.classList.remove('active');
+            this._executeDownload(videoId, title, thumbnailUrl, downloadType, quality);
+        };
+        startBtn.removeEventListener('click', startBtn._handler);
+        startBtn._handler = onStart;
+        startBtn.addEventListener('click', onStart);
+
+        // Backdrop close
+        const backdrop = sheet.querySelector('.mobile-bottom-sheet-backdrop');
+        if (backdrop) {
+            const onBackdrop = () => { sheet.classList.remove('active'); };
+            backdrop.removeEventListener('click', backdrop._handler);
+            backdrop._handler = onBackdrop;
+            backdrop.addEventListener('click', onBackdrop);
+        }
+
+        sheet.classList.add('active');
+    }
+
+    async _executeDownload(videoId, title, thumbnailUrl, downloadType, quality) {
         const payload = {
             video_id: videoId,
-            title: video.title || 'Untitled',
+            title: title,
             thumbnail_url: thumbnailUrl,
-            download_type: 'audio',
-            quality: 'best'
+            download_type: downloadType,
+            quality: quality
         };
 
         try {
@@ -1656,18 +1718,18 @@ class MobileApp {
             const streamUrl = `/api/stream-audio?file_path=${encodeURIComponent(item.file_path)}`;
             const mediaType = item.type || item.media_type || 'audio';
 
+            let media;
             if (mediaType === 'video') {
-                const video = document.createElement('video');
-                video.controls = true;
-                video.setAttribute('playsinline', '');
-                video.src = streamUrl;
-                this.mediaPlayerBody.appendChild(video);
+                media = document.createElement('video');
+                media.setAttribute('playsinline', '');
+                media.setAttribute('webkit-playsinline', '');
             } else {
-                const audio = document.createElement('audio');
-                audio.controls = true;
-                audio.src = streamUrl;
-                this.mediaPlayerBody.appendChild(audio);
+                media = document.createElement('audio');
             }
+            media.controls = true;
+            media.preload = 'metadata';
+            media.src = streamUrl;
+            this.mediaPlayerBody.appendChild(media);
         }
 
         this.mediaPlayerSheet.classList.add('active');
