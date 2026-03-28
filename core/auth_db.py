@@ -15,7 +15,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 
 def get_db_connection():
     """Get a connection to the SQLite database."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -59,6 +59,19 @@ def init_db():
             conn.execute('ALTER TABLE users ADD COLUMN jam_code TEXT')
         except sqlite3.OperationalError:
             pass  # Column already exists
+
+        # Spotify integration columns
+        for col in [
+            'spotify_client_id TEXT',
+            'spotify_client_secret TEXT',
+            'spotify_access_token TEXT',
+            'spotify_refresh_token TEXT',
+            'spotify_token_expires_at INTEGER',
+        ]:
+            try:
+                conn.execute(f'ALTER TABLE users ADD COLUMN {col}')
+            except sqlite3.OperationalError:
+                pass
 
         conn.commit()
         

@@ -48,3 +48,8 @@ from core.db.recordings import (
     create_recording, list_recordings, get_recording,
     rename_recording, delete_recording,
 )
+from core.db.playlists import (
+    init_playlists_table,
+    save_playlist, list_playlists, get_playlist,
+    update_track_video_id, delete_playlist,
+)

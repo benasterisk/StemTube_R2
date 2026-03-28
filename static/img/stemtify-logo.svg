@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="3 4 16 16">
+  <!-- Body -->
+  <ellipse cx="12" cy="14" rx="7" ry="5" fill="currentColor"/>
+  <!-- Left ear -->
+  <circle cx="7" cy="8" r="3" fill="currentColor"/>
+  <circle cx="7" cy="8" r="1.8" fill="currentColor" opacity=".7"/>
+  <!-- Right ear -->
+  <circle cx="17" cy="8" r="3" fill="currentColor"/>
+  <circle cx="17" cy="8" r="1.8" fill="currentColor" opacity=".7"/>
+  <!-- Left eye -->
+  <circle cx="10" cy="12.5" r="1" fill="#000"/>
+  <circle cx="10.3" cy="12.2" r=".3" fill="#fff"/>
+  <!-- Right eye -->
+  <circle cx="14" cy="12.5" r="1" fill="#000"/>
+  <circle cx="14.3" cy="12.2" r=".3" fill="#fff"/>
+  <!-- Nose -->
+  <ellipse cx="12" cy="14" rx=".8" ry=".5" fill="currentColor" opacity=".6"/>
+  <!-- Whiskers -->
+  <line x1="6" y1="13.5" x2="9" y2="13.5" stroke="currentColor" stroke-width=".4" opacity=".5"/>
+  <line x1="6" y1="14.5" x2="9" y2="14.8" stroke="currentColor" stroke-width=".4" opacity=".5"/>
+  <line x1="15" y1="13.5" x2="18" y2="13.5" stroke="currentColor" stroke-width=".4" opacity=".5"/>
+  <line x1="15" y1="14.5" x2="18" y2="14.8" stroke="currentColor" stroke-width=".4" opacity=".5"/>
+  <!-- Headphones (green, thicker) -->
+  <path d="M6.5,10 Q6,5.5 12,5 Q18,5.5 17.5,10" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round"/>
+  <rect x="4.5" y="9" width="3" height="3.5" rx="1.2" fill="#1DB954"/>
+  <rect x="16.5" y="9" width="3" height="3.5" rx="1.2" fill="#1DB954"/>
+</svg>

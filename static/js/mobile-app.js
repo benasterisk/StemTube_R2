@@ -170,6 +170,8 @@ class MobileApp {
         // Restore state from localStorage after library is loaded
         this.restoreState();
 
+        this.initSpotify();
+
         this.log('[MobileApp] Initialization complete');
     }
 
@@ -259,6 +261,8 @@ class MobileApp {
         });
         this.socket.on('extraction_error', (data) => this.onExtractionError(data));
         this.socket.on('lyrics_progress', (data) => this.onLyricsProgress(data));
+        this.socket.on('spotify_batch_progress', (data) => this.onSpotifyBatchProgress(data));
+        this.socket.on('spotify_batch_complete', (data) => this.onSpotifyBatchComplete(data));
 
         // iOS: reconnect socket when app returns to foreground
         document.addEventListener('visibilitychange', () => {
@@ -8675,6 +8679,226 @@ class MobileApp {
             script.onerror = reject;
             document.head.appendChild(script);
         });
+    }
+
+    // ── Spotify ──────────────────────────────────────────────────
+
+    initSpotify() {
+        const saveBtn = document.getElementById('mobileSpotifySaveBtn');
+        if (saveBtn) saveBtn.addEventListener('click', () => this.spotifySaveCredentials());
+
+        const connectBtn = document.getElementById('mobileSpotifyConnectBtn');
+        if (connectBtn) connectBtn.addEventListener('click', () => this.spotifyConnect());
+
+        this.spotifyCheckCredentials();
+
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('spotify') === 'connected') {
+            alert('StemTify connected!');
+            window.history.replaceState({}, '', window.location.pathname);
+            this.spotifyCheckCredentials();
+        }
+    }
+
+    async spotifyCheckCredentials() {
+        try {
+            const res = await fetch('/api/spotify/credentials');
+            const data = await res.json();
+            const connectBtn = document.getElementById('mobileSpotifyConnectBtn');
+            const statusEl = document.getElementById('mobileSpotifyStatus');
+            const notConnected = document.getElementById('mobileSpotifyNotConnected');
+
+            if (data.has_credentials) {
+                if (connectBtn) connectBtn.style.display = '';
+                if (data.connected) {
+                    if (statusEl) statusEl.textContent = '✓ Connected to Spotify';
+                    if (statusEl) statusEl.style.color = '#1DB954';
+                    if (notConnected) notConnected.style.display = 'none';
+                    this.loadSpotifyPlaylists();
+                } else {
+                    if (statusEl) statusEl.textContent = 'Click Connect to authorize';
+                }
+            } else {
+                if (connectBtn) connectBtn.style.display = 'none';
+                if (statusEl) statusEl.textContent = '';
+            }
+        } catch (e) {
+            console.error('[Spotify] checkCredentials error:', e);
+        }
+    }
+
+    async spotifySaveCredentials() {
+        const clientId = document.getElementById('mobileSpotifyClientId')?.value.trim();
+        const clientSecret = document.getElementById('mobileSpotifyClientSecret')?.value.trim();
+        if (!clientId || !clientSecret) { alert('Enter both Client ID and Secret'); return; }
+        try {
+            const res = await fetch('/api/spotify/credentials', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({client_id: clientId, client_secret: clientSecret})
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('Credentials saved!');
+                this.spotifyCheckCredentials();
+            } else {
+                alert(data.error || 'Failed');
+            }
+        } catch (e) { alert('Error saving credentials'); }
+    }
+
+    async spotifyConnect() {
+        try {
+            const res = await fetch('/api/spotify/auth');
+            const data = await res.json();
+            if (data.auth_url) window.location.href = data.auth_url;
+            else alert(data.error || 'Failed');
+        } catch (e) { alert('Error'); }
+    }
+
+    async loadSpotifyPlaylists() {
+        const container = document.getElementById('mobileSpotifyContent');
+        if (!container) return;
+        container.innerHTML = '<div style="text-align:center;padding:20px"><i class="fas fa-spinner fa-spin"></i></div>';
+
+        try {
+            const [spotifyRes, savedRes] = await Promise.all([
+                fetch('/api/spotify/playlists').catch(() => null),
+                fetch('/api/spotify/playlists/saved')
+            ]);
+            const savedData = await savedRes.json();
+            const savedMap = {};
+            for (const p of (savedData.playlists || [])) savedMap[p.spotify_id] = p.id;
+
+            let playlists = [];
+            if (spotifyRes && spotifyRes.ok) {
+                const d = await spotifyRes.json();
+                playlists = d.playlists || [];
+            }
+            if (playlists.length === 0) {
+                playlists = (savedData.playlists || []).map(p => ({
+                    spotify_id: p.spotify_id, name: p.name, thumbnail_url: p.thumbnail_url,
+                    track_count: p.track_count, saved_id: p.id
+                }));
+            }
+
+            container.innerHTML = '';
+            for (const pl of playlists) {
+                const savedId = savedMap[pl.spotify_id] || pl.saved_id || '';
+                const div = document.createElement('div');
+                div.className = 'mobile-search-result';
+                div.innerHTML =
+                    '<img src="' + (pl.thumbnail_url || '/static/img/default-thumb.svg') + '" class="mobile-result-thumbnail">' +
+                    '<div class="mobile-result-info">' +
+                        '<div class="mobile-result-title">' + this.escapeHtml(pl.name) + '</div>' +
+                        '<div class="mobile-result-meta">' + (pl.track_count || 0) + ' tracks</div>' +
+                    '</div>' +
+                    '<button class="mobile-btn mobile-btn-icon spotify-pl-btn" data-spotify-id="' + pl.spotify_id + '" data-saved-id="' + savedId + '" data-name="' + this.escapeHtml(pl.name) + '" data-thumb="' + (pl.thumbnail_url||'') + '" data-count="' + (pl.track_count||0) + '"><i class="fas fa-chevron-right"></i></button>';
+                container.appendChild(div);
+            }
+
+            container.querySelectorAll('.spotify-pl-btn').forEach(btn => {
+                btn.addEventListener('click', () => this.viewSpotifyPlaylist(btn.dataset));
+            });
+        } catch (e) {
+            container.innerHTML = '<div style="text-align:center;padding:20px;color:red">Failed to load</div>';
+        }
+    }
+
+    async viewSpotifyPlaylist(dataset) {
+        const container = document.getElementById('mobileSpotifyContent');
+        if (!container) return;
+        container.innerHTML = '<div style="text-align:center;padding:20px"><i class="fas fa-spinner fa-spin"></i></div>';
+
+        let savedId = dataset.savedId;
+        // Save first if not saved
+        if (!savedId) {
+            try {
+                const res = await fetch(`/api/spotify/playlists/${dataset.spotifyId}/save`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: dataset.name, thumbnail_url: dataset.thumb, track_count: parseInt(dataset.count)})
+                });
+                const d = await res.json();
+                if (d.success) savedId = d.playlist_id;
+            } catch (e) {}
+        }
+
+        try {
+            let tracks = [];
+            if (savedId) {
+                const res = await fetch(`/api/spotify/playlists/saved/${savedId}`);
+                const d = await res.json();
+                if (d.success) tracks = d.playlist.tracks || [];
+            }
+            if (tracks.length === 0) {
+                const res = await fetch(`/api/spotify/playlists/${dataset.spotifyId}/tracks`);
+                const d = await res.json();
+                tracks = d.tracks || [];
+            }
+
+            let html = '<div style="display:flex;gap:8px;margin-bottom:12px;">' +
+                '<button class="mobile-btn mobile-btn-icon" id="mobileSpotifyBackBtn"><i class="fas fa-arrow-left"></i></button>' +
+                '<span style="flex:1;line-height:36px;font-size:14px;">' + tracks.length + ' tracks</span>';
+            if (savedId) {
+                html += '<button class="mobile-btn mobile-btn-primary" id="mobileSpotifyDlAllBtn" data-id="' + savedId + '"><i class="fas fa-download"></i> Download All</button>';
+            }
+            html += '</div>';
+
+            for (let i = 0; i < tracks.length; i++) {
+                const t = tracks[i];
+                const dur = t.duration_ms ? Math.floor(t.duration_ms/60000) + ':' + String(Math.round((t.duration_ms%60000)/1000)).padStart(2,'0') : '';
+                const check = t.video_id ? ' <i class="fas fa-check-circle" style="color:#1DB954"></i>' : '';
+                html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--mobile-border);">' +
+                    '<span style="width:24px;text-align:right;font-size:12px;color:var(--mobile-text-secondary);">' + (i+1) + '</span>' +
+                    '<div style="flex:1;min-width:0;"><div style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + this.escapeHtml(t.title) + '</div>' +
+                    '<div style="font-size:12px;color:var(--mobile-text-secondary);">' + this.escapeHtml(t.artist) + '</div></div>' +
+                    '<span style="font-size:12px;color:var(--mobile-text-secondary);">' + dur + '</span>' + check + '</div>';
+            }
+            container.innerHTML = html;
+
+            document.getElementById('mobileSpotifyBackBtn')?.addEventListener('click', () => this.loadSpotifyPlaylists());
+            document.getElementById('mobileSpotifyDlAllBtn')?.addEventListener('click', (e) => this.downloadSpotifyPlaylist(e.target.closest('button').dataset.id));
+        } catch (e) {
+            container.innerHTML = '<div style="text-align:center;padding:20px;color:red">Failed to load tracks</div>';
+        }
+    }
+
+    async downloadSpotifyPlaylist(playlistId) {
+        const btn = document.getElementById('mobileSpotifyDlAllBtn');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+        try {
+            const res = await fetch(`/api/spotify/playlists/${playlistId}/download`, {method: 'POST'});
+            const data = await res.json();
+            if (data.success) {
+                alert(`Downloading ${data.track_count} tracks...`);
+            } else {
+                alert(data.error || 'Failed');
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-download"></i> Download All'; }
+            }
+        } catch (e) {
+            alert('Error');
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-download"></i> Download All'; }
+        }
+    }
+
+    onSpotifyBatchProgress(data) {
+        const el = document.getElementById('mobileSpotifyBatchProgress');
+        if (!el) return;
+        el.style.display = '';
+        const text = data.phase === 'searching' ? `Searching: ${data.current_title}` : `Downloading: ${data.current_title}`;
+        document.getElementById('mobileSpotifyBatchText').textContent = text;
+        document.getElementById('mobileSpotifyBatchCount').textContent = `${data.current_track_index+1}/${data.total_tracks}`;
+        document.getElementById('mobileSpotifyBatchFill').style.width = ((data.current_track_index+1)/data.total_tracks*100) + '%';
+    }
+
+    onSpotifyBatchComplete(data) {
+        const el = document.getElementById('mobileSpotifyBatchProgress');
+        if (el) el.style.display = 'none';
+        const btn = document.getElementById('mobileSpotifyDlAllBtn');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-download"></i> Download All'; }
+        alert(`Done: ${data.downloaded} downloaded, ${data.existed} already had, ${data.failed} failed`);
+        this.loadLibrary();
     }
 }
 

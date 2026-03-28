@@ -1,0 +1,165 @@
+/* ── StemTify Tab ────────────────────────────────────── */
+/* StemTify mouse icon */
+.stemtify-icon {
+    display: inline-block;
+    width: 1.5em;
+    height: 1.5em;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+}
+
+.tab-button i {
+    margin-right: 2px;
+}
+.spotify-container {
+    padding: 0 16px;
+}
+
+.spotify-url-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+}
+
+.spotify-url-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-color);
+    font-size: 0.95rem;
+}
+
+.spotify-url-input::placeholder {
+    color: var(--text-muted);
+}
+
+/* Saved playlists sidebar */
+.spotify-saved-list {
+    width: 260px;
+    flex-shrink: 0;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.spotify-saved-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.spotify-saved-item:hover {
+    background: var(--bg-secondary);
+}
+
+.spotify-saved-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.spotify-saved-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.spotify-saved-name {
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.spotify-saved-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.spotify-empty {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+/* Tracks container */
+.spotify-tracks-container {
+    flex: 1;
+    min-width: 0;
+}
+
+.spotify-tracks-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.spotify-tracks-header h3 {
+    flex: 1;
+    font-size: 1.1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.spotify-tracks-header span {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.spotify-track-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+
+.spotify-track-row:hover {
+    background: var(--bg-secondary);
+}
+
+.spotify-track-num {
+    width: 24px;
+    text-align: right;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.spotify-track-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.spotify-track-title {
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.spotify-track-artist {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.spotify-track-duration {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}

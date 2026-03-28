@@ -614,6 +614,14 @@
     transform: translateX(22px);
 }
 
+/* StemTify icon */
+.stemtify-icon {
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.125em;
+    display: inline-block;
+}
+
 /* Download options group */
 .mobile-option-group {
     display: flex;
