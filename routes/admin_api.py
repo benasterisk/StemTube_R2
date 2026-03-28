@@ -791,7 +791,7 @@ def update_system_settings():
         # Update other settings (don't require restart)
         if 'max_concurrent_downloads' in data:
             value = int(data['max_concurrent_downloads'])
-            if 1 <= value <= 10:
+            if 1 <= value <= 20:
                 update_setting('max_concurrent_downloads', value)
                 applied_changes.append('max_concurrent_downloads')
                 logger.info(f"[SystemSettings] Max concurrent downloads set to: {value}")
