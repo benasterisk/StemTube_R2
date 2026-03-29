@@ -8945,6 +8945,7 @@ class MobileApp {
     renderLibraryView() {
         switch (this._currentLibraryView) {
             case 'playlists': this.renderMobilePlaylists(); break;
+            case 'artists': this.renderMobileArtists(); break;
             case 'albums': this.renderMobileAlbums(); break;
             case 'tracks': this.displayLibrary(this._libraryData, 'mobileLibraryList', false); break;
             case 'stems': this.renderMobileStems(); break;

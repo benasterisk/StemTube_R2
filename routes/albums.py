@@ -77,3 +77,70 @@ def download_album(album_id):
 
     logger.info(f"[Albums] Batch download started for album {album_id} ({len(track_list)} tracks)")
     return jsonify({'success': True, 'track_count': len(track_list)})
+
+
+@albums_bp.route('/api/albums/ytmusic/<browse_id>', methods=['GET'])
+@api_login_required
+def get_ytmusic_album(browse_id):
+    """Fetch album tracks from YouTube Music by browse_id."""
+    from extensions import aiotube_client
+    if not aiotube_client:
+        from core.aiotube_client import get_aiotube_client
+        aiotube_client = get_aiotube_client()
+    result = aiotube_client.get_album_tracks(browse_id)
+    if not result.get('success'):
+        return jsonify({'error': result.get('error', 'Failed to fetch album')}), 500
+    return jsonify(result)
+
+
+@albums_bp.route('/api/albums/ytmusic/<browse_id>/download', methods=['POST'])
+@api_login_required
+def download_ytmusic_album(browse_id):
+    """Batch download all tracks from a YouTube Music album."""
+    from extensions import aiotube_client
+    if not aiotube_client:
+        from core.aiotube_client import get_aiotube_client
+        aiotube_client = get_aiotube_client()
+
+    album_data = aiotube_client.get_album_tracks(browse_id)
+    if not album_data.get('success') or not album_data.get('tracks'):
+        return jsonify({'error': 'Failed to fetch album tracks'}), 500
+
+    tracks = album_data['tracks']
+
+    # Build track list for batch download
+    track_list = []
+    for t in tracks:
+        if t.get('video_id'):
+            track_list.append({
+                'title': t['title'],
+                'artist': t.get('artist', ''),
+                'album': album_data.get('title', ''),
+                'video_id': t['video_id'],
+                'duration_ms': 0,
+            })
+
+    if not track_list:
+        return jsonify({'error': 'No downloadable tracks'}), 400
+
+    # Also create the album in our DB
+    from core.db.albums import find_or_create_album
+    album_id = find_or_create_album(
+        name=album_data.get('title', ''),
+        artist=album_data.get('artist', ''),
+        thumbnail_url=album_data.get('thumbnail', ''),
+        year=int(album_data['year']) if album_data.get('year', '').isdigit() else None,
+        source='ytmusic',
+        source_id=browse_id,
+    )
+
+    from core.spotify_download_manager import batch_download_playlist
+    thread = threading.Thread(
+        target=batch_download_playlist,
+        args=(current_user.id, album_id or 0, track_list),
+        daemon=True
+    )
+    thread.start()
+
+    logger.info(f"[Albums] YT Music album download: {album_data.get('title')} ({len(track_list)} tracks)")
+    return jsonify({'success': True, 'track_count': len(track_list), 'album_title': album_data.get('title', '')})
