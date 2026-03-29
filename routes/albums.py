@@ -134,13 +134,31 @@ def download_ytmusic_album(browse_id):
         source_id=browse_id,
     )
 
+    # Auto-create a playlist for this album so it's replayable as a unit
+    from core.db.playlists import save_playlist
+    playlist_name = f"Album: {album_data.get('title', 'Unknown')}"
+    playlist_id = save_playlist(
+        user_id=current_user.id,
+        spotify_id=None,
+        name=playlist_name,
+        description=f"Downloaded from YouTube Music — {album_data.get('artist', '')}",
+        thumbnail_url=album_data.get('thumbnail', ''),
+        tracks=track_list,
+        track_count=len(track_list),
+    )
+
     from core.spotify_download_manager import batch_download_playlist
     thread = threading.Thread(
         target=batch_download_playlist,
-        args=(current_user.id, album_id or 0, track_list),
+        args=(current_user.id, playlist_id or (album_id or 0), track_list),
         daemon=True
     )
     thread.start()
 
-    logger.info(f"[Albums] YT Music album download: {album_data.get('title')} ({len(track_list)} tracks)")
-    return jsonify({'success': True, 'track_count': len(track_list), 'album_title': album_data.get('title', '')})
+    logger.info(f"[Albums] YT Music album download: {album_data.get('title')} ({len(track_list)} tracks), playlist #{playlist_id}")
+    return jsonify({
+        'success': True,
+        'track_count': len(track_list),
+        'album_title': album_data.get('title', ''),
+        'playlist_id': playlist_id,
+    })

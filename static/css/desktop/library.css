@@ -753,6 +753,26 @@
 .library-track-artist { font-size: 0.8rem; color: var(--text-muted); }
 .library-track-duration { font-size: 0.8rem; color: var(--text-muted); }
 
+/* Playlist track status indicators */
+.pl-track-status { flex-shrink: 0; width: 80px; text-align: right; }
+.pl-status-done { color: #1DB954; font-size: 0.8rem; }
+.pl-status-pending { color: var(--text-muted); font-size: 0.8rem; opacity: 0.4; }
+.pl-status-searching { color: #f39c12; font-size: 0.8rem; }
+.pl-status-queued { color: #3498db; font-size: 0.8rem; }
+.pl-status-downloading { color: #3498db; font-size: 0.8rem; animation: pl-pulse 1s infinite; }
+.pl-status-failed { color: #e74c3c; font-size: 0.8rem; }
+@keyframes pl-pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+/* Batch progress bar */
+.pl-batch-progress { padding: 10px; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 12px; }
+.pl-batch-info { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; color: var(--text-muted); }
+.pl-batch-bar { height: 4px; background: var(--border-color); border-radius: 2px; overflow: hidden; }
+.pl-batch-fill { height: 100%; background: #1DB954; width: 0%; transition: width 0.3s; }
+
+/* Retry button */
+.pl-retry-btn { padding: 6px 12px; background: #e74c3c; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; margin-top: 8px; }
+.pl-retry-btn:hover { background: #c0392b; }
+
 /* Queue bar in media player */
 .queue-bar {
     display: flex;
@@ -792,3 +812,29 @@
     box-shadow: 0 4px 12px rgba(29, 185, 84, 0.4);
 }
 .library-play-all-btn i { font-size: 0.8rem; }
+
+/* Confirmation Dialog */
+.confirm-dialog-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:2000; display:flex; align-items:center; justify-content:center; }
+.confirm-dialog { background:var(--bg-color); border:1px solid var(--border-color); border-radius:12px; padding:24px; max-width:400px; width:90%; box-shadow:0 8px 30px rgba(0,0,0,0.3); }
+.confirm-dialog-title { font-size:1.1rem; font-weight:600; margin-bottom:8px; }
+.confirm-dialog-message { font-size:0.9rem; color:var(--text-muted); margin-bottom:16px; line-height:1.4; }
+.confirm-dialog-actions { display:flex; gap:8px; justify-content:flex-end; }
+.btn-danger { background:#e74c3c !important; color:#fff !important; }
+.btn-danger:hover { background:#c0392b !important; }
+
+/* Playlist track remove button */
+.library-track-remove {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+.library-track-remove:hover {
+    color: #e74c3c;
+    background: rgba(231, 76, 60, 0.1);
+}

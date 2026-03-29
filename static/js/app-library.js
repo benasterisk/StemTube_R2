@@ -5,6 +5,18 @@
 
     let currentView = 'playlists';
 
+    // Reusable confirmation dialog (replaces native confirm())
+    function showConfirmDialog(title, message) {
+        return new Promise((resolve) => {
+            const dialog = document.getElementById('confirmDialog');
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            dialog.style.display = 'flex';
+            document.getElementById('confirmOk').onclick = () => { dialog.style.display = 'none'; resolve(true); };
+            document.getElementById('confirmCancel').onclick = () => { dialog.style.display = 'none'; resolve(false); };
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         // View switcher buttons
         document.querySelectorAll('.library-view-btn').forEach(btn => {
@@ -446,7 +458,8 @@
             container.querySelectorAll('.library-playlist-del').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     e.stopPropagation();
-                    if (!confirm('Delete this playlist?')) return;
+                    const ok = await showConfirmDialog('Delete Playlist', 'Delete this playlist?');
+                    if (!ok) return;
                     await fetch(`/api/playlists/${btn.dataset.id}`, {method: 'DELETE'});
                     renderPlaylistsView();
                 });
@@ -457,10 +470,149 @@
         }
     }
 
+    // Track statuses for the currently drilled-down playlist
+    let _plTrackStatuses = {}; // index (1-based) -> status string
+    let _plVideoIdToIndex = {}; // video_id -> index (1-based)
+    let _plCurrentPlaylistId = null;
+    let _plFailedTracks = []; // indices of failed tracks
+
+    // Socket listeners bound once
+    let _plSocketBound = false;
+
+    function _plBindSocket() {
+        if (_plSocketBound) return;
+        if (typeof socket === 'undefined' || !socket) {
+            setTimeout(_plBindSocket, 500);
+            return;
+        }
+        socket.on('spotify_batch_progress', _plOnBatchProgress);
+        socket.on('spotify_batch_complete', _plOnBatchComplete);
+        socket.on('download_complete', _plOnDownloadComplete);
+        _plSocketBound = true;
+    }
+    _plBindSocket();
+
+    function _plIsTrackDownloaded(track) {
+        const lib = window._myLibraryRawData || [];
+        if (!track.video_id) return false;
+        return lib.some(item => item.video_id === track.video_id);
+    }
+
+    function _plStatusClass(status) {
+        const map = {
+            done: 'pl-status-done', pending: 'pl-status-pending',
+            searching: 'pl-status-searching', queued: 'pl-status-queued',
+            downloading: 'pl-status-downloading', downloaded: 'pl-status-done',
+            exists: 'pl-status-done', failed: 'pl-status-failed',
+            search_failed: 'pl-status-failed', download_failed: 'pl-status-failed'
+        };
+        return map[status] || 'pl-status-pending';
+    }
+
+    function _plStatusLabel(status) {
+        const map = {
+            done: 'Done', pending: 'Pending', searching: 'Searching...',
+            queued: 'Queued', downloading: 'Downloading...', downloaded: 'Done',
+            exists: 'Done', failed: 'Failed', search_failed: 'Not found',
+            download_failed: 'Failed'
+        };
+        return map[status] || status;
+    }
+
+    function _plStatusIcon(status) {
+        const map = {
+            done: 'fa-check-circle', pending: 'fa-circle', searching: 'fa-search',
+            queued: 'fa-clock', downloading: 'fa-arrow-down', downloaded: 'fa-check-circle',
+            exists: 'fa-check-circle', failed: 'fa-times-circle', search_failed: 'fa-times-circle',
+            download_failed: 'fa-times-circle'
+        };
+        return map[status] || 'fa-circle';
+    }
+
+    function _plUpdateTrackRow(idx, status) {
+        const row = document.querySelector(`.library-playlist-track[data-idx="${idx}"]`);
+        if (!row) return;
+        const statusEl = row.querySelector('.pl-track-status');
+        if (statusEl) {
+            statusEl.className = 'pl-track-status ' + _plStatusClass(status);
+            statusEl.innerHTML = `<i class="fas ${_plStatusIcon(status)}"></i> ${_plStatusLabel(status)}`;
+        }
+    }
+
+    function _plOnBatchProgress(data) {
+        if (data.playlist_id !== _plCurrentPlaylistId) return;
+
+        const idx = data.current || 0;
+        const total = data.total || 1;
+        const status = data.status || '';
+        const pct = (idx / total * 100).toFixed(0);
+
+        _plTrackStatuses[idx] = status;
+
+        if (data.video_id) {
+            _plVideoIdToIndex[data.video_id] = idx;
+        }
+
+        // Track failed items
+        if (status === 'failed' || status === 'search_failed' || status === 'download_failed') {
+            if (!_plFailedTracks.includes(idx)) _plFailedTracks.push(idx);
+        }
+
+        // Update individual track row
+        _plUpdateTrackRow(idx, status);
+
+        // Update global batch progress bar
+        const progressEl = document.getElementById('plBatchProgress');
+        if (progressEl) progressEl.style.display = '';
+        const textEl = document.getElementById('plBatchText');
+        if (textEl) textEl.textContent = `${_plStatusLabel(status)} — ${data.track_title || ''}`;
+        const countEl = document.getElementById('plBatchCount');
+        if (countEl) countEl.textContent = `${idx} / ${total}`;
+        const fillEl = document.getElementById('plBatchFill');
+        if (fillEl) fillEl.style.width = pct + '%';
+    }
+
+    function _plOnBatchComplete(data) {
+        if (data.playlist_id !== _plCurrentPlaylistId) return;
+
+        const textEl = document.getElementById('plBatchText');
+        if (textEl) textEl.textContent = `Done! ${data.downloaded || 0} downloaded, ${data.skipped || 0} existed, ${data.failed || 0} failed`;
+        const fillEl = document.getElementById('plBatchFill');
+        if (fillEl) fillEl.style.width = '100%';
+
+        const dlBtn = document.getElementById('plDownloadAllBtn');
+        if (dlBtn) { dlBtn.disabled = false; dlBtn.innerHTML = '<i class="fas fa-download"></i> Download All'; }
+
+        // Show retry button if there were failures
+        if ((data.failed || 0) > 0) {
+            const retryBtn = document.getElementById('plRetryFailedBtn');
+            if (retryBtn) retryBtn.style.display = '';
+        }
+
+        // Refresh library data so status checks are up to date
+        if (typeof loadGlobalLibrary === 'function') loadGlobalLibrary();
+    }
+
+    function _plOnDownloadComplete(data) {
+        const vid = data.video_id;
+        if (!vid) return;
+        const idx = _plVideoIdToIndex[vid];
+        if (idx) {
+            _plTrackStatuses[idx] = 'downloaded';
+            _plUpdateTrackRow(idx, 'downloaded');
+        }
+    }
+
     async function drillDownPlaylist(playlistId) {
         const container = document.getElementById('downloadsContainer');
         if (!container) return;
         container.innerHTML = '<div style="text-align:center;padding:20px"><i class="fas fa-spinner fa-spin"></i></div>';
+
+        // Reset per-playlist tracking state
+        _plCurrentPlaylistId = playlistId;
+        _plTrackStatuses = {};
+        _plVideoIdToIndex = {};
+        _plFailedTracks = [];
 
         try {
             const res = await fetch(`/api/playlists/${playlistId}`);
@@ -470,13 +622,29 @@
             const playlist = data.playlist;
             const tracks = playlist.tracks || [];
 
+            // Build video_id -> index map for socket event matching
+            for (let i = 0; i < tracks.length; i++) {
+                if (tracks[i].video_id) {
+                    _plVideoIdToIndex[tracks[i].video_id] = i + 1;
+                }
+            }
+
             let html = `<div class="library-drilldown">
                 <div class="library-drilldown-header">
                     <button class="btn btn-small library-back-btn"><i class="fas fa-arrow-left"></i> Back</button>
                     <h3>${_esc(playlist.name)}</h3>
                     <span>${tracks.length} tracks</span>
+                    <button class="btn btn-small btn-primary" id="plDownloadAllBtn"><i class="fas fa-download"></i> Download All</button>
                     <button class="btn btn-small btn-primary library-play-all-btn"><i class="fas fa-play"></i> Play All</button>
                 </div>
+                <div class="pl-batch-progress" id="plBatchProgress" style="display:none">
+                    <div class="pl-batch-info">
+                        <span id="plBatchText">Preparing...</span>
+                        <span id="plBatchCount"></span>
+                    </div>
+                    <div class="pl-batch-bar"><div id="plBatchFill" class="pl-batch-fill"></div></div>
+                </div>
+                <button class="pl-retry-btn" id="plRetryFailedBtn" style="display:none"><i class="fas fa-redo"></i> Retry Failed</button>
                 <div class="library-drilldown-items"></div>
             </div>`;
 
@@ -486,8 +654,18 @@
             for (let i = 0; i < tracks.length; i++) {
                 const t = tracks[i];
                 const dur = t.duration_ms ? Math.floor(t.duration_ms / 60000) + ':' + String(Math.round((t.duration_ms % 60000) / 1000)).padStart(2, '0') : '';
+
+                // Determine initial status
+                let initStatus = 'pending';
+                if (_plIsTrackDownloaded(t)) {
+                    initStatus = 'done';
+                } else if (_plTrackStatuses[i + 1]) {
+                    initStatus = _plTrackStatuses[i + 1];
+                }
+
                 const row = document.createElement('div');
                 row.className = 'library-playlist-track';
+                row.dataset.idx = i + 1;
                 row.innerHTML = `
                     <span class="library-track-num">${i + 1}</span>
                     <div class="library-track-info">
@@ -495,20 +673,120 @@
                         <div class="library-track-artist">${_esc(t.artist)}</div>
                     </div>
                     <span class="library-track-duration">${dur}</span>
+                    <div class="pl-track-status ${_plStatusClass(initStatus)}">
+                        <i class="fas ${_plStatusIcon(initStatus)}"></i> ${_plStatusLabel(initStatus)}
+                    </div>
+                    <button class="library-track-remove" data-video-id="${_esc(t.video_id || '')}" title="Remove from playlist"><i class="fas fa-times"></i></button>
                 `;
+
+                // Remove-from-playlist handler
+                const removeBtn = row.querySelector('.library-track-remove');
+                if (removeBtn && t.video_id) {
+                    removeBtn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const ok = await showConfirmDialog('Remove Track', 'Remove from this playlist?');
+                        if (!ok) return;
+                        try {
+                            await fetch(`/api/playlists/${playlistId}/tracks`, {
+                                method: 'DELETE',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({video_ids: [t.video_id]})
+                            });
+                            row.style.transition = 'opacity 0.3s';
+                            row.style.opacity = '0';
+                            setTimeout(() => row.remove(), 300);
+                            if (typeof showToast === 'function') showToast('Removed from playlist', 'success');
+                        } catch (err) {
+                            if (typeof showToast === 'function') showToast('Failed to remove track', 'error');
+                        }
+                    });
+                }
+
                 itemsContainer.appendChild(row);
             }
 
-            container.querySelector('.library-back-btn').addEventListener('click', () => renderPlaylistsView());
+            // Back button
+            container.querySelector('.library-back-btn').addEventListener('click', () => {
+                _plCurrentPlaylistId = null;
+                renderPlaylistsView();
+            });
+
+            // Play All
             container.querySelector('.library-play-all-btn')?.addEventListener('click', () => {
                 const vids = tracks.filter(t => t.video_id).map(t => t.video_id);
                 playQueue(vids);
+            });
+
+            // Download All button
+            document.getElementById('plDownloadAllBtn')?.addEventListener('click', async () => {
+                const btn = document.getElementById('plDownloadAllBtn');
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+
+                _plFailedTracks = [];
+                const retryBtn = document.getElementById('plRetryFailedBtn');
+                if (retryBtn) retryBtn.style.display = 'none';
+
+                const progressEl = document.getElementById('plBatchProgress');
+                if (progressEl) progressEl.style.display = '';
+
+                try {
+                    const dlRes = await fetch(`/api/spotify/playlists/${playlistId}/download`, { method: 'POST' });
+                    const dlData = await dlRes.json();
+                    if (!dlData.success) {
+                        if (typeof showToast === 'function') showToast(dlData.error || 'Download failed', 'error');
+                        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-download"></i> Download All'; }
+                        if (progressEl) progressEl.style.display = 'none';
+                    }
+                } catch (err) {
+                    if (typeof showToast === 'function') showToast('Error starting download', 'error');
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-download"></i> Download All'; }
+                }
+            });
+
+            // Retry Failed button
+            document.getElementById('plRetryFailedBtn')?.addEventListener('click', async () => {
+                const retryBtn = document.getElementById('plRetryFailedBtn');
+                if (retryBtn) retryBtn.style.display = 'none';
+
+                const dlBtn = document.getElementById('plDownloadAllBtn');
+                if (dlBtn) { dlBtn.disabled = true; dlBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+
+                _plFailedTracks = [];
+                const progressEl = document.getElementById('plBatchProgress');
+                if (progressEl) progressEl.style.display = '';
+                const textEl = document.getElementById('plBatchText');
+                if (textEl) textEl.textContent = 'Retrying failed tracks...';
+                const fillEl = document.getElementById('plBatchFill');
+                if (fillEl) fillEl.style.width = '0%';
+
+                try {
+                    const dlRes = await fetch(`/api/spotify/playlists/${playlistId}/download`, { method: 'POST' });
+                    const dlData = await dlRes.json();
+                    if (!dlData.success) {
+                        if (typeof showToast === 'function') showToast(dlData.error || 'Retry failed', 'error');
+                        if (dlBtn) { dlBtn.disabled = false; dlBtn.innerHTML = '<i class="fas fa-download"></i> Download All'; }
+                        if (progressEl) progressEl.style.display = 'none';
+                    }
+                } catch (err) {
+                    if (typeof showToast === 'function') showToast('Error retrying', 'error');
+                    if (dlBtn) { dlBtn.disabled = false; dlBtn.innerHTML = '<i class="fas fa-download"></i> Download All'; }
+                }
             });
 
         } catch (e) {
             container.innerHTML = '<div class="empty-state">Failed to load playlist</div>';
         }
     }
+
+    // Expose auto-open for use after playlist import
+    window._autoOpenPlaylist = (id) => {
+        currentView = 'playlists';
+        // Activate the playlists view button if present
+        document.querySelectorAll('.library-view-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.view === 'playlists');
+        });
+        drillDownPlaylist(id);
+    };
 
     // ── Playlist Player via PlayerEngine ���──────────────────────
 
@@ -557,10 +835,13 @@
             const data = await res.json();
             const playlists = data.playlists || [];
 
+            dropdown.innerHTML = '';
             if (playlists.length === 0) {
-                dropdown.innerHTML = '<div style="padding:10px;font-size:13px;color:var(--text-secondary)">No playlists yet</div>';
+                const emptyMsg = document.createElement('div');
+                emptyMsg.style.cssText = 'padding:10px;font-size:13px;color:var(--text-secondary)';
+                emptyMsg.textContent = 'No playlists yet';
+                dropdown.appendChild(emptyMsg);
             } else {
-                dropdown.innerHTML = '';
                 for (const pl of playlists) {
                     const item = document.createElement('div');
                     item.style.cssText = 'padding:8px 14px; cursor:pointer; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;';
@@ -584,6 +865,44 @@
                     dropdown.appendChild(item);
                 }
             }
+
+            // Divider + "Create New Playlist..." option
+            const divider = document.createElement('div');
+            divider.style.cssText = 'border-top:1px solid var(--border); margin:4px 0;';
+            dropdown.appendChild(divider);
+
+            const createItem = document.createElement('div');
+            createItem.style.cssText = 'padding:8px 14px; cursor:pointer; font-size:13px; white-space:nowrap; color:var(--accent-color); font-weight:600;';
+            createItem.innerHTML = '<i class="fas fa-plus" style="margin-right:6px"></i>Create New Playlist...';
+            createItem.addEventListener('mouseenter', () => { createItem.style.background = 'var(--bg-secondary)'; });
+            createItem.addEventListener('mouseleave', () => { createItem.style.background = 'none'; });
+            createItem.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                dropdown.remove();
+                const name = prompt('Playlist name:');
+                if (!name) return;
+                try {
+                    const createRes = await fetch('/api/playlists', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({name})
+                    });
+                    const createData = await createRes.json();
+                    if (createData.success && createData.playlist) {
+                        await fetch(`/api/playlists/${createData.playlist.id}/tracks`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({video_ids: [videoId]})
+                        });
+                        if (typeof showToast === 'function') showToast(`Created playlist "${name}" and added track`, 'success');
+                    } else {
+                        if (typeof showToast === 'function') showToast('Failed to create playlist', 'error');
+                    }
+                } catch (err) {
+                    if (typeof showToast === 'function') showToast('Failed to create playlist', 'error');
+                }
+            });
+            dropdown.appendChild(createItem);
         } catch (e) {
             dropdown.innerHTML = '<div style="padding:10px;color:red;font-size:13px">Failed</div>';
         }

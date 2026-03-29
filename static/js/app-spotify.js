@@ -55,6 +55,11 @@
                     .catch(() => {});
             }
 
+            // Navigate to the playlist detail view with live progress
+            if (data.playlist_id && typeof window._autoOpenPlaylist === 'function') {
+                window._autoOpenPlaylist(data.playlist_id);
+            }
+
             return data;
         } catch (e) {
             showToast('Error loading playlist', 'error');
