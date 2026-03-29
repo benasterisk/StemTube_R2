@@ -124,23 +124,7 @@ validate_and_fix_config_paths()
 ensure_ffmpeg_available()
 logger.info("FFmpeg availability ensured")
 
-init_db()
-logger.info("Authentication database initialized")
-
-init_downloads_table()
-logger.info("Downloads database initialized")
-
-init_recordings_table()
-logger.info("Recordings database initialized")
-
-init_playlists_table()
-logger.info("Playlists database initialized")
-
-init_albums_table()
-logger.info("Albums database initialized")
-
-comprehensive_cleanup()
-logger.info("Database cleanup completed")
+# DB init moved after Flask app + SQLAlchemy setup (needs app context)
 
 # ------------------------------------------------------------------
 # Flask & SocketIO setup
@@ -205,10 +189,21 @@ db.init_app(app)
 from flask_migrate import Migrate
 migrate = Migrate(app, db)
 
-# Create tables if they don't exist (safety net alongside Alembic)
+# Create tables and initialize database (needs app context)
 with app.app_context():
     db.create_all()
     logger.info("PostgreSQL tables verified via SQLAlchemy")
+
+    # Initialize database tables and data (moved from pre-app to post-app)
+    init_db()
+    logger.info("Authentication database initialized")
+    init_downloads_table()
+    init_recordings_table()
+    init_playlists_table()
+    init_albums_table()
+    logger.info("All database tables initialized")
+    comprehensive_cleanup()
+    logger.info("Database cleanup completed")
 
 # Initialize extensions with the app
 login_manager.init_app(app)
