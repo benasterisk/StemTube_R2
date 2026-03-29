@@ -64,11 +64,12 @@ def update(playlist_id):
     if not name:
         return jsonify({'error': 'Name is required'}), 400
 
-    from core.db.connection import _conn
-    with _conn() as conn:
-        conn.execute("UPDATE playlists SET name=? WHERE id=? AND user_id=?",
-                     (name, playlist_id, current_user.id))
-        conn.commit()
+    from core.models import db, Playlist
+    pl = Playlist.query.filter_by(id=playlist_id, user_id=current_user.id).first()
+    if not pl:
+        return jsonify({'error': 'Playlist not found'}), 404
+    pl.name = name
+    db.session.commit()
     return jsonify({'success': True})
 
 
@@ -120,11 +121,12 @@ def add_tracks(playlist_id):
             added += 1
 
     # Save back
-    from core.db.connection import _conn
-    with _conn() as conn:
-        conn.execute("UPDATE playlists SET tracks_json=?, track_count=? WHERE id=? AND user_id=?",
-                     (json.dumps(tracks), len(tracks), playlist_id, current_user.id))
-        conn.commit()
+    from core.models import db, Playlist as PlaylistModel
+    pl = PlaylistModel.query.filter_by(id=playlist_id, user_id=current_user.id).first()
+    if pl:
+        pl.tracks_json = tracks
+        pl.track_count = len(tracks)
+        db.session.commit()
 
     return jsonify({'success': True, 'added': added, 'total': len(tracks)})
 
@@ -145,10 +147,11 @@ def remove_tracks(playlist_id):
 
     tracks = [t for t in playlist.get('tracks', []) if t.get('video_id') not in video_ids]
 
-    from core.db.connection import _conn
-    with _conn() as conn:
-        conn.execute("UPDATE playlists SET tracks_json=?, track_count=? WHERE id=? AND user_id=?",
-                     (json.dumps(tracks), len(tracks), playlist_id, current_user.id))
-        conn.commit()
+    from core.models import db, Playlist as PlaylistModel
+    pl = PlaylistModel.query.filter_by(id=playlist_id, user_id=current_user.id).first()
+    if pl:
+        pl.tracks_json = tracks
+        pl.track_count = len(tracks)
+        db.session.commit()
 
     return jsonify({'success': True, 'total': len(tracks)})

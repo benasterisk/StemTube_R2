@@ -506,7 +506,7 @@ def admin_bulk_detect_intro():
 
         from core.downloads_db import get_all_downloads_for_admin
         from core.music_start_detector import detect_music_start
-        from core.db.connection import _conn
+        from core.models import db, GlobalDownload, UserDownload
         import json
 
         all_downloads = get_all_downloads_for_admin()
@@ -540,16 +540,13 @@ def admin_bulk_detect_intro():
 
                 # Update both global_downloads and user_downloads
                 video_id = download_info['video_id']
-                with _conn() as conn:
-                    conn.execute(
-                        "UPDATE global_downloads SET music_start_time=? WHERE video_id=?",
-                        (music_start, video_id)
-                    )
-                    conn.execute(
-                        "UPDATE user_downloads SET music_start_time=? WHERE video_id=?",
-                        (music_start, video_id)
-                    )
-                    conn.commit()
+                GlobalDownload.query.filter_by(video_id=video_id).update(
+                    {'music_start_time': music_start}
+                )
+                UserDownload.query.filter_by(video_id=video_id).update(
+                    {'music_start_time': music_start}
+                )
+                db.session.commit()
 
                 detected_count += 1
                 results.append({

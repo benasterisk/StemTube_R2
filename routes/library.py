@@ -279,111 +279,100 @@ def get_library():
         filter_type = request.args.get('filter', 'all')  # 'all', 'downloads', 'extractions'
         search_query = request.args.get('search', '').strip()
 
-        # Get all global downloads
-        import sqlite3
-        from pathlib import Path
-        DB_PATH = Path("stemtubes.db")
+        # Get all global downloads via SQLAlchemy
+        from core.models import db, GlobalDownload, UserDownload
+        from sqlalchemy import func, text, and_
 
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+        # Subquery: user_count per global_download
+        user_count_sq = (
+            db.session.query(
+                UserDownload.global_download_id,
+                func.count(func.distinct(UserDownload.user_id)).label('user_count'),
+            )
+            .group_by(UserDownload.global_download_id)
+            .subquery()
+        )
 
-            # Base query for global downloads with user access information
-            base_query = """
-                SELECT
-                    gd.*,
-                    COUNT(DISTINCT ud.user_id) as user_count,
-                    CASE WHEN user_access.user_id IS NOT NULL THEN 1 ELSE 0 END as user_has_access,
-                    user_access.file_path as user_file_path,
-                    user_access.extracted as user_extracted
-                FROM global_downloads gd
-                LEFT JOIN user_downloads ud ON gd.id = ud.global_download_id
-                LEFT JOIN user_downloads user_access ON gd.id = user_access.global_download_id
-                    AND user_access.user_id = ?
-            """
+        # Subquery: current user's access row
+        user_access_sq = (
+            db.session.query(
+                UserDownload.global_download_id,
+                UserDownload.user_id,
+                UserDownload.file_path.label('user_file_path'),
+                UserDownload.extracted.label('user_extracted'),
+            )
+            .filter(UserDownload.user_id == current_user.id)
+            .subquery()
+        )
 
-            # Add search filter
-            where_conditions = []
-            params = [current_user.id]
+        query = (
+            db.session.query(
+                GlobalDownload,
+                func.coalesce(user_count_sq.c.user_count, 0).label('user_count'),
+                user_access_sq.c.user_id.label('ua_user_id'),
+                user_access_sq.c.user_file_path,
+                user_access_sq.c.user_extracted,
+            )
+            .outerjoin(user_count_sq, GlobalDownload.id == user_count_sq.c.global_download_id)
+            .outerjoin(user_access_sq, GlobalDownload.id == user_access_sq.c.global_download_id)
+        )
 
-            if search_query:
-                where_conditions.append("(gd.title LIKE ? OR gd.video_id LIKE ?)")
-                search_param = f"%{search_query}%"
-                params.extend([search_param, search_param])
+        if search_query:
+            search_param = f"%{search_query}%"
+            query = query.filter(
+                (GlobalDownload.title.ilike(search_param)) |
+                (GlobalDownload.video_id.ilike(search_param))
+            )
 
-            # Add filter conditions
-            if filter_type == 'downloads':
-                where_conditions.append("gd.file_path IS NOT NULL")
-            elif filter_type == 'extractions':
-                where_conditions.append("gd.extracted = 1")
+        if filter_type == 'downloads':
+            query = query.filter(GlobalDownload.file_path.isnot(None))
+        elif filter_type == 'extractions':
+            query = query.filter(GlobalDownload.extracted == True)
 
-            if where_conditions:
-                base_query += " WHERE " + " AND ".join(where_conditions)
+        query = query.order_by(GlobalDownload.created_at.desc())
+        rows = query.all()
 
-            base_query += """
-                GROUP BY gd.id
-                ORDER BY gd.created_at DESC
-            """
+        formatted_items = []
+        for gd, user_count, ua_user_id, user_file_path, user_extracted in rows:
+            has_download = bool(gd.file_path)
+            has_extraction = bool(gd.extracted)
+            user_has_download_access = bool(ua_user_id and user_file_path)
+            user_has_extraction_access = bool(ua_user_id and user_extracted)
 
-            cursor.execute(base_query, params)
-            library_items = cursor.fetchall()
+            file_size = None
+            if gd.file_path and os.path.exists(gd.file_path):
+                try:
+                    file_size = os.path.getsize(gd.file_path)
+                except Exception:
+                    pass
 
-            # Format results
-            formatted_items = []
-            for item in library_items:
-                # Determine what's available
-                has_download = bool(item['file_path'])
-                has_extraction = bool(item['extracted'])
-
-                # Determine user's current access
-                user_has_download_access = bool(item['user_has_access'] and item['user_file_path'])
-                user_has_extraction_access = bool(item['user_has_access'] and item['user_extracted'])
-
-                # Calculate file size if available
-                file_size = None
-                if item['file_path'] and os.path.exists(item['file_path']):
-                    try:
-                        file_size = os.path.getsize(item['file_path'])
-                    except:
-                        pass
-
-                formatted_item = {
-                    'id': item['id'],
-                    'video_id': item['video_id'],
-                    'title': item['title'],
-                    'thumbnail_url': item['thumbnail'],
-                    'media_type': item['media_type'],
-                    'quality': item['quality'],
-                    'created_at': item['created_at'],
-                    'user_count': item['user_count'],
-                    'file_size': file_size,
-                    'file_path': item['file_path'] if has_download else None,
-
-                    # Availability flags
-                    'has_download': has_download,
-                    'has_extraction': has_extraction,
-
-                    # User access flags
-                    'user_has_download_access': user_has_download_access,
-                    'user_has_extraction_access': user_has_extraction_access,
-
-                    # Action availability
-                    'can_add_download': has_download and not user_has_download_access,
-                    'can_add_extraction': has_extraction and not user_has_extraction_access,
-
-                    # Badge type for display
-                    'badge_type': 'both' if (has_download and has_extraction) else ('download' if has_download else 'extraction')
-                }
-
-                formatted_items.append(formatted_item)
-
-            return jsonify({
-                'success': True,
-                'items': formatted_items,
-                'total_count': len(formatted_items),
-                'filter': filter_type,
-                'search': search_query
+            formatted_items.append({
+                'id': gd.id,
+                'video_id': gd.video_id,
+                'title': gd.title,
+                'thumbnail_url': gd.thumbnail,
+                'media_type': gd.media_type,
+                'quality': gd.quality,
+                'created_at': gd.created_at,
+                'user_count': user_count,
+                'file_size': file_size,
+                'file_path': gd.file_path if has_download else None,
+                'has_download': has_download,
+                'has_extraction': has_extraction,
+                'user_has_download_access': user_has_download_access,
+                'user_has_extraction_access': user_has_extraction_access,
+                'can_add_download': has_download and not user_has_download_access,
+                'can_add_extraction': has_extraction and not user_has_extraction_access,
+                'badge_type': 'both' if (has_download and has_extraction) else ('download' if has_download else 'extraction'),
             })
+
+        return jsonify({
+            'success': True,
+            'items': formatted_items,
+            'total_count': len(formatted_items),
+            'filter': filter_type,
+            'search': search_query,
+        })
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -393,22 +382,13 @@ def get_library():
 def add_library_download_to_user(global_download_id):
     """Add a download from library to user's personal downloads list."""
     try:
-        # Get the global download record
-        import sqlite3
-        from pathlib import Path
-        DB_PATH = Path("stemtubes.db")
+        # Get the global download record via ORM
+        from core.models import GlobalDownload, UserDownload, model_to_dict
+        gd = GlobalDownload.query.get(global_download_id)
+        if not gd:
+            return jsonify({'error': 'Download not found in library'}), 404
 
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM global_downloads WHERE id = ?", (global_download_id,))
-            global_download = cursor.fetchone()
-
-            if not global_download:
-                return jsonify({'error': 'Download not found in library'}), 404
-
-            # Convert to dict for use with existing functions
-            global_download = dict(global_download)
+        global_download = model_to_dict(gd)
 
         # Check if user already has access to this download
         existing_downloads = db_list_downloads(current_user.id)
@@ -432,22 +412,13 @@ def add_library_download_to_user(global_download_id):
 def add_library_extraction_to_user(global_download_id):
     """Add an extraction from library to user's personal extractions list."""
     try:
-        # Get the global download record
-        import sqlite3
-        from pathlib import Path
-        DB_PATH = Path("stemtubes.db")
+        # Get the global download record via ORM
+        from core.models import GlobalDownload, model_to_dict
+        gd = GlobalDownload.query.get(global_download_id)
+        if not gd:
+            return jsonify({'error': 'Extraction not found in library'}), 404
 
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM global_downloads WHERE id = ?", (global_download_id,))
-            global_download = cursor.fetchone()
-
-            if not global_download:
-                return jsonify({'error': 'Extraction not found in library'}), 404
-
-            # Convert to dict for use with existing functions
-            global_download = dict(global_download)
+        global_download = model_to_dict(gd)
 
         if not global_download['extracted']:
             return jsonify({'error': 'This item has not been extracted yet'}), 400
@@ -479,25 +450,29 @@ def add_library_extraction_to_user(global_download_id):
 def list_global_artists():
     """Return distinct artists from global_downloads with song counts."""
     try:
-        from core.db.connection import _conn
-        with _conn() as conn:
-            rows = conn.execute("""
-                SELECT
-                    COALESCE(gd.artist, '') as artist,
-                    COUNT(DISTINCT gd.video_id) as song_count,
-                    MIN(gd.thumbnail) as thumbnail
-                FROM global_downloads gd
-                WHERE gd.file_path IS NOT NULL
-                    AND COALESCE(gd.artist, '') != ''
-                GROUP BY COALESCE(gd.artist, '')
-                ORDER BY COALESCE(gd.artist, '') COLLATE NOCASE
-            """).fetchall()
+        from core.models import db, GlobalDownload
+        from sqlalchemy import func
 
-            artists = [
-                {'artist': r['artist'], 'song_count': r['song_count'], 'thumbnail': r['thumbnail']}
-                for r in rows
-            ]
-            return jsonify({'success': True, 'artists': artists})
+        rows = (
+            db.session.query(
+                func.coalesce(GlobalDownload.artist, '').label('artist'),
+                func.count(func.distinct(GlobalDownload.video_id)).label('song_count'),
+                func.min(GlobalDownload.thumbnail).label('thumbnail'),
+            )
+            .filter(
+                GlobalDownload.file_path.isnot(None),
+                func.coalesce(GlobalDownload.artist, '') != '',
+            )
+            .group_by(func.coalesce(GlobalDownload.artist, ''))
+            .order_by(func.lower(func.coalesce(GlobalDownload.artist, '')))
+            .all()
+        )
+
+        artists = [
+            {'artist': r.artist, 'song_count': r.song_count, 'thumbnail': r.thumbnail}
+            for r in rows
+        ]
+        return jsonify({'success': True, 'artists': artists})
     except Exception as e:
         logger.error(f"list_global_artists error: {e}")
         return jsonify({'error': str(e)}), 500
@@ -508,62 +483,78 @@ def list_global_artists():
 def list_global_artist_tracks(artist_name):
     """Return tracks for a specific artist in the global library."""
     try:
-        import sqlite3
-        from pathlib import Path
-        DB_PATH = Path("stemtubes.db")
+        from core.models import db, GlobalDownload, UserDownload
+        from sqlalchemy import func
 
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute("""
-                SELECT
-                    gd.id, gd.video_id, gd.title, gd.artist, gd.album,
-                    gd.duration, gd.thumbnail, gd.extracted, gd.extraction_model,
-                    gd.detected_bpm, gd.detected_key, gd.file_path, gd.created_at,
-                    gd.media_type, gd.quality,
-                    COUNT(DISTINCT ud.user_id) as user_count,
-                    CASE WHEN ua.user_id IS NOT NULL THEN 1 ELSE 0 END as user_has_access,
-                    ua.file_path as user_file_path,
-                    ua.extracted as user_extracted
-                FROM global_downloads gd
-                LEFT JOIN user_downloads ud ON gd.id = ud.global_download_id
-                LEFT JOIN user_downloads ua ON gd.id = ua.global_download_id AND ua.user_id = ?
-                WHERE gd.file_path IS NOT NULL AND COALESCE(gd.artist, '') = ?
-                GROUP BY gd.id
-                ORDER BY gd.title COLLATE NOCASE
-            """, (current_user.id, artist_name)).fetchall()
+        user_count_sq = (
+            db.session.query(
+                UserDownload.global_download_id,
+                func.count(func.distinct(UserDownload.user_id)).label('user_count'),
+            )
+            .group_by(UserDownload.global_download_id)
+            .subquery()
+        )
+        user_access_sq = (
+            db.session.query(
+                UserDownload.global_download_id,
+                UserDownload.user_id,
+                UserDownload.file_path.label('user_file_path'),
+                UserDownload.extracted.label('user_extracted'),
+            )
+            .filter(UserDownload.user_id == current_user.id)
+            .subquery()
+        )
 
-            items = []
-            for item in rows:
-                has_download = bool(item['file_path'])
-                has_extraction = bool(item['extracted'])
-                user_has_download_access = bool(item['user_has_access'] and item['user_file_path'])
-                user_has_extraction_access = bool(item['user_has_access'] and item['user_extracted'])
+        rows = (
+            db.session.query(
+                GlobalDownload,
+                func.coalesce(user_count_sq.c.user_count, 0).label('user_count'),
+                user_access_sq.c.user_id.label('ua_user_id'),
+                user_access_sq.c.user_file_path,
+                user_access_sq.c.user_extracted,
+            )
+            .outerjoin(user_count_sq, GlobalDownload.id == user_count_sq.c.global_download_id)
+            .outerjoin(user_access_sq, GlobalDownload.id == user_access_sq.c.global_download_id)
+            .filter(
+                GlobalDownload.file_path.isnot(None),
+                func.coalesce(GlobalDownload.artist, '') == artist_name,
+            )
+            .order_by(func.lower(GlobalDownload.title))
+            .all()
+        )
 
-                items.append({
-                    'id': item['id'],
-                    'video_id': item['video_id'],
-                    'title': item['title'],
-                    'artist': item['artist'],
-                    'album': item['album'],
-                    'duration': item['duration'],
-                    'thumbnail_url': item['thumbnail'],
-                    'thumbnail': item['thumbnail'],
-                    'media_type': item['media_type'],
-                    'quality': item['quality'],
-                    'created_at': item['created_at'],
-                    'user_count': item['user_count'],
-                    'file_path': item['file_path'] if has_download else None,
-                    'has_download': has_download,
-                    'has_extraction': has_extraction,
-                    'extracted': has_extraction,
-                    'user_has_download_access': user_has_download_access,
-                    'user_has_extraction_access': user_has_extraction_access,
-                    'can_add_download': has_download and not user_has_download_access,
-                    'can_add_extraction': has_extraction and not user_has_extraction_access,
-                    'badge_type': 'both' if (has_download and has_extraction) else ('download' if has_download else 'extraction'),
-                })
+        items = []
+        for gd, user_count, ua_user_id, user_file_path, user_extracted in rows:
+            has_download = bool(gd.file_path)
+            has_extraction = bool(gd.extracted)
+            user_has_download_access = bool(ua_user_id and user_file_path)
+            user_has_extraction_access = bool(ua_user_id and user_extracted)
 
-            return jsonify({'success': True, 'items': items})
+            items.append({
+                'id': gd.id,
+                'video_id': gd.video_id,
+                'title': gd.title,
+                'artist': gd.artist,
+                'album': gd.album,
+                'duration': gd.duration,
+                'thumbnail_url': gd.thumbnail,
+                'thumbnail': gd.thumbnail,
+                'media_type': gd.media_type,
+                'quality': gd.quality,
+                'created_at': gd.created_at,
+                'user_count': user_count,
+                'file_path': gd.file_path if has_download else None,
+                'has_download': has_download,
+                'has_extraction': has_extraction,
+                'extracted': has_extraction,
+                'user_has_download_access': user_has_download_access,
+                'user_has_extraction_access': user_has_extraction_access,
+                'can_add_download': has_download and not user_has_download_access,
+                'can_add_extraction': has_extraction and not user_has_extraction_access,
+                'badge_type': 'both' if (has_download and has_extraction) else ('download' if has_download else 'extraction'),
+            })
+
+        return jsonify({'success': True, 'items': items})
     except Exception as e:
         logger.error(f"list_global_artist_tracks error: {e}")
         return jsonify({'error': str(e)}), 500
@@ -574,84 +565,95 @@ def list_global_artist_tracks(artist_name):
 def list_global_stems():
     """Return only extracted tracks from global_downloads."""
     try:
-        import sqlite3
-        from pathlib import Path
-        DB_PATH = Path("stemtubes.db")
+        from core.models import db, GlobalDownload, UserDownload
+        from sqlalchemy import func
 
         search_query = request.args.get('search', '').strip()
 
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
+        user_count_sq = (
+            db.session.query(
+                UserDownload.global_download_id,
+                func.count(func.distinct(UserDownload.user_id)).label('user_count'),
+            )
+            .group_by(UserDownload.global_download_id)
+            .subquery()
+        )
+        user_access_sq = (
+            db.session.query(
+                UserDownload.global_download_id,
+                UserDownload.user_id,
+                UserDownload.file_path.label('user_file_path'),
+                UserDownload.extracted.label('user_extracted'),
+            )
+            .filter(UserDownload.user_id == current_user.id)
+            .subquery()
+        )
 
-            query = """
-                SELECT
-                    gd.id, gd.video_id, gd.title, gd.artist, gd.album,
-                    gd.duration, gd.thumbnail, gd.extracted, gd.extraction_model,
-                    gd.detected_bpm, gd.detected_key, gd.file_path, gd.created_at,
-                    gd.media_type, gd.quality,
-                    COUNT(DISTINCT ud.user_id) as user_count,
-                    CASE WHEN ua.user_id IS NOT NULL THEN 1 ELSE 0 END as user_has_access,
-                    ua.file_path as user_file_path,
-                    ua.extracted as user_extracted
-                FROM global_downloads gd
-                LEFT JOIN user_downloads ud ON gd.id = ud.global_download_id
-                LEFT JOIN user_downloads ua ON gd.id = ua.global_download_id AND ua.user_id = ?
-                WHERE gd.extracted = 1
-            """
-            params = [current_user.id]
+        query = (
+            db.session.query(
+                GlobalDownload,
+                func.coalesce(user_count_sq.c.user_count, 0).label('user_count'),
+                user_access_sq.c.user_id.label('ua_user_id'),
+                user_access_sq.c.user_file_path,
+                user_access_sq.c.user_extracted,
+            )
+            .outerjoin(user_count_sq, GlobalDownload.id == user_count_sq.c.global_download_id)
+            .outerjoin(user_access_sq, GlobalDownload.id == user_access_sq.c.global_download_id)
+            .filter(GlobalDownload.extracted == True)
+        )
 
-            if search_query:
-                query += " AND (gd.title LIKE ? OR gd.artist LIKE ?)"
-                search_param = f"%{search_query}%"
-                params.extend([search_param, search_param])
+        if search_query:
+            search_param = f"%{search_query}%"
+            query = query.filter(
+                (GlobalDownload.title.ilike(search_param)) |
+                (GlobalDownload.artist.ilike(search_param))
+            )
 
-            query += " GROUP BY gd.id ORDER BY gd.created_at DESC"
+        rows = query.order_by(GlobalDownload.created_at.desc()).all()
 
-            rows = conn.execute(query, params).fetchall()
+        items = []
+        for gd, user_count, ua_user_id, user_file_path, user_extracted in rows:
+            has_download = bool(gd.file_path)
+            has_extraction = bool(gd.extracted)
+            user_has_download_access = bool(ua_user_id and user_file_path)
+            user_has_extraction_access = bool(ua_user_id and user_extracted)
 
-            items = []
-            for item in rows:
-                has_download = bool(item['file_path'])
-                has_extraction = bool(item['extracted'])
-                user_has_download_access = bool(item['user_has_access'] and item['user_file_path'])
-                user_has_extraction_access = bool(item['user_has_access'] and item['user_extracted'])
+            file_size = None
+            if gd.file_path and os.path.exists(gd.file_path):
+                try:
+                    file_size = os.path.getsize(gd.file_path)
+                except Exception:
+                    pass
 
-                file_size = None
-                if item['file_path'] and os.path.exists(item['file_path']):
-                    try:
-                        file_size = os.path.getsize(item['file_path'])
-                    except Exception:
-                        pass
-
-                items.append({
-                    'id': item['id'],
-                    'video_id': item['video_id'],
-                    'title': item['title'],
-                    'artist': item['artist'],
-                    'thumbnail_url': item['thumbnail'],
-                    'thumbnail': item['thumbnail'],
-                    'media_type': item['media_type'],
-                    'quality': item['quality'],
-                    'created_at': item['created_at'],
-                    'user_count': item['user_count'],
-                    'file_size': file_size,
-                    'file_path': item['file_path'] if has_download else None,
-                    'has_download': has_download,
-                    'has_extraction': has_extraction,
-                    'extracted': has_extraction,
-                    'extraction_model': item['extraction_model'],
-                    'user_has_download_access': user_has_download_access,
-                    'user_has_extraction_access': user_has_extraction_access,
-                    'can_add_download': has_download and not user_has_download_access,
-                    'can_add_extraction': has_extraction and not user_has_extraction_access,
-                    'badge_type': 'both' if (has_download and has_extraction) else ('download' if has_download else 'extraction'),
-                })
-
-            return jsonify({
-                'success': True,
-                'items': items,
-                'total_count': len(items),
+            items.append({
+                'id': gd.id,
+                'video_id': gd.video_id,
+                'title': gd.title,
+                'artist': gd.artist,
+                'thumbnail_url': gd.thumbnail,
+                'thumbnail': gd.thumbnail,
+                'media_type': gd.media_type,
+                'quality': gd.quality,
+                'created_at': gd.created_at,
+                'user_count': user_count,
+                'file_size': file_size,
+                'file_path': gd.file_path if has_download else None,
+                'has_download': has_download,
+                'has_extraction': has_extraction,
+                'extracted': has_extraction,
+                'extraction_model': gd.extraction_model,
+                'user_has_download_access': user_has_download_access,
+                'user_has_extraction_access': user_has_extraction_access,
+                'can_add_download': has_download and not user_has_download_access,
+                'can_add_extraction': has_extraction and not user_has_extraction_access,
+                'badge_type': 'both' if (has_download and has_extraction) else ('download' if has_download else 'extraction'),
             })
+
+        return jsonify({
+            'success': True,
+            'items': items,
+            'total_count': len(items),
+        })
     except Exception as e:
         logger.error(f"list_global_stems error: {e}")
         return jsonify({'error': str(e)}), 500
@@ -662,59 +664,75 @@ def list_global_stems():
 def list_global_singles():
     """Return tracks with no album in the global library."""
     try:
-        import sqlite3
-        from pathlib import Path
-        DB_PATH = Path("stemtubes.db")
+        from core.models import db, GlobalDownload, UserDownload
+        from sqlalchemy import func
 
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute("""
-                SELECT
-                    gd.id, gd.video_id, gd.title, gd.artist, gd.album,
-                    gd.duration, gd.thumbnail, gd.extracted, gd.extraction_model,
-                    gd.detected_bpm, gd.detected_key, gd.file_path, gd.created_at,
-                    gd.media_type, gd.quality,
-                    COUNT(DISTINCT ud.user_id) as user_count,
-                    CASE WHEN ua.user_id IS NOT NULL THEN 1 ELSE 0 END as user_has_access,
-                    ua.file_path as user_file_path,
-                    ua.extracted as user_extracted
-                FROM global_downloads gd
-                LEFT JOIN user_downloads ud ON gd.id = ud.global_download_id
-                LEFT JOIN user_downloads ua ON gd.id = ua.global_download_id AND ua.user_id = ?
-                WHERE gd.file_path IS NOT NULL AND (gd.album_id IS NULL)
-                GROUP BY gd.id
-                ORDER BY gd.title COLLATE NOCASE
-            """, (current_user.id,)).fetchall()
+        user_count_sq = (
+            db.session.query(
+                UserDownload.global_download_id,
+                func.count(func.distinct(UserDownload.user_id)).label('user_count'),
+            )
+            .group_by(UserDownload.global_download_id)
+            .subquery()
+        )
+        user_access_sq = (
+            db.session.query(
+                UserDownload.global_download_id,
+                UserDownload.user_id,
+                UserDownload.file_path.label('user_file_path'),
+                UserDownload.extracted.label('user_extracted'),
+            )
+            .filter(UserDownload.user_id == current_user.id)
+            .subquery()
+        )
 
-            items = []
-            for item in rows:
-                has_download = bool(item['file_path'])
-                has_extraction = bool(item['extracted'])
-                user_has_download_access = bool(item['user_has_access'] and item['user_file_path'])
-                user_has_extraction_access = bool(item['user_has_access'] and item['user_extracted'])
+        rows = (
+            db.session.query(
+                GlobalDownload,
+                func.coalesce(user_count_sq.c.user_count, 0).label('user_count'),
+                user_access_sq.c.user_id.label('ua_user_id'),
+                user_access_sq.c.user_file_path,
+                user_access_sq.c.user_extracted,
+            )
+            .outerjoin(user_count_sq, GlobalDownload.id == user_count_sq.c.global_download_id)
+            .outerjoin(user_access_sq, GlobalDownload.id == user_access_sq.c.global_download_id)
+            .filter(
+                GlobalDownload.file_path.isnot(None),
+                GlobalDownload.album_id.is_(None),
+            )
+            .order_by(func.lower(GlobalDownload.title))
+            .all()
+        )
 
-                items.append({
-                    'id': item['id'],
-                    'video_id': item['video_id'],
-                    'title': item['title'],
-                    'artist': item['artist'],
-                    'thumbnail_url': item['thumbnail'],
-                    'thumbnail': item['thumbnail'],
-                    'media_type': item['media_type'],
-                    'created_at': item['created_at'],
-                    'user_count': item['user_count'],
-                    'file_path': item['file_path'] if has_download else None,
-                    'has_download': has_download,
-                    'has_extraction': has_extraction,
-                    'extracted': has_extraction,
-                    'user_has_download_access': user_has_download_access,
-                    'user_has_extraction_access': user_has_extraction_access,
-                    'can_add_download': has_download and not user_has_download_access,
-                    'can_add_extraction': has_extraction and not user_has_extraction_access,
-                    'badge_type': 'both' if (has_download and has_extraction) else ('download' if has_download else 'extraction'),
-                })
+        items = []
+        for gd, user_count, ua_user_id, user_file_path, user_extracted in rows:
+            has_download = bool(gd.file_path)
+            has_extraction = bool(gd.extracted)
+            user_has_download_access = bool(ua_user_id and user_file_path)
+            user_has_extraction_access = bool(ua_user_id and user_extracted)
 
-            return jsonify({'success': True, 'items': items})
+            items.append({
+                'id': gd.id,
+                'video_id': gd.video_id,
+                'title': gd.title,
+                'artist': gd.artist,
+                'thumbnail_url': gd.thumbnail,
+                'thumbnail': gd.thumbnail,
+                'media_type': gd.media_type,
+                'created_at': gd.created_at,
+                'user_count': user_count,
+                'file_path': gd.file_path if has_download else None,
+                'has_download': has_download,
+                'has_extraction': has_extraction,
+                'extracted': has_extraction,
+                'user_has_download_access': user_has_download_access,
+                'user_has_extraction_access': user_has_extraction_access,
+                'can_add_download': has_download and not user_has_download_access,
+                'can_add_extraction': has_extraction and not user_has_extraction_access,
+                'badge_type': 'both' if (has_download and has_extraction) else ('download' if has_download else 'extraction'),
+            })
+
+        return jsonify({'success': True, 'items': items})
     except Exception as e:
         logger.error(f"list_global_singles error: {e}")
         return jsonify({'error': str(e)}), 500
@@ -730,20 +748,22 @@ def list_user_albums():
     """Return albums for the current user's library, plus a singles count."""
     try:
         from core.db.albums import list_albums_for_user
-        from core.db.connection import _conn
+        from core.models import db, UserDownload, GlobalDownload
+        from sqlalchemy import func
 
         albums = list_albums_for_user(current_user.id)
 
         # Count tracks with no album_id (singles)
-        with _conn() as conn:
-            row = conn.execute("""
-                SELECT COUNT(DISTINCT ud.video_id) as cnt
-                FROM user_downloads ud
-                JOIN global_downloads gd ON ud.global_download_id = gd.id
-                WHERE ud.user_id = ? AND (gd.album_id IS NULL)
-                  AND gd.file_path IS NOT NULL
-            """, (current_user.id,)).fetchone()
-            singles_count = row['cnt'] if row else 0
+        singles_count = (
+            db.session.query(func.count(func.distinct(UserDownload.video_id)))
+            .join(GlobalDownload, UserDownload.global_download_id == GlobalDownload.id)
+            .filter(
+                UserDownload.user_id == current_user.id,
+                GlobalDownload.album_id.is_(None),
+                GlobalDownload.file_path.isnot(None),
+            )
+            .scalar()
+        ) or 0
 
         return jsonify({
             'success': True,
@@ -773,19 +793,43 @@ def get_user_album_tracks(album_id):
 def get_user_singles():
     """Return tracks with no album for the current user."""
     try:
-        from core.db.connection import _conn
-        with _conn() as conn:
-            rows = conn.execute("""
-                SELECT gd.video_id, gd.title, gd.artist, gd.album, gd.duration,
-                       gd.thumbnail, gd.extracted, gd.extraction_model,
-                       gd.detected_bpm, gd.detected_key, gd.file_path,
-                       ud.id as download_id
-                FROM global_downloads gd
-                JOIN user_downloads ud ON ud.global_download_id = gd.id AND ud.user_id = ?
-                WHERE gd.album_id IS NULL AND gd.file_path IS NOT NULL
-                ORDER BY gd.title COLLATE NOCASE
-            """, (current_user.id,)).fetchall()
-            tracks = [dict(r) for r in rows]
+        from core.models import db, GlobalDownload, UserDownload
+        from sqlalchemy import func
+
+        rows = (
+            db.session.query(
+                GlobalDownload.video_id,
+                GlobalDownload.title,
+                GlobalDownload.artist,
+                GlobalDownload.album,
+                GlobalDownload.duration,
+                GlobalDownload.thumbnail,
+                GlobalDownload.extracted,
+                GlobalDownload.extraction_model,
+                GlobalDownload.detected_bpm,
+                GlobalDownload.detected_key,
+                GlobalDownload.file_path,
+                UserDownload.id.label('download_id'),
+            )
+            .join(UserDownload, (UserDownload.global_download_id == GlobalDownload.id) & (UserDownload.user_id == current_user.id))
+            .filter(
+                GlobalDownload.album_id.is_(None),
+                GlobalDownload.file_path.isnot(None),
+            )
+            .order_by(func.lower(GlobalDownload.title))
+            .all()
+        )
+
+        tracks = [
+            {
+                'video_id': r.video_id, 'title': r.title, 'artist': r.artist,
+                'album': r.album, 'duration': r.duration, 'thumbnail': r.thumbnail,
+                'extracted': r.extracted, 'extraction_model': r.extraction_model,
+                'detected_bpm': r.detected_bpm, 'detected_key': r.detected_key,
+                'file_path': r.file_path, 'download_id': r.download_id,
+            }
+            for r in rows
+        ]
         return jsonify({'success': True, 'tracks': tracks})
     except Exception as e:
         logger.error(f"get_user_singles error: {e}")
@@ -796,23 +840,30 @@ def get_user_singles():
 def list_artists():
     """Return unique artists with song counts for the current user."""
     try:
-        from core.db.connection import _conn
-        with _conn() as conn:
-            rows = conn.execute("""
-                SELECT
-                    COALESCE(gd.artist, ud.artist) as artist,
-                    COUNT(DISTINCT ud.video_id) as song_count,
-                    MIN(COALESCE(gd.thumbnail, ud.thumbnail)) as thumbnail
-                FROM user_downloads ud
-                LEFT JOIN global_downloads gd ON ud.global_download_id = gd.id
-                WHERE ud.user_id = ? AND COALESCE(gd.artist, ud.artist) IS NOT NULL
-                    AND COALESCE(gd.artist, ud.artist) != ''
-                GROUP BY COALESCE(gd.artist, ud.artist)
-                ORDER BY COALESCE(gd.artist, ud.artist) COLLATE NOCASE
-            """, (current_user.id,)).fetchall()
+        from core.models import db, GlobalDownload, UserDownload
+        from sqlalchemy import func
 
-            artists = [{'artist': r['artist'], 'song_count': r['song_count'], 'thumbnail': r['thumbnail']} for r in rows]
-            return jsonify({'success': True, 'artists': artists})
+        artist_col = func.coalesce(GlobalDownload.artist, UserDownload.artist)
+
+        rows = (
+            db.session.query(
+                artist_col.label('artist'),
+                func.count(func.distinct(UserDownload.video_id)).label('song_count'),
+                func.min(func.coalesce(GlobalDownload.thumbnail, UserDownload.thumbnail)).label('thumbnail'),
+            )
+            .outerjoin(GlobalDownload, UserDownload.global_download_id == GlobalDownload.id)
+            .filter(
+                UserDownload.user_id == current_user.id,
+                artist_col.isnot(None),
+                artist_col != '',
+            )
+            .group_by(artist_col)
+            .order_by(func.lower(artist_col))
+            .all()
+        )
+
+        artists = [{'artist': r.artist, 'song_count': r.song_count, 'thumbnail': r.thumbnail} for r in rows]
+        return jsonify({'success': True, 'artists': artists})
     except Exception as e:
         logger.error(f"list_artists error: {e}")
         return jsonify({'error': str(e)}), 500

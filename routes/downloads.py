@@ -606,19 +606,14 @@ def delete_download(download_id):
                 # Handle both live downloads (download_id format) and database downloads (id format)
                 if download_id.isdigit():
                     # This is a database ID, find the video_id from database first
-                    import sqlite3
-                    from pathlib import Path
-                    DB_PATH = Path("stemtubes.db")
-                    conn = sqlite3.connect(DB_PATH)
-                    cursor = conn.cursor()
-                    cursor.execute('SELECT video_id FROM user_downloads WHERE user_id = ? AND id = ?',
-                                  (current_user.id, download_id))
-                    result = cursor.fetchone()
-                    if result:
-                        video_id = result[0]
+                    from core.models import UserDownload
+                    ud = UserDownload.query.filter_by(
+                        user_id=current_user.id, id=int(download_id)
+                    ).first()
+                    if ud:
+                        video_id = ud.video_id
                         db_delete_download(current_user.id, video_id)
                         db_removed = True
-                    conn.close()
                 else:
                     # This is a download_id format, extract video_id
                     video_id = download_id.split('_')[0]
@@ -666,16 +661,11 @@ def clear_all_downloads():
 
         # Clear database for current user
         if current_user and current_user.is_authenticated:
-            # Clear downloads from database
-            import sqlite3
-            from pathlib import Path
-            DB_PATH = Path("stemtubes.db")
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            cursor.execute('DELETE FROM user_downloads WHERE user_id = ?', (current_user.id,))
-            db_deleted_count = cursor.rowcount
-            conn.commit()
-            conn.close()
+            from core.models import db, UserDownload
+            db_deleted_count = UserDownload.query.filter_by(
+                user_id=current_user.id
+            ).delete()
+            db.session.commit()
         else:
             db_deleted_count = 0
 

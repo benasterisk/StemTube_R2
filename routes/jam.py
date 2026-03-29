@@ -13,7 +13,6 @@ import time
 import uuid
 import random
 import mimetypes
-import sqlite3
 
 from datetime import datetime
 
@@ -217,20 +216,23 @@ def serve_jam_stem(code, stem_name):
         if extraction_id:
             try:
                 from core.downloads_db import resolve_file_path
-                db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'downloads.db')
-                with sqlite3.connect(db_path) as conn:
-                    conn.row_factory = sqlite3.Row
-                    # Try matching by video_id or download ID
-                    clean_id = extraction_id.replace('download_', '')
-                    row = conn.execute(
-                        "SELECT stems_paths FROM global_downloads WHERE (video_id=? OR id=?) AND extracted=1 AND stems_paths IS NOT NULL",
-                        (extraction_id, clean_id)
-                    ).fetchone()
-                    if row and row['stems_paths']:
-                        sp = json.loads(row['stems_paths']) if isinstance(row['stems_paths'], str) else row['stems_paths']
-                        stem_file_path = sp.get(stem_name)
-                        if stem_file_path:
-                            stem_file_path = resolve_file_path(stem_file_path)
+                from core.models import GlobalDownload
+                from sqlalchemy import or_
+
+                clean_id = extraction_id.replace('download_', '')
+                filters = [GlobalDownload.video_id == extraction_id]
+                if clean_id.isdigit():
+                    filters.append(GlobalDownload.id == int(clean_id))
+                row = GlobalDownload.query.filter(
+                    or_(*filters),
+                    GlobalDownload.extracted == True,
+                    GlobalDownload.stems_paths.isnot(None),
+                ).first()
+                if row and row.stems_paths:
+                    sp = json.loads(row.stems_paths) if isinstance(row.stems_paths, str) else row.stems_paths
+                    stem_file_path = sp.get(stem_name)
+                    if stem_file_path:
+                        stem_file_path = resolve_file_path(stem_file_path)
             except Exception as e:
                 logger.error(f"[Jam Stems] DB lookup error: {e}")
 
@@ -272,16 +274,20 @@ def get_jam_extraction(code):
         extraction_id = jam.get('extraction_id')
         if extraction_id:
             try:
-                db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'downloads.db')
-                with sqlite3.connect(db_path) as conn:
-                    conn.row_factory = sqlite3.Row
-                    clean_id = extraction_id.replace('download_', '')
-                    row = conn.execute(
-                        "SELECT stems_paths FROM global_downloads WHERE (video_id=? OR id=?) AND extracted=1 AND stems_paths IS NOT NULL",
-                        (extraction_id, clean_id)
-                    ).fetchone()
-                    if row and row['stems_paths']:
-                        extraction_data['stems_paths'] = row['stems_paths']
+                from core.models import GlobalDownload
+                from sqlalchemy import or_
+
+                clean_id = extraction_id.replace('download_', '')
+                filters = [GlobalDownload.video_id == extraction_id]
+                if clean_id.isdigit():
+                    filters.append(GlobalDownload.id == int(clean_id))
+                row = GlobalDownload.query.filter(
+                    or_(*filters),
+                    GlobalDownload.extracted == True,
+                    GlobalDownload.stems_paths.isnot(None),
+                ).first()
+                if row and row.stems_paths:
+                    extraction_data['stems_paths'] = row.stems_paths if isinstance(row.stems_paths, str) else json.dumps(row.stems_paths)
             except Exception as e:
                 logger.error(f"[Jam Extraction] DB fallback error: {e}")
 

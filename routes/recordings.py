@@ -108,13 +108,11 @@ def upload_recording():
     file.save(filepath)
 
     # Update the filename in DB
-    from core.db.connection import _conn
-    with _conn() as conn:
-        conn.execute(
-            "UPDATE recordings SET filename = ? WHERE id = ?",
-            (filepath, rec_id),
-        )
-        conn.commit()
+    from core.models import db, Recording
+    rec_obj = Recording.query.get(rec_id)
+    if rec_obj:
+        rec_obj.filename = filepath
+        db.session.commit()
 
     logger.info(f"[RECORDINGS] Saved recording {rec_id} for download {download_id}")
 

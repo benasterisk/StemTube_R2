@@ -578,20 +578,17 @@ class UserSessionManager:
                         # Get existing BPM as hint from global_downloads
                         known_bpm = None
                         try:
-                            from core.db.connection import _conn
-                            with _conn() as conn:
-                                row = conn.execute(
-                                    "SELECT detected_bpm, detected_key, analysis_confidence, chords_data, structure_data, lyrics_data, music_start_time FROM global_downloads WHERE video_id=?",
-                                    (video_id,)
-                                ).fetchone()
-                                if row:
-                                    known_bpm = row['detected_bpm']
-                                    existing_key = row['detected_key']
-                                    existing_confidence = row['analysis_confidence']
-                                    existing_chords = row['chords_data']
-                                    existing_structure = row['structure_data']
-                                    existing_lyrics = row['lyrics_data']
-                                    existing_music_start = row['music_start_time'] or 0.0
+                            from core.models import GlobalDownload, thread_session
+                            with thread_session() as session:
+                                gd_row = session.query(GlobalDownload).filter_by(video_id=video_id).first()
+                                if gd_row:
+                                    known_bpm = gd_row.detected_bpm
+                                    existing_key = gd_row.detected_key
+                                    existing_confidence = gd_row.analysis_confidence
+                                    existing_chords = gd_row.chords_data
+                                    existing_structure = gd_row.structure_data
+                                    existing_lyrics = gd_row.lyrics_data
+                                    existing_music_start = gd_row.music_start_time or 0.0
                                 else:
                                     existing_key = None
                                     existing_confidence = None
