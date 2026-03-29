@@ -259,6 +259,8 @@ def _initiate_download(
     video_id: str,
     title: str,
     thumbnail_url: str,
+    album: str = '',
+    artist: str = '',
 ) -> Optional[str]:
     """Create a download via the existing download pipeline.
 
@@ -270,6 +272,8 @@ def _initiate_download(
         video_id: YouTube video ID.
         title: Track title for display.
         thumbnail_url: Thumbnail URL for display.
+        album: Album name (optional, stored on DownloadItem for DB persistence).
+        artist: Artist name (optional).
 
     Returns:
         The download_id string, or None on failure.
@@ -334,7 +338,7 @@ def _initiate_download(
                     )
                     return item.download_id
 
-        # Create and queue the download item
+        # Create and queue the download item with album/artist metadata
         item = DownloadItem(
             video_id=video_id,
             title=title,
@@ -342,6 +346,9 @@ def _initiate_download(
             download_type=DownloadType.AUDIO,
             quality='best',
         )
+        # Attach metadata for DB persistence after download completes
+        item.yt_album = album or ''
+        item.yt_artist = artist or ''
         dl_id = dm.add_download(item)
         logger.info(f"[Spotify DL] Queued download {dl_id} for {video_id}")
         return dl_id
@@ -482,8 +489,10 @@ def batch_download_playlist(
                 video_id=video_id,
             )
         else:
-            # New download needed — queue it
-            dl_id = _initiate_download(user_id, video_id, title, thumbnail_url)
+            # New download needed — queue it with album/artist metadata
+            track_album = track.get('album', '')
+            dl_id = _initiate_download(user_id, video_id, title, thumbnail_url,
+                                       album=track_album, artist=track_artist)
             if dl_id:
                 downloaded += 1
                 _emit_batch_progress(

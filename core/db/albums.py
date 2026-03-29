@@ -27,22 +27,45 @@ def init_albums_table():
 
 
 def find_or_create_album(name, artist=None, thumbnail_url=None, year=None, source=None, source_id=None):
-    """Find an existing album or create a new one. Returns album_id."""
+    """Find an existing album or create a new one. Returns album_id.
+
+    Uses case-insensitive matching to avoid duplicates like
+    'Amy Winehouse' vs 'AMY WINEHOUSE'.
+    """
     if not name:
         return None
     with _conn() as conn:
+        # Case-insensitive search
         row = conn.execute(
-            "SELECT id FROM albums WHERE name=? AND (artist=? OR (artist IS NULL AND ? IS NULL))",
+            "SELECT id FROM albums WHERE name COLLATE NOCASE = ? AND "
+            "(artist COLLATE NOCASE = ? OR (artist IS NULL AND ? IS NULL))",
             (name, artist, artist)
         ).fetchone()
         if row:
+            # Update thumbnail if we have one and existing doesn't
+            if thumbnail_url:
+                conn.execute(
+                    "UPDATE albums SET thumbnail_url = COALESCE(thumbnail_url, ?) WHERE id = ?",
+                    (thumbnail_url, row['id'])
+                )
+                conn.commit()
             return row['id']
-        cursor = conn.execute(
-            "INSERT INTO albums (name, artist, thumbnail_url, year, source, source_id) VALUES (?, ?, ?, ?, ?, ?)",
-            (name, artist, thumbnail_url, year, source, source_id)
-        )
-        conn.commit()
-        return cursor.lastrowid
+        try:
+            cursor = conn.execute(
+                "INSERT INTO albums (name, artist, thumbnail_url, year, source, source_id) VALUES (?, ?, ?, ?, ?, ?)",
+                (name, artist, thumbnail_url, year, source, source_id)
+            )
+            conn.commit()
+            return cursor.lastrowid
+        except Exception:
+            # UNIQUE constraint violation — race condition, re-fetch
+            conn.rollback()
+            row = conn.execute(
+                "SELECT id FROM albums WHERE name COLLATE NOCASE = ? AND "
+                "(artist COLLATE NOCASE = ? OR (artist IS NULL AND ? IS NULL))",
+                (name, artist, artist)
+            ).fetchone()
+            return row['id'] if row else None
 
 
 def list_albums_for_user(user_id):

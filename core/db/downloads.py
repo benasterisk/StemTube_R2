@@ -17,10 +17,15 @@ def add_or_update(user_id, meta):
         # Create or link album if album name provided
         album_id = None
         if meta.get("album"):
-            from core.db.albums import find_or_create_album
+            from core.db.albums import find_or_create_album, update_album_track_count
+            # Use album_artist if provided (cleaner than per-track credits)
+            album_artist = meta.get("album_artist") or meta.get("artist") or None
+            # Normalize: take first artist before comma for album grouping
+            if album_artist and ',' in album_artist:
+                album_artist = album_artist.split(',')[0].strip()
             album_id = find_or_create_album(
                 name=meta["album"],
-                artist=meta.get("artist"),
+                artist=album_artist,
                 thumbnail_url=meta.get("thumbnail_url"),
             )
 
@@ -93,6 +98,13 @@ def add_or_update(user_id, meta):
             album_id,
         ))
         conn.commit()
+
+        # Update album track count if we linked one
+        if album_id:
+            try:
+                update_album_track_count(album_id)
+            except Exception:
+                pass
 
         # Return the global_download_id for use in WebSocket events
         return global_download_id
