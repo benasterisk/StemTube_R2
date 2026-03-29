@@ -85,6 +85,7 @@ def _add_extraction_fields_if_missing(conn):
         ("artist", "TEXT"),
         ("album", "TEXT"),
         ("duration", "REAL"),  # Track duration in seconds
+        ("album_id", "INTEGER"),  # FK to albums table (nullable)
     ]
 
     for table_name in ["global_downloads", "user_downloads"]:

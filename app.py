@@ -84,6 +84,7 @@ from core.downloads_db import (
     init_table as init_downloads_table,
     init_recordings_table,
     init_playlists_table,
+    init_albums_table,
     comprehensive_cleanup,
 )
 
@@ -134,6 +135,9 @@ logger.info("Recordings database initialized")
 
 init_playlists_table()
 logger.info("Playlists database initialized")
+
+init_albums_table()
+logger.info("Albums database initialized")
 
 comprehensive_cleanup()
 logger.info("Database cleanup completed")

@@ -48,6 +48,12 @@ from core.db.recordings import (
     create_recording, list_recordings, get_recording,
     rename_recording, delete_recording,
 )
+from core.db.albums import (
+    init_albums_table,
+    find_or_create_album, list_albums_for_user,
+    list_global_albums, get_album_tracks,
+    update_album_track_count,
+)
 from core.db.playlists import (
     init_playlists_table,
     save_playlist, list_playlists, get_playlist,

@@ -14,6 +14,16 @@ def add_or_update(user_id, meta):
         quality = meta["quality"]
         file_path = meta["file_path"]
 
+        # Create or link album if album name provided
+        album_id = None
+        if meta.get("album"):
+            from core.db.albums import find_or_create_album
+            album_id = find_or_create_album(
+                name=meta["album"],
+                artist=meta.get("artist"),
+                thumbnail_url=meta.get("thumbnail_url"),
+            )
+
         # DEBUG: Log the video_id being stored in database
         print(f"[DB DEBUG] add_or_update called with video_id: '{video_id}' (length: {len(video_id)})")
         print(f"[DB DEBUG] Full meta: {meta}")
@@ -35,8 +45,8 @@ def add_or_update(user_id, meta):
             cursor.execute("""
                 INSERT INTO global_downloads
                     (video_id, title, thumbnail, file_path, media_type, quality, file_size,
-                     artist, album, duration)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     artist, album, duration, album_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 video_id,
                 meta["title"],
@@ -48,6 +58,7 @@ def add_or_update(user_id, meta):
                 meta.get("artist") or None,
                 meta.get("album") or None,
                 meta.get("duration") or None,
+                album_id,
             ))
             global_download_id = cursor.lastrowid
 
@@ -55,8 +66,8 @@ def add_or_update(user_id, meta):
         conn.execute("""
             INSERT INTO user_downloads
                 (user_id, global_download_id, video_id, title, thumbnail, file_path, media_type, quality,
-                 artist, album, duration)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 artist, album, duration, album_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id, video_id, media_type) DO UPDATE SET
                 global_download_id = excluded.global_download_id,
                 title              = excluded.title,
@@ -65,7 +76,8 @@ def add_or_update(user_id, meta):
                 quality            = excluded.quality,
                 artist             = COALESCE(excluded.artist, artist),
                 album              = COALESCE(excluded.album, album),
-                duration           = COALESCE(excluded.duration, duration)
+                duration           = COALESCE(excluded.duration, duration),
+                album_id           = COALESCE(excluded.album_id, album_id)
         """, (
             user_id,
             global_download_id,
@@ -78,6 +90,7 @@ def add_or_update(user_id, meta):
             meta.get("artist") or None,
             meta.get("album") or None,
             meta.get("duration") or None,
+            album_id,
         ))
         conn.commit()
 
@@ -262,7 +275,8 @@ def list_for(user_id):
                 COALESCE(gd.music_start_time, ud.music_start_time) as music_start_time,
                 COALESCE(gd.artist, ud.artist) as artist,
                 COALESCE(gd.album, ud.album) as album,
-                COALESCE(gd.duration, ud.duration) as duration
+                COALESCE(gd.duration, ud.duration) as duration,
+                COALESCE(gd.album_id, ud.album_id) as album_id
             FROM user_downloads ud
             LEFT JOIN global_downloads gd ON ud.global_download_id = gd.id
             WHERE ud.user_id=?
@@ -304,7 +318,8 @@ def get_download_by_id(user_id, download_id):
                 COALESCE(gd.music_start_time, ud.music_start_time) as music_start_time,
                 COALESCE(gd.artist, ud.artist) as artist,
                 COALESCE(gd.album, ud.album) as album,
-                COALESCE(gd.duration, ud.duration) as duration
+                COALESCE(gd.duration, ud.duration) as duration,
+                COALESCE(gd.album_id, ud.album_id) as album_id
             FROM user_downloads ud
             LEFT JOIN global_downloads gd ON ud.global_download_id = gd.id
             WHERE ud.user_id=? AND ud.id=?
