@@ -1,5 +1,5 @@
-// StemTube Service Worker v2.19 - Library views + playlist player
-const CACHE_NAME = 'stemtube-v2.41';
+// StemTube Service Worker v2.20 - Library refactor + search toggle + persistent player
+const CACHE_NAME = 'stemtube-v2.42';
 const STEMS_CACHE_NAME = 'stemtube-stems-v1';
 
 // Stem file names to cache (no ZIP, no source)
