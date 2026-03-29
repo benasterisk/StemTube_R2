@@ -491,7 +491,12 @@
                 {% endif %}
                 
                 <div class="tab-content" id="downloadsTab">
-                    <h2>My Library</h2>
+                    <div class="library-view-switcher">
+                        <button class="library-view-btn active" data-view="songs"><i class="fas fa-music"></i> Songs</button>
+                        <button class="library-view-btn" data-view="artists"><i class="fas fa-user"></i> Artists</button>
+                        <button class="library-view-btn" data-view="extracted"><i class="fas fa-sliders-h"></i> Extracted</button>
+                        <button class="library-view-btn" data-view="playlists"><i class="fas fa-list"></i> Playlists</button>
+                    </div>
                     <div class="library-toolbar">
                         <div class="library-search-bar">
                             <input type="text" id="myLibrarySearch" placeholder="Search artist, title..." class="library-search-input">
@@ -822,6 +827,7 @@
     <script src="{{ url_for('static', filename='js/app-extensions.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/jam-client.js') }}"></script>
     <script src="{{ url_for('static', filename='js/jam-tab.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app-library.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/app-spotify.js') }}?v={{ cache_buster }}"></script>
 
     <!-- Script for handling mixer iframe loading -->

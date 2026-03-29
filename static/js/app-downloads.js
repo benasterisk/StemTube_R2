@@ -838,7 +838,9 @@ function _filterItems(items, query) {
 }
 
 // Cache raw data for re-sort/re-filter without re-fetching
+// Exposed on window for use by app-library.js views
 let _myLibraryRawData = [];
+window._myLibraryRawData = _myLibraryRawData;
 
 function _renderMyLibrary() {
     const downloadsContainer = document.getElementById('downloadsContainer');
@@ -912,9 +914,16 @@ function loadDownloads() {
                 return;
             }
             
-            // Cache raw data for sort/filter, then render (handles batch status, extraction list, controls)
+            // Cache raw data for sort/filter, then render
             _myLibraryRawData = data;
-            _renderMyLibrary();
+            window._myLibraryRawData = data;
+
+            // Render via library view system if available, otherwise default song view
+            if (typeof window._libraryRenderView === 'function' && typeof window._libraryCurrentView === 'function' && window._libraryCurrentView() !== 'songs') {
+                window._libraryRenderView();
+            } else {
+                _renderMyLibrary();
+            }
         })
         .catch(error => {
             console.error('Error loading downloads:', error);
