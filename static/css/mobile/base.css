@@ -319,6 +319,18 @@ body.cyberpunk-neon.mobile-body {
     color: var(--mobile-text-secondary);
 }
 
+.mobile-in-library-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    background: #1DB954;
+    color: #fff;
+    border-radius: 8px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
 .mobile-result-actions {
     display: flex;
     flex-direction: column;

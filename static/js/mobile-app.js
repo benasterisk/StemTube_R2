@@ -65,6 +65,7 @@ class MobileApp {
         this.currentPage = 'library';  // Default page: My Library
         this.currentMixerTab = 'controls';
         this.currentLibraryTab = 'my';  // Track library sub-tab (my/global)
+        this._searchSource = 'youtube'; // 'youtube' or 'ytmusic'
 
         this.socket = null;
         this.jamClient = null;
@@ -432,6 +433,18 @@ class MobileApp {
         if (input) input.addEventListener('keypress', e => {
             if (e.key === 'Enter') this.performSearch();
         });
+
+        // Search source toggle (Video / Music Only)
+        document.querySelectorAll('#mobileSearchSourceToggle .mobile-view-pill').forEach(pill => {
+            pill.addEventListener('click', () => {
+                document.querySelectorAll('#mobileSearchSourceToggle .mobile-view-pill').forEach(p => p.classList.remove('active'));
+                pill.classList.add('active');
+                this._searchSource = pill.dataset.mobileSource;
+                if (input) {
+                    input.placeholder = this._searchSource === 'ytmusic' ? 'Search YouTube Music...' : 'Search YouTube...';
+                }
+            });
+        });
     }
 
     setupUpload() {
@@ -652,14 +665,15 @@ class MobileApp {
     async performSearch() {
         const query = document.getElementById('mobileSearchInput').value.trim();
         if (!query) return alert('Enter search query');
-        
+
         const results = document.getElementById('mobileSearchResults');
         results.innerHTML = '<p class="mobile-text-center">Searching...</p>';
-        
+
         try {
             const searchParams = new URLSearchParams({
                 query,
-                max_results: '10'
+                max_results: '10',
+                source: this._searchSource || 'youtube'
             });
             const res = await fetch('/api/search?' + searchParams.toString());
             const data = await res.json();
@@ -693,14 +707,20 @@ class MobileApp {
             const channel = item.snippet?.channelTitle || item.channelTitle || item.channel?.name || 'Unknown Channel';
             const thumbnail = this.getThumbnailUrl(item);
             const duration = this.formatDuration(item.contentDetails?.duration || item.duration || '');
+            const inLibrary = item.already_in_library === true;
+            const musicMeta = item.musicMetadata;
+            const artistLine = (this._searchSource === 'ytmusic' && musicMeta)
+                ? (musicMeta.artist || '') + (musicMeta.album ? ' \u00b7 ' + musicMeta.album : '')
+                : '';
 
             const div = document.createElement('div');
             div.className = 'mobile-search-result';
             div.innerHTML =
                 '<img src="' + (thumbnail || '/static/img/default-thumb.svg') + '" class="mobile-result-thumbnail" alt="' + this.escapeHtml(title) + '">' +
                 '<div class="mobile-result-info">' +
-                    '<div class="mobile-result-title">' + this.escapeHtml(title) + '</div>' +
-                    '<div class="mobile-result-meta">' + this.escapeHtml(channel) + (duration ? ' · ' + duration : '') + '</div>' +
+                    '<div class="mobile-result-title">' + this.escapeHtml(title) + (inLibrary ? ' <span class="mobile-in-library-badge">In Library</span>' : '') + '</div>' +
+                    (artistLine ? '<div class="mobile-result-meta" style="color:var(--mobile-accent)">' + this.escapeHtml(artistLine) + '</div>' : '') +
+                    '<div class="mobile-result-meta">' + this.escapeHtml(channel) + (duration ? ' \u00b7 ' + duration : '') + '</div>' +
                 '</div>' +
                 '<button class="mobile-btn mobile-btn-icon" title="Download"><i class="fas fa-download"></i></button>';
 
@@ -796,6 +816,15 @@ class MobileApp {
         if (typeSelect) typeSelect.value = 'audio';
         if (audioGroup) audioGroup.style.display = '';
         if (videoGroup) videoGroup.style.display = 'none';
+
+        // If searching YouTube Music, force audio-only and hide video option
+        if (this._searchSource === 'ytmusic') {
+            if (typeSelect) { typeSelect.value = 'audio'; typeSelect.disabled = true; }
+            if (audioGroup) audioGroup.style.display = '';
+            if (videoGroup) videoGroup.style.display = 'none';
+        } else {
+            if (typeSelect) typeSelect.disabled = false;
+        }
 
         // Toggle quality selectors on type change
         const onTypeChange = () => {

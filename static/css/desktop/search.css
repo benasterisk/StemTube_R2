@@ -35,6 +35,51 @@
     color: white;
 }
 
+/* Search Source Toggle (Video / Music Only) */
+.search-source-toggle {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.search-source-btn {
+    padding: 6px 14px;
+    border: 1px solid var(--border-color);
+    background: none;
+    color: var(--text-secondary);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.search-source-btn:hover {
+    border-color: var(--accent-color);
+    color: var(--text-color);
+}
+
+.search-source-btn.active {
+    background: var(--accent-color);
+    color: #fff;
+    border-color: var(--accent-color);
+}
+
+/* In Library Badge */
+.in-library-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #1DB954;
+    color: #fff;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
 .search-input-container {
     display: flex;
     gap: var(--spacing-sm);

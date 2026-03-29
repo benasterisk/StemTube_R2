@@ -52,6 +52,7 @@ let totalSearchResults = 0;
 let searchQuery = '';
 // Default to 'url' (upload) mode if YouTube features are disabled
 let searchMode = (typeof enableYoutube !== 'undefined' && enableYoutube) ? 'search' : 'url';
+let searchSource = 'youtube'; // 'youtube' or 'ytmusic'
 
 // CSRF protection has been disabled for this application
 function getCsrfToken() {
@@ -229,12 +230,28 @@ function initializeEventListeners() {
             searchMode = button.dataset.mode;
 
             // Toggle between search and file upload UI
+            const sourceToggle = document.getElementById('searchSourceToggle');
             if (searchMode === 'search') {
                 document.getElementById('searchInputContainer').style.display = 'flex';
                 document.getElementById('fileUploadContainer').style.display = 'none';
+                if (sourceToggle) sourceToggle.style.display = 'flex';
             } else {
                 document.getElementById('searchInputContainer').style.display = 'none';
                 document.getElementById('fileUploadContainer').style.display = 'block';
+                if (sourceToggle) sourceToggle.style.display = 'none';
+            }
+        });
+    });
+
+    // Search source toggle (Video / Music Only)
+    document.querySelectorAll('#searchSourceToggle .search-source-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            document.querySelectorAll('#searchSourceToggle .search-source-btn').forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            searchSource = button.dataset.source;
+            const input = document.getElementById('searchInput');
+            if (input) {
+                input.placeholder = searchSource === 'ytmusic' ? 'Search YouTube Music...' : 'Search YouTube...';
             }
         });
     });

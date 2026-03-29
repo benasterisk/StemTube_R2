@@ -647,17 +647,25 @@ function displaySearchResults(data) {
         const channelTitle = item.snippet?.channelTitle || item.channel?.name || 'Unknown Channel';
         const thumbnailUrl = getThumbnailUrl(item);
         const duration = formatDuration(item.contentDetails?.duration || item.duration);
-        
+        const inLibrary = item.already_in_library === true;
+
+        // Music metadata from YouTube Music results
+        const musicMeta = item.musicMetadata;
+        const artistLine = (searchSource === 'ytmusic' && musicMeta)
+            ? (musicMeta.artist || '') + (musicMeta.album ? ' &middot; ' + musicMeta.album : '')
+            : '';
+
         console.log(`Title: ${title}, Channel: ${channelTitle}, Thumbnail: ${thumbnailUrl}`);
-        
+
         // Create result element
         const resultElement = document.createElement('div');
         resultElement.className = 'search-result';
         resultElement.innerHTML = `
             <img class="result-thumbnail" src="${thumbnailUrl}" alt="${title}">
             <div class="result-info">
-                <div class="result-title">${title}</div>
+                <div class="result-title">${title}${inLibrary ? '<span class="in-library-badge">In Library</span>' : ''}</div>
                 <div class="result-channel">${channelTitle}</div>
+                ${artistLine ? '<div class="result-channel" style="color:var(--accent-color)">' + artistLine + '</div>' : ''}
                 <div class="result-duration">${duration}</div>
                 <div class="result-actions">
                     <button class="result-button play-button" data-video-id="${videoId}">

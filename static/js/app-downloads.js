@@ -64,7 +64,8 @@ function performSearch() {
         console.log('Query:', query);
         searchParams.append('query', query);
         searchParams.append('max_results', maxResults);
-        
+        searchParams.append('source', searchSource);
+
         const searchUrl = `/api/search?${searchParams.toString()}`;
         console.log('Fetching from URL:', searchUrl);
         
@@ -321,9 +322,20 @@ function openDownloadModal(videoId, title, thumbnailUrl) {
     document.getElementById('downloadThumbnail').src = thumbnailUrl;
 
     // Set default values from settings
-    document.getElementById('downloadType').value = 'audio';
+    const downloadTypeEl = document.getElementById('downloadType');
+    downloadTypeEl.value = 'audio';
     document.getElementById('videoQualityContainer').style.display = 'none';
     document.getElementById('audioQualityContainer').style.display = 'block';
+
+    // If searching YouTube Music, force audio-only and hide video option
+    if (searchSource === 'ytmusic') {
+        downloadTypeEl.value = 'audio';
+        downloadTypeEl.disabled = true;
+        document.getElementById('videoQualityContainer').style.display = 'none';
+        document.getElementById('audioQualityContainer').style.display = 'block';
+    } else {
+        downloadTypeEl.disabled = false;
+    }
 
     // Show modal immediately with default audio options
     document.getElementById('downloadModal').style.display = 'flex';
