@@ -46,7 +46,7 @@
                     console.log('[PWA] Persistent storage:', persistent ? 'granted' : 'denied');
                 }
 
-                // Check for updates
+                // Check for updates on install
                 registration.addEventListener('updatefound', () => {
                     const newWorker = registration.installing;
                     newWorker.addEventListener('statechange', () => {
@@ -54,6 +54,14 @@
                             showUpdateNotification();
                         }
                     });
+                });
+
+                // iOS Safari: check for SW updates when app returns to foreground
+                // (iOS only checks on navigation, not on focus — this forces a check)
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'visible') {
+                        registration.update().catch(() => {});
+                    }
                 });
             } catch (error) {
                 console.error('[PWA] Service Worker registration failed:', error);
