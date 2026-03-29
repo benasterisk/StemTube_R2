@@ -1,199 +1,182 @@
 """
 Startup integrity checks and database maintenance.
+
+Uses SQLAlchemy ORM and PostgreSQL-compatible constructs.
 """
-from core.db.connection import _conn
+from sqlalchemy import text
+
+from core.models import db, GlobalDownload, UserDownload
 
 
 def cleanup_stuck_extractions():
     """Clean up stuck extractions on application startup."""
-    with _conn() as conn:
-        cursor = conn.cursor()
+    stuck_count = GlobalDownload.query.filter_by(
+        extracting=True, extracted=False
+    ).count()
 
-        # Find stuck extractions (extracting=1 but not completed within reasonable time)
-        # For now, we'll just reset all stuck extractions
-        cursor.execute("""
-            SELECT COUNT(*) FROM global_downloads
-            WHERE extracting=1 AND extracted=0
-        """)
-        stuck_count = cursor.fetchone()[0]
+    if stuck_count > 0:
+        print(f"[STARTUP] Found {stuck_count} stuck extractions - cleaning up...")
 
-        if stuck_count > 0:
-            print(f"[STARTUP] Found {stuck_count} stuck extractions - cleaning up...")
+        # Reset stuck extractions in global_downloads
+        GlobalDownload.query.filter_by(
+            extracting=True, extracted=False
+        ).update({
+            'extracting': False,
+            'extraction_model': None,
+        })
 
-            # Reset stuck extractions
-            cursor.execute("""
-                UPDATE global_downloads
-                SET extracting=0, extraction_model=NULL
-                WHERE extracting=1 AND extracted=0
-            """)
+        # Reset stuck extractions in user_downloads
+        UserDownload.query.filter_by(
+            extracting=True, extracted=False
+        ).update({
+            'extracting': False,
+            'extraction_model': None,
+        })
 
-            cursor.execute("""
-                UPDATE user_downloads
-                SET extracting=0, extraction_model=NULL
-                WHERE extracting=1 AND extracted=0
-            """)
-
-            conn.commit()
-            print(f"[STARTUP] Cleaned up {stuck_count} stuck extractions")
-        else:
-            print("[STARTUP] No stuck extractions found")
+        db.session.commit()
+        print(f"[STARTUP] Cleaned up {stuck_count} stuck extractions")
+    else:
+        print("[STARTUP] No stuck extractions found")
 
 
 def cleanup_duplicate_user_downloads():
     """Clean up duplicate user_downloads records on application startup."""
-    with _conn() as conn:
-        cursor = conn.cursor()
+    print("[STARTUP] Checking for duplicate user_downloads records...")
 
-        print("[STARTUP] Checking for duplicate user_downloads records...")
+    # Find users with multiple records for the same video_id
+    result = db.session.execute(text("""
+        SELECT user_id, video_id, COUNT(*) as count
+        FROM user_downloads
+        GROUP BY user_id, video_id
+        HAVING COUNT(*) > 1
+    """))
+    duplicates = result.fetchall()
 
-        # Find users with multiple records for the same video_id
-        cursor.execute("""
-            SELECT user_id, video_id, COUNT(*) as count
-            FROM user_downloads
-            GROUP BY user_id, video_id
-            HAVING COUNT(*) > 1
-        """)
-        duplicates = cursor.fetchall()
+    if not duplicates:
+        print("[STARTUP] No duplicate user_downloads records found")
+        return
 
-        if not duplicates:
-            print("[STARTUP] No duplicate user_downloads records found")
-            return
+    print(f"[STARTUP] Found {len(duplicates)} sets of duplicate records to clean up")
 
-        print(f"[STARTUP] Found {len(duplicates)} sets of duplicate records to clean up")
+    for dup in duplicates:
+        user_id = dup.user_id
+        video_id = dup.video_id
+        count = dup.count
+        print(f"[STARTUP] Cleaning up {count} duplicate records for user {user_id}, video {video_id}")
 
-        for dup in duplicates:
-            user_id, video_id, count = dup
-            print(f"[STARTUP] Cleaning up {count} duplicate records for user {user_id}, video {video_id}")
+        # Get all records for this user/video combination, ordered by creation date
+        records = UserDownload.query.filter_by(
+            user_id=user_id, video_id=video_id
+        ).order_by(UserDownload.created_at.asc()).all()
 
-            # Get all records for this user/video combination, ordered by creation date
-            cursor.execute("""
-                SELECT * FROM user_downloads
-                WHERE user_id=? AND video_id=?
-                ORDER BY created_at ASC
-            """, (user_id, video_id))
+        if len(records) <= 1:
+            continue
 
-            records = cursor.fetchall()
-            if len(records) <= 1:
-                continue
+        # Merge all records into the most complete one (preferring records with file_path)
+        best_record = None
+        records_to_delete = []
 
-            # Merge all records into the most complete one (preferring records with file_path)
-            best_record = None
-            records_to_delete = []
-
-            for record in records:
-                if best_record is None:
+        for record in records:
+            if best_record is None:
+                best_record = record
+            else:
+                # Prefer record with file_path (download data)
+                if record.file_path and not best_record.file_path:
+                    records_to_delete.append(best_record.id)
                     best_record = record
-                else:
-                    # Prefer record with file_path (download data)
-                    if record['file_path'] and not best_record['file_path']:
-                        records_to_delete.append(best_record['id'])
+                # If both have file_path or both don't, prefer the newer one
+                elif bool(record.file_path) == bool(best_record.file_path):
+                    if record.created_at > best_record.created_at:
+                        records_to_delete.append(best_record.id)
                         best_record = record
-                    # If both have file_path or both don't, prefer the newer one
-                    elif bool(record['file_path']) == bool(best_record['file_path']):
-                        if record['created_at'] > best_record['created_at']:
-                            records_to_delete.append(best_record['id'])
-                            best_record = record
-                        else:
-                            records_to_delete.append(record['id'])
                     else:
-                        records_to_delete.append(record['id'])
+                        records_to_delete.append(record.id)
+                else:
+                    records_to_delete.append(record.id)
 
-            # Update the best record with any missing data from other records
-            for record in records:
-                if record['id'] != best_record['id']:
-                    # Merge extraction data if missing in best record
-                    if record['extracted'] and not best_record['extracted']:
-                        cursor.execute("""
-                            UPDATE user_downloads
-                            SET extracted=?, extraction_model=?, stems_paths=?,
-                                stems_zip_path=?, extracted_at=?
-                            WHERE id=?
-                        """, (
-                            record['extracted'], record['extraction_model'],
-                            record['stems_paths'], record['stems_zip_path'],
-                            record['extracted_at'], best_record['id']
-                        ))
-                        print(f"[STARTUP] Merged extraction data into record {best_record['id']}")
+        # Update the best record with any missing data from other records
+        for record in records:
+            if record.id != best_record.id:
+                # Merge extraction data if missing in best record
+                if record.extracted and not best_record.extracted:
+                    best_record.extracted = record.extracted
+                    best_record.extraction_model = record.extraction_model
+                    best_record.stems_paths = record.stems_paths
+                    best_record.stems_zip_path = record.stems_zip_path
+                    best_record.extracted_at = record.extracted_at
+                    print(f"[STARTUP] Merged extraction data into record {best_record.id}")
 
-                    # Merge download data if missing in best record
-                    if record['file_path'] and not best_record['file_path']:
-                        cursor.execute("""
-                            UPDATE user_downloads
-                            SET file_path=?, media_type=?, quality=?
-                            WHERE id=?
-                        """, (
-                            record['file_path'], record['media_type'],
-                            record['quality'], best_record['id']
-                        ))
-                        print(f"[STARTUP] Merged download data into record {best_record['id']}")
+                # Merge download data if missing in best record
+                if record.file_path and not best_record.file_path:
+                    best_record.file_path = record.file_path
+                    best_record.media_type = record.media_type
+                    best_record.quality = record.quality
+                    print(f"[STARTUP] Merged download data into record {best_record.id}")
 
-            # Delete duplicate records
-            for record_id in records_to_delete:
-                cursor.execute("DELETE FROM user_downloads WHERE id=?", (record_id,))
-                print(f"[STARTUP] Deleted duplicate record {record_id}")
+        # Delete duplicate records
+        for record_id in records_to_delete:
+            UserDownload.query.filter_by(id=record_id).delete()
+            print(f"[STARTUP] Deleted duplicate record {record_id}")
 
-        conn.commit()
-        print(f"[STARTUP] Cleaned up duplicate user_downloads records")
+    db.session.commit()
+    print(f"[STARTUP] Cleaned up duplicate user_downloads records")
 
 
 def cleanup_orphaned_records():
     """Clean up orphaned or inconsistent records."""
-    with _conn() as conn:
-        cursor = conn.cursor()
+    print("[CLEANUP] Checking for orphaned or inconsistent records...")
 
-        print("[CLEANUP] Checking for orphaned or inconsistent records...")
+    # Clean up user_downloads records that reference non-existent global_downloads
+    orphaned_result = db.session.execute(text("""
+        SELECT COUNT(*) FROM user_downloads ud
+        LEFT JOIN global_downloads gd ON ud.global_download_id = gd.id
+        WHERE ud.global_download_id IS NOT NULL AND gd.id IS NULL
+    """))
+    orphaned_user_downloads = orphaned_result.scalar()
 
-        # Clean up user_downloads records that reference non-existent global_downloads
-        cursor.execute("""
-            SELECT COUNT(*) FROM user_downloads ud
-            LEFT JOIN global_downloads gd ON ud.global_download_id = gd.id
-            WHERE ud.global_download_id IS NOT NULL AND gd.id IS NULL
-        """)
-        orphaned_user_downloads = cursor.fetchone()[0]
+    if orphaned_user_downloads > 0:
+        print(f"[CLEANUP] Found {orphaned_user_downloads} orphaned user_downloads records")
+        result = db.session.execute(text("""
+            DELETE FROM user_downloads
+            WHERE global_download_id IS NOT NULL
+            AND global_download_id NOT IN (SELECT id FROM global_downloads)
+        """))
+        print(f"[CLEANUP] Removed {result.rowcount} orphaned user_downloads records")
 
-        if orphaned_user_downloads > 0:
-            print(f"[CLEANUP] Found {orphaned_user_downloads} orphaned user_downloads records")
-            cursor.execute("""
-                DELETE FROM user_downloads
-                WHERE global_download_id IS NOT NULL
-                AND global_download_id NOT IN (SELECT id FROM global_downloads)
-            """)
-            print(f"[CLEANUP] Removed {cursor.rowcount} orphaned user_downloads records")
+    # Find records with extracted=1 but no extraction_model
+    orphaned_extractions = UserDownload.query.filter(
+        UserDownload.extracted == True,  # noqa: E712
+        (UserDownload.extraction_model.is_(None)) | (UserDownload.extraction_model == '')
+    ).count()
 
-        # Find records with extracted=1 but no extraction_model
-        cursor.execute("""
-            SELECT COUNT(*) FROM user_downloads
-            WHERE extracted=1 AND (extraction_model IS NULL OR extraction_model = '')
-        """)
-        orphaned_extractions = cursor.fetchone()[0]
+    if orphaned_extractions > 0:
+        print(f"[CLEANUP] Found {orphaned_extractions} extracted records without extraction_model")
+        rows_updated = UserDownload.query.filter(
+            UserDownload.extracted == True,  # noqa: E712
+            (UserDownload.extraction_model.is_(None)) | (UserDownload.extraction_model == '')
+        ).update({
+            'extracted': False,
+            'stems_paths': None,
+            'stems_zip_path': None,
+            'extracted_at': None,
+            'extracting': False,
+        }, synchronize_session='fetch')
+        print(f"[CLEANUP] Reset {rows_updated} orphaned extraction records")
 
-        if orphaned_extractions > 0:
-            print(f"[CLEANUP] Found {orphaned_extractions} extracted records without extraction_model")
-            cursor.execute("""
-                UPDATE user_downloads
-                SET extracted=0, stems_paths=NULL, stems_zip_path=NULL, extracted_at=NULL, extracting=0
-                WHERE extracted=1 AND (extraction_model IS NULL OR extraction_model = '')
-            """)
-            print(f"[CLEANUP] Reset {cursor.rowcount} orphaned extraction records")
+    # Find records with extracting=1 but extracted=1 (inconsistent state)
+    inconsistent_extractions = UserDownload.query.filter_by(
+        extracting=True, extracted=True
+    ).count()
 
-        # Find records with extracting=1 but extracted=1 (inconsistent state)
-        cursor.execute("""
-            SELECT COUNT(*) FROM user_downloads
-            WHERE extracting=1 AND extracted=1
-        """)
-        inconsistent_extractions = cursor.fetchone()[0]
+    if inconsistent_extractions > 0:
+        print(f"[CLEANUP] Found {inconsistent_extractions} records with inconsistent extraction state")
+        rows_updated = UserDownload.query.filter_by(
+            extracting=True, extracted=True
+        ).update({'extracting': False})
+        print(f"[CLEANUP] Fixed {rows_updated} inconsistent extraction states")
 
-        if inconsistent_extractions > 0:
-            print(f"[CLEANUP] Found {inconsistent_extractions} records with inconsistent extraction state")
-            cursor.execute("""
-                UPDATE user_downloads
-                SET extracting=0
-                WHERE extracting=1 AND extracted=1
-            """)
-            print(f"[CLEANUP] Fixed {cursor.rowcount} inconsistent extraction states")
-
-        conn.commit()
-        print("[CLEANUP] Orphaned record cleanup complete")
+    db.session.commit()
+    print("[CLEANUP] Orphaned record cleanup complete")
 
 
 def comprehensive_cleanup():

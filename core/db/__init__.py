@@ -14,7 +14,7 @@ Submodules:
 
 from core.db.connection import (
     DB_PATH, APP_ROOT, DOWNLOADS_ROOT,
-    _conn, resolve_file_path, _resolve_paths_in_record,
+    get_session, _conn, resolve_file_path, _resolve_paths_in_record,
 )
 from core.db.schema import init_table
 from core.db.downloads import (

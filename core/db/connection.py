@@ -1,7 +1,13 @@
 """
 Database connection management and path resolution utilities.
+
+SQLAlchemy ORM replaces raw sqlite3 — sessions come from core.models.db.
+Path resolution helpers remain for migrating stored file paths.
+
+NOTE: _conn() is kept as a deprecated shim for unconverted modules
+(extractions.py, cleanup.py, admin.py, routes/*). Remove once those
+are migrated to SQLAlchemy.
 """
-import os
 import json
 import sqlite3
 from pathlib import Path
@@ -11,7 +17,19 @@ APP_ROOT = Path(__file__).parent.parent.parent
 DOWNLOADS_ROOT = APP_ROOT / "core" / "downloads"
 
 
+def get_session():
+    """Return the current SQLAlchemy scoped session (db.session)."""
+    from core.models import db
+    return db.session
+
+
 def _conn():
+    """DEPRECATED: raw sqlite3 connection for unconverted modules.
+
+    New code should use get_session() or db.session from core.models.
+    This exists only so that unconverted files (extractions.py, cleanup.py,
+    admin.py, routes/*) keep working until they are migrated.
+    """
     conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
@@ -85,12 +103,18 @@ def _resolve_paths_in_record(record):
         record['stems_zip_path'] = resolve_file_path(record['stems_zip_path'])
 
     # Resolve individual stem paths in JSON
+    # With PostgreSQL JSONB, stems_paths may already be a dict (not a JSON string)
     if record.get('stems_paths'):
+        stems = record['stems_paths']
         try:
-            stems_dict = json.loads(record['stems_paths'])
+            if isinstance(stems, str):
+                stems_dict = json.loads(stems)
+            else:
+                stems_dict = stems
             resolved_stems = {k: resolve_file_path(v) for k, v in stems_dict.items()}
+            # Return as JSON string for backward compatibility with callers
             record['stems_paths'] = json.dumps(resolved_stems)
-        except (json.JSONDecodeError, TypeError):
-            pass  # Leave as-is if not valid JSON
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            pass  # Leave as-is if not valid JSON/dict
 
     return record
