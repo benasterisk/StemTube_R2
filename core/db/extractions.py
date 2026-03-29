@@ -316,7 +316,7 @@ def list_extractions_for(user_id):
                 ud.id,
                 ud.user_id,
                 ud.video_id,
-                ud.title,
+                COALESCE(gd.title, ud.title) as title,
                 ud.file_path,
                 ud.media_type,
                 ud.quality,

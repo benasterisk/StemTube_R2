@@ -14,6 +14,10 @@ import json
 class JSONFormatter(logging.Formatter):
     """Custom JSON formatter for structured logging."""
     
+    # Extra fields to extract from log records
+    EXTRA_FIELDS = ('user_id', 'video_id', 'request_id', 'ip_address', 'duration')
+    FIELD_RENAMES = {'duration': 'duration_ms'}
+
     def format(self, record):
         log_obj = {
             'timestamp': datetime.fromtimestamp(record.created).isoformat(),
@@ -24,18 +28,13 @@ class JSONFormatter(logging.Formatter):
             'function': record.funcName,
             'line': record.lineno,
         }
-        
-        # Add extra fields if present
-        if hasattr(record, 'user_id'):
-            log_obj['user_id'] = record.user_id
-        if hasattr(record, 'video_id'):
-            log_obj['video_id'] = record.video_id
-        if hasattr(record, 'request_id'):
-            log_obj['request_id'] = record.request_id
-        if hasattr(record, 'ip_address'):
-            log_obj['ip_address'] = record.ip_address
-        if hasattr(record, 'duration'):
-            log_obj['duration_ms'] = record.duration
+
+        # Add extra fields — check both direct attributes and LoggerAdapter extras
+        for field in self.EXTRA_FIELDS:
+            value = getattr(record, field, None)
+            if value is not None:
+                key = self.FIELD_RENAMES.get(field, field)
+                log_obj[key] = value
             
         # Add exception info if present
         if record.exc_info:
@@ -219,63 +218,78 @@ def get_processing_logger():
     """Get the processing logger for downloads/extractions."""
     return logging.getLogger('processing')
 
-class LogContext:
-    """Context manager for adding extra fields to log records."""
-    
-    def __init__(self, logger, **kwargs):
-        self.logger = logger
-        self.old_factory = logging.getLogRecordFactory()
-        self.extra = kwargs
-    
-    def __enter__(self):
-        def record_factory(*args, **factory_kwargs):
-            record = self.old_factory(*args, **factory_kwargs)
-            for key, value in self.extra.items():
-                setattr(record, key, value)
-            return record
-        
-        logging.setLogRecordFactory(record_factory)
-        return self.logger
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        logging.setLogRecordFactory(self.old_factory)
+def _ctx_logger(logger, **extra):
+    """Return a thread-safe LoggerAdapter with extra context fields."""
+    return logging.LoggerAdapter(logger, extra)
+
 
 def log_with_context(logger, **context):
-    """Create a context manager that adds extra fields to log records."""
-    return LogContext(logger, **context)
+    """Return a context manager that yields a thread-safe logger with extra fields.
+
+    Uses LoggerAdapter instead of setLogRecordFactory to avoid
+    global state corruption under concurrent requests.
+    """
+    return _LogContextCM(logger, context)
+
+
+class _LogContextCM:
+    """Thin context manager wrapper around LoggerAdapter."""
+
+    def __init__(self, logger, extra):
+        self.adapter = logging.LoggerAdapter(logger, extra)
+
+    def __enter__(self):
+        return self.adapter
+
+    def __exit__(self, *exc):
+        return False
+
 
 # Convenience functions for common logging patterns
 def log_request(method, path, status_code, duration_ms, user_id=None, ip_address=None):
     """Log HTTP request with standardized format."""
-    access_logger = get_access_logger()
-    with log_with_context(access_logger, user_id=user_id, ip_address=ip_address, duration=duration_ms):
-        access_logger.info(f"{method} {path} -> {status_code}")
+    extra = {}
+    if user_id is not None:
+        extra['user_id'] = user_id
+    if ip_address is not None:
+        extra['ip_address'] = ip_address
+    extra['duration'] = duration_ms
+    adapter = _ctx_logger(get_access_logger(), **extra)
+    adapter.info(f"{method} {path} -> {status_code}")
 
 def log_user_action(action, user_id, video_id=None, details=None):
     """Log user action with context."""
-    logger = get_logger('user_actions')
-    with log_with_context(logger, user_id=user_id, video_id=video_id):
-        message = f"User action: {action}"
-        if details:
-            message += f" - {details}"
-        logger.info(message)
+    extra = {'user_id': user_id}
+    if video_id is not None:
+        extra['video_id'] = video_id
+    adapter = _ctx_logger(get_logger('user_actions'), **extra)
+    message = f"User action: {action}"
+    if details:
+        message += f" - {details}"
+    adapter.info(message)
 
 def log_database_operation(operation, table, user_id=None, video_id=None, affected_rows=None):
     """Log database operation with context."""
-    db_logger = get_database_logger()
-    with log_with_context(db_logger, user_id=user_id, video_id=video_id):
-        message = f"DB {operation}: {table}"
-        if affected_rows is not None:
-            message += f" (affected: {affected_rows} rows)"
-        db_logger.debug(message)
+    extra = {}
+    if user_id is not None:
+        extra['user_id'] = user_id
+    if video_id is not None:
+        extra['video_id'] = video_id
+    adapter = _ctx_logger(get_database_logger(), **extra)
+    message = f"DB {operation}: {table}"
+    if affected_rows is not None:
+        message += f" (affected: {affected_rows} rows)"
+    adapter.debug(message)
 
 def log_processing_event(event_type, video_id, user_id=None, progress=None, details=None):
     """Log download/extraction processing events."""
-    processing_logger = get_processing_logger()
-    with log_with_context(processing_logger, user_id=user_id, video_id=video_id):
-        message = f"Processing {event_type}"
-        if progress is not None:
-            message += f" ({progress}%)"
-        if details:
-            message += f" - {details}"
-        processing_logger.info(message)
+    extra = {'video_id': video_id}
+    if user_id is not None:
+        extra['user_id'] = user_id
+    adapter = _ctx_logger(get_processing_logger(), **extra)
+    message = f"Processing {event_type}"
+    if progress is not None:
+        message += f" ({progress}%)"
+    if details:
+        message += f" - {details}"
+    adapter.info(message)

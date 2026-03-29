@@ -66,11 +66,11 @@ def get_all_extractions():
 
         # Get historical extractions from database (excluding those in live session)
         history_raw = db_list_extractions(current_user.id)
-        with log_with_context(logger, user_id=current_user.id):
-            logger.debug(f"Found {len(history_raw)} historical extractions")
+        with log_with_context(logger, user_id=current_user.id) as ctx:
+            ctx.debug(f"Found {len(history_raw)} historical extractions")
         for item in history_raw:
-            with log_with_context(logger, video_id=item['video_id']):
-                logger.debug(f"Historical extraction: model={item['extraction_model']}, extracted_at={item['extracted_at']}")
+            with log_with_context(logger, video_id=item['video_id']) as ctx:
+                ctx.debug(f"Historical extraction: model={item['extraction_model']}, extracted_at={item['extracted_at']}")
         history = []
 
         for db_item in history_raw:

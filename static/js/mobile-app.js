@@ -8886,10 +8886,14 @@ class MobileApp {
         const el = document.getElementById('mobileSpotifyBatchProgress');
         if (!el) return;
         el.style.display = '';
-        const text = data.phase === 'searching' ? `Searching: ${data.current_title}` : `Downloading: ${data.current_title}`;
+        const current = data.current || 0;
+        const total = data.total || 1;
+        const title = data.track_title || '';
+        const status = data.status || '';
+        const text = status === 'searching' ? `Searching: ${title}` : `Downloading: ${title}`;
         document.getElementById('mobileSpotifyBatchText').textContent = text;
-        document.getElementById('mobileSpotifyBatchCount').textContent = `${data.current_track_index+1}/${data.total_tracks}`;
-        document.getElementById('mobileSpotifyBatchFill').style.width = ((data.current_track_index+1)/data.total_tracks*100) + '%';
+        document.getElementById('mobileSpotifyBatchCount').textContent = `${current}/${total}`;
+        document.getElementById('mobileSpotifyBatchFill').style.width = (current/total*100) + '%';
     }
 
     onSpotifyBatchComplete(data) {
@@ -8897,7 +8901,7 @@ class MobileApp {
         if (el) el.style.display = 'none';
         const btn = document.getElementById('mobileSpotifyDlAllBtn');
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-download"></i> Download All'; }
-        alert(`Done: ${data.downloaded} downloaded, ${data.existed} already had, ${data.failed} failed`);
+        alert(`Done: ${data.downloaded || 0} downloaded, ${data.skipped || 0} already had, ${data.failed || 0} failed`);
         this.loadLibrary();
     }
 }

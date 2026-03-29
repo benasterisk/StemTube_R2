@@ -3,23 +3,46 @@
 (function() {
     'use strict';
 
-    document.addEventListener('DOMContentLoaded', () => {
-        const fetchBtn = document.getElementById('spotifyFetchBtn');
-        if (fetchBtn) fetchBtn.addEventListener('click', fetchPlaylist);
+    // Persistent state across tab switches
+    let currentPlaylistId = null;
+    let currentPlaylistName = '';
+    let currentTracks = [];
+    // playlistId → { trackIndex → status }
+    let batchStatuses = {};
+    let batchGlobal = null; // { current, total, text } or null
+    // video_id → track index (for mapping download events to tracks)
+    let videoIdToIndex = {};
+    // download_id → video_id (from batch progress events)
+    let downloadIdToVideoId = {};
 
-        const urlInput = document.getElementById('spotifyUrlInput');
-        if (urlInput) urlInput.addEventListener('keydown', (e) => {
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('spotifyFetchBtn')?.addEventListener('click', fetchPlaylist);
+        document.getElementById('spotifyUrlInput')?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') fetchPlaylist();
         });
 
-        // Load previously saved playlists
         loadSavedPlaylists();
+        window._stemtifyRefresh = () => {
+            loadSavedPlaylists();
+            // Re-render current track view if we have one (restores statuses)
+            if (currentPlaylistId && currentTracks.length) {
+                renderTracks();
+            }
+        };
 
-        // WebSocket events
-        if (window.socket) {
-            window.socket.on('spotify_batch_progress', onBatchProgress);
-            window.socket.on('spotify_batch_complete', onBatchComplete);
-        }
+        (function bindSocket() {
+            if (typeof socket !== 'undefined' && socket) {
+                socket.on('spotify_batch_progress', onBatchProgress);
+                socket.on('spotify_batch_complete', onBatchComplete);
+                // Listen to individual download events to update per-track bars
+                socket.on('download_progress', onDownloadProgress);
+                socket.on('download_complete', onDownloadComplete);
+                socket.on('download_error', onDownloadError);
+                console.log('[StemTify] Socket events bound');
+            } else {
+                setTimeout(bindSocket, 500);
+            }
+        })();
     });
 
     // ── Fetch playlist from URL ────────────────────────────────
@@ -31,7 +54,6 @@
 
         const fetchBtn = document.getElementById('spotifyFetchBtn');
         if (fetchBtn) { fetchBtn.disabled = true; fetchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
-
         try {
             const res = await fetch('/api/spotify/playlist', {
                 method: 'POST',
@@ -39,16 +61,14 @@
                 body: JSON.stringify({url})
             });
             const data = await res.json();
-            if (!res.ok || !data.success) {
-                showToast(data.error || 'Failed to load playlist', 'error');
-                return;
-            }
-
+            if (!res.ok || !data.success) { showToast(data.error || 'Failed', 'error'); return; }
             showToast(`Loaded "${data.name}" — ${data.track_count} tracks`, 'success');
             urlInput.value = '';
-            showPlaylistTracks(data.playlist_id, data.name, data.tracks);
-            loadSavedPlaylists(); // refresh sidebar list
-
+            currentPlaylistId = data.playlist_id;
+            currentPlaylistName = data.name;
+            currentTracks = data.tracks;
+            renderTracks();
+            loadSavedPlaylists();
         } catch (e) {
             showToast('Error loading playlist', 'error');
         } finally {
@@ -56,50 +76,45 @@
         }
     }
 
-    // ── Saved playlists list ───────────────────────────────────
+    // ── Saved playlists ────────────────────────────────────────
 
     async function loadSavedPlaylists() {
         const list = document.getElementById('spotifySavedList');
         if (!list) return;
-
         try {
             const res = await fetch('/api/spotify/playlists/saved');
             const data = await res.json();
             const playlists = data.playlists || [];
-
-            if (playlists.length === 0) {
-                list.innerHTML = '<div class="spotify-empty">No saved playlists yet</div>';
-                return;
-            }
-
+            if (playlists.length === 0) { list.innerHTML = '<div class="spotify-empty">No saved playlists yet</div>'; return; }
             list.innerHTML = '';
             for (const pl of playlists) {
                 const item = document.createElement('div');
-                item.className = 'spotify-saved-item';
+                item.className = 'spotify-saved-item' + (pl.id === currentPlaylistId ? ' active' : '');
                 item.innerHTML = `
                     <img src="${pl.thumbnail_url || '/static/img/default-thumb.svg'}" class="spotify-saved-thumb">
                     <div class="spotify-saved-info">
                         <div class="spotify-saved-name">${esc(pl.name)}</div>
                         <div class="spotify-saved-meta">${pl.track_count || 0} tracks</div>
                     </div>
-                    <button class="btn btn-icon spotify-del-btn" data-id="${pl.id}" title="Delete"><i class="fas fa-trash"></i></button>
-                `;
+                    <button class="btn btn-icon spotify-del-btn" data-id="${pl.id}" title="Delete"><i class="fas fa-trash"></i></button>`;
                 item.addEventListener('click', (e) => {
                     if (e.target.closest('.spotify-del-btn')) return;
                     openSavedPlaylist(pl.id);
                 });
                 list.appendChild(item);
             }
-
             list.querySelectorAll('.spotify-del-btn').forEach(btn => {
                 btn.addEventListener('click', async () => {
                     await fetch(`/api/spotify/playlists/saved/${btn.dataset.id}`, {method: 'DELETE'});
+                    if (parseInt(btn.dataset.id) === currentPlaylistId) {
+                        currentPlaylistId = null; currentTracks = [];
+                        const c = document.getElementById('spotifyTracksContainer');
+                        if (c) c.innerHTML = '';
+                    }
                     loadSavedPlaylists();
                 });
             });
-        } catch (e) {
-            console.error('[Spotify] loadSaved error:', e);
-        }
+        } catch (e) { console.error('[StemTify]', e); }
     }
 
     async function openSavedPlaylist(id) {
@@ -107,91 +122,221 @@
             const res = await fetch(`/api/spotify/playlists/saved/${id}`);
             const data = await res.json();
             if (data.success) {
-                showPlaylistTracks(data.playlist.id, data.playlist.name, data.playlist.tracks);
+                currentPlaylistId = data.playlist.id;
+                currentPlaylistName = data.playlist.name;
+                currentTracks = data.playlist.tracks || [];
+                renderTracks();
+                // Highlight in sidebar
+                document.querySelectorAll('.spotify-saved-item').forEach(el => el.classList.remove('active'));
             }
-        } catch (e) {
-            showToast('Failed to load playlist', 'error');
-        }
+        } catch (e) { showToast('Failed to load playlist', 'error'); }
     }
 
-    // ── Track list display ─────────────────────────────────────
+    // ── Render tracks with progress bars ───────────────────────
 
-    function showPlaylistTracks(playlistId, name, tracks) {
+    function renderTracks() {
         const container = document.getElementById('spotifyTracksContainer');
         if (!container) return;
 
+        const statuses = batchStatuses[currentPlaylistId] || {};
+
         let html = `
             <div class="spotify-tracks-header">
-                <h3>${esc(name)}</h3>
-                <span>${tracks.length} tracks</span>
-                <button class="btn btn-small btn-primary" id="spotifyDownloadAllBtn" data-id="${playlistId}">
+                <h3>${esc(currentPlaylistName)}</h3>
+                <span>${currentTracks.length} tracks</span>
+                <button class="btn btn-small btn-primary" id="spotifyDownloadAllBtn" data-id="${currentPlaylistId}">
                     <i class="fas fa-download"></i> Download All
                 </button>
             </div>
-            <div class="spotify-tracks-items">
-        `;
+            <div id="spotifyBatchProgress" style="${batchGlobal ? '' : 'display:none;'} margin-bottom:12px; padding:10px; background:var(--bg-secondary); border-radius:8px;">
+                <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px;">
+                    <span id="spotifyBatchText">${batchGlobal ? esc(batchGlobal.text) : ''}</span>
+                    <span id="spotifyBatchCount">${batchGlobal ? batchGlobal.count : ''}</span>
+                </div>
+                <div style="height:6px; background:var(--border); border-radius:3px; overflow:hidden;">
+                    <div id="spotifyBatchFill" style="height:100%; background:#1DB954; width:${batchGlobal ? batchGlobal.pct : 0}%; transition:width 0.3s;"></div>
+                </div>
+            </div>
+            <div class="spotify-tracks-items">`;
 
-        for (let i = 0; i < tracks.length; i++) {
-            const t = tracks[i];
+        for (let i = 0; i < currentTracks.length; i++) {
+            const t = currentTracks[i];
             const dur = t.duration_ms ? fmtDur(t.duration_ms) : '';
-            const check = t.video_id ? '<i class="fas fa-check-circle" style="color:#1DB954"></i>' : '';
-            html += `<div class="spotify-track-row">
-                <span class="spotify-track-num">${i + 1}</span>
+            const idx = i + 1;
+            const st = statuses[idx] || (t.downloaded ? 'downloaded' : t.video_id ? 'exists' : 'pending');
+
+            html += `<div class="spotify-track-row" data-idx="${idx}">
+                <span class="spotify-track-num">${idx}</span>
                 <div class="spotify-track-info">
                     <div class="spotify-track-title">${esc(t.title)}</div>
                     <div class="spotify-track-artist">${esc(t.artist)}</div>
                 </div>
                 <span class="spotify-track-duration">${dur}</span>
-                ${check}
+                <div class="stfy-track-progress">
+                    <div class="stfy-track-bar"><div class="stfy-track-fill ${st}"></div></div>
+                    <span class="stfy-track-label">${statusLabel(st)}</span>
+                </div>
             </div>`;
         }
         html += '</div>';
         container.innerHTML = html;
 
-        document.getElementById('spotifyDownloadAllBtn')?.addEventListener('click', () => downloadAll(playlistId));
+        document.getElementById('spotifyDownloadAllBtn')?.addEventListener('click', () => downloadAll());
     }
 
-    async function downloadAll(playlistId) {
+    function statusLabel(s) {
+        const map = {
+            searching: 'Searching...', queued: 'Queued', downloading: 'Downloading...',
+            exists: 'Done', downloaded: 'Done', failed: 'Failed', search_failed: 'Not found', pending: ''
+        };
+        return map[s] || s;
+    }
+
+    function updateTrackUI(idx, status) {
+        const row = document.querySelector(`.spotify-track-row[data-idx="${idx}"]`);
+        if (!row) return;
+        const fill = row.querySelector('.stfy-track-fill');
+        const label = row.querySelector('.stfy-track-label');
+        if (fill) fill.className = 'stfy-track-fill ' + status;
+        if (label) label.textContent = statusLabel(status);
+    }
+
+    // ── Download ───────────────────────────────────────────────
+
+    async function downloadAll() {
         const btn = document.getElementById('spotifyDownloadAllBtn');
-        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...'; }
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+
+        // Init statuses and video_id mapping for this playlist
+        batchStatuses[currentPlaylistId] = {};
+        videoIdToIndex = {};
+        downloadIdToVideoId = {};
+        batchGlobal = { text: 'Starting...', count: '', pct: 0 };
+
+        // Build video_id → track index map from tracks that already have a video_id
+        for (let i = 0; i < currentTracks.length; i++) {
+            if (currentTracks[i].video_id) {
+                videoIdToIndex[currentTracks[i].video_id] = i + 1;
+            }
+        }
+
+        const progressEl = document.getElementById('spotifyBatchProgress');
+        if (progressEl) progressEl.style.display = '';
 
         try {
-            const res = await fetch(`/api/spotify/playlists/${playlistId}/download`, {method: 'POST'});
+            const res = await fetch(`/api/spotify/playlists/${currentPlaylistId}/download`, {method: 'POST'});
             const data = await res.json();
-            if (data.success) {
-                showToast(`Downloading ${data.track_count} tracks...`, 'success');
-            } else {
+            if (!data.success) {
                 showToast(data.error || 'Failed', 'error');
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-download"></i> Download All'; }
+                batchGlobal = null;
+                if (progressEl) progressEl.style.display = 'none';
             }
         } catch (e) {
             showToast('Error', 'error');
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-download"></i> Download All'; }
+            batchGlobal = null;
         }
     }
 
-    // ── Batch Progress ─────────────────────────────────────────
+    // ── WebSocket ──────────────────────────────────────────────
 
     function onBatchProgress(data) {
+        const plId = data.playlist_id;
+        const idx = data.current || 0;
+        const total = data.total || 1;
+        const title = data.track_title || '';
+        const status = data.status || '';
+        const pct = (idx / total * 100).toFixed(0);
+
+        // Store status (persists across tab switches)
+        if (!batchStatuses[plId]) batchStatuses[plId] = {};
+        batchStatuses[plId][idx] = status;
+
+        // Map video_id to track index for download events
+        if (data.video_id) {
+            videoIdToIndex[data.video_id] = idx;
+        }
+
+        // Store global progress
+        batchGlobal = {
+            text: `${statusLabel(status)} — ${title}`,
+            count: `${idx} / ${total}`,
+            pct: pct
+        };
+
+        // Update global bar
         const el = document.getElementById('spotifyBatchProgress');
-        if (!el) return;
-        el.style.display = '';
-        const pct = ((data.current_track_index + 1) / data.total_tracks * 100).toFixed(0);
-        const text = data.phase === 'searching' ? `Searching: ${data.current_title}`
-            : data.phase === 'exists' ? `Already have: ${data.current_title}`
-            : `Queued: ${data.current_title}`;
-        document.getElementById('spotifyBatchText').textContent = text;
-        document.getElementById('spotifyBatchCount').textContent = `${data.current_track_index + 1}/${data.total_tracks}`;
-        document.getElementById('spotifyBatchFill').style.width = pct + '%';
+        if (el) el.style.display = '';
+        const textEl = document.getElementById('spotifyBatchText');
+        if (textEl) textEl.textContent = batchGlobal.text;
+        const countEl = document.getElementById('spotifyBatchCount');
+        if (countEl) countEl.textContent = batchGlobal.count;
+        const fillEl = document.getElementById('spotifyBatchFill');
+        if (fillEl) fillEl.style.width = pct + '%';
+
+        // Update per-track bar (only if viewing this playlist)
+        if (plId === currentPlaylistId) {
+            updateTrackUI(idx, status);
+        }
     }
 
     function onBatchComplete(data) {
+        batchGlobal = null;
+
         const el = document.getElementById('spotifyBatchProgress');
-        if (el) el.style.display = 'none';
+        if (el) {
+            const t = document.getElementById('spotifyBatchText');
+            if (t) t.textContent = `Done! ${data.downloaded || 0} downloaded, ${data.skipped || 0} existed, ${data.failed || 0} failed`;
+            const f = document.getElementById('spotifyBatchFill');
+            if (f) f.style.width = '100%';
+            setTimeout(() => { el.style.display = 'none'; }, 10000);
+        }
+
         const btn = document.getElementById('spotifyDownloadAllBtn');
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-download"></i> Download All'; }
-        showToast(`Done! ${data.downloaded} downloaded, ${data.existed} already had, ${data.failed} failed`, 'success');
+
         if (typeof loadLibrary === 'function') loadLibrary();
+    }
+
+    // ── Individual download events → per-track bars ─────────────
+
+    function _videoIdFromDownloadId(dlId) {
+        // download_id format: "{videoId}_{timestamp}"
+        // Video IDs can contain underscores (e.g., OK_b2-w0u60)
+        // so we match against known video_ids by checking if dlId starts with them
+        if (!dlId) return null;
+        for (const vid of Object.keys(videoIdToIndex)) {
+            if (dlId.startsWith(vid + '_') || dlId === vid) return vid;
+        }
+        return null;
+    }
+
+    function _updateTrackFromVideoId(videoId, status) {
+        const idx = videoIdToIndex[videoId];
+        if (!idx) return;
+        if (currentPlaylistId && batchStatuses[currentPlaylistId]) {
+            batchStatuses[currentPlaylistId][idx] = status;
+        }
+        updateTrackUI(idx, status);
+    }
+
+    function onDownloadProgress(data) {
+        const vid = _videoIdFromDownloadId(data.download_id);
+        if (vid) _updateTrackFromVideoId(vid, 'downloading');
+    }
+
+    function onDownloadComplete(data) {
+        const vid = data.video_id || _videoIdFromDownloadId(data.download_id);
+        if (vid) {
+            _updateTrackFromVideoId(vid, 'downloaded');
+        }
+    }
+
+    function onDownloadError(data) {
+        // Ignore individual download errors during batch — the batch manager
+        // handles retries and final status. Showing "failed" here causes
+        // false negatives when yt-dlp retries and succeeds.
     }
 
     // ── Helpers ─────────────────────────────────────────────────

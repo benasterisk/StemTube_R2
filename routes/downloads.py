@@ -434,8 +434,8 @@ def add_download():
         video_id = data['video_id']
 
         # DEBUG: Log the received video_id
-        with log_with_context(logger, video_id=video_id):
-            logger.debug(f"Received video_id (length: {len(video_id)})")
+        with log_with_context(logger, video_id=video_id) as ctx:
+            ctx.debug(f"Received video_id (length: {len(video_id)})")
         logger.debug(f"Download request data: {data}")
 
         # VALIDATE VIDEO ID

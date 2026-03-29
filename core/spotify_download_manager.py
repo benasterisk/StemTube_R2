@@ -23,7 +23,7 @@ from core.db.playlists import update_track_video_id
 logger = get_logger(__name__)
 
 # Delay between YouTube searches to avoid rate limiting
-SEARCH_DELAY_SECONDS = 2.0
+SEARCH_DELAY_SECONDS = 0.5
 
 # Maximum acceptable duration difference (in seconds) when matching tracks
 MAX_DURATION_DIFF_SECONDS = 30
@@ -93,6 +93,51 @@ def _parse_iso_duration_to_seconds(duration: str) -> int:
     return hours * 3600 + minutes * 60 + seconds
 
 
+def _ytmusic_search(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+    """Search YouTube Music via yt-dlp and return results in the same format as AiotubeClient."""
+    import yt_dlp
+    from core.download_manager import get_youtube_cookies_config
+
+    ydl_opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'extract_flat': False,
+        'skip_download': True,
+        'ignoreerrors': True,
+    }
+    ydl_opts.update(get_youtube_cookies_config())
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            results = ydl.extract_info(f"ytsearch{max_results}:{query} music", download=False)
+
+        entries = results.get('entries', []) if results else []
+        items = []
+        for entry in entries:
+            if not entry:
+                continue
+            video_id = entry.get('id', '')
+            if not video_id or len(video_id) != 11:
+                continue
+            duration = entry.get('duration', 0) or 0
+            items.append({
+                'id': video_id,
+                'snippet': {
+                    'title': entry.get('title', ''),
+                    'thumbnails': {
+                        'medium': {'url': entry.get('thumbnail', f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg")}
+                    },
+                },
+                'contentDetails': {
+                    'duration': f"PT{int(duration // 60)}M{int(duration % 60)}S" if duration else '',
+                },
+            })
+        return items
+    except Exception as e:
+        logger.warning(f"[Spotify DL] YouTube Music search failed: {e}")
+        return []
+
+
 def _search_youtube_for_track(
     title: str,
     artist: str,
@@ -117,9 +162,14 @@ def _search_youtube_for_track(
     target_seconds = duration_ms / 1000.0
 
     try:
-        client = get_aiotube_client()
-        response = client.search_videos(query, max_results=5)
-        items = response.get('items', [])
+        # Search YouTube Music first (better music matching than regular YouTube)
+        items = _ytmusic_search(query, max_results=5)
+
+        # Fallback to regular YouTube search if YouTube Music returns nothing
+        if not items:
+            client = get_aiotube_client()
+            response = client.search_videos(query, max_results=5)
+            items = response.get('items', [])
 
         if not items:
             logger.warning(f"[Spotify DL] No YouTube results for: {query}")
@@ -401,51 +451,60 @@ def batch_download_playlist(
                 continue
 
             video_id = match['video_id']
-            title = match['title']
+            title = display_name  # "Artist - Title" from Spotify, not YouTube title
             thumbnail_url = match['thumbnail_url']
 
             # Update the playlist's tracks_json with the matched video_id
             try:
-                update_track_video_id(playlist_id, spotify_track_id, video_id)
+                update_track_video_id(playlist_id, track_title, track_artist, video_id)
             except Exception as e:
                 logger.warning(
                     f"[Spotify DL] Failed to update track video_id in playlist: {e}"
                 )
 
-        # Emit progress: downloading
-        _emit_batch_progress(
-            user_id, playlist_id,
-            current=i + 1,
-            total=total,
-            track_title=display_name,
-            status='downloading',
-            video_id=video_id,
-        )
-
-        # Initiate the download (handles dedup internally)
-        dl_id = _initiate_download(user_id, video_id, title, thumbnail_url)
-
-        if dl_id:
-            downloaded += 1
+        # Check if already downloaded globally (dedup)
+        global_download = db_find_global_download(video_id, 'audio', 'best')
+        if global_download:
+            # Already exists — just grant access, skip download
+            db_add_user_access(user_id, global_download)
+            if global_download.get('extracted') == 1:
+                try:
+                    db_add_user_extraction_access(user_id, global_download)
+                except Exception:
+                    pass
+            skipped += 1
             _emit_batch_progress(
                 user_id, playlist_id,
                 current=i + 1,
                 total=total,
                 track_title=display_name,
-                status='queued',
+                status='exists',
                 video_id=video_id,
             )
         else:
-            failed += 1
-            _emit_batch_progress(
-                user_id, playlist_id,
-                current=i + 1,
-                total=total,
-                track_title=display_name,
-                status='download_failed',
-                video_id=video_id,
-                error=f"Failed to queue download for: {display_name}",
-            )
+            # New download needed — queue it
+            dl_id = _initiate_download(user_id, video_id, title, thumbnail_url)
+            if dl_id:
+                downloaded += 1
+                _emit_batch_progress(
+                    user_id, playlist_id,
+                    current=i + 1,
+                    total=total,
+                    track_title=display_name,
+                    status='queued',
+                    video_id=video_id,
+                )
+            else:
+                failed += 1
+                _emit_batch_progress(
+                    user_id, playlist_id,
+                    current=i + 1,
+                    total=total,
+                    track_title=display_name,
+                    status='download_failed',
+                    video_id=video_id,
+                    error=f"Failed to queue download for: {display_name}",
+                )
 
         # Rate limit: wait between YouTube searches
         if i < total - 1:

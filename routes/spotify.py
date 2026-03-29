@@ -68,11 +68,28 @@ def list_saved():
 @spotify_bp.route('/api/spotify/playlists/saved/<int:playlist_id>', methods=['GET'])
 @api_login_required
 def get_saved(playlist_id):
-    """Get a saved playlist with tracks."""
+    """Get a saved playlist with tracks. Cross-checks user_downloads to mark already-downloaded tracks."""
     from core.db.playlists import get_playlist
+    from core.downloads_db import list_for
+
     playlist = get_playlist(current_user.id, playlist_id)
     if not playlist:
         return jsonify({'error': 'Playlist not found'}), 404
+
+    # Build a set of video_ids the user already has downloaded
+    try:
+        user_downloads = list_for(current_user.id) or []
+        downloaded_vids = {d.get('video_id') for d in user_downloads if d.get('video_id')}
+    except Exception:
+        downloaded_vids = set()
+
+    # Mark tracks as downloaded if their video_id is in user's library
+    for track in playlist.get('tracks', []):
+        if track.get('video_id') and track['video_id'] in downloaded_vids:
+            track['downloaded'] = True
+        elif not track.get('video_id'):
+            track['downloaded'] = False
+
     return jsonify({'success': True, 'playlist': playlist})
 
 

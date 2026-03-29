@@ -77,15 +77,15 @@ def get_playlist(user_id, playlist_id):
         return result
 
 
-def update_track_video_id(playlist_id, spotify_track_id, video_id):
-    """Update a single track's video_id after YouTube match."""
+def update_track_video_id(playlist_id, title, artist, video_id):
+    """Update a single track's video_id after YouTube match. Matches by title+artist."""
     with _conn() as conn:
         row = conn.execute("SELECT tracks_json FROM playlists WHERE id=?", (playlist_id,)).fetchone()
         if not row or not row['tracks_json']:
             return
         tracks = json.loads(row['tracks_json'])
         for track in tracks:
-            if track.get('spotify_track_id') == spotify_track_id:
+            if track.get('title') == title and track.get('artist') == artist:
                 track['video_id'] = video_id
                 break
         conn.execute("UPDATE playlists SET tracks_json=? WHERE id=?", (json.dumps(tracks), playlist_id))

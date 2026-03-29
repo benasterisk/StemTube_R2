@@ -163,3 +163,50 @@
     color: var(--text-muted);
     flex-shrink: 0;
 }
+
+/* Per-track progress bar */
+.stfy-track-progress {
+    flex-shrink: 0;
+    width: 120px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.stfy-track-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--border-color, #333);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.stfy-track-fill {
+    height: 100%;
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.3s, background 0.3s;
+    background: var(--text-muted);
+}
+
+.stfy-track-fill.searching { background: #f39c12; width: 30%; }
+.stfy-track-fill.queued { background: #3498db; width: 50%; }
+.stfy-track-fill.downloading { background: #3498db; animation: stfy-pulse 1s infinite; }
+.stfy-track-fill.exists,
+.stfy-track-fill.downloaded { background: #1DB954; width: 100%; }
+.stfy-track-fill.failed,
+.stfy-track-fill.search_failed { background: #e74c3c; width: 100%; }
+
+.stfy-track-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    min-width: 50px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+@keyframes stfy-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+}

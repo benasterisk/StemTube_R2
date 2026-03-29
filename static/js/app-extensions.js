@@ -93,6 +93,9 @@ function switchToTab(tabId) {
     } else if (tabId === 'admin') {
         // Initialize admin section to users by default
         setTimeout(() => switchAdminSection('users'), 100);
+    } else if (tabId === 'spotify') {
+        // Refresh StemTify saved playlists when switching to tab
+        if (typeof window._stemtifyRefresh === 'function') window._stemtifyRefresh();
     }
     
     // Save current tab to localStorage

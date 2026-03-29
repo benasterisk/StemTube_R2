@@ -46,18 +46,18 @@ def collect_browser_logs():
                                 user_id=user_id,
                                 ip_address=client_ip,
                                 browser_session_id=session_id,
-                                browser_url=url):
+                                browser_url=url) as ctx:
 
                 if level == 'debug':
-                    browser_logger.debug(f"Browser: {message}")
+                    ctx.debug(f"Browser: {message}")
                 elif level == 'info':
-                    browser_logger.info(f"Browser: {message}")
+                    ctx.info(f"Browser: {message}")
                 elif level == 'warn':
-                    browser_logger.warning(f"Browser: {message}")
+                    ctx.warning(f"Browser: {message}")
                 elif level == 'error':
-                    browser_logger.error(f"Browser: {message}")
+                    ctx.error(f"Browser: {message}")
                 else:
-                    browser_logger.info(f"Browser [{level}]: {message}")
+                    ctx.info(f"Browser [{level}]: {message}")
 
         logger.debug(f"Collected {len(logs)} browser log entries from user {user_id}")
 

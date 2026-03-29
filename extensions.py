@@ -325,8 +325,8 @@ class UserSessionManager:
                 else:
                     video_id = item_id
 
-            with log_with_context(logger, video_id=video_id):
-                logger.debug(f"Download completion: item_id={item_id}, found_in_manager={download_item is not None}")
+            with log_with_context(logger, video_id=video_id) as ctx:
+                ctx.debug(f"Download completion: item_id={item_id}, found_in_manager={download_item is not None}")
 
             global_download_id = None
             if user_id and download_item:
@@ -379,8 +379,8 @@ class UserSessionManager:
                 else:
                     fallback_video_id = item_id
 
-                with log_with_context(logger, video_id=fallback_video_id):
-                    logger.debug(f"Fallback db save: item_id={item_id}")
+                with log_with_context(logger, video_id=fallback_video_id) as ctx:
+                    ctx.debug(f"Fallback db save: item_id={item_id}")
 
                 global_download_id = db_add_download(user_id, {
                     "video_id": fallback_video_id,
@@ -413,8 +413,8 @@ class UserSessionManager:
         socketio.emit('extraction_error', {'extraction_id': item_id, 'error_message': error}, room=room_key or self._key())
 
         if video_id:
-            with log_with_context(logger, video_id=video_id, user_id=user_id):
-                logger.info("Clearing extracting flag for failed extraction (global and user-specific)")
+            with log_with_context(logger, video_id=video_id, user_id=user_id) as ctx:
+                ctx.info("Clearing extracting flag for failed extraction (global and user-specific)")
             try:
                 db_clear_extraction_in_progress(video_id, user_id)
                 logger.debug("Successfully cleared extracting flags")
@@ -423,16 +423,16 @@ class UserSessionManager:
 
     def _emit_extraction_complete_with_room(self, item_id, title=None, video_id=None, room_key=None, user_id=None, item=None):
         """Handle extraction completion - always emits extraction_complete event."""
-        with log_with_context(processing_logger, user_id=user_id, video_id=video_id):
-            processing_logger.info(f"Extraction finished: {title}")
+        with log_with_context(processing_logger, user_id=user_id, video_id=video_id) as ctx:
+            ctx.info(f"Extraction finished: {title}")
 
         logger.debug(f"Extraction complete for {item_id}: video_id='{video_id}', user_id={user_id}")
 
         if user_id and video_id and item:
-            with log_with_context(logger, user_id=user_id, video_id=video_id):
-                logger.debug("Processing extraction completion context")
-            with log_with_context(processing_logger, video_id=item.video_id):
-                processing_logger.debug(f"Extraction details: status={item.status.value}, model={item.model_name}")
+            with log_with_context(logger, user_id=user_id, video_id=video_id) as ctx:
+                ctx.debug("Processing extraction completion context")
+            with log_with_context(processing_logger, video_id=item.video_id) as ctx:
+                ctx.debug(f"Extraction details: status={item.status.value}, model={item.model_name}")
             print(f"[CALLBACK DEBUG] Stems paths: {item.output_paths}")
             print(f"[CALLBACK DEBUG] Zip path: {item.zip_path}")
 
