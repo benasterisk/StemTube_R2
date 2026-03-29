@@ -552,7 +552,7 @@ function truncateText(text, maxLength) {
 
 // Remove download from user's personal list
 function removeDownloadFromList(videoId) {
-    if (!confirm('Remove this download from your list? This will not delete the actual file.')) {
+    if (!confirm('Remove from YOUR library only. Global Library not affected.\n\nProceed?')) {
         return;
     }
     
@@ -590,7 +590,7 @@ function removeDownloadFromList(videoId) {
 
 // Remove extraction from user's personal list
 function removeExtractionFromList(videoId) {
-    if (!confirm('Remove this extraction from your list? This will not delete the actual stems.')) {
+    if (!confirm('Remove from YOUR library only. Global Library not affected.\n\nProceed?')) {
         return;
     }
     

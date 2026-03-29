@@ -1887,7 +1887,7 @@ class MobileApp {
         const item = this.currentDownloadItem;
         const title = item.title || 'this track';
 
-        if (!confirm(`Remove "${title}" from your library?\n\nThis will not delete the actual files.`)) {
+        if (!confirm(`Remove "${title}" from YOUR library only. Global Library not affected.\n\nProceed?`)) {
             return;
         }
 
@@ -2164,7 +2164,7 @@ class MobileApp {
 
             this._libraryData = normalized;
 
-            if (this._currentLibraryView && this._currentLibraryView !== 'songs') {
+            if (this._currentLibraryView && this._currentLibraryView !== 'tracks') {
                 this.renderLibraryView();
             } else {
                 this.displayLibrary(normalized, 'mobileLibraryList', false);
@@ -8720,24 +8720,25 @@ class MobileApp {
     // ── Library Views ────────────────────────────────────────────
 
     initLibraryViews() {
-        document.querySelectorAll('.mobile-view-pill').forEach(btn => {
+        document.querySelectorAll('.mobile-view-pill[data-mobile-view]').forEach(btn => {
             btn.addEventListener('click', () => {
-                document.querySelectorAll('.mobile-view-pill').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.mobile-view-pill[data-mobile-view]').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 this._currentLibraryView = btn.dataset.mobileView;
                 this.renderLibraryView();
             });
         });
-        this._currentLibraryView = 'songs';
+        this._currentLibraryView = 'playlists';
         this._libraryData = this._libraryData || [];
     }
 
     renderLibraryView() {
         switch (this._currentLibraryView) {
-            case 'artists': this.renderMobileArtists(); break;
-            case 'extracted': this.renderMobileExtracted(); break;
             case 'playlists': this.renderMobilePlaylists(); break;
-            default: this.displayLibrary(this._libraryData, 'mobileLibraryList', false); break;
+            case 'albums': this.renderMobileAlbums(); break;
+            case 'tracks': this.displayLibrary(this._libraryData, 'mobileLibraryList', false); break;
+            case 'stems': this.renderMobileStems(); break;
+            default: this.renderMobilePlaylists(); break;
         }
     }
 
@@ -8802,12 +8803,104 @@ class MobileApp {
         });
     }
 
-    renderMobileExtracted() {
+    renderMobileStems() {
         const container = document.getElementById('mobileLibraryList');
         if (!container) return;
         const extracted = (this._libraryData || []).filter(item => item.extracted === 1 || item.extracted === true);
         if (extracted.length === 0) { container.innerHTML = '<p style="text-align:center;color:var(--mobile-text-secondary)">No extracted stems</p>'; return; }
         this.displayLibrary(extracted, 'mobileLibraryList', false);
+    }
+
+    async renderMobileAlbums() {
+        const container = document.getElementById('mobileLibraryList');
+        if (!container) return;
+        container.innerHTML = '<div style="text-align:center;padding:20px"><i class="fas fa-spinner fa-spin"></i></div>';
+
+        try {
+            const res = await fetch('/api/library/albums');
+            const result = await res.json();
+            if (!result.success) throw new Error(result.error);
+
+            const albums = result.albums || [];
+            const singlesCount = result.singles_count || 0;
+
+            if (albums.length === 0 && singlesCount === 0) {
+                container.innerHTML = '<p style="text-align:center;color:var(--mobile-text-secondary)">No albums</p>';
+                return;
+            }
+
+            container.innerHTML = '';
+
+            for (const album of albums) {
+                const div = document.createElement('div');
+                div.className = 'mobile-search-result';
+                div.innerHTML =
+                    '<img src="' + (album.thumbnail_url || '/static/img/default-thumb.svg') + '" class="mobile-result-thumbnail">' +
+                    '<div class="mobile-result-info">' +
+                        '<div class="mobile-result-title">' + this.escapeHtml(album.name) + '</div>' +
+                        '<div class="mobile-result-meta">' + this.escapeHtml(album.artist || '') + ' &middot; ' + album.track_count + ' tracks</div>' +
+                    '</div>' +
+                    '<i class="fas fa-chevron-right" style="color:var(--mobile-text-secondary)"></i>';
+                div.addEventListener('click', () => this.drillDownMobileAlbum(album.id, album.name));
+                container.appendChild(div);
+            }
+
+            // Singles group
+            if (singlesCount > 0) {
+                const div = document.createElement('div');
+                div.className = 'mobile-search-result';
+                div.innerHTML =
+                    '<div class="mobile-result-thumbnail" style="display:flex;align-items:center;justify-content:center;background:var(--mobile-bg-secondary);border-radius:6px;font-size:20px;"><i class="fas fa-music"></i></div>' +
+                    '<div class="mobile-result-info">' +
+                        '<div class="mobile-result-title">(Singles)</div>' +
+                        '<div class="mobile-result-meta">' + singlesCount + ' tracks</div>' +
+                    '</div>' +
+                    '<i class="fas fa-chevron-right" style="color:var(--mobile-text-secondary)"></i>';
+                div.addEventListener('click', () => this.drillDownMobileAlbum(null, '(Singles)'));
+                container.appendChild(div);
+            }
+        } catch (e) {
+            container.innerHTML = '<p style="text-align:center;color:red">Failed to load albums</p>';
+        }
+    }
+
+    async drillDownMobileAlbum(albumId, albumName) {
+        const container = document.getElementById('mobileLibraryList');
+        if (!container) return;
+        container.innerHTML = '<div style="text-align:center;padding:20px"><i class="fas fa-spinner fa-spin"></i></div>';
+
+        try {
+            const url = albumId !== null
+                ? `/api/library/albums/${albumId}/tracks`
+                : '/api/library/albums/singles';
+            const res = await fetch(url);
+            const result = await res.json();
+            if (!result.success) throw new Error(result.error);
+
+            const tracks = result.tracks || [];
+
+            let html = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">' +
+                '<button class="mobile-btn mobile-btn-icon" id="mobileAlbumBackBtn"><i class="fas fa-arrow-left"></i></button>' +
+                '<div style="flex:1"><strong>' + this.escapeHtml(albumName) + '</strong><br><span style="font-size:12px;color:var(--mobile-text-secondary)">' + tracks.length + ' tracks</span></div>' +
+                '<button class="mobile-btn mobile-btn-primary mobile-album-play-btn"><i class="fas fa-play"></i> Play All</button>' +
+                '</div>';
+            container.innerHTML = html;
+
+            // Render album tracks using displayLibrary into a sub-container
+            const subList = document.createElement('div');
+            subList.id = 'mobileAlbumTracksList';
+            container.appendChild(subList);
+
+            this.displayLibrary(tracks, 'mobileAlbumTracksList', false);
+
+            document.getElementById('mobileAlbumBackBtn')?.addEventListener('click', () => this.renderMobileAlbums());
+            container.querySelector('.mobile-album-play-btn')?.addEventListener('click', () => {
+                const vids = tracks.filter(t => t.video_id).map(t => t.video_id);
+                this.playMobileQueue(vids);
+            });
+        } catch (e) {
+            container.innerHTML = '<p style="text-align:center;color:red">Failed to load album</p>';
+        }
     }
 
     async renderMobilePlaylists() {

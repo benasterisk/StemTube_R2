@@ -886,8 +886,8 @@ function loadDownloads() {
             _myLibraryRawData = data;
             window._myLibraryRawData = data;
 
-            // Render via library view system if available, otherwise default song view
-            if (typeof window._libraryRenderView === 'function' && typeof window._libraryCurrentView === 'function' && window._libraryCurrentView() !== 'songs') {
+            // Render via library view system if available, otherwise default tracks view
+            if (typeof window._libraryRenderView === 'function' && typeof window._libraryCurrentView === 'function' && window._libraryCurrentView() !== 'tracks') {
                 window._libraryRenderView();
             } else {
                 _renderMyLibrary();

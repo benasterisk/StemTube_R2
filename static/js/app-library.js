@@ -1,9 +1,9 @@
-// ── Library Views — Artists, Songs, Extracted, Playlists ────────
+// ── Library Views — Playlists, Albums, Tracks, Stems ────────────
 
 (function() {
     'use strict';
 
-    let currentView = 'songs';
+    let currentView = 'playlists';
 
     document.addEventListener('DOMContentLoaded', () => {
         // View switcher buttons
@@ -25,108 +25,145 @@
         // _myLibraryRawData is set by app-downloads.js loadDownloads()
         const data = window._myLibraryRawData || [];
         switch (currentView) {
-            case 'artists': renderArtistsView(data); break;
-            case 'extracted': renderExtractedView(data); break;
             case 'playlists': renderPlaylistsView(); break;
-            default: renderSongsView(data); break;
+            case 'albums': renderAlbumsView(data); break;
+            case 'tracks': renderTracksView(data); break;
+            case 'stems': renderStemsView(data); break;
+            default: renderPlaylistsView(); break;
         }
     }
 
-    // ── Songs View (default — uses existing createDownloadElement) ──
+    // ── Tracks View (renamed from Songs — uses existing createDownloadElement) ──
 
-    function renderSongsView(data) {
+    function renderTracksView(data) {
         // Delegate to existing _renderMyLibrary which handles sort/search
         if (typeof _renderMyLibrary === 'function') {
             _renderMyLibrary();
         }
+        // After rendering, inject "Add to Playlist" buttons on each track card
+        setTimeout(() => _injectAddToPlaylistButtons(), 50);
     }
 
-    // ── Artists View ─────────────────────────────────────────────
+    // ── Albums View ─────────────────────────────────────────────
 
-    function renderArtistsView(data) {
+    async function renderAlbumsView(data) {
         const container = document.getElementById('downloadsContainer');
         if (!container) return;
 
-        const searchQuery = (document.getElementById('myLibrarySearch')?.value || '').toLowerCase();
+        container.innerHTML = '<div style="text-align:center;padding:20px"><i class="fas fa-spinner fa-spin"></i></div>';
 
-        // Group by artist
-        const artistMap = {};
-        for (const item of data) {
-            if (!item.file_path && item.status !== 'completed') continue;
-            const artist = item.artist || '(Unknown Artist)';
-            if (searchQuery && !artist.toLowerCase().includes(searchQuery) && !(item.title || '').toLowerCase().includes(searchQuery)) continue;
-            if (!artistMap[artist]) {
-                artistMap[artist] = { songs: [], thumbnail: item.thumbnail_url || item.thumbnail || '' };
+        try {
+            const res = await fetch('/api/library/albums');
+            const result = await res.json();
+            if (!result.success) throw new Error(result.error);
+
+            const albums = result.albums || [];
+            const singlesCount = result.singles_count || 0;
+
+            if (albums.length === 0 && singlesCount === 0) {
+                container.innerHTML = '<div class="empty-state">No albums found</div>';
+                return;
             }
-            artistMap[artist].songs.push(item);
+
+            container.innerHTML = '<div class="library-artist-grid"></div>';
+            const grid = container.querySelector('.library-artist-grid');
+
+            // Render album cards
+            for (const album of albums) {
+                const card = document.createElement('div');
+                card.className = 'library-artist-card';
+                card.innerHTML = `
+                    <img src="${album.thumbnail_url || '/static/img/default-thumb.svg'}" class="library-artist-thumb" alt="">
+                    <div class="library-artist-info">
+                        <div class="library-artist-name">${_esc(album.name)}</div>
+                        <div class="library-artist-count">${_esc(album.artist || '')}</div>
+                        <div class="library-artist-count">${album.track_count} track${album.track_count !== 1 ? 's' : ''}</div>
+                    </div>
+                `;
+                card.addEventListener('click', () => drillDownAlbum(album.id, album.name));
+                grid.appendChild(card);
+            }
+
+            // Render "(Singles)" group if there are tracks with no album
+            if (singlesCount > 0) {
+                const card = document.createElement('div');
+                card.className = 'library-artist-card';
+                card.innerHTML = `
+                    <div class="library-artist-thumb" style="display:flex;align-items:center;justify-content:center;background:var(--bg-secondary);font-size:24px;"><i class="fas fa-music"></i></div>
+                    <div class="library-artist-info">
+                        <div class="library-artist-name">(Singles)</div>
+                        <div class="library-artist-count">${singlesCount} track${singlesCount !== 1 ? 's' : ''}</div>
+                    </div>
+                `;
+                card.addEventListener('click', () => drillDownAlbum(null, '(Singles)'));
+                grid.appendChild(card);
+            }
+
+        } catch (e) {
+            console.error('renderAlbumsView error:', e);
+            container.innerHTML = '<div class="empty-state">Failed to load albums</div>';
         }
+    }
 
-        const sorted = Object.entries(artistMap).sort((a, b) => a[0].localeCompare(b[0], undefined, {sensitivity: 'base'}));
+    async function drillDownAlbum(albumId, albumName) {
+        const container = document.getElementById('downloadsContainer');
+        if (!container) return;
+        container.innerHTML = '<div style="text-align:center;padding:20px"><i class="fas fa-spinner fa-spin"></i></div>';
 
-        if (sorted.length === 0) {
-            container.innerHTML = '<div class="empty-state">No artists found</div>';
-            return;
-        }
+        try {
+            const url = albumId !== null
+                ? `/api/library/albums/${albumId}/tracks`
+                : '/api/library/albums/singles';
+            const res = await fetch(url);
+            const result = await res.json();
+            if (!result.success) throw new Error(result.error);
 
-        container.innerHTML = '<div class="library-artist-grid"></div>';
-        const grid = container.querySelector('.library-artist-grid');
+            const tracks = result.tracks || [];
 
-        for (const [artist, info] of sorted) {
-            const card = document.createElement('div');
-            card.className = 'library-artist-card';
-            card.innerHTML = `
-                <img src="${info.thumbnail || '/static/img/default-thumb.svg'}" class="library-artist-thumb" alt="">
-                <div class="library-artist-info">
-                    <div class="library-artist-name">${_esc(artist)}</div>
-                    <div class="library-artist-count">${info.songs.length} song${info.songs.length > 1 ? 's' : ''}</div>
+            let html = `<div class="library-drilldown">
+                <div class="library-drilldown-header">
+                    <button class="btn btn-small library-back-btn"><i class="fas fa-arrow-left"></i> Back</button>
+                    <h3>${_esc(albumName)}</h3>
+                    <span>${tracks.length} tracks</span>
+                    <button class="btn btn-small btn-primary library-play-all-btn"><i class="fas fa-play"></i> Play All</button>
                 </div>
-            `;
-            card.addEventListener('click', () => drillDownArtist(artist, info.songs));
-            grid.appendChild(card);
-        }
-    }
+                <div class="library-drilldown-items"></div>
+            </div>`;
 
-    function drillDownArtist(artist, songs) {
-        const container = document.getElementById('downloadsContainer');
-        if (!container) return;
+            container.innerHTML = html;
 
-        let html = `<div class="library-drilldown">
-            <div class="library-drilldown-header">
-                <button class="btn btn-small library-back-btn"><i class="fas fa-arrow-left"></i> Back</button>
-                <h3>${_esc(artist)}</h3>
-                <span>${songs.length} songs</span>
-                <button class="btn btn-small btn-primary library-play-all-btn" data-artist="${_esc(artist)}"><i class="fas fa-play"></i> Play All</button>
-            </div>
-            <div class="library-drilldown-items"></div>
-        </div>`;
-
-        container.innerHTML = html;
-
-        const itemsContainer = container.querySelector('.library-drilldown-items');
-        songs.forEach(item => {
-            if (typeof createDownloadElement === 'function') {
-                itemsContainer.appendChild(createDownloadElement(item));
+            const itemsContainer = container.querySelector('.library-drilldown-items');
+            for (const t of tracks) {
+                if (typeof createDownloadElement === 'function') {
+                    itemsContainer.appendChild(createDownloadElement(t));
+                }
             }
-        });
 
-        // Batch update extraction statuses for drilled-down songs
-        const videoIds = songs.filter(s => s.video_id && s.status === 'completed').map(s => s.video_id);
-        if (videoIds.length > 0 && typeof batchUpdateExtractionStatuses === 'function') {
-            batchUpdateExtractionStatuses(videoIds);
+            // Batch update extraction statuses
+            const videoIds = tracks.filter(t => t.video_id).map(t => t.video_id);
+            if (videoIds.length > 0 && typeof batchUpdateExtractionStatuses === 'function') {
+                batchUpdateExtractionStatuses(videoIds);
+            }
+
+            container.querySelector('.library-back-btn').addEventListener('click', () => renderAlbumsView(window._myLibraryRawData || []));
+            container.querySelector('.library-play-all-btn')?.addEventListener('click', () => {
+                playQueue(tracks.filter(t => t.file_path || t.video_id).map(t => t.video_id));
+            });
+
+            // Inject "Add to Playlist" buttons
+            setTimeout(() => _injectAddToPlaylistButtons(itemsContainer), 50);
+
+        } catch (e) {
+            console.error('drillDownAlbum error:', e);
+            container.innerHTML = '<div class="empty-state">Failed to load album tracks</div>';
         }
-
-        container.querySelector('.library-back-btn').addEventListener('click', () => renderArtistsView(window._myLibraryRawData || []));
-
-        container.querySelector('.library-play-all-btn')?.addEventListener('click', () => {
-            playQueue(songs.filter(s => s.file_path).map(s => s.video_id));
-        });
     }
 
-    // ── Extracted View ──────────────────────────────────────────
+    // ── Stems View (renamed from Extracted) ────────────────────
 
-    let extractedSubView = 'songs'; // 'songs' or 'artists'
+    let stemsSubView = 'songs'; // 'songs' or 'artists'
 
-    function renderExtractedView(data) {
+    function renderStemsView(data) {
         const container = document.getElementById('downloadsContainer');
         if (!container) return;
 
@@ -147,26 +184,26 @@
 
         // Sub-view switcher
         let html = `<div class="library-sub-switcher">
-            <button class="library-sub-btn ${extractedSubView === 'songs' ? 'active' : ''}" data-subview="songs">All Songs</button>
-            <button class="library-sub-btn ${extractedSubView === 'artists' ? 'active' : ''}" data-subview="artists">By Artist</button>
+            <button class="library-sub-btn ${stemsSubView === 'songs' ? 'active' : ''}" data-subview="songs">All Tracks</button>
+            <button class="library-sub-btn ${stemsSubView === 'artists' ? 'active' : ''}" data-subview="artists">By Artist</button>
             <span style="flex:1"></span>
-            <button class="btn btn-small btn-primary" id="extractedPlayAllBtn"><i class="fas fa-play"></i> Play All</button>
-        </div><div id="extractedContent"></div>`;
+            <button class="btn btn-small btn-primary" id="stemsPlayAllBtn"><i class="fas fa-play"></i> Play All</button>
+        </div><div id="stemsContent"></div>`;
         container.innerHTML = html;
 
         container.querySelectorAll('.library-sub-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                extractedSubView = btn.dataset.subview;
-                renderExtractedView(data);
+                stemsSubView = btn.dataset.subview;
+                renderStemsView(data);
             });
         });
 
-        container.querySelector('#extractedPlayAllBtn')?.addEventListener('click', () => {
+        container.querySelector('#stemsPlayAllBtn')?.addEventListener('click', () => {
             playQueue(extracted.filter(s => s.file_path).map(s => s.video_id));
         });
 
-        const content = document.getElementById('extractedContent');
-        if (extractedSubView === 'artists') {
+        const content = document.getElementById('stemsContent');
+        if (stemsSubView === 'artists') {
             // Group by artist
             const artistMap = {};
             for (const item of extracted) {
@@ -186,7 +223,7 @@
                         <div class="library-artist-name">${_esc(artist)}</div>
                         <div class="library-artist-count">${info.songs.length} stem${info.songs.length > 1 ? 's' : ''}</div>
                     </div>`;
-                card.addEventListener('click', () => drillDownArtist(artist, info.songs));
+                card.addEventListener('click', () => drillDownStemsArtist(artist, info.songs));
                 grid.appendChild(card);
             }
         } else {
@@ -201,6 +238,40 @@
                 batchUpdateExtractionStatuses(videoIds);
             }
         }
+    }
+
+    function drillDownStemsArtist(artist, songs) {
+        const container = document.getElementById('downloadsContainer');
+        if (!container) return;
+
+        let html = `<div class="library-drilldown">
+            <div class="library-drilldown-header">
+                <button class="btn btn-small library-back-btn"><i class="fas fa-arrow-left"></i> Back</button>
+                <h3>${_esc(artist)}</h3>
+                <span>${songs.length} stems</span>
+                <button class="btn btn-small btn-primary library-play-all-btn"><i class="fas fa-play"></i> Play All</button>
+            </div>
+            <div class="library-drilldown-items"></div>
+        </div>`;
+
+        container.innerHTML = html;
+
+        const itemsContainer = container.querySelector('.library-drilldown-items');
+        songs.forEach(item => {
+            if (typeof createDownloadElement === 'function') {
+                itemsContainer.appendChild(createDownloadElement(item));
+            }
+        });
+
+        const videoIds = songs.filter(s => s.video_id && s.status === 'completed').map(s => s.video_id);
+        if (videoIds.length > 0 && typeof batchUpdateExtractionStatuses === 'function') {
+            batchUpdateExtractionStatuses(videoIds);
+        }
+
+        container.querySelector('.library-back-btn').addEventListener('click', () => renderStemsView(window._myLibraryRawData || []));
+        container.querySelector('.library-play-all-btn')?.addEventListener('click', () => {
+            playQueue(songs.filter(s => s.file_path).map(s => s.video_id));
+        });
     }
 
     // ── Playlists View ──────────────────────────────────────────
@@ -359,6 +430,92 @@
     }
 
     // ── Playlist Player via PlayerEngine ���──────────────────────
+
+    // ── Add to Playlist dropdown ──────────────────────────────
+
+    function _injectAddToPlaylistButtons(scope) {
+        const root = scope || document.getElementById('downloadsContainer');
+        if (!root) return;
+        // Find all download-item cards that have a video_id
+        root.querySelectorAll('.download-item[data-video-id]').forEach(el => {
+            if (el.querySelector('.library-add-to-playlist-btn')) return; // already injected
+            const videoId = el.dataset.videoId;
+            if (!videoId) return;
+
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-icon library-add-to-playlist-btn';
+            btn.title = 'Add to Playlist';
+            btn.innerHTML = '<i class="fas fa-plus-circle"></i>';
+            btn.style.cssText = 'margin-left:4px; font-size:14px; cursor:pointer; background:none; border:none; color:var(--text-secondary); position:relative;';
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                _showPlaylistDropdown(btn, videoId);
+            });
+
+            // Insert into the actions area if present, otherwise append
+            const actions = el.querySelector('.download-actions') || el;
+            actions.appendChild(btn);
+        });
+    }
+
+    async function _showPlaylistDropdown(anchorBtn, videoId) {
+        // Close any existing dropdown
+        document.querySelectorAll('.library-playlist-dropdown').forEach(d => d.remove());
+
+        const dropdown = document.createElement('div');
+        dropdown.className = 'library-playlist-dropdown';
+        dropdown.style.cssText = 'position:absolute; z-index:1000; background:var(--bg-primary); border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.3); min-width:180px; max-height:240px; overflow-y:auto; padding:4px 0;';
+        dropdown.innerHTML = '<div style="text-align:center;padding:8px"><i class="fas fa-spinner fa-spin"></i></div>';
+
+        // Position near the button
+        anchorBtn.style.position = 'relative';
+        anchorBtn.appendChild(dropdown);
+
+        try {
+            const res = await fetch('/api/playlists');
+            const data = await res.json();
+            const playlists = data.playlists || [];
+
+            if (playlists.length === 0) {
+                dropdown.innerHTML = '<div style="padding:10px;font-size:13px;color:var(--text-secondary)">No playlists yet</div>';
+            } else {
+                dropdown.innerHTML = '';
+                for (const pl of playlists) {
+                    const item = document.createElement('div');
+                    item.style.cssText = 'padding:8px 14px; cursor:pointer; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;';
+                    item.textContent = pl.name;
+                    item.addEventListener('mouseenter', () => { item.style.background = 'var(--bg-secondary)'; });
+                    item.addEventListener('mouseleave', () => { item.style.background = 'none'; });
+                    item.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        try {
+                            await fetch(`/api/playlists/${pl.id}/tracks`, {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({video_ids: [videoId]})
+                            });
+                            if (typeof showToast === 'function') showToast(`Added to "${pl.name}"`, 'success');
+                        } catch (err) {
+                            if (typeof showToast === 'function') showToast('Failed to add to playlist', 'error');
+                        }
+                        dropdown.remove();
+                    });
+                    dropdown.appendChild(item);
+                }
+            }
+        } catch (e) {
+            dropdown.innerHTML = '<div style="padding:10px;color:red;font-size:13px">Failed</div>';
+        }
+
+        // Close on outside click
+        const closeHandler = (e) => {
+            if (!dropdown.contains(e.target) && e.target !== anchorBtn) {
+                dropdown.remove();
+                document.removeEventListener('click', closeHandler);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', closeHandler), 10);
+    }
 
     async function playQueue(videoIds) {
         if (!videoIds || videoIds.length === 0) return;

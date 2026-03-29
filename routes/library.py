@@ -471,8 +471,75 @@ def add_library_extraction_to_user(global_download_id):
 
 
 # ------------------------------------------------------------------
-# Library Views API (Artists, Songs, Extracted, Queue)
+# Library Views API (Playlists, Albums, Tracks, Stems, Queue)
 # ------------------------------------------------------------------
+
+@library_bp.route('/api/library/albums', methods=['GET'])
+@api_login_required
+def list_user_albums():
+    """Return albums for the current user's library, plus a singles count."""
+    try:
+        from core.db.albums import list_albums_for_user
+        from core.db.connection import _conn
+
+        albums = list_albums_for_user(current_user.id)
+
+        # Count tracks with no album_id (singles)
+        with _conn() as conn:
+            row = conn.execute("""
+                SELECT COUNT(DISTINCT ud.video_id) as cnt
+                FROM user_downloads ud
+                JOIN global_downloads gd ON ud.global_download_id = gd.id
+                WHERE ud.user_id = ? AND (gd.album_id IS NULL)
+                  AND gd.file_path IS NOT NULL
+            """, (current_user.id,)).fetchone()
+            singles_count = row['cnt'] if row else 0
+
+        return jsonify({
+            'success': True,
+            'albums': albums,
+            'singles_count': singles_count,
+        })
+    except Exception as e:
+        logger.error(f"list_user_albums error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@library_bp.route('/api/library/albums/<int:album_id>/tracks', methods=['GET'])
+@api_login_required
+def get_user_album_tracks(album_id):
+    """Return tracks for a specific album in the user's library."""
+    try:
+        from core.db.albums import get_album_tracks
+        tracks = get_album_tracks(album_id, user_id=current_user.id)
+        return jsonify({'success': True, 'tracks': tracks})
+    except Exception as e:
+        logger.error(f"get_user_album_tracks error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@library_bp.route('/api/library/albums/singles', methods=['GET'])
+@api_login_required
+def get_user_singles():
+    """Return tracks with no album for the current user."""
+    try:
+        from core.db.connection import _conn
+        with _conn() as conn:
+            rows = conn.execute("""
+                SELECT gd.video_id, gd.title, gd.artist, gd.album, gd.duration,
+                       gd.thumbnail, gd.extracted, gd.extraction_model,
+                       gd.detected_bpm, gd.detected_key, gd.file_path,
+                       ud.id as download_id
+                FROM global_downloads gd
+                JOIN user_downloads ud ON ud.global_download_id = gd.id AND ud.user_id = ?
+                WHERE gd.album_id IS NULL AND gd.file_path IS NOT NULL
+                ORDER BY gd.title COLLATE NOCASE
+            """, (current_user.id,)).fetchall()
+            tracks = [dict(r) for r in rows]
+        return jsonify({'success': True, 'tracks': tracks})
+    except Exception as e:
+        logger.error(f"get_user_singles error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @library_bp.route('/api/library/artists', methods=['GET'])
 @api_login_required
