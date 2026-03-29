@@ -302,20 +302,40 @@ function initializeEventListeners() {
     // Search button (only if YouTube search is enabled)
     const searchButton = document.getElementById('searchButton');
     if (searchButton) {
-        searchButton.addEventListener('click', () => {
-            performSearch();
-        });
+        searchButton.addEventListener('click', () => performSearch());
     }
-
-    // Search input (Enter key) - only if YouTube search is enabled
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
-        searchInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                performSearch();
-            }
+        searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') performSearch(); });
+    }
+
+    // New full-page Search tab elements
+    const searchButtonTab = document.getElementById('searchButtonTab');
+    if (searchButtonTab) {
+        searchButtonTab.addEventListener('click', () => performSearch());
+    }
+    const searchInputTab = document.getElementById('searchInputTab');
+    if (searchInputTab) {
+        searchInputTab.addEventListener('keypress', (e) => { if (e.key === 'Enter') performSearch(); });
+    }
+    // Upload toggle in search tab
+    const uploadToggleBtn = document.getElementById('uploadToggleBtn');
+    if (uploadToggleBtn) {
+        uploadToggleBtn.addEventListener('click', () => {
+            const uploadArea = document.getElementById('searchTabUpload');
+            if (uploadArea) uploadArea.style.display = uploadArea.style.display === 'none' ? '' : 'none';
         });
     }
+    // Source toggle in search tab
+    document.querySelectorAll('#searchSourceToggleTab .search-source-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#searchSourceToggleTab .search-source-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            searchSource = btn.dataset.source;
+            const input = document.getElementById('searchInputTab');
+            if (input) input.placeholder = searchSource === 'ytmusic' ? 'Search music...' : 'Search YouTube...';
+        });
+    });
     
     // Tab switching
     document.querySelectorAll('.tab-button').forEach(button => {

@@ -1,4 +1,70 @@
-/* Search Components */
+/* ── Full-Page Search Tab ─────────────────────── */
+.search-tab-container {
+    padding: 0 8px;
+}
+
+.search-tab-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.search-tab-input {
+    flex: 1;
+    display: flex;
+    gap: 4px;
+    min-width: 250px;
+}
+
+.search-tab-input input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--input-bg);
+    color: var(--text-color);
+    font-size: 0.95rem;
+}
+
+.search-tab-input select {
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--input-bg);
+    color: var(--text-color);
+    width: 60px;
+}
+
+.search-tab-input button {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 6px;
+    background: var(--accent-color);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.search-tab-input button:hover {
+    background: var(--accent-hover);
+}
+
+.search-tab-upload {
+    margin-bottom: 16px;
+    border: 2px dashed var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.search-tab-results {
+    min-height: 200px;
+}
+
+/* Search Components (legacy left panel — kept for compatibility) */
 .search-container {
     margin-bottom: var(--spacing-md);
 }

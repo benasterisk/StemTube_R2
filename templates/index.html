@@ -155,7 +155,10 @@
                     {% if current_user.is_admin %}
                     <button class="tab-button" data-tab="admin"><i class="fas fa-cog"></i> Admin</button>
                     {% endif %}
-                    <button class="tab-button" data-tab="downloads"><i class="fas fa-music"></i> My Library</button>
+                    {% if enable_youtube %}
+                    <button class="tab-button active" data-tab="search"><i class="fas fa-search"></i> Search</button>
+                    {% endif %}
+                    <button class="tab-button{% if not enable_youtube %} active{% endif %}" data-tab="downloads"><i class="fas fa-music"></i> My Library</button>
                     <button class="tab-button" data-tab="library"><i class="fas fa-globe"></i> Global Library</button>
                     <button class="tab-button" data-tab="mixer"><i class="fas fa-sliders-h"></i> Mixer</button>
                     <button class="tab-button" data-tab="jam"><i class="fas fa-users"></i> Jam</button>
@@ -494,7 +497,42 @@
                 </div>
                 {% endif %}
                 
-                <div class="tab-content" id="downloadsTab">
+                {% if enable_youtube %}
+                <div class="tab-content active" id="searchTab">
+                    <div class="search-tab-container">
+                        <div class="search-tab-bar">
+                            <div class="search-source-toggle" id="searchSourceToggleTab">
+                                <button class="search-source-btn active" data-source="youtube"><i class="fas fa-video"></i> Video</button>
+                                <button class="search-source-btn" data-source="ytmusic"><i class="fas fa-music"></i> Music Only</button>
+                            </div>
+                            <div class="search-tab-input">
+                                <input type="text" id="searchInputTab" placeholder="Search YouTube...">
+                                <select id="resultsCountTab">
+                                    <option value="5">5</option>
+                                    <option value="10" selected>10</option>
+                                    <option value="20">20</option>
+                                    <option value="30">30</option>
+                                </select>
+                                <button id="searchButtonTab"><i class="fas fa-search"></i></button>
+                            </div>
+                            <button class="btn btn-small" id="uploadToggleBtn"><i class="fas fa-upload"></i> Upload</button>
+                        </div>
+                        <div class="search-tab-upload" id="searchTabUpload" style="display:none;">
+                            <div class="file-upload-area" id="fileUploadAreaTab">
+                                <input type="file" id="fileInputTab" accept="audio/*,video/*,.mp3,.wav,.flac,.m4a,.aac,.ogg,.wma,.mp4,.avi,.mkv,.mov,.webm" style="display: none;">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <p>Click or drag audio/video file here</p>
+                                <p class="file-info">MP3, WAV, FLAC, M4A, AAC, OGG, WMA, MP4, AVI, MKV, MOV, WEBM</p>
+                            </div>
+                        </div>
+                        <div class="search-tab-results" id="searchResultsTab">
+                            <!-- Full-page search results with sections -->
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="tab-content{% if not enable_youtube %} active{% endif %}" id="downloadsTab">
                     <div class="library-view-switcher">
                         <button class="library-view-btn active" data-view="playlists"><i class="fas fa-list"></i> My Playlists</button>
                         <button class="library-view-btn" data-view="artists"><i class="fas fa-user"></i> My Artists</button>

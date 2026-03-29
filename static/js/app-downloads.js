@@ -41,25 +41,21 @@ function closeMediaPlayer() {
 
 // Search Functions
 function performSearch() {
-    const query = document.getElementById('searchInput').value.trim();
+    // Use new tab-based search elements, fall back to old ones
+    const query = (document.getElementById('searchInputTab') || document.getElementById('searchInput'))?.value.trim();
     if (!query) {
         showToast('Please enter a search query', 'warning');
         return;
     }
-    
-    console.log('Performing search for query:', query);
-    console.log('Search mode:', searchMode);
-    
-    // Show loading state
-    const resultsContainer = document.getElementById('searchResults');
-    resultsContainer.innerHTML = '<div class="loading-indicator">Searching...</div>';
-    
-    // Determine search mode (search or URL)
+
+    // Show loading state in the tab results
+    const resultsContainer = document.getElementById('searchResultsTab') || document.getElementById('searchResults');
+    resultsContainer.innerHTML = '<div class="loading-indicator"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
+
     const searchParams = new URLSearchParams();
-    
+
     if (searchMode === 'search') {
-        // Regular search
-        const maxResults = document.getElementById('resultsCount').value;
+        const maxResults = (document.getElementById('resultsCountTab') || document.getElementById('resultsCount'))?.value || 10;
         console.log('Selected max results:', maxResults);
         console.log('Query:', query);
         searchParams.append('query', query);

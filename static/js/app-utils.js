@@ -585,7 +585,7 @@ function extractVideoId(url) {
 
 // Display search results
 function displaySearchResults(data) {
-    const resultsContainer = document.getElementById('searchResults');
+    const resultsContainer = document.getElementById('searchResultsTab') || document.getElementById('searchResults');
     resultsContainer.innerHTML = '';
 
     if (!data) {
