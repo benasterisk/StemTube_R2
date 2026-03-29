@@ -396,3 +396,201 @@
     opacity: 0.9;
 }
 
+/* ── Music Search Sections (Spotify/Deezer style) ──────── */
+.search-section {
+    margin-bottom: 20px;
+}
+
+.search-section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-color);
+}
+
+.search-section-title i {
+    color: var(--accent-color);
+}
+
+/* Album grid */
+.search-album-grid {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+}
+
+.search-album-card {
+    min-width: 140px;
+    max-width: 140px;
+    cursor: pointer;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--item-bg);
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+
+.search-album-card:hover {
+    border-color: var(--accent-color);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.search-album-thumb {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    display: block;
+}
+
+.search-album-info {
+    padding: 8px;
+}
+
+.search-album-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.search-album-artist {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Album expanded tracks */
+.search-album-expanded {
+    grid-column: 1 / -1;
+    background: var(--item-bg);
+    border-radius: 8px;
+    margin: 8px 0;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.search-album-tracks-header {
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-secondary);
+    font-size: 0.85rem;
+    flex-wrap: wrap;
+}
+
+.search-album-tracks-header strong {
+    flex: 1;
+}
+
+.search-album-tracks {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.search-album-track {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    transition: background 0.1s;
+}
+
+.search-album-track:hover {
+    background: var(--bg-secondary);
+}
+
+.search-track-num {
+    width: 24px;
+    text-align: right;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.search-track-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.search-track-title {
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.search-track-dur {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+/* Song rows */
+.search-song-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.search-song-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    transition: background 0.1s;
+}
+
+.search-song-row:hover {
+    background: var(--item-bg);
+}
+
+.search-song-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.search-song-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.search-song-title {
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.search-song-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.search-song-dur {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.search-dl-album-btn {
+    white-space: nowrap;
+}
+

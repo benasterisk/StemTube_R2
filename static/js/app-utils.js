@@ -585,118 +585,236 @@ function extractVideoId(url) {
 
 // Display search results
 function displaySearchResults(data) {
-    console.log('Received search results data:', data);
     const resultsContainer = document.getElementById('searchResults');
     resultsContainer.innerHTML = '';
-    
-    // Check if we have valid data
-    if (!data || (Array.isArray(data) && data.length === 0) || 
-        (data.items && data.items.length === 0)) {
-        console.log('No results found in data');
+
+    if (!data) {
         resultsContainer.innerHTML = '<div class="no-results">No results found</div>';
         return;
     }
-    
-    // Normalize data format
-    let items = [];
-    if (Array.isArray(data)) {
-        console.log('Data is an array');
-        items = data;
-    } else if (data.items && Array.isArray(data.items)) {
-        console.log('Data has items array');
-        items = data.items;
-    } else {
-        console.error('Unexpected data format:', data);
-        resultsContainer.innerHTML = '<div class="error-message">Error processing search results</div>';
+
+    // Music Only mode: sectioned layout (Albums + Songs) like Spotify/Deezer
+    if (data.source === 'ytmusic') {
+        _displayMusicResults(resultsContainer, data);
         return;
     }
-    
-    console.log('Processing', items.length, 'items');
-    
-    // Add results counter at the top
-    const counterElement = document.createElement('div');
-    counterElement.className = 'results-counter';
-    counterElement.innerHTML = `<strong>Showing ${items.length} results</strong>`;
-    resultsContainer.appendChild(counterElement);
-    
-    // Create result elements
-    items.forEach((item, index) => {
-        console.log(`Processing item ${index}:`, item);
-        
-        // Extract video ID
-        let videoId;
-        if (item.id && typeof item.id === 'object' && item.id.videoId) {
-            videoId = item.id.videoId;
-        } else if (item.id && typeof item.id === 'string') {
-            videoId = item.id;
-        } else {
-            videoId = item.videoId || '';
-        }
-        
-        // VALIDATE VIDEO ID
-        if (!isValidYouTubeVideoId(videoId)) {
-            console.warn(`[FRONTEND DEBUG] Invalid video ID found: '${videoId}' (length: ${videoId ? videoId.length : 0}) - skipping result`);
-            console.warn(`[FRONTEND DEBUG] Item data:`, item);
-            return; // Skip this invalid result
-        }
-        
-        console.log(`[FRONTEND DEBUG] Extracted valid videoId: ${videoId} for title: ${item.snippet?.title || item.title || 'Unknown'}`);
-        
-        // Extract other information
-        const title = item.snippet?.title || item.title || 'Unknown Title';
-        const channelTitle = item.snippet?.channelTitle || item.channel?.name || 'Unknown Channel';
-        const thumbnailUrl = getThumbnailUrl(item);
-        const duration = formatDuration(item.contentDetails?.duration || item.duration);
-        const inLibrary = item.already_in_library === true;
 
-        // Music metadata from YouTube Music results
-        const musicMeta = item.musicMetadata;
-        const artistLine = (searchSource === 'ytmusic' && musicMeta)
-            ? (musicMeta.artist || '') + (musicMeta.album ? ' &middot; ' + musicMeta.album : '')
-            : '';
+    // Video mode: flat list (existing behavior)
+    let items = Array.isArray(data) ? data : (data.items || []);
+    if (items.length === 0) {
+        resultsContainer.innerHTML = '<div class="no-results">No results found</div>';
+        return;
+    }
 
-        console.log(`Title: ${title}, Channel: ${channelTitle}, Thumbnail: ${thumbnailUrl}`);
+    items.forEach(item => {
+        const el = _createVideoResultElement(item);
+        if (el) resultsContainer.appendChild(el);
+    });
 
-        // Create result element
-        const resultElement = document.createElement('div');
-        resultElement.className = 'search-result';
-        resultElement.innerHTML = `
-            <img class="result-thumbnail" src="${thumbnailUrl}" alt="${title}">
-            <div class="result-info">
-                <div class="result-title">${title}${inLibrary ? '<span class="in-library-badge">In Library</span>' : ''}</div>
-                <div class="result-channel">${channelTitle}</div>
-                ${artistLine ? '<div class="result-channel" style="color:var(--accent-color)">' + artistLine + '</div>' : ''}
-                <div class="result-duration">${duration}</div>
-                <div class="result-actions">
-                    <button class="result-button play-button" data-video-id="${videoId}">
-                        <i class="fas fa-play"></i> Play
-                    </button>
-                    <button class="result-button download-button" data-video-id="${videoId}" data-title="${title}" data-thumbnail="${thumbnailUrl}">
-                        <i class="fas fa-download"></i> Download
-                    </button>
+    _wireSearchButtons(resultsContainer);
+}
+
+function _displayMusicResults(container, data) {
+    const songs = data.items || [];
+    const albums = data.albums || [];
+
+    if (songs.length === 0 && albums.length === 0) {
+        container.innerHTML = '<div class="no-results">No music results found</div>';
+        return;
+    }
+
+    // ── Albums Section ─────────────────────────────
+    if (albums.length > 0) {
+        const section = document.createElement('div');
+        section.className = 'search-section';
+        section.innerHTML = '<h3 class="search-section-title"><i class="fas fa-compact-disc"></i> Albums</h3>';
+
+        const grid = document.createElement('div');
+        grid.className = 'search-album-grid';
+
+        for (const a of albums) {
+            const card = document.createElement('div');
+            card.className = 'search-album-card';
+            card.innerHTML = `
+                <img src="${a.thumbnail || '/static/img/default-thumb.svg'}" class="search-album-thumb" alt="">
+                <div class="search-album-info">
+                    <div class="search-album-title">${_escHtml(a.title)}</div>
+                    <div class="search-album-artist">${_escHtml(a.artist)}${a.year ? ' · ' + a.year : ''}</div>
                 </div>
+            `;
+            card.addEventListener('click', () => _expandAlbum(card, a.browse_id, container));
+            grid.appendChild(card);
+        }
+        section.appendChild(grid);
+        container.appendChild(section);
+    }
+
+    // ── Songs Section ──────────────────────────────
+    if (songs.length > 0) {
+        const section = document.createElement('div');
+        section.className = 'search-section';
+        section.innerHTML = '<h3 class="search-section-title"><i class="fas fa-music"></i> Songs</h3>';
+
+        const list = document.createElement('div');
+        list.className = 'search-song-list';
+
+        for (const item of songs) {
+            const el = _createMusicSongRow(item);
+            if (el) list.appendChild(el);
+        }
+        section.appendChild(list);
+        container.appendChild(section);
+    }
+
+    _wireSearchButtons(container);
+}
+
+async function _expandAlbum(cardEl, browseId, container) {
+    // Toggle: if already expanded, collapse
+    const existing = cardEl.parentNode.querySelector('.search-album-expanded[data-browse-id="' + browseId + '"]');
+    if (existing) { existing.remove(); return; }
+
+    // Remove other expansions
+    cardEl.parentNode.querySelectorAll('.search-album-expanded').forEach(el => el.remove());
+
+    // Loading indicator
+    const loader = document.createElement('div');
+    loader.className = 'search-album-expanded';
+    loader.setAttribute('data-browse-id', browseId);
+    loader.innerHTML = '<div style="padding:12px;text-align:center"><i class="fas fa-spinner fa-spin"></i> Loading tracks...</div>';
+    cardEl.after(loader);
+
+    try {
+        const res = await fetch(`/api/albums/ytmusic/${browseId}`);
+        const data = await res.json();
+        if (!data.success || !data.tracks || data.tracks.length === 0) {
+            loader.innerHTML = '<div style="padding:12px;color:var(--text-muted)">No tracks found</div>';
+            return;
+        }
+
+        let html = `<div class="search-album-tracks-header">
+            <strong>${_escHtml(data.title)}</strong> — ${_escHtml(data.artist)} · ${data.track_count} tracks
+            <button class="btn btn-small btn-primary search-dl-album-btn" data-browse-id="${browseId}">
+                <i class="fas fa-download"></i> Download Album
+            </button>
+        </div><div class="search-album-tracks">`;
+
+        for (const t of data.tracks) {
+            html += `<div class="search-album-track">
+                <span class="search-track-num">${t.track_number || ''}</span>
+                <div class="search-track-info">
+                    <div class="search-track-title">${_escHtml(t.title)}</div>
+                </div>
+                <span class="search-track-dur">${t.duration || ''}</span>
+                <button class="result-button download-button btn-small" data-video-id="${t.video_id}" data-title="${_escHtml(t.artist + ' - ' + t.title)}" data-thumbnail="">
+                    <i class="fas fa-download"></i>
+                </button>
+            </div>`;
+        }
+        html += '</div>';
+        loader.innerHTML = html;
+
+        // Download Album button
+        loader.querySelector('.search-dl-album-btn')?.addEventListener('click', async () => {
+            const btn = loader.querySelector('.search-dl-album-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            try {
+                const r = await fetch(`/api/albums/ytmusic/${browseId}/download`, {method: 'POST'});
+                const d = await r.json();
+                if (d.success) {
+                    showToast(`Downloading ${d.track_count} tracks from "${d.album_title}"`, 'success');
+                    btn.innerHTML = '<i class="fas fa-check"></i> Queued';
+                } else {
+                    showToast(d.error || 'Failed', 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-download"></i> Download Album';
+                }
+            } catch (e) {
+                showToast('Error', 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-download"></i> Download Album';
+            }
+        });
+
+        // Individual track download buttons
+        _wireSearchButtons(loader);
+
+    } catch (e) {
+        loader.innerHTML = '<div style="padding:12px;color:#e74c3c">Failed to load album</div>';
+    }
+}
+
+function _createMusicSongRow(item) {
+    let videoId = typeof item.id === 'string' ? item.id : (item.id?.videoId || item.videoId || '');
+    if (!isValidYouTubeVideoId(videoId)) return null;
+
+    const title = item.snippet?.title || item.title || 'Unknown';
+    const meta = item.musicMetadata || {};
+    const artist = meta.artist || item.snippet?.channelTitle || '';
+    const album = meta.album || '';
+    const thumbnailUrl = getThumbnailUrl(item);
+    const duration = formatDuration(item.contentDetails?.duration || item.duration);
+    const inLibrary = item.already_in_library === true;
+
+    const el = document.createElement('div');
+    el.className = 'search-song-row';
+    el.innerHTML = `
+        <img src="${thumbnailUrl}" class="search-song-thumb" alt="">
+        <div class="search-song-info">
+            <div class="search-song-title">${title}${inLibrary ? '<span class="in-library-badge">In Library</span>' : ''}</div>
+            <div class="search-song-meta">${_escHtml(artist)}${album ? ' · ' + _escHtml(album) : ''}</div>
+        </div>
+        <span class="search-song-dur">${duration}</span>
+        <button class="result-button download-button" data-video-id="${videoId}" data-title="${_escHtml(artist + ' - ' + title)}" data-thumbnail="${thumbnailUrl}">
+            <i class="fas fa-download"></i>
+        </button>
+    `;
+    return el;
+}
+
+function _createVideoResultElement(item) {
+    let videoId = typeof item.id === 'string' ? item.id : (item.id?.videoId || item.videoId || '');
+    if (!isValidYouTubeVideoId(videoId)) return null;
+
+    const title = item.snippet?.title || item.title || 'Unknown';
+    const channelTitle = item.snippet?.channelTitle || item.channel?.name || '';
+    const thumbnailUrl = getThumbnailUrl(item);
+    const duration = formatDuration(item.contentDetails?.duration || item.duration);
+    const inLibrary = item.already_in_library === true;
+
+    const el = document.createElement('div');
+    el.className = 'search-result';
+    el.innerHTML = `
+        <img class="result-thumbnail" src="${thumbnailUrl}" alt="">
+        <div class="result-info">
+            <div class="result-title">${title}${inLibrary ? '<span class="in-library-badge">In Library</span>' : ''}</div>
+            <div class="result-channel">${channelTitle}</div>
+            <div class="result-duration">${duration}</div>
+            <div class="result-actions">
+                <button class="result-button download-button" data-video-id="${videoId}" data-title="${title}" data-thumbnail="${thumbnailUrl}">
+                    <i class="fas fa-download"></i> Download
+                </button>
             </div>
-        `;
-        
-        resultsContainer.appendChild(resultElement);
-    });
-    
-    console.log('Added event listeners to buttons');
-    
-    // Add event listeners to buttons
-    document.querySelectorAll('.play-button').forEach(button => {
+        </div>
+    `;
+    return el;
+}
+
+function _wireSearchButtons(container) {
+    container.querySelectorAll('.download-button').forEach(button => {
+        if (button._wired) return;
+        button._wired = true;
         button.addEventListener('click', () => {
-            const videoId = button.dataset.videoId;
-            window.open(`https://www.youtube.com/watch?v=${videoId}`, '_blank');
+            openDownloadModal(button.dataset.videoId, button.dataset.title, button.dataset.thumbnail);
         });
     });
-    
-    document.querySelectorAll('.download-button').forEach(button => {
-        button.addEventListener('click', () => {
-            const videoId = button.dataset.videoId;
-            openDownloadModal(videoId, button.dataset.title, button.dataset.thumbnail);
-        });
-    });
+}
+
+function _escHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str || '';
+    return d.innerHTML;
 }
 
 // Helper function to get the best thumbnail URL

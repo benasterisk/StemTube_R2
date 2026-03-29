@@ -689,6 +689,13 @@ class MobileApp {
         const container = document.getElementById('mobileSearchResults');
         container.innerHTML = '';
 
+        // Music Only mode: sectioned layout
+        if (resultsData?.source === 'ytmusic') {
+            this._displayMobileMusic(container, resultsData);
+            return;
+        }
+
+        // Video mode: flat list
         const items = Array.isArray(resultsData)
             ? resultsData
             : (resultsData?.items || resultsData?.results || []);
@@ -698,38 +705,143 @@ class MobileApp {
             return;
         }
 
-        items.forEach(item => {
-            const videoId = this.extractVideoId(item);
-            if (!videoId) return;
+        items.forEach(item => this._appendMobileSearchItem(container, item));
+    }
 
-            const title = item.snippet?.title || item.title || 'Unknown Title';
-            const channel = item.snippet?.channelTitle || item.channelTitle || item.channel?.name || 'Unknown Channel';
-            const thumbnail = this.getThumbnailUrl(item);
-            const duration = this.formatDuration(item.contentDetails?.duration || item.duration || '');
-            const inLibrary = item.already_in_library === true;
-            const musicMeta = item.musicMetadata;
-            const artistLine = (this._searchSource === 'ytmusic' && musicMeta)
-                ? (musicMeta.artist || '') + (musicMeta.album ? ' \u00b7 ' + musicMeta.album : '')
-                : '';
+    _displayMobileMusic(container, data) {
+        const songs = data.items || [];
+        const albums = data.albums || [];
 
-            const div = document.createElement('div');
-            div.className = 'mobile-search-result';
-            div.innerHTML =
-                '<img src="' + (thumbnail || '/static/img/default-thumb.svg') + '" class="mobile-result-thumbnail" alt="' + this.escapeHtml(title) + '">' +
-                '<div class="mobile-result-info">' +
-                    '<div class="mobile-result-title">' + this.escapeHtml(title) + (inLibrary ? ' <span class="mobile-in-library-badge">In Library</span>' : '') + '</div>' +
-                    (artistLine ? '<div class="mobile-result-meta" style="color:var(--mobile-accent)">' + this.escapeHtml(artistLine) + '</div>' : '') +
-                    '<div class="mobile-result-meta">' + this.escapeHtml(channel) + (duration ? ' \u00b7 ' + duration : '') + '</div>' +
-                '</div>' +
-                '<button class="mobile-btn mobile-btn-icon" title="Download"><i class="fas fa-download"></i></button>';
+        if (!songs.length && !albums.length) {
+            container.innerHTML = '<p class="mobile-text-muted">No music results</p>';
+            return;
+        }
 
-            div.querySelector('button').addEventListener('click', () => this.downloadVideo({
-                id: videoId,
-                title,
-                thumbnail
-            }));
-            container.appendChild(div);
-        });
+        // Albums section
+        if (albums.length) {
+            const sec = document.createElement('div');
+            sec.innerHTML = '<div style="font-weight:600;padding:8px 0;font-size:15px;"><i class="fas fa-compact-disc" style="color:var(--mobile-accent)"></i> Albums</div>';
+            const scroll = document.createElement('div');
+            scroll.style.cssText = 'display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch;';
+
+            for (const a of albums) {
+                const card = document.createElement('div');
+                card.style.cssText = 'min-width:120px;max-width:120px;border-radius:8px;overflow:hidden;background:var(--mobile-bg-secondary);flex-shrink:0;cursor:pointer;';
+                card.innerHTML =
+                    '<img src="' + (a.thumbnail || '/static/img/default-thumb.svg') + '" style="width:100%;aspect-ratio:1;object-fit:cover;display:block;">' +
+                    '<div style="padding:6px;">' +
+                        '<div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + this.escapeHtml(a.title) + '</div>' +
+                        '<div style="font-size:11px;color:var(--mobile-text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + this.escapeHtml(a.artist) + '</div>' +
+                    '</div>';
+                card.addEventListener('click', () => this._expandMobileAlbum(container, a.browse_id));
+                scroll.appendChild(card);
+            }
+            sec.appendChild(scroll);
+            container.appendChild(sec);
+        }
+
+        // Songs section
+        if (songs.length) {
+            const sec = document.createElement('div');
+            sec.innerHTML = '<div style="font-weight:600;padding:8px 0;font-size:15px;"><i class="fas fa-music" style="color:var(--mobile-accent)"></i> Songs</div>';
+            for (const item of songs) {
+                this._appendMobileSearchItem(sec, item, true);
+            }
+            container.appendChild(sec);
+        }
+    }
+
+    async _expandMobileAlbum(container, browseId) {
+        // Check if already expanded
+        const existing = container.querySelector('.mobile-album-expanded');
+        if (existing) { existing.remove(); return; }
+
+        const loader = document.createElement('div');
+        loader.className = 'mobile-album-expanded';
+        loader.style.cssText = 'background:var(--mobile-bg-secondary);border-radius:8px;margin:8px 0;padding:12px;';
+        loader.innerHTML = '<div style="text-align:center"><i class="fas fa-spinner fa-spin"></i></div>';
+        // Insert after the albums scroll
+        const albumsSection = container.querySelector('div');
+        if (albumsSection) albumsSection.after(loader);
+        else container.appendChild(loader);
+
+        try {
+            const res = await fetch(`/api/albums/ytmusic/${browseId}`);
+            const data = await res.json();
+            if (!data.success || !data.tracks?.length) {
+                loader.innerHTML = '<div style="color:var(--mobile-text-secondary)">No tracks</div>';
+                return;
+            }
+
+            let html = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
+                '<strong style="flex:1;font-size:14px;">' + this.escapeHtml(data.title) + '</strong>' +
+                '<span style="font-size:12px;color:var(--mobile-text-secondary)">' + data.track_count + ' tracks</span>' +
+                '<button class="mobile-btn mobile-btn-primary mobile-dl-album-btn" data-browse-id="' + browseId + '" style="font-size:12px;padding:4px 10px;"><i class="fas fa-download"></i> Download</button>' +
+                '</div>';
+
+            for (const t of data.tracks) {
+                html += '<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--mobile-border);">' +
+                    '<span style="width:20px;text-align:right;font-size:11px;color:var(--mobile-text-secondary);">' + (t.track_number || '') + '</span>' +
+                    '<div style="flex:1;min-width:0;"><div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + this.escapeHtml(t.title) + '</div></div>' +
+                    '<span style="font-size:11px;color:var(--mobile-text-secondary);">' + (t.duration || '') + '</span>' +
+                    '<button class="mobile-btn mobile-btn-icon mobile-dl-track" data-vid="' + t.video_id + '" data-title="' + this.escapeHtml(t.artist + ' - ' + t.title) + '" style="font-size:11px;"><i class="fas fa-download"></i></button>' +
+                    '</div>';
+            }
+            loader.innerHTML = html;
+
+            // Download Album
+            loader.querySelector('.mobile-dl-album-btn')?.addEventListener('click', async (e) => {
+                const btn = e.target.closest('button');
+                btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                try {
+                    const r = await fetch(`/api/albums/ytmusic/${browseId}/download`, {method: 'POST'});
+                    const d = await r.json();
+                    if (d.success) { alert(`Downloading ${d.track_count} tracks`); btn.innerHTML = '<i class="fas fa-check"></i>'; }
+                    else { alert(d.error || 'Failed'); btn.disabled = false; btn.innerHTML = '<i class="fas fa-download"></i> Download'; }
+                } catch { btn.disabled = false; btn.innerHTML = '<i class="fas fa-download"></i> Download'; }
+            });
+
+            // Individual track downloads
+            loader.querySelectorAll('.mobile-dl-track').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    this.downloadVideo({ id: btn.dataset.vid, title: btn.dataset.title, thumbnail: '' });
+                });
+            });
+
+        } catch (e) {
+            loader.innerHTML = '<div style="color:red">Failed</div>';
+        }
+    }
+
+    _appendMobileSearchItem(container, item, isMusic = false) {
+        const videoId = this.extractVideoId(item);
+        if (!videoId) return;
+
+        const title = item.snippet?.title || item.title || 'Unknown';
+        const channel = item.snippet?.channelTitle || item.channelTitle || '';
+        const thumbnail = this.getThumbnailUrl(item);
+        const duration = this.formatDuration(item.contentDetails?.duration || item.duration || '');
+        const inLibrary = item.already_in_library === true;
+        const meta = item.musicMetadata;
+        const artistLine = (isMusic && meta)
+            ? (meta.artist || '') + (meta.album ? ' · ' + meta.album : '')
+            : '';
+
+        const div = document.createElement('div');
+        div.className = 'mobile-search-result';
+        div.innerHTML =
+            '<img src="' + (thumbnail || '/static/img/default-thumb.svg') + '" class="mobile-result-thumbnail">' +
+            '<div class="mobile-result-info">' +
+                '<div class="mobile-result-title">' + this.escapeHtml(title) + (inLibrary ? ' <span class="mobile-in-library-badge">In Library</span>' : '') + '</div>' +
+                (artistLine ? '<div class="mobile-result-meta" style="color:var(--mobile-accent)">' + this.escapeHtml(artistLine) + '</div>' : '') +
+                '<div class="mobile-result-meta">' + this.escapeHtml(channel) + (duration ? ' · ' + duration : '') + '</div>' +
+            '</div>' +
+            '<button class="mobile-btn mobile-btn-icon"><i class="fas fa-download"></i></button>';
+
+        div.querySelector('button').addEventListener('click', () => this.downloadVideo({
+            id: videoId, title, thumbnail
+        }));
+        container.appendChild(div);
     }
 
     extractVideoId(item) {
