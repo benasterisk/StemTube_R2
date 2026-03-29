@@ -255,7 +255,7 @@
         const btn = document.getElementById('spotifyDownloadAllBtn');
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-download"></i> Download All'; }
 
-        if (typeof loadLibrary === 'function') loadLibrary();
+        if (typeof loadGlobalLibrary === 'function') loadGlobalLibrary();
     }
 
     // ── Individual download events → per-track bars ─────────────

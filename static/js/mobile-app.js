@@ -2197,18 +2197,216 @@ class MobileApp {
     }
 
     async loadGlobalLibrary() {
+        // Dispatch based on current global view
+        switch (this._globalView || 'tracks') {
+            case 'tracks': await this._loadGlobalTracks(); break;
+            case 'artists': await this.renderGlobalArtists(); break;
+            case 'albums': await this.renderGlobalAlbums(); break;
+            case 'stems': await this.renderGlobalStems(); break;
+            default: await this._loadGlobalTracks(); break;
+        }
+    }
+
+    async _loadGlobalTracks() {
         try {
             const res = await fetch('/api/library');
             const data = await res.json();
             this.displayLibrary(data.items || [], 'mobileGlobalList', true);
         } catch (error) {
             console.error('[GlobalLibrary]', error);
-            // Offline mode: show cached songs in global library too
             if (!navigator.onLine) {
                 console.log('[GlobalLibrary] Offline - showing cached songs');
                 const offlineSongs = this.getOfflineSongsMetadata();
                 this.displayLibrary(offlineSongs, 'mobileGlobalList', true, true);
             }
+        }
+    }
+
+    async renderGlobalArtists() {
+        const container = document.getElementById('mobileGlobalList');
+        if (!container) return;
+        container.innerHTML = '<div style="text-align:center;padding:20px"><i class="fas fa-spinner fa-spin"></i></div>';
+
+        try {
+            const res = await fetch('/api/library/global/artists');
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error);
+
+            const artists = data.artists || [];
+            if (artists.length === 0) {
+                container.innerHTML = '<p style="text-align:center;color:var(--mobile-text-secondary)">No artists</p>';
+                return;
+            }
+
+            container.innerHTML = '';
+            for (const artist of artists) {
+                const div = document.createElement('div');
+                div.className = 'mobile-search-result';
+                div.innerHTML =
+                    '<img src="' + (artist.thumbnail || '/static/img/default-thumb.svg') + '" class="mobile-result-thumbnail" style="border-radius:50%">' +
+                    '<div class="mobile-result-info">' +
+                        '<div class="mobile-result-title">' + this.escapeHtml(artist.artist) + '</div>' +
+                        '<div class="mobile-result-meta">' + artist.song_count + ' track' + (artist.song_count !== 1 ? 's' : '') + '</div>' +
+                    '</div>' +
+                    '<i class="fas fa-chevron-right" style="color:var(--mobile-text-secondary)"></i>';
+                div.addEventListener('click', () => this.drillDownGlobalArtist(artist.artist));
+                container.appendChild(div);
+            }
+        } catch (e) {
+            console.error('[GlobalArtists]', e);
+            container.innerHTML = '<p style="text-align:center;color:red">Failed to load artists</p>';
+        }
+    }
+
+    async drillDownGlobalArtist(artistName) {
+        const container = document.getElementById('mobileGlobalList');
+        if (!container) return;
+        container.innerHTML = '<div style="text-align:center;padding:20px"><i class="fas fa-spinner fa-spin"></i></div>';
+
+        try {
+            const res = await fetch(`/api/library/global/artists/${encodeURIComponent(artistName)}/tracks`);
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error);
+
+            const items = data.items || [];
+
+            const header = document.createElement('div');
+            header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:12px;';
+            header.innerHTML =
+                '<button class="mobile-btn mobile-btn-icon" id="mobileGlobalArtistBack"><i class="fas fa-arrow-left"></i></button>' +
+                '<div style="flex:1"><strong>' + this.escapeHtml(artistName) + '</strong><br><span style="font-size:12px;color:var(--mobile-text-secondary)">' + items.length + ' tracks</span></div>';
+            container.innerHTML = '';
+            container.appendChild(header);
+
+            const subList = document.createElement('div');
+            subList.id = 'mobileGlobalArtistTracksList';
+            container.appendChild(subList);
+
+            this.displayLibrary(items, 'mobileGlobalArtistTracksList', true);
+
+            document.getElementById('mobileGlobalArtistBack')?.addEventListener('click', () => this.renderGlobalArtists());
+        } catch (e) {
+            console.error('[GlobalArtistDrill]', e);
+            container.innerHTML = '<p style="text-align:center;color:red">Failed to load artist tracks</p>';
+        }
+    }
+
+    async renderGlobalAlbums() {
+        const container = document.getElementById('mobileGlobalList');
+        if (!container) return;
+        container.innerHTML = '<div style="text-align:center;padding:20px"><i class="fas fa-spinner fa-spin"></i></div>';
+
+        try {
+            const res = await fetch('/api/albums/global');
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error);
+
+            const albums = data.albums || [];
+
+            // Count global singles
+            let singlesCount = 0;
+            try {
+                const singlesRes = await fetch('/api/library/global/albums/singles');
+                const singlesData = await singlesRes.json();
+                if (singlesData.success) singlesCount = (singlesData.items || []).length;
+            } catch (_) {}
+
+            if (albums.length === 0 && singlesCount === 0) {
+                container.innerHTML = '<p style="text-align:center;color:var(--mobile-text-secondary)">No albums</p>';
+                return;
+            }
+
+            container.innerHTML = '';
+
+            for (const album of albums) {
+                const div = document.createElement('div');
+                div.className = 'mobile-search-result';
+                div.innerHTML =
+                    '<img src="' + (album.thumbnail_url || '/static/img/default-thumb.svg') + '" class="mobile-result-thumbnail">' +
+                    '<div class="mobile-result-info">' +
+                        '<div class="mobile-result-title">' + this.escapeHtml(album.name) + '</div>' +
+                        '<div class="mobile-result-meta">' + this.escapeHtml(album.artist || '') + ' &middot; ' + album.track_count + ' tracks</div>' +
+                    '</div>' +
+                    '<i class="fas fa-chevron-right" style="color:var(--mobile-text-secondary)"></i>';
+                div.addEventListener('click', () => this.drillDownGlobalAlbum(album.id, album.name));
+                container.appendChild(div);
+            }
+
+            // Singles group
+            if (singlesCount > 0) {
+                const div = document.createElement('div');
+                div.className = 'mobile-search-result';
+                div.innerHTML =
+                    '<div class="mobile-result-thumbnail" style="display:flex;align-items:center;justify-content:center;background:var(--mobile-bg-secondary);border-radius:6px;font-size:20px;"><i class="fas fa-music"></i></div>' +
+                    '<div class="mobile-result-info">' +
+                        '<div class="mobile-result-title">(Singles)</div>' +
+                        '<div class="mobile-result-meta">' + singlesCount + ' tracks</div>' +
+                    '</div>' +
+                    '<i class="fas fa-chevron-right" style="color:var(--mobile-text-secondary)"></i>';
+                div.addEventListener('click', () => this.drillDownGlobalAlbum(null, '(Singles)'));
+                container.appendChild(div);
+            }
+        } catch (e) {
+            console.error('[GlobalAlbums]', e);
+            container.innerHTML = '<p style="text-align:center;color:red">Failed to load albums</p>';
+        }
+    }
+
+    async drillDownGlobalAlbum(albumId, albumName) {
+        const container = document.getElementById('mobileGlobalList');
+        if (!container) return;
+        container.innerHTML = '<div style="text-align:center;padding:20px"><i class="fas fa-spinner fa-spin"></i></div>';
+
+        try {
+            const url = albumId !== null
+                ? `/api/albums/${albumId}/tracks?scope=global`
+                : '/api/library/global/albums/singles';
+            const res = await fetch(url);
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error);
+
+            const items = data.tracks || data.items || [];
+
+            const header = document.createElement('div');
+            header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:12px;';
+            header.innerHTML =
+                '<button class="mobile-btn mobile-btn-icon" id="mobileGlobalAlbumBack"><i class="fas fa-arrow-left"></i></button>' +
+                '<div style="flex:1"><strong>' + this.escapeHtml(albumName) + '</strong><br><span style="font-size:12px;color:var(--mobile-text-secondary)">' + items.length + ' tracks</span></div>';
+            container.innerHTML = '';
+            container.appendChild(header);
+
+            const subList = document.createElement('div');
+            subList.id = 'mobileGlobalAlbumTracksList';
+            container.appendChild(subList);
+
+            this.displayLibrary(items, 'mobileGlobalAlbumTracksList', true);
+
+            document.getElementById('mobileGlobalAlbumBack')?.addEventListener('click', () => this.renderGlobalAlbums());
+        } catch (e) {
+            console.error('[GlobalAlbumDrill]', e);
+            container.innerHTML = '<p style="text-align:center;color:red">Failed to load album tracks</p>';
+        }
+    }
+
+    async renderGlobalStems() {
+        const container = document.getElementById('mobileGlobalList');
+        if (!container) return;
+        container.innerHTML = '<div style="text-align:center;padding:20px"><i class="fas fa-spinner fa-spin"></i></div>';
+
+        try {
+            const res = await fetch('/api/library/global/stems');
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error);
+
+            const items = data.items || [];
+            if (items.length === 0) {
+                container.innerHTML = '<p style="text-align:center;color:var(--mobile-text-secondary)">No extracted stems in global library</p>';
+                return;
+            }
+            this.displayLibrary(items, 'mobileGlobalList', true);
+        } catch (e) {
+            console.error('[GlobalStems]', e);
+            container.innerHTML = '<p style="text-align:center;color:red">Failed to load stems</p>';
         }
     }
 
@@ -8720,6 +8918,7 @@ class MobileApp {
     // ── Library Views ────────────────────────────────────────────
 
     initLibraryViews() {
+        // My Library view pills
         document.querySelectorAll('.mobile-view-pill[data-mobile-view]').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.mobile-view-pill[data-mobile-view]').forEach(b => b.classList.remove('active'));
@@ -8730,6 +8929,17 @@ class MobileApp {
         });
         this._currentLibraryView = 'playlists';
         this._libraryData = this._libraryData || [];
+
+        // Global Library view pills
+        this._globalView = 'tracks';
+        document.querySelectorAll('.mobile-view-pill[data-global-mobile-view]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.mobile-view-pill[data-global-mobile-view]').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this._globalView = btn.dataset.globalMobileView;
+                this.loadGlobalLibrary();
+            });
+        });
     }
 
     renderLibraryView() {

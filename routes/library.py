@@ -471,6 +471,256 @@ def add_library_extraction_to_user(global_download_id):
 
 
 # ------------------------------------------------------------------
+# Global Library Category APIs
+# ------------------------------------------------------------------
+
+@library_bp.route('/api/library/global/artists', methods=['GET'])
+@api_login_required
+def list_global_artists():
+    """Return distinct artists from global_downloads with song counts."""
+    try:
+        from core.db.connection import _conn
+        with _conn() as conn:
+            rows = conn.execute("""
+                SELECT
+                    COALESCE(gd.artist, '') as artist,
+                    COUNT(DISTINCT gd.video_id) as song_count,
+                    MIN(gd.thumbnail) as thumbnail
+                FROM global_downloads gd
+                WHERE gd.file_path IS NOT NULL
+                    AND COALESCE(gd.artist, '') != ''
+                GROUP BY COALESCE(gd.artist, '')
+                ORDER BY COALESCE(gd.artist, '') COLLATE NOCASE
+            """).fetchall()
+
+            artists = [
+                {'artist': r['artist'], 'song_count': r['song_count'], 'thumbnail': r['thumbnail']}
+                for r in rows
+            ]
+            return jsonify({'success': True, 'artists': artists})
+    except Exception as e:
+        logger.error(f"list_global_artists error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@library_bp.route('/api/library/global/artists/<path:artist_name>/tracks', methods=['GET'])
+@api_login_required
+def list_global_artist_tracks(artist_name):
+    """Return tracks for a specific artist in the global library."""
+    try:
+        import sqlite3
+        from pathlib import Path
+        DB_PATH = Path("stemtubes.db")
+
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("""
+                SELECT
+                    gd.id, gd.video_id, gd.title, gd.artist, gd.album,
+                    gd.duration, gd.thumbnail, gd.extracted, gd.extraction_model,
+                    gd.detected_bpm, gd.detected_key, gd.file_path, gd.created_at,
+                    gd.media_type, gd.quality,
+                    COUNT(DISTINCT ud.user_id) as user_count,
+                    CASE WHEN ua.user_id IS NOT NULL THEN 1 ELSE 0 END as user_has_access,
+                    ua.file_path as user_file_path,
+                    ua.extracted as user_extracted
+                FROM global_downloads gd
+                LEFT JOIN user_downloads ud ON gd.id = ud.global_download_id
+                LEFT JOIN user_downloads ua ON gd.id = ua.global_download_id AND ua.user_id = ?
+                WHERE gd.file_path IS NOT NULL AND COALESCE(gd.artist, '') = ?
+                GROUP BY gd.id
+                ORDER BY gd.title COLLATE NOCASE
+            """, (current_user.id, artist_name)).fetchall()
+
+            items = []
+            for item in rows:
+                has_download = bool(item['file_path'])
+                has_extraction = bool(item['extracted'])
+                user_has_download_access = bool(item['user_has_access'] and item['user_file_path'])
+                user_has_extraction_access = bool(item['user_has_access'] and item['user_extracted'])
+
+                items.append({
+                    'id': item['id'],
+                    'video_id': item['video_id'],
+                    'title': item['title'],
+                    'artist': item['artist'],
+                    'album': item['album'],
+                    'duration': item['duration'],
+                    'thumbnail_url': item['thumbnail'],
+                    'thumbnail': item['thumbnail'],
+                    'media_type': item['media_type'],
+                    'quality': item['quality'],
+                    'created_at': item['created_at'],
+                    'user_count': item['user_count'],
+                    'file_path': item['file_path'] if has_download else None,
+                    'has_download': has_download,
+                    'has_extraction': has_extraction,
+                    'extracted': has_extraction,
+                    'user_has_download_access': user_has_download_access,
+                    'user_has_extraction_access': user_has_extraction_access,
+                    'can_add_download': has_download and not user_has_download_access,
+                    'can_add_extraction': has_extraction and not user_has_extraction_access,
+                    'badge_type': 'both' if (has_download and has_extraction) else ('download' if has_download else 'extraction'),
+                })
+
+            return jsonify({'success': True, 'items': items})
+    except Exception as e:
+        logger.error(f"list_global_artist_tracks error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@library_bp.route('/api/library/global/stems', methods=['GET'])
+@api_login_required
+def list_global_stems():
+    """Return only extracted tracks from global_downloads."""
+    try:
+        import sqlite3
+        from pathlib import Path
+        DB_PATH = Path("stemtubes.db")
+
+        search_query = request.args.get('search', '').strip()
+
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+
+            query = """
+                SELECT
+                    gd.id, gd.video_id, gd.title, gd.artist, gd.album,
+                    gd.duration, gd.thumbnail, gd.extracted, gd.extraction_model,
+                    gd.detected_bpm, gd.detected_key, gd.file_path, gd.created_at,
+                    gd.media_type, gd.quality,
+                    COUNT(DISTINCT ud.user_id) as user_count,
+                    CASE WHEN ua.user_id IS NOT NULL THEN 1 ELSE 0 END as user_has_access,
+                    ua.file_path as user_file_path,
+                    ua.extracted as user_extracted
+                FROM global_downloads gd
+                LEFT JOIN user_downloads ud ON gd.id = ud.global_download_id
+                LEFT JOIN user_downloads ua ON gd.id = ua.global_download_id AND ua.user_id = ?
+                WHERE gd.extracted = 1
+            """
+            params = [current_user.id]
+
+            if search_query:
+                query += " AND (gd.title LIKE ? OR gd.artist LIKE ?)"
+                search_param = f"%{search_query}%"
+                params.extend([search_param, search_param])
+
+            query += " GROUP BY gd.id ORDER BY gd.created_at DESC"
+
+            rows = conn.execute(query, params).fetchall()
+
+            items = []
+            for item in rows:
+                has_download = bool(item['file_path'])
+                has_extraction = bool(item['extracted'])
+                user_has_download_access = bool(item['user_has_access'] and item['user_file_path'])
+                user_has_extraction_access = bool(item['user_has_access'] and item['user_extracted'])
+
+                file_size = None
+                if item['file_path'] and os.path.exists(item['file_path']):
+                    try:
+                        file_size = os.path.getsize(item['file_path'])
+                    except Exception:
+                        pass
+
+                items.append({
+                    'id': item['id'],
+                    'video_id': item['video_id'],
+                    'title': item['title'],
+                    'artist': item['artist'],
+                    'thumbnail_url': item['thumbnail'],
+                    'thumbnail': item['thumbnail'],
+                    'media_type': item['media_type'],
+                    'quality': item['quality'],
+                    'created_at': item['created_at'],
+                    'user_count': item['user_count'],
+                    'file_size': file_size,
+                    'file_path': item['file_path'] if has_download else None,
+                    'has_download': has_download,
+                    'has_extraction': has_extraction,
+                    'extracted': has_extraction,
+                    'extraction_model': item['extraction_model'],
+                    'user_has_download_access': user_has_download_access,
+                    'user_has_extraction_access': user_has_extraction_access,
+                    'can_add_download': has_download and not user_has_download_access,
+                    'can_add_extraction': has_extraction and not user_has_extraction_access,
+                    'badge_type': 'both' if (has_download and has_extraction) else ('download' if has_download else 'extraction'),
+                })
+
+            return jsonify({
+                'success': True,
+                'items': items,
+                'total_count': len(items),
+            })
+    except Exception as e:
+        logger.error(f"list_global_stems error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@library_bp.route('/api/library/global/albums/singles', methods=['GET'])
+@api_login_required
+def list_global_singles():
+    """Return tracks with no album in the global library."""
+    try:
+        import sqlite3
+        from pathlib import Path
+        DB_PATH = Path("stemtubes.db")
+
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("""
+                SELECT
+                    gd.id, gd.video_id, gd.title, gd.artist, gd.album,
+                    gd.duration, gd.thumbnail, gd.extracted, gd.extraction_model,
+                    gd.detected_bpm, gd.detected_key, gd.file_path, gd.created_at,
+                    gd.media_type, gd.quality,
+                    COUNT(DISTINCT ud.user_id) as user_count,
+                    CASE WHEN ua.user_id IS NOT NULL THEN 1 ELSE 0 END as user_has_access,
+                    ua.file_path as user_file_path,
+                    ua.extracted as user_extracted
+                FROM global_downloads gd
+                LEFT JOIN user_downloads ud ON gd.id = ud.global_download_id
+                LEFT JOIN user_downloads ua ON gd.id = ua.global_download_id AND ua.user_id = ?
+                WHERE gd.file_path IS NOT NULL AND (gd.album_id IS NULL)
+                GROUP BY gd.id
+                ORDER BY gd.title COLLATE NOCASE
+            """, (current_user.id,)).fetchall()
+
+            items = []
+            for item in rows:
+                has_download = bool(item['file_path'])
+                has_extraction = bool(item['extracted'])
+                user_has_download_access = bool(item['user_has_access'] and item['user_file_path'])
+                user_has_extraction_access = bool(item['user_has_access'] and item['user_extracted'])
+
+                items.append({
+                    'id': item['id'],
+                    'video_id': item['video_id'],
+                    'title': item['title'],
+                    'artist': item['artist'],
+                    'thumbnail_url': item['thumbnail'],
+                    'thumbnail': item['thumbnail'],
+                    'media_type': item['media_type'],
+                    'created_at': item['created_at'],
+                    'user_count': item['user_count'],
+                    'file_path': item['file_path'] if has_download else None,
+                    'has_download': has_download,
+                    'has_extraction': has_extraction,
+                    'extracted': has_extraction,
+                    'user_has_download_access': user_has_download_access,
+                    'user_has_extraction_access': user_has_extraction_access,
+                    'can_add_download': has_download and not user_has_download_access,
+                    'can_add_extraction': has_extraction and not user_has_extraction_access,
+                    'badge_type': 'both' if (has_download and has_extraction) else ('download' if has_download else 'extraction'),
+                })
+
+            return jsonify({'success': True, 'items': items})
+    except Exception as e:
+        logger.error(f"list_global_singles error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ------------------------------------------------------------------
 # Library Views API (Playlists, Albums, Tracks, Stems, Queue)
 # ------------------------------------------------------------------
 

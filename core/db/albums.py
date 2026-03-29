@@ -93,9 +93,10 @@ def get_album_tracks(album_id, user_id=None):
             """, (user_id, album_id)).fetchall()
         else:
             rows = conn.execute("""
-                SELECT gd.video_id, gd.title, gd.artist, gd.album, gd.duration,
+                SELECT gd.id, gd.video_id, gd.title, gd.artist, gd.album, gd.duration,
                        gd.thumbnail, gd.extracted, gd.extraction_model,
-                       gd.detected_bpm, gd.detected_key, gd.file_path
+                       gd.detected_bpm, gd.detected_key, gd.file_path,
+                       gd.media_type, gd.created_at
                 FROM global_downloads gd
                 WHERE gd.album_id = ? AND gd.file_path IS NOT NULL
                 ORDER BY gd.title COLLATE NOCASE

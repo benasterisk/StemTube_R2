@@ -424,7 +424,7 @@ function performBulkOperation(endpoint, downloadIds, operationName) {
             setTimeout(() => {
                 loadCleanupData(); // Refresh admin table
                 if (typeof loadDownloads === 'function') loadDownloads(); // Refresh My Library
-                if (typeof loadLibrary === 'function') loadLibrary(); // Refresh Global Library
+                if (typeof loadGlobalLibrary === 'function') loadGlobalLibrary(); // Refresh Global Library
                 if (progressDiv) {
                     progressDiv.style.display = 'none';
                 }
@@ -470,7 +470,7 @@ function deleteDownload(videoId) {
             showToast('Download deleted successfully', 'success');
             loadCleanupData(); // Refresh admin table
             if (typeof loadDownloads === 'function') loadDownloads(); // Refresh My Library
-            if (typeof loadLibrary === 'function') loadLibrary(); // Refresh Global Library
+            if (typeof loadGlobalLibrary === 'function') loadGlobalLibrary(); // Refresh Global Library
         } else {
             throw new Error(data.error || 'Delete failed');
         }
@@ -801,26 +801,45 @@ if (document.readyState === 'loading') {
 
 // ============ LIBRARY TAB FUNCTIONS ============
 
+let globalView = 'tracks';
 let currentLibraryFilter = 'all';
 let currentLibrarySearch = '';
 
-// Load library content
+// Escape HTML helper
+function _escGlobal(str) {
+    const d = document.createElement('div');
+    d.textContent = str || '';
+    return d.innerHTML;
+}
+
+// Main dispatcher for global library views
+function loadGlobalLibrary() {
+    switch (globalView) {
+        case 'tracks': loadLibrary(currentLibraryFilter, currentLibrarySearch); break;
+        case 'artists': loadGlobalArtists(); break;
+        case 'albums': loadGlobalAlbums(); break;
+        case 'stems': loadGlobalStems(); break;
+        default: loadLibrary(currentLibraryFilter, currentLibrarySearch); break;
+    }
+}
+
+// Load library content (tracks view - existing behavior)
 function loadLibrary(filter = currentLibraryFilter, search = currentLibrarySearch) {
     const libraryContainer = document.getElementById('libraryContainer');
     if (!libraryContainer) return;
-    
+
     // Show loading state
     libraryContainer.innerHTML = '<div class="library-loading"><i class="fas fa-spinner fa-spin"></i> Loading library...</div>';
-    
+
     // Update current filter and search
     currentLibraryFilter = filter;
     currentLibrarySearch = search;
-    
+
     // Build query parameters
     const params = new URLSearchParams();
     if (filter !== 'all') params.append('filter', filter);
     if (search.trim()) params.append('search', search.trim());
-    
+
     fetch(`/api/library?${params.toString()}`, {
         headers: {
             'X-CSRF-Token': getCsrfToken()
@@ -843,7 +862,232 @@ function loadLibrary(filter = currentLibraryFilter, search = currentLibrarySearc
     });
 }
 
-// Display library items (with sort)
+// ── Global Artists View ────────────────────────────────────────
+async function loadGlobalArtists() {
+    const container = document.getElementById('libraryContainer');
+    if (!container) return;
+    container.innerHTML = '<div class="library-loading"><i class="fas fa-spinner fa-spin"></i> Loading artists...</div>';
+
+    try {
+        const res = await fetch('/api/library/global/artists', { headers: { 'X-CSRF-Token': getCsrfToken() } });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        const artists = data.artists || [];
+        if (artists.length === 0) {
+            container.innerHTML = '<div class="library-loading">No artists found</div>';
+            updateLibraryStats(0, '', '');
+            return;
+        }
+
+        container.innerHTML = '<div class="library-artist-grid"></div>';
+        const grid = container.querySelector('.library-artist-grid');
+
+        for (const artist of artists) {
+            const card = document.createElement('div');
+            card.className = 'library-artist-card';
+            card.innerHTML = `
+                <img src="${artist.thumbnail || '/static/img/default-thumb.svg'}" class="library-artist-thumb" alt="" style="border-radius:50%;">
+                <div class="library-artist-info">
+                    <div class="library-artist-name">${_escGlobal(artist.artist)}</div>
+                    <div class="library-artist-count">${artist.song_count} track${artist.song_count !== 1 ? 's' : ''}</div>
+                </div>
+            `;
+            card.addEventListener('click', () => drillDownGlobalArtist(artist.artist));
+            grid.appendChild(card);
+        }
+
+        updateLibraryStats(artists.length, '', '');
+    } catch (e) {
+        console.error('loadGlobalArtists error:', e);
+        container.innerHTML = '<div class="library-loading">Failed to load artists</div>';
+    }
+}
+
+async function drillDownGlobalArtist(artistName) {
+    const container = document.getElementById('libraryContainer');
+    if (!container) return;
+    container.innerHTML = '<div class="library-loading"><i class="fas fa-spinner fa-spin"></i> Loading tracks...</div>';
+
+    try {
+        const res = await fetch(`/api/library/global/artists/${encodeURIComponent(artistName)}/tracks`, { headers: { 'X-CSRF-Token': getCsrfToken() } });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        const items = data.items || [];
+
+        let html = `<div class="library-drilldown">
+            <div class="library-drilldown-header">
+                <button class="btn btn-small library-back-btn"><i class="fas fa-arrow-left"></i> Back</button>
+                <h3>${_escGlobal(artistName)}</h3>
+                <span>${items.length} tracks</span>
+            </div>
+            <div class="library-drilldown-items"></div>
+        </div>`;
+
+        container.innerHTML = html;
+
+        const itemsContainer = container.querySelector('.library-drilldown-items');
+        for (const item of items) {
+            itemsContainer.appendChild(createLibraryItem(item));
+        }
+
+        container.querySelector('.library-back-btn').addEventListener('click', () => loadGlobalArtists());
+    } catch (e) {
+        console.error('drillDownGlobalArtist error:', e);
+        container.innerHTML = '<div class="library-loading">Failed to load artist tracks</div>';
+    }
+}
+
+// ── Global Albums View ─────────────────────────────────────────
+async function loadGlobalAlbums() {
+    const container = document.getElementById('libraryContainer');
+    if (!container) return;
+    container.innerHTML = '<div class="library-loading"><i class="fas fa-spinner fa-spin"></i> Loading albums...</div>';
+
+    try {
+        const res = await fetch('/api/albums/global', { headers: { 'X-CSRF-Token': getCsrfToken() } });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        const albums = data.albums || [];
+
+        // Also count global singles
+        let singlesCount = 0;
+        try {
+            const singlesRes = await fetch('/api/library/global/albums/singles', { headers: { 'X-CSRF-Token': getCsrfToken() } });
+            const singlesData = await singlesRes.json();
+            if (singlesData.success) singlesCount = (singlesData.items || []).length;
+        } catch (_) {}
+
+        if (albums.length === 0 && singlesCount === 0) {
+            container.innerHTML = '<div class="library-loading">No albums found</div>';
+            updateLibraryStats(0, '', '');
+            return;
+        }
+
+        container.innerHTML = '<div class="library-artist-grid"></div>';
+        const grid = container.querySelector('.library-artist-grid');
+
+        for (const album of albums) {
+            const card = document.createElement('div');
+            card.className = 'library-artist-card';
+            card.innerHTML = `
+                <img src="${album.thumbnail_url || '/static/img/default-thumb.svg'}" class="library-artist-thumb" alt="">
+                <div class="library-artist-info">
+                    <div class="library-artist-name">${_escGlobal(album.name)}</div>
+                    <div class="library-artist-count">${_escGlobal(album.artist || '')}</div>
+                    <div class="library-artist-count">${album.track_count} track${album.track_count !== 1 ? 's' : ''}</div>
+                </div>
+            `;
+            card.addEventListener('click', () => drillDownGlobalAlbum(album.id, album.name));
+            grid.appendChild(card);
+        }
+
+        // Singles group
+        if (singlesCount > 0) {
+            const card = document.createElement('div');
+            card.className = 'library-artist-card';
+            card.innerHTML = `
+                <div class="library-artist-thumb" style="display:flex;align-items:center;justify-content:center;background:var(--bg-secondary);font-size:24px;"><i class="fas fa-music"></i></div>
+                <div class="library-artist-info">
+                    <div class="library-artist-name">(Singles)</div>
+                    <div class="library-artist-count">${singlesCount} track${singlesCount !== 1 ? 's' : ''}</div>
+                </div>
+            `;
+            card.addEventListener('click', () => drillDownGlobalAlbum(null, '(Singles)'));
+            grid.appendChild(card);
+        }
+
+        updateLibraryStats(albums.length + (singlesCount > 0 ? 1 : 0), '', '');
+    } catch (e) {
+        console.error('loadGlobalAlbums error:', e);
+        container.innerHTML = '<div class="library-loading">Failed to load albums</div>';
+    }
+}
+
+async function drillDownGlobalAlbum(albumId, albumName) {
+    const container = document.getElementById('libraryContainer');
+    if (!container) return;
+    container.innerHTML = '<div class="library-loading"><i class="fas fa-spinner fa-spin"></i> Loading tracks...</div>';
+
+    try {
+        const url = albumId !== null
+            ? `/api/albums/${albumId}/tracks?scope=global`
+            : '/api/library/global/albums/singles';
+        const res = await fetch(url, { headers: { 'X-CSRF-Token': getCsrfToken() } });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        const items = data.tracks || data.items || [];
+
+        let html = `<div class="library-drilldown">
+            <div class="library-drilldown-header">
+                <button class="btn btn-small library-back-btn"><i class="fas fa-arrow-left"></i> Back</button>
+                <h3>${_escGlobal(albumName)}</h3>
+                <span>${items.length} tracks</span>
+            </div>
+            <div class="library-drilldown-items"></div>
+        </div>`;
+
+        container.innerHTML = html;
+
+        const itemsContainer = container.querySelector('.library-drilldown-items');
+        for (const item of items) {
+            // Album track API may return slightly different shape - normalize
+            const libItem = {
+                id: item.id,
+                video_id: item.video_id,
+                title: item.title,
+                thumbnail_url: item.thumbnail_url || item.thumbnail,
+                media_type: item.media_type,
+                created_at: item.created_at,
+                user_count: item.user_count || 0,
+                file_path: item.file_path,
+                file_size: item.file_size,
+                has_download: !!item.file_path,
+                has_extraction: !!item.extracted,
+                can_add_download: item.can_add_download !== undefined ? item.can_add_download : !!item.file_path,
+                can_add_extraction: item.can_add_extraction !== undefined ? item.can_add_extraction : !!item.extracted,
+                user_has_download_access: item.user_has_download_access || false,
+                user_has_extraction_access: item.user_has_extraction_access || false,
+                badge_type: item.badge_type || (item.extracted ? 'extraction' : 'download'),
+            };
+            itemsContainer.appendChild(createLibraryItem(libItem));
+        }
+
+        container.querySelector('.library-back-btn').addEventListener('click', () => loadGlobalAlbums());
+    } catch (e) {
+        console.error('drillDownGlobalAlbum error:', e);
+        container.innerHTML = '<div class="library-loading">Failed to load album tracks</div>';
+    }
+}
+
+// ── Global Stems View ──────────────────────────────────────────
+async function loadGlobalStems() {
+    const container = document.getElementById('libraryContainer');
+    if (!container) return;
+    container.innerHTML = '<div class="library-loading"><i class="fas fa-spinner fa-spin"></i> Loading stems...</div>';
+
+    try {
+        const params = new URLSearchParams();
+        const search = currentLibrarySearch;
+        if (search && search.trim()) params.append('search', search.trim());
+
+        const res = await fetch(`/api/library/global/stems?${params.toString()}`, { headers: { 'X-CSRF-Token': getCsrfToken() } });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        const items = data.items || [];
+        displayLibraryItems(items);
+        updateLibraryStats(data.total_count || items.length, 'extractions', search);
+    } catch (e) {
+        console.error('loadGlobalStems error:', e);
+        container.innerHTML = '<div class="library-loading">Failed to load stems</div>';
+    }
+}
+
+// Display library items (with sort) - used by tracks and stems views
 function displayLibraryItems(items) {
     const libraryContainer = document.getElementById('libraryContainer');
 
@@ -1068,43 +1312,41 @@ function formatFileSize(bytes) {
 
 // Initialize library tab event listeners
 document.addEventListener('DOMContentLoaded', () => {
-    // Filter buttons
-    document.querySelectorAll('.filter-button').forEach(button => {
+    // Global view switcher buttons
+    document.querySelectorAll('.global-view-btn').forEach(button => {
         button.addEventListener('click', () => {
-            // Update active filter button
-            document.querySelectorAll('.filter-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.global-view-btn').forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
-            
-            // Load library with new filter
-            const filter = button.dataset.filter;
-            loadLibrary(filter, currentLibrarySearch);
+            globalView = button.dataset.globalView;
+            loadGlobalLibrary();
         });
     });
-    
+
     // Sort functionality for Global Library
     const globalSortSelect = document.getElementById('globalLibrarySort');
     if (globalSortSelect) {
         globalSortSelect.addEventListener('change', () => {
-            loadLibrary(currentLibraryFilter, currentLibrarySearch);
+            loadGlobalLibrary();
         });
     }
 
     // Search functionality
     const searchInput = document.getElementById('librarySearchInput');
     const searchButton = document.getElementById('librarySearchButton');
-    
+
     if (searchButton) {
         searchButton.addEventListener('click', () => {
             const searchQuery = searchInput ? searchInput.value : '';
-            loadLibrary(currentLibraryFilter, searchQuery);
+            currentLibrarySearch = searchQuery;
+            loadGlobalLibrary();
         });
     }
-    
+
     if (searchInput) {
         searchInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                const searchQuery = searchInput.value;
-                loadLibrary(currentLibraryFilter, searchQuery);
+                currentLibrarySearch = searchInput.value;
+                loadGlobalLibrary();
             }
         });
     }

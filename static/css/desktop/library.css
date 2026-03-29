@@ -576,6 +576,32 @@
     font-weight: 600;
 }
 
+/* Global Library view buttons (reuses switcher layout) */
+.global-view-btn {
+    padding: 8px 16px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+    border-radius: 6px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.global-view-btn:hover {
+    color: var(--text-color);
+    background: var(--bg-secondary);
+}
+
+.global-view-btn.active {
+    color: var(--accent-color);
+    background: var(--bg-secondary);
+    font-weight: 600;
+}
+
 /* Sub-view switcher (inside Extracted) */
 .library-sub-switcher {
     display: flex;

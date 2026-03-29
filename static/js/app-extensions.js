@@ -89,7 +89,7 @@ function switchToTab(tabId) {
     if (tabId === 'downloads') {
         loadDownloads(); // Refresh downloads list
     } else if (tabId === 'library') {
-        loadLibrary(); // Load library content
+        loadGlobalLibrary(); // Load global library content
     } else if (tabId === 'admin') {
         // Initialize admin section to users by default
         setTimeout(() => switchAdminSection('users'), 100);

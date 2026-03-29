@@ -534,16 +534,14 @@
                 
                 <div class="tab-content" id="libraryTab">
                     <h2>Global Library</h2>
+                    <div class="library-view-switcher">
+                        <button class="global-view-btn active" data-global-view="tracks"><i class="fas fa-music"></i> Tracks</button>
+                        <button class="global-view-btn" data-global-view="artists"><i class="fas fa-user"></i> Artists</button>
+                        <button class="global-view-btn" data-global-view="albums"><i class="fas fa-compact-disc"></i> Albums</button>
+                        <button class="global-view-btn" data-global-view="stems"><i class="fas fa-sliders-h"></i> Stems</button>
+                    </div>
                     <div class="library-controls">
                         <div class="filter-controls">
-                            <div class="filter-group">
-                                <label>Show:</label>
-                                <div class="filter-buttons">
-                                    <button class="filter-button active" data-filter="all">All</button>
-                                    <button class="filter-button" data-filter="downloads">Downloads</button>
-                                    <button class="filter-button" data-filter="extractions">Extractions</button>
-                                </div>
-                            </div>
                             <div class="search-group">
                                 <input type="text" id="librarySearchInput" placeholder="Search artist, title...">
                                 <button id="librarySearchButton"><i class="fas fa-search"></i></button>
