@@ -489,6 +489,7 @@
         socket.on('spotify_batch_complete', _plOnBatchComplete);
         socket.on('download_complete', _plOnDownloadComplete);
         _plSocketBound = true;
+        console.log('[PL Socket] Bound playlist progress listeners OK');
     }
     _plBindSocket();
 
@@ -540,7 +541,8 @@
     }
 
     function _plOnBatchProgress(data) {
-        if (data.playlist_id !== _plCurrentPlaylistId) return;
+        console.log('[PL Progress]', data.playlist_id, '===', _plCurrentPlaylistId, '?', data.playlist_id == _plCurrentPlaylistId, 'status:', data.status, 'track:', data.track_title?.substring(0,30));
+        if (data.playlist_id != _plCurrentPlaylistId) return;  // loose comparison for int/string
 
         const idx = data.current || 0;
         const total = data.total || 1;
@@ -573,7 +575,8 @@
     }
 
     function _plOnBatchComplete(data) {
-        if (data.playlist_id !== _plCurrentPlaylistId) return;
+        console.log('[PL Complete]', data);
+        if (data.playlist_id != _plCurrentPlaylistId) return;  // loose comparison
 
         const textEl = document.getElementById('plBatchText');
         if (textEl) textEl.textContent = `Done! ${data.downloaded || 0} downloaded, ${data.skipped || 0} existed, ${data.failed || 0} failed`;
