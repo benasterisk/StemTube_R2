@@ -492,6 +492,22 @@
                 
                 <div class="tab-content" id="downloadsTab">
                     <h2>My Library</h2>
+                    <div class="library-toolbar">
+                        <div class="library-search-bar">
+                            <input type="text" id="myLibrarySearch" placeholder="Search artist, title..." class="library-search-input">
+                        </div>
+                        <div class="library-sort-group">
+                            <label>Sort:</label>
+                            <select id="myLibrarySort" class="library-sort-select">
+                                <option value="date-desc">Newest</option>
+                                <option value="date-asc">Oldest</option>
+                                <option value="artist-asc">Artist A-Z</option>
+                                <option value="artist-desc">Artist Z-A</option>
+                                <option value="title-asc">Title A-Z</option>
+                                <option value="title-desc">Title Z-A</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="user-management-controls" id="downloadsManagementControls" style="display: none;">
                         <div class="bulk-actions">
                             <label class="bulk-select">
@@ -520,8 +536,19 @@
                                 </div>
                             </div>
                             <div class="search-group">
-                                <input type="text" id="librarySearchInput" placeholder="Search library...">
+                                <input type="text" id="librarySearchInput" placeholder="Search artist, title...">
                                 <button id="librarySearchButton"><i class="fas fa-search"></i></button>
+                            </div>
+                            <div class="library-sort-group">
+                                <label>Sort:</label>
+                                <select id="globalLibrarySort" class="library-sort-select">
+                                    <option value="date-desc">Newest</option>
+                                    <option value="date-asc">Oldest</option>
+                                    <option value="artist-asc">Artist A-Z</option>
+                                    <option value="artist-desc">Artist Z-A</option>
+                                    <option value="title-asc">Title A-Z</option>
+                                    <option value="title-desc">Title Z-A</option>
+                                </select>
                             </div>
                         </div>
                         <div class="library-stats">

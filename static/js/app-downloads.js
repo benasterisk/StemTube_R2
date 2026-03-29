@@ -795,6 +795,95 @@ function startExtraction() {
     });
 }
 
+// ── Sort/Search helpers ─────────────────────────────────────────
+
+function _parseArtistTitle(title) {
+    // "Artist - Title" → { artist, track }
+    const idx = (title || '').indexOf(' - ');
+    if (idx > 0) {
+        return { artist: title.substring(0, idx).trim(), track: title.substring(idx + 3).trim() };
+    }
+    return { artist: '', track: (title || '').trim() };
+}
+
+function _sortItems(items, sortKey) {
+    const copy = [...items];
+    copy.sort((a, b) => {
+        const pa = _parseArtistTitle(a.title);
+        const pb = _parseArtistTitle(b.title);
+        switch (sortKey) {
+            case 'artist-asc': return pa.artist.localeCompare(pb.artist, undefined, {sensitivity: 'base'}) || pa.track.localeCompare(pb.track, undefined, {sensitivity: 'base'});
+            case 'artist-desc': return pb.artist.localeCompare(pa.artist, undefined, {sensitivity: 'base'}) || pb.track.localeCompare(pa.track, undefined, {sensitivity: 'base'});
+            case 'title-asc': return pa.track.localeCompare(pb.track, undefined, {sensitivity: 'base'});
+            case 'title-desc': return pb.track.localeCompare(pa.track, undefined, {sensitivity: 'base'});
+            case 'date-asc': {
+                const ta = isNaN(a.created_at) ? new Date(a.created_at) : new Date(parseInt(a.created_at) * 1000);
+                const tb = isNaN(b.created_at) ? new Date(b.created_at) : new Date(parseInt(b.created_at) * 1000);
+                return ta - tb;
+            }
+            default: { // date-desc
+                const ta = isNaN(a.created_at) ? new Date(a.created_at) : new Date(parseInt(a.created_at) * 1000);
+                const tb = isNaN(b.created_at) ? new Date(b.created_at) : new Date(parseInt(b.created_at) * 1000);
+                return tb - ta;
+            }
+        }
+    });
+    return copy;
+}
+
+function _filterItems(items, query) {
+    if (!query) return items;
+    const q = query.toLowerCase();
+    return items.filter(item => (item.title || '').toLowerCase().includes(q));
+}
+
+// Cache raw data for re-sort/re-filter without re-fetching
+let _myLibraryRawData = [];
+
+function _renderMyLibrary() {
+    const downloadsContainer = document.getElementById('downloadsContainer');
+    if (!downloadsContainer) return;
+    const sortKey = document.getElementById('myLibrarySort')?.value || 'date-desc';
+    const searchQuery = document.getElementById('myLibrarySearch')?.value || '';
+
+    let items = _filterItems(_myLibraryRawData, searchQuery);
+    items = _sortItems(items, sortKey);
+
+    downloadsContainer.innerHTML = '';
+    if (items.length === 0) {
+        downloadsContainer.innerHTML = '<div class="empty-state">No matches</div>';
+        return;
+    }
+    items.forEach(item => {
+        downloadsContainer.appendChild(createDownloadElement(item));
+    });
+
+    // Batch fetch extraction statuses
+    const completedVideoIds = items
+        .filter(item => item.status === 'completed' && item.video_id)
+        .map(item => item.video_id);
+    if (completedVideoIds.length > 0) {
+        batchUpdateExtractionStatuses(completedVideoIds);
+    }
+    updateDownloadsListForExtraction(items);
+    updateUserManagementControls();
+}
+
+// Init sort/search controls for My Library
+document.addEventListener('DOMContentLoaded', () => {
+    const sortSelect = document.getElementById('myLibrarySort');
+    if (sortSelect) sortSelect.addEventListener('change', () => _renderMyLibrary());
+
+    const searchInput = document.getElementById('myLibrarySearch');
+    if (searchInput) {
+        let debounce;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(debounce);
+            debounce = setTimeout(() => _renderMyLibrary(), 300);
+        });
+    }
+});
+
 // Download and Extraction Management
 function loadDownloads() {
     fetch('/api/downloads', {
@@ -823,33 +912,9 @@ function loadDownloads() {
                 return;
             }
             
-            // Sort downloads by creation time (newest first)
-            data.sort((a, b) => {
-                // Handle different created_at formats (database timestamp vs Unix timestamp)
-                const timeA = isNaN(a.created_at) ? new Date(a.created_at) : new Date(parseInt(a.created_at) * 1000);
-                const timeB = isNaN(b.created_at) ? new Date(b.created_at) : new Date(parseInt(b.created_at) * 1000);
-                return timeB - timeA;
-            });
-            
-            data.forEach(item => {
-                const downloadElement = createDownloadElement(item);
-                downloadsContainer.appendChild(downloadElement);
-            });
-
-            // Batch fetch extraction statuses for all completed downloads
-            const completedVideoIds = data
-                .filter(item => item.status === 'completed' && item.video_id)
-                .map(item => item.video_id);
-
-            if (completedVideoIds.length > 0) {
-                batchUpdateExtractionStatuses(completedVideoIds);
-            }
-
-            // Update left panel if we're on extractions tab
-            updateDownloadsListForExtraction(data);
-            
-            // Update user management controls visibility
-            updateUserManagementControls();
+            // Cache raw data for sort/filter, then render (handles batch status, extraction list, controls)
+            _myLibraryRawData = data;
+            _renderMyLibrary();
         })
         .catch(error => {
             console.error('Error loading downloads:', error);

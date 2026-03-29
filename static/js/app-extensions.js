@@ -208,40 +208,44 @@ function loadExtractionsForMixer() {
 async function updateDownloadsListForExtraction(data) {
     const container = document.getElementById('downloadsListForExtraction');
     if (!container) return;
-    
+
     container.innerHTML = '<div class="loading">Filtering downloads...</div>';
-    
+
     // Filter completed downloads
     const completedDownloads = data.filter(item => item.status === 'completed');
-    
+
     if (completedDownloads.length === 0) {
         container.innerHTML = '<div class="empty-state">No downloads available for extraction</div>';
         return;
     }
-    
-    // Filter downloads based on extraction status
+
+    // Use batch endpoint instead of individual calls (avoids 200+ sequential requests)
+    const videoIds = completedDownloads.map(item => item.video_id).filter(Boolean);
+    let statuses = {};
+    try {
+        const resp = await fetch('/api/downloads/batch-extraction-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
+            body: JSON.stringify({ video_ids: videoIds })
+        });
+        if (resp.ok) {
+            const batchData = await resp.json();
+            statuses = batchData.statuses || {};
+        }
+    } catch (e) {
+        console.warn('Batch extraction status failed:', e);
+    }
+
+    // Filter downloads that need extraction
     const actionableDownloads = [];
-    
+
     for (const item of completedDownloads) {
-        try {
-            // Check extraction status for each download
-            const extractionStatus = await checkExtractionStatus(item.video_id);
-            
-            // Include downloads that are:
-            // 1. Not extracted yet (status: 'not_extracted')
-            // 2. Extracted by someone else but user has no access (status: 'extracted_no_access')
-            if (extractionStatus.status === 'not_extracted' || extractionStatus.status === 'extracted_no_access') {
-                actionableDownloads.push({
-                    ...item,
-                    extractionStatus: extractionStatus
-                });
-            }
-        } catch (error) {
-            console.warn('Error checking extraction status for', item.video_id, error);
-            // On error, assume not extracted and include it
+        const extractionStatus = statuses[item.video_id] || { status: 'not_extracted' };
+
+        if (extractionStatus.status === 'not_extracted' || extractionStatus.status === 'extracted_no_access') {
             actionableDownloads.push({
                 ...item,
-                extractionStatus: { status: 'not_extracted' }
+                extractionStatus: extractionStatus
             });
         }
     }

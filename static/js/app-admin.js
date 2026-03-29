@@ -843,17 +843,23 @@ function loadLibrary(filter = currentLibraryFilter, search = currentLibrarySearc
     });
 }
 
-// Display library items
+// Display library items (with sort)
 function displayLibraryItems(items) {
     const libraryContainer = document.getElementById('libraryContainer');
-    
+
     if (items.length === 0) {
         libraryContainer.innerHTML = '<div class="library-loading">No items found in library</div>';
         return;
     }
-    
+
+    // Apply sort if sort select exists
+    const sortKey = document.getElementById('globalLibrarySort')?.value || 'date-desc';
+    if (typeof _sortItems === 'function') {
+        items = _sortItems(items, sortKey);
+    }
+
     libraryContainer.innerHTML = '';
-    
+
     items.forEach(item => {
         const libraryItem = createLibraryItem(item);
         libraryContainer.appendChild(libraryItem);
@@ -1075,6 +1081,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     
+    // Sort functionality for Global Library
+    const globalSortSelect = document.getElementById('globalLibrarySort');
+    if (globalSortSelect) {
+        globalSortSelect.addEventListener('change', () => {
+            loadLibrary(currentLibraryFilter, currentLibrarySearch);
+        });
+    }
+
     // Search functionality
     const searchInput = document.getElementById('librarySearchInput');
     const searchButton = document.getElementById('librarySearchButton');
