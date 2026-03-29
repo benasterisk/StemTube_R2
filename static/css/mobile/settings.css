@@ -1200,3 +1200,31 @@
     font-size: 0.6rem;
     color: var(--mobile-text-secondary, #aaa);
 }
+
+/* Mobile library view pills */
+.mobile-library-views {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px 0;
+    margin-bottom: 8px;
+}
+
+.mobile-view-pill {
+    padding: 6px 14px;
+    border: 1px solid var(--mobile-border);
+    background: var(--mobile-bg-secondary);
+    color: var(--mobile-text-secondary);
+    border-radius: 20px;
+    font-size: 13px;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mobile-view-pill.active {
+    background: var(--mobile-accent);
+    color: #fff;
+    border-color: var(--mobile-accent);
+}
