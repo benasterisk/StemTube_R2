@@ -127,10 +127,6 @@
                     <i class="fas fa-globe"></i>
                     <span>Global Library</span>
                 </button>
-                <button class="mobile-library-tab" data-library-tab="spotify">
-                    <i class="fab fa-spotify"></i>
-                    <span>StemTify</span>
-                </button>
             </div>
 
             <!-- My Library Content -->
@@ -170,23 +166,6 @@
                 </div>
             </div>
 
-            <!-- Spotify Library Content -->
-            <div class="mobile-library-content" data-library-content="spotify">
-                <div id="mobileSpotifyNotConnected" style="text-align:center; padding:30px; color:var(--mobile-text-secondary);">
-                    <img src="/static/img/stemtify-logo.svg" style="width:48px; height:48px; display:block; margin:0 auto 12px;">
-                    <p>Paste a Spotify playlist URL to import tracks</p>
-                </div>
-                <div id="mobileSpotifyBatchProgress" style="display:none; padding:12px; background:var(--mobile-bg-secondary); border-radius:8px; margin-bottom:12px;">
-                    <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px;">
-                        <span id="mobileSpotifyBatchText">Downloading...</span>
-                        <span id="mobileSpotifyBatchCount"></span>
-                    </div>
-                    <div style="height:4px; background:var(--mobile-border); border-radius:2px; overflow:hidden;">
-                        <div id="mobileSpotifyBatchFill" style="height:100%; background:#1DB954; width:0%; transition:width 0.3s;"></div>
-                    </div>
-                </div>
-                <div id="mobileSpotifyContent"></div>
-            </div>
         </div>
 
         <!-- Mixer Page (loaded when opening a track) -->
@@ -519,29 +498,6 @@
                     </div>
                 </div>
 
-                <!-- Spotify Section -->
-                <div class="mobile-settings-card">
-                    <div class="mobile-settings-card-header">
-                        <h3><img src="/static/img/stemtify-logo.svg" class="stemtify-icon"> StemTify</h3>
-                    </div>
-                    <div class="mobile-settings-card-body">
-                        <div class="mobile-option-group">
-                            <label for="mobileSpotifyClientId">Client ID</label>
-                            <input type="text" id="mobileSpotifyClientId" class="mobile-select" placeholder="Spotify App Client ID">
-                        </div>
-                        <div class="mobile-option-group">
-                            <label for="mobileSpotifyClientSecret">Client Secret</label>
-                            <input type="password" id="mobileSpotifyClientSecret" class="mobile-select" placeholder="Spotify App Client Secret">
-                        </div>
-                        <button class="mobile-btn mobile-btn-primary mobile-btn-full" id="mobileSpotifySaveBtn">
-                            <i class="fas fa-save"></i> Save Credentials
-                        </button>
-                        <button class="mobile-btn mobile-btn-full" id="mobileSpotifyConnectBtn" style="display:none; margin-top:8px;">
-                            <i class="fab fa-spotify"></i> Connect Spotify
-                        </button>
-                        <div id="mobileSpotifyStatus" style="text-align:center; font-size:13px; color:var(--mobile-text-secondary); margin-top:8px;"></div>
-                    </div>
-                </div>
             </div>
         </div>
 

@@ -216,12 +216,17 @@
             const data = await res.json();
             const playlists = data.playlists || [];
 
-            let html = `<div class="library-playlists-header">
+            let html = `
+            <div class="library-import-section" style="display:flex; gap:8px; align-items:center; margin-bottom:16px; padding:10px; background:var(--bg-secondary); border-radius:8px;">
+                <input type="text" id="spotifyImportUrl" placeholder="Paste a Spotify or YouTube playlist URL to import..." style="flex:1; padding:8px 12px; border:1px solid var(--border); border-radius:6px; background:var(--bg-primary); color:var(--text-primary); font-size:14px;">
+                <button class="btn btn-small btn-primary" id="spotifyImportBtn"><i class="fas fa-file-import"></i> Import</button>
+            </div>
+            <div class="library-playlists-header">
                 <button class="btn btn-small btn-primary" id="createPlaylistBtn"><i class="fas fa-plus"></i> New Playlist</button>
             </div>`;
 
             if (playlists.length === 0) {
-                html += '<div class="empty-state">No playlists yet. Create one or import from StemTify.</div>';
+                html += '<div class="empty-state">No playlists yet. Create one or import a Spotify/YouTube playlist above.</div>';
             } else {
                 html += '<div class="library-playlist-grid">';
                 for (const pl of playlists) {
@@ -238,6 +243,32 @@
             }
 
             container.innerHTML = html;
+
+            // Import Spotify/YouTube playlist
+            const importBtn = document.getElementById('spotifyImportBtn');
+            const importInput = document.getElementById('spotifyImportUrl');
+            if (importBtn && importInput) {
+                const doImport = async () => {
+                    const url = importInput.value.trim();
+                    if (!url) { if (typeof showToast === 'function') showToast('Paste a playlist URL first', 'warning'); return; }
+                    importBtn.disabled = true;
+                    importBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                    try {
+                        if (typeof window.importSpotifyPlaylist === 'function') {
+                            const result = await window.importSpotifyPlaylist(url);
+                            if (result) {
+                                importInput.value = '';
+                                renderPlaylistsView();
+                            }
+                        }
+                    } finally {
+                        importBtn.disabled = false;
+                        importBtn.innerHTML = '<i class="fas fa-file-import"></i> Import';
+                    }
+                };
+                importBtn.addEventListener('click', doImport);
+                importInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doImport(); });
+            }
 
             // Create playlist button
             document.getElementById('createPlaylistBtn')?.addEventListener('click', async () => {

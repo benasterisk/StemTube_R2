@@ -159,7 +159,6 @@
                     <button class="tab-button" data-tab="library"><i class="fas fa-globe"></i> Global Library</button>
                     <button class="tab-button" data-tab="mixer"><i class="fas fa-sliders-h"></i> Mixer</button>
                     <button class="tab-button" data-tab="jam"><i class="fas fa-users"></i> Jam</button>
-                    <button class="tab-button" data-tab="spotify"><svg class="stemtify-icon" viewBox="3 4 16 16"><ellipse cx="12" cy="14" rx="7" ry="5" fill="currentColor"/><circle cx="7" cy="8" r="3" fill="currentColor"/><circle cx="7" cy="8" r="1.8" fill="currentColor" opacity=".7"/><circle cx="17" cy="8" r="3" fill="currentColor"/><circle cx="17" cy="8" r="1.8" fill="currentColor" opacity=".7"/><circle cx="10" cy="12.5" r="1" fill="#000"/><circle cx="10.3" cy="12.2" r=".3" fill="#fff"/><circle cx="14" cy="12.5" r="1" fill="#000"/><circle cx="14.3" cy="12.2" r=".3" fill="#fff"/><path d="M6.5,10Q6,5.5 12,5Q18,5.5 17.5,10" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round"/><rect x="4.5" y="9" width="3" height="3.5" rx="1.2" fill="#1DB954"/><rect x="16.5" y="9" width="3" height="3.5" rx="1.2" fill="#1DB954"/></svg> StemTify</button>
                 </div>
                 
                 {% if current_user.is_admin %}
@@ -585,28 +584,6 @@
                     <!-- Jam Session content rendered by jam-tab.js -->
                 </div>
 
-                <div class="tab-content" id="spotifyTab">
-                    <div class="spotify-container">
-                        <div class="spotify-url-bar">
-                            <svg style="width:24px; height:24px;" viewBox="3 4 16 16"><ellipse cx="12" cy="14" rx="7" ry="5" fill="#888"/><circle cx="7" cy="8" r="3" fill="#888"/><circle cx="17" cy="8" r="3" fill="#888"/><circle cx="10" cy="12.5" r="1" fill="#000"/><circle cx="14" cy="12.5" r="1" fill="#000"/><path d="M6.5,10Q6,5.5 12,5Q18,5.5 17.5,10" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round"/><rect x="4.5" y="9" width="3" height="3.5" rx="1.2" fill="#1DB954"/><rect x="16.5" y="9" width="3" height="3.5" rx="1.2" fill="#1DB954"/></svg>
-                            <input type="text" id="spotifyUrlInput" placeholder="Paste a Spotify or YouTube playlist URL..." class="spotify-url-input">
-                            <button id="spotifyFetchBtn" class="btn btn-small btn-primary"><i class="fas fa-search"></i> Load</button>
-                        </div>
-                        <div id="spotifyBatchProgress" style="display:none; margin:12px 0; padding:10px; background:var(--bg-secondary); border-radius:8px;">
-                            <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px;">
-                                <span id="spotifyBatchText">Downloading...</span>
-                                <span id="spotifyBatchCount"></span>
-                            </div>
-                            <div style="height:4px; background:var(--border); border-radius:2px; overflow:hidden;">
-                                <div id="spotifyBatchFill" style="height:100%; background:#1DB954; width:0%; transition:width 0.3s;"></div>
-                            </div>
-                        </div>
-                        <div style="display:flex; gap:16px; margin-top:12px;">
-                            <div id="spotifySavedList" class="spotify-saved-list"></div>
-                            <div id="spotifyTracksContainer" class="spotify-tracks-container"></div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </main>
     </div>

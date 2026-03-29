@@ -173,7 +173,6 @@ class MobileApp {
 
         this.initLibraryViews();
         this.initMobileMiniPlayer();
-        this.initSpotify();
 
         this.log('[MobileApp] Initialization complete');
     }
@@ -8821,10 +8820,13 @@ class MobileApp {
             const data = await res.json();
             const playlists = data.playlists || [];
 
-            let html = '<div style="margin-bottom:10px;text-align:right"><button class="mobile-btn mobile-btn-primary" id="mobileCreatePlaylistBtn"><i class="fas fa-plus"></i> New</button></div>';
+            let html = '<div style="display:flex;gap:6px;margin-bottom:10px;">' +
+                '<button class="mobile-btn mobile-btn-primary" id="mobileImportPlaylistBtn"><i class="fas fa-file-import"></i> Import</button>' +
+                '<button class="mobile-btn mobile-btn-primary" id="mobileCreatePlaylistBtn"><i class="fas fa-plus"></i> New</button>' +
+                '</div>';
 
             if (playlists.length === 0) {
-                html += '<p style="text-align:center;color:var(--mobile-text-secondary)">No playlists yet</p>';
+                html += '<p style="text-align:center;color:var(--mobile-text-secondary)">No playlists yet. Import a Spotify/YouTube playlist or create a new one.</p>';
             }
 
             container.innerHTML = html;
@@ -8842,6 +8844,31 @@ class MobileApp {
                 div.addEventListener('click', () => this.drillDownMobilePlaylist(pl.id));
                 container.appendChild(div);
             }
+
+            document.getElementById('mobileImportPlaylistBtn')?.addEventListener('click', async () => {
+                const url = prompt('Paste a Spotify or YouTube playlist URL:');
+                if (!url || !url.trim()) return;
+                const btn = document.getElementById('mobileImportPlaylistBtn');
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+                try {
+                    const res = await fetch('/api/spotify/playlist', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({url: url.trim()})
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        this.showToast(`Imported "${data.name}" — ${data.track_count} tracks`, 'success');
+                        this.renderMobilePlaylists();
+                    } else {
+                        this.showToast(data.error || 'Failed to import playlist', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Error importing playlist', 'error');
+                } finally {
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-file-import"></i> Import'; }
+                }
+            });
 
             document.getElementById('mobileCreatePlaylistBtn')?.addEventListener('click', async () => {
                 const name = prompt('Playlist name:');
@@ -8965,80 +8992,7 @@ class MobileApp {
         el.shuffle.addEventListener('click', () => pe.toggleShuffle());
     }
 
-    // ── Spotify ──────────────────────────────────────────────────
-
-    initSpotify() {
-        const saveBtn = document.getElementById('mobileSpotifySaveBtn');
-        if (saveBtn) saveBtn.addEventListener('click', () => this.spotifySaveCredentials());
-
-        const connectBtn = document.getElementById('mobileSpotifyConnectBtn');
-        if (connectBtn) connectBtn.addEventListener('click', () => this.spotifyConnect());
-
-        this.spotifyCheckCredentials();
-
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('spotify') === 'connected') {
-            alert('StemTify connected!');
-            window.history.replaceState({}, '', window.location.pathname);
-            this.spotifyCheckCredentials();
-        }
-    }
-
-    async spotifyCheckCredentials() {
-        try {
-            const res = await fetch('/api/spotify/credentials');
-            const data = await res.json();
-            const connectBtn = document.getElementById('mobileSpotifyConnectBtn');
-            const statusEl = document.getElementById('mobileSpotifyStatus');
-            const notConnected = document.getElementById('mobileSpotifyNotConnected');
-
-            if (data.has_credentials) {
-                if (connectBtn) connectBtn.style.display = '';
-                if (data.connected) {
-                    if (statusEl) statusEl.textContent = '✓ Connected to Spotify';
-                    if (statusEl) statusEl.style.color = '#1DB954';
-                    if (notConnected) notConnected.style.display = 'none';
-                    this.loadSpotifyPlaylists();
-                } else {
-                    if (statusEl) statusEl.textContent = 'Click Connect to authorize';
-                }
-            } else {
-                if (connectBtn) connectBtn.style.display = 'none';
-                if (statusEl) statusEl.textContent = '';
-            }
-        } catch (e) {
-            console.error('[Spotify] checkCredentials error:', e);
-        }
-    }
-
-    async spotifySaveCredentials() {
-        const clientId = document.getElementById('mobileSpotifyClientId')?.value.trim();
-        const clientSecret = document.getElementById('mobileSpotifyClientSecret')?.value.trim();
-        if (!clientId || !clientSecret) { alert('Enter both Client ID and Secret'); return; }
-        try {
-            const res = await fetch('/api/spotify/credentials', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({client_id: clientId, client_secret: clientSecret})
-            });
-            const data = await res.json();
-            if (data.success) {
-                alert('Credentials saved!');
-                this.spotifyCheckCredentials();
-            } else {
-                alert(data.error || 'Failed');
-            }
-        } catch (e) { alert('Error saving credentials'); }
-    }
-
-    async spotifyConnect() {
-        try {
-            const res = await fetch('/api/spotify/auth');
-            const data = await res.json();
-            if (data.auth_url) window.location.href = data.auth_url;
-            else alert(data.error || 'Failed');
-        } catch (e) { alert('Error'); }
-    }
+    // ── Spotify / Playlist Import ──────────────────────────────────
 
     async loadSpotifyPlaylists() {
         const container = document.getElementById('mobileSpotifyContent');
