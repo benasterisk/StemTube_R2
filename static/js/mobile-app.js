@@ -171,6 +171,7 @@ class MobileApp {
         this.restoreState();
 
         this.initLibraryViews();
+        this.initMobileMiniPlayer();
         this.initSpotify();
 
         this.log('[MobileApp] Initialization complete');
@@ -8863,7 +8864,7 @@ class MobileApp {
     }
 
     async playMobileQueue(videoIds) {
-        if (!videoIds || !videoIds.length) return;
+        if (!videoIds || !videoIds.length || !window.playerEngine) return;
         try {
             const res = await fetch('/api/library/queue', {
                 method: 'POST',
@@ -8873,49 +8874,66 @@ class MobileApp {
             const data = await res.json();
             if (!data.success || !data.queue.length) return;
 
-            this._mobileQueue = data.queue;
-            this._mobileQueueIndex = 0;
-            this.playMobileQueueTrack(0);
+            window.playerEngine.loadQueue(data.queue);
+            window.playerEngine.play(0);
         } catch (e) { alert('Playback error'); }
     }
 
-    playMobileQueueTrack(index) {
-        if (!this._mobileQueue || index < 0 || index >= this._mobileQueue.length) return;
-        this._mobileQueueIndex = index;
-        const track = this._mobileQueue[index];
-        // Use existing media player sheet
-        if (this.mediaPlayerSheet) {
-            const streamUrl = `/api/stream-audio?file_path=${encodeURIComponent(track.file_path)}`;
-            if (this.mediaPlayerTitle) {
-                this.mediaPlayerTitle.textContent = `${track.artist || ''} - ${track.title}`;
-            }
+    initMobileMiniPlayer() {
+        const pe = window.playerEngine;
+        if (!pe) return;
 
-            if (this.mediaPlayerBody) {
-                this.mediaPlayerBody.innerHTML = '';
-                // Queue controls
-                const queueBar = document.createElement('div');
-                queueBar.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:12px;padding:8px;margin-bottom:8px;';
-                queueBar.innerHTML =
-                    '<button class="mobile-btn mobile-btn-icon mobile-q-prev" ' + (index === 0 ? 'disabled' : '') + '><i class="fas fa-step-backward"></i></button>' +
-                    '<span style="font-size:13px;color:var(--mobile-text-secondary)">' + (index+1) + ' / ' + this._mobileQueue.length + '</span>' +
-                    '<button class="mobile-btn mobile-btn-icon mobile-q-next" ' + (index >= this._mobileQueue.length-1 ? 'disabled' : '') + '><i class="fas fa-step-forward"></i></button>';
-                this.mediaPlayerBody.appendChild(queueBar);
-                queueBar.querySelector('.mobile-q-prev')?.addEventListener('click', () => this.playMobileQueueTrack(this._mobileQueueIndex - 1));
-                queueBar.querySelector('.mobile-q-next')?.addEventListener('click', () => this.playMobileQueueTrack(this._mobileQueueIndex + 1));
+        const el = {
+            bar: document.getElementById('mobileMiniPlayer'),
+            title: document.getElementById('mobileMiniTitle'),
+            artist: document.getElementById('mobileMiniArtist'),
+            thumb: document.getElementById('mobileMiniThumb'),
+            playPause: document.getElementById('mobileMiniPlayPause'),
+            prev: document.getElementById('mobileMiniPrev'),
+            next: document.getElementById('mobileMiniNext'),
+            shuffle: document.getElementById('mobileMiniShuffle'),
+            progressFill: document.getElementById('mobileMiniProgressFill'),
+        };
+        if (!el.bar) return;
 
-                const audio = document.createElement('audio');
-                audio.controls = true;
-                audio.style.width = '100%';
-                audio.src = streamUrl;
-                audio.onended = () => {
-                    if (this._mobileQueueIndex < this._mobileQueue.length - 1) {
-                        this.playMobileQueueTrack(this._mobileQueueIndex + 1);
-                    }
-                };
-                this.mediaPlayerBody.appendChild(audio);
-            }
-            this.mediaPlayerSheet.classList.add('active');
+        function show() {
+            el.bar.style.display = 'flex';
+            document.body.classList.add('mobile-player-active');
         }
+        function hide() {
+            el.bar.style.display = 'none';
+            document.body.classList.remove('mobile-player-active');
+        }
+
+        pe.on('trackchange', (data) => {
+            if (!data.track) return;
+            show();
+            el.title.textContent = data.track.title || '';
+            el.artist.textContent = data.track.artist || '';
+            el.thumb.src = data.track.thumbnail || '/static/img/default-thumb.svg';
+            el.playPause.innerHTML = '<i class="fas fa-pause"></i>';
+            el.prev.disabled = !pe.hasPrev;
+            el.next.disabled = !pe.hasNext;
+        });
+
+        pe.on('play', () => { el.playPause.innerHTML = '<i class="fas fa-pause"></i>'; });
+        pe.on('pause', () => { el.playPause.innerHTML = '<i class="fas fa-play"></i>'; });
+        pe.on('stop', () => hide());
+
+        pe.on('progress', (data) => {
+            if (data.duration > 0) {
+                el.progressFill.style.width = (data.currentTime / data.duration * 100) + '%';
+            }
+        });
+
+        pe.on('shufflechange', (data) => {
+            el.shuffle.classList.toggle('active', data.enabled);
+        });
+
+        el.playPause.addEventListener('click', () => pe.togglePlayPause());
+        el.prev.addEventListener('click', () => pe.prev());
+        el.next.addEventListener('click', () => pe.next());
+        el.shuffle.addEventListener('click', () => pe.toggleShuffle());
     }
 
     // ── Spotify ──────────────────────────────────────────────────

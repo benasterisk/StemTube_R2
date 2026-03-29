@@ -4,84 +4,40 @@
  * Depends on: app-core.js (globals, getCsrfToken, showToast, switchToTab)
  */
 
-// ── Media Player ─────────────────────────────────────────────────
+// ── Media Player — uses PlayerEngine for persistent playback ────
 
 function openMediaPlayer(title, filePath, mediaType) {
-    const modal = document.getElementById('mediaPlayerModal');
-    const titleEl = document.getElementById('mediaPlayerTitle');
-    const bodyEl = document.getElementById('mediaPlayerBody');
-    const modalContent = modal?.querySelector('.media-player-modal');
-    if (!modal || !bodyEl) return;
-
     if (!filePath) {
         showToast('No file available for playback', 'warning');
         return;
     }
 
-    titleEl.textContent = title || 'Now Playing';
-    bodyEl.innerHTML = '';
-
-    const streamUrl = `/api/stream-audio?file_path=${encodeURIComponent(filePath)}`;
-    console.log('[MediaPlayer] Opening:', { title, filePath, mediaType, streamUrl });
-
-    let media;
-    if (mediaType === 'video') {
-        modalContent?.classList.add('video-player');
-        media = document.createElement('video');
-        media.setAttribute('playsinline', '');
-    } else {
-        modalContent?.classList.remove('video-player');
-        media = document.createElement('audio');
+    // Parse artist from title ("Artist - Title" format)
+    let artist = '', trackTitle = title || '';
+    if (title && title.includes(' - ')) {
+        const parts = title.split(' - ', 2);
+        artist = parts[0].trim();
+        trackTitle = parts[1]?.trim() || title;
     }
 
-    media.controls = true;
-    media.preload = 'auto';
-
-    // Error handling - show persistent message in the player itself
-    media.addEventListener('error', () => {
-        const err = media.error;
-        const codes = { 1: 'ABORTED', 2: 'NETWORK', 3: 'DECODE', 4: 'SRC_NOT_SUPPORTED' };
-        const code = codes[err?.code] || 'unknown';
-        const detail = err?.message || '';
-        console.error('[MediaPlayer] Error:', code, detail, '\nURL:', streamUrl, '\nFile:', filePath);
-
-        // Show error directly in the player modal (persistent, not a toast)
-        const errDiv = document.createElement('div');
-        errDiv.style.cssText = 'color:#ff6b6b;padding:12px;text-align:center;font-size:14px;';
-        errDiv.innerHTML = `<p><strong>Playback error: ${code}</strong></p>` +
-            (detail ? `<p style="font-size:12px;opacity:0.7">${detail}</p>` : '') +
-            `<p style="font-size:12px;opacity:0.5;margin-top:8px">File: ${filePath || 'unknown'}</p>` +
-            `<a href="${streamUrl}" target="_blank" style="color:#4d96ff;font-size:12px">Open stream URL directly</a>`;
-        bodyEl.appendChild(errDiv);
-    });
-
-    media.src = streamUrl;
-    bodyEl.appendChild(media);
-    modal.style.display = 'flex';
+    // Use PlayerEngine for persistent playback
+    if (window.playerEngine) {
+        const track = {
+            video_id: '',
+            title: trackTitle,
+            artist: artist,
+            file_path: filePath,
+            thumbnail: '',
+        };
+        window.playerEngine.loadQueue([track]);
+        window.playerEngine.play(0);
+    }
 }
 
 function closeMediaPlayer() {
-    const modal = document.getElementById('mediaPlayerModal');
-    const bodyEl = document.getElementById('mediaPlayerBody');
-    if (!bodyEl) return;
-    const media = bodyEl.querySelector('audio, video');
-    if (media) {
-        media.pause();
-        media.removeAttribute('src');
-        media.load();
-    }
-    bodyEl.innerHTML = '';
-    if (modal) modal.style.display = 'none';
+    // Legacy — now handled by PlayerEngine.stop() via mini-player close button
+    if (window.playerEngine) window.playerEngine.stop();
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-    const closeBtn = document.getElementById('mediaPlayerClose');
-    if (closeBtn) closeBtn.addEventListener('click', closeMediaPlayer);
-    const modal = document.getElementById('mediaPlayerModal');
-    if (modal) modal.addEventListener('click', (e) => {
-        if (e.target === modal) closeMediaPlayer();
-    });
-});
 
 // Search Functions
 function performSearch() {

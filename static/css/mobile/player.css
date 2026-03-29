@@ -1,0 +1,99 @@
+/* ── Mobile Mini Player ─────────────────────────── */
+.mobile-mini-player {
+    position: fixed;
+    bottom: 60px; /* above the nav bar */
+    left: 0;
+    right: 0;
+    height: 56px;
+    background: var(--mobile-bg-secondary, #1a1a2e);
+    border-top: 1px solid var(--mobile-border, #333);
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    gap: 8px;
+    z-index: 1500;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.3);
+}
+
+.mobile-mini-progress {
+    position: absolute;
+    top: -2px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--mobile-border, #333);
+}
+
+.mobile-mini-progress-fill {
+    height: 100%;
+    background: var(--mobile-accent, #1DB954);
+    width: 0%;
+    transition: width 0.3s linear;
+}
+
+.mobile-mini-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.mobile-mini-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.mobile-mini-title {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--mobile-text, #fff);
+}
+
+.mobile-mini-artist {
+    font-size: 11px;
+    color: var(--mobile-text-secondary, #888);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mobile-mini-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--mobile-text, #ccc);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-mini-btn:disabled {
+    opacity: 0.3;
+}
+
+.mobile-mini-btn.play-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+    background: var(--mobile-accent, #1DB954);
+    color: #fff;
+}
+
+.mobile-mini-btn.shuffle-btn.active {
+    color: var(--mobile-accent, #1DB954);
+}
+
+/* Push pages up when mini player is visible */
+body.mobile-player-active .mobile-page {
+    padding-bottom: 56px;
+}

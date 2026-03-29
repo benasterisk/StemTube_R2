@@ -789,16 +789,19 @@
         </div>
     </div>
     
-    <!-- Media Player Modal -->
-    <div class="modal" id="mediaPlayerModal">
-        <div class="modal-content media-player-modal">
-            <div class="modal-header">
-                <h2 id="mediaPlayerTitle">Now Playing</h2>
-                <span class="close-button" id="mediaPlayerClose">&times;</span>
-            </div>
-            <div class="modal-body" id="mediaPlayerBody">
-            </div>
+    <!-- Mini Player Bar -->
+    <div id="miniPlayer" class="mini-player" style="display:none">
+        <div class="mini-player-progress" id="miniProgressBar"><div class="mini-player-progress-fill" id="miniProgressFill"></div></div>
+        <img class="mini-player-thumb" id="miniThumb" src="/static/img/default-thumb.svg" alt="">
+        <div class="mini-player-info" id="miniInfo">
+            <div class="mini-player-title" id="miniTitle">Not playing</div>
+            <div class="mini-player-artist" id="miniArtist"></div>
         </div>
+        <button class="mini-player-btn" id="miniPrev" title="Previous"><i class="fas fa-step-backward"></i></button>
+        <button class="mini-player-btn" id="miniPlayPause" title="Play/Pause"><i class="fas fa-play"></i></button>
+        <button class="mini-player-btn" id="miniNext" title="Next"><i class="fas fa-step-forward"></i></button>
+        <button class="mini-player-btn" id="miniShuffle" title="Shuffle"><i class="fas fa-random"></i></button>
+        <button class="mini-player-btn" id="miniClose" title="Stop"><i class="fas fa-times"></i></button>
     </div>
 
     <!-- Toast Notifications -->
@@ -827,6 +830,7 @@
     <script src="{{ url_for('static', filename='js/app-extensions.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/jam-client.js') }}"></script>
     <script src="{{ url_for('static', filename='js/jam-tab.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/player-engine.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/app-library.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/app-spotify.js') }}?v={{ cache_buster }}"></script>
 

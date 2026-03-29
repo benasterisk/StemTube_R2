@@ -963,6 +963,20 @@
         </div>
     </div>
 
+    <!-- Mobile Mini Player -->
+    <div id="mobileMiniPlayer" class="mobile-mini-player" style="display:none">
+        <div class="mobile-mini-progress"><div class="mobile-mini-progress-fill" id="mobileMiniProgressFill"></div></div>
+        <img class="mobile-mini-thumb" id="mobileMiniThumb" src="/static/img/default-thumb.svg" alt="">
+        <div class="mobile-mini-info">
+            <div class="mobile-mini-title" id="mobileMiniTitle">Not playing</div>
+            <div class="mobile-mini-artist" id="mobileMiniArtist"></div>
+        </div>
+        <button class="mobile-mini-btn" id="mobileMiniPrev"><i class="fas fa-step-backward"></i></button>
+        <button class="mobile-mini-btn play-btn" id="mobileMiniPlayPause"><i class="fas fa-play"></i></button>
+        <button class="mobile-mini-btn" id="mobileMiniNext"><i class="fas fa-step-forward"></i></button>
+        <button class="mobile-mini-btn shuffle-btn" id="mobileMiniShuffle"><i class="fas fa-random"></i></button>
+    </div>
+
     <!-- Bottom Navigation -->
     <nav class="mobile-bottom-nav">
         {% if enable_youtube %}
@@ -1530,6 +1544,7 @@
     <script src="{{ url_for('static', filename='js/mobile-neumorphic-dial.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/recording-utils.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/mobile-recording.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/player-engine.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/mobile-app.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/mobile-admin.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/pwa-init.js') }}?v={{ cache_buster }}"></script>

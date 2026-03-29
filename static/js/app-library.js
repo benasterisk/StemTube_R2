@@ -124,6 +124,8 @@
 
     // ── Extracted View ──────────────────────────────────────────
 
+    let extractedSubView = 'songs'; // 'songs' or 'artists'
+
     function renderExtractedView(data) {
         const container = document.getElementById('downloadsContainer');
         if (!container) return;
@@ -143,16 +145,61 @@
             return;
         }
 
-        container.innerHTML = '';
-        extracted.forEach(item => {
-            if (typeof createDownloadElement === 'function') {
-                container.appendChild(createDownloadElement(item));
-            }
+        // Sub-view switcher
+        let html = `<div class="library-sub-switcher">
+            <button class="library-sub-btn ${extractedSubView === 'songs' ? 'active' : ''}" data-subview="songs">All Songs</button>
+            <button class="library-sub-btn ${extractedSubView === 'artists' ? 'active' : ''}" data-subview="artists">By Artist</button>
+            <span style="flex:1"></span>
+            <button class="btn btn-small btn-primary" id="extractedPlayAllBtn"><i class="fas fa-play"></i> Play All</button>
+        </div><div id="extractedContent"></div>`;
+        container.innerHTML = html;
+
+        container.querySelectorAll('.library-sub-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                extractedSubView = btn.dataset.subview;
+                renderExtractedView(data);
+            });
         });
 
-        const videoIds = extracted.filter(s => s.video_id).map(s => s.video_id);
-        if (videoIds.length > 0 && typeof batchUpdateExtractionStatuses === 'function') {
-            batchUpdateExtractionStatuses(videoIds);
+        container.querySelector('#extractedPlayAllBtn')?.addEventListener('click', () => {
+            playQueue(extracted.filter(s => s.file_path).map(s => s.video_id));
+        });
+
+        const content = document.getElementById('extractedContent');
+        if (extractedSubView === 'artists') {
+            // Group by artist
+            const artistMap = {};
+            for (const item of extracted) {
+                const artist = item.artist || '(Unknown)';
+                if (!artistMap[artist]) artistMap[artist] = { songs: [], thumbnail: item.thumbnail_url || item.thumbnail || '' };
+                artistMap[artist].songs.push(item);
+            }
+            const sorted = Object.entries(artistMap).sort((a, b) => a[0].localeCompare(b[0], undefined, {sensitivity: 'base'}));
+            content.innerHTML = '<div class="library-artist-grid"></div>';
+            const grid = content.querySelector('.library-artist-grid');
+            for (const [artist, info] of sorted) {
+                const card = document.createElement('div');
+                card.className = 'library-artist-card';
+                card.innerHTML = `
+                    <img src="${info.thumbnail || '/static/img/default-thumb.svg'}" class="library-artist-thumb" alt="">
+                    <div class="library-artist-info">
+                        <div class="library-artist-name">${_esc(artist)}</div>
+                        <div class="library-artist-count">${info.songs.length} stem${info.songs.length > 1 ? 's' : ''}</div>
+                    </div>`;
+                card.addEventListener('click', () => drillDownArtist(artist, info.songs));
+                grid.appendChild(card);
+            }
+        } else {
+            // Flat list
+            extracted.forEach(item => {
+                if (typeof createDownloadElement === 'function') {
+                    content.appendChild(createDownloadElement(item));
+                }
+            });
+            const videoIds = extracted.filter(s => s.video_id).map(s => s.video_id);
+            if (videoIds.length > 0 && typeof batchUpdateExtractionStatuses === 'function') {
+                batchUpdateExtractionStatuses(videoIds);
+            }
         }
     }
 
@@ -280,13 +327,11 @@
         }
     }
 
-    // ── Playlist Player (Queue) ─────────────────────────────────
-
-    let playbackQueue = [];
-    let playbackIndex = -1;
+    // ── Playlist Player via PlayerEngine ���──────────────────────
 
     async function playQueue(videoIds) {
         if (!videoIds || videoIds.length === 0) return;
+        if (!window.playerEngine) { console.error('PlayerEngine not loaded'); return; }
 
         try {
             const res = await fetch('/api/library/queue', {
@@ -300,59 +345,95 @@
                 return;
             }
 
-            playbackQueue = data.queue;
-            playbackIndex = 0;
-            playTrack(playbackIndex);
+            window.playerEngine.loadQueue(data.queue);
+            window.playerEngine.play(0);
         } catch (e) {
             if (typeof showToast === 'function') showToast('Failed to start playback', 'error');
         }
     }
 
-    function playTrack(index) {
-        if (index < 0 || index >= playbackQueue.length) return;
-        playbackIndex = index;
-        const track = playbackQueue[index];
-        const streamUrl = `/api/stream-audio?file_path=${encodeURIComponent(track.file_path)}`;
+    // Expose playQueue globally
+    window.playQueue = playQueue;
 
-        // Use existing media player modal
-        if (typeof openMediaPlayer === 'function') {
-            openMediaPlayer(`${track.artist || ''} - ${track.title}`, track.file_path, 'audio');
+    // ── Mini Player UI wiring ───────────────────────────────────
+
+    function initMiniPlayer() {
+        const pe = window.playerEngine;
+        if (!pe) return;
+
+        const el = {
+            bar: document.getElementById('miniPlayer'),
+            title: document.getElementById('miniTitle'),
+            artist: document.getElementById('miniArtist'),
+            thumb: document.getElementById('miniThumb'),
+            playPause: document.getElementById('miniPlayPause'),
+            prev: document.getElementById('miniPrev'),
+            next: document.getElementById('miniNext'),
+            shuffle: document.getElementById('miniShuffle'),
+            close: document.getElementById('miniClose'),
+            progressFill: document.getElementById('miniProgressFill'),
+            progressBar: document.getElementById('miniProgressBar'),
+        };
+
+        if (!el.bar) return;
+
+        // Show/hide mini player
+        function show() {
+            el.bar.style.display = 'flex';
+            document.body.classList.add('player-active');
+        }
+        function hide() {
+            el.bar.style.display = 'none';
+            document.body.classList.remove('player-active');
         }
 
-        // Attach queue controls to the modal
-        setTimeout(() => {
-            const bodyEl = document.getElementById('mediaPlayerBody');
-            if (!bodyEl) return;
+        // Update track info
+        pe.on('trackchange', (data) => {
+            if (!data.track) return;
+            show();
+            el.title.textContent = data.track.title || '';
+            el.artist.textContent = data.track.artist || '';
+            el.thumb.src = data.track.thumbnail || '/static/img/default-thumb.svg';
+            el.playPause.innerHTML = '<i class="fas fa-pause"></i>';
+            el.prev.disabled = !pe.hasPrev;
+            el.next.disabled = !pe.hasNext;
+        });
 
-            const audio = bodyEl.querySelector('audio');
-            if (audio) {
-                // Auto-next on track end
-                audio.onended = () => {
-                    if (playbackIndex < playbackQueue.length - 1) {
-                        playTrack(playbackIndex + 1);
-                    }
-                };
-            }
+        pe.on('play', () => { el.playPause.innerHTML = '<i class="fas fa-pause"></i>'; });
+        pe.on('pause', () => { el.playPause.innerHTML = '<i class="fas fa-play"></i>'; });
+        pe.on('stop', () => hide());
+        pe.on('queueend', () => { el.playPause.innerHTML = '<i class="fas fa-play"></i>'; });
 
-            // Add queue info bar if not already there
-            let queueBar = bodyEl.querySelector('.queue-bar');
-            if (!queueBar) {
-                queueBar = document.createElement('div');
-                queueBar.className = 'queue-bar';
-                bodyEl.insertBefore(queueBar, bodyEl.firstChild);
+        pe.on('progress', (data) => {
+            if (data.duration > 0) {
+                el.progressFill.style.width = (data.currentTime / data.duration * 100) + '%';
             }
-            queueBar.innerHTML = `
-                <button class="btn btn-icon queue-prev" ${index === 0 ? 'disabled' : ''}><i class="fas fa-step-backward"></i></button>
-                <span class="queue-info">${index + 1} / ${playbackQueue.length}</span>
-                <button class="btn btn-icon queue-next" ${index >= playbackQueue.length - 1 ? 'disabled' : ''}><i class="fas fa-step-forward"></i></button>
-            `;
-            queueBar.querySelector('.queue-prev')?.addEventListener('click', () => playTrack(playbackIndex - 1));
-            queueBar.querySelector('.queue-next')?.addEventListener('click', () => playTrack(playbackIndex + 1));
-        }, 100);
+        });
+
+        pe.on('shufflechange', (data) => {
+            el.shuffle.classList.toggle('active', data.enabled);
+        });
+
+        // Button handlers
+        el.playPause.addEventListener('click', () => pe.togglePlayPause());
+        el.prev.addEventListener('click', () => pe.prev());
+        el.next.addEventListener('click', () => pe.next());
+        el.shuffle.addEventListener('click', () => pe.toggleShuffle());
+        el.close.addEventListener('click', () => { pe.stop(); hide(); });
+
+        // Click progress bar to seek
+        el.progressBar?.addEventListener('click', (e) => {
+            const rect = el.progressBar.getBoundingClientRect();
+            const pct = (e.clientX - rect.left) / rect.width;
+            pe.seek(pct * (pe.audio.duration || 0));
+        });
     }
 
-    // Expose playQueue globally for use by StemTify and other modules
-    window.playQueue = playQueue;
+    document.addEventListener('DOMContentLoaded', () => {
+        // Wait for PlayerEngine to be ready
+        if (window.playerEngine) initMiniPlayer();
+        else setTimeout(initMiniPlayer, 500);
+    });
 
     // ── Helpers ──────────────────────────────────────────────────
 
