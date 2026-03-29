@@ -106,12 +106,13 @@
 
         const itemsContainer = container.querySelector('.library-drilldown-items');
         songs.forEach(item => {
+            item.status = item.status || 'completed';
             if (typeof createDownloadElement === 'function') {
                 itemsContainer.appendChild(createDownloadElement(item));
             }
         });
 
-        const videoIds = songs.filter(s => s.video_id && s.status === 'completed').map(s => s.video_id);
+        const videoIds = songs.filter(s => s.video_id).map(s => s.video_id);
         if (videoIds.length > 0 && typeof batchUpdateExtractionStatuses === 'function') {
             batchUpdateExtractionStatuses(videoIds);
         }
@@ -212,6 +213,7 @@
 
             const itemsContainer = container.querySelector('.library-drilldown-items');
             for (const t of tracks) {
+                t.status = t.status || 'completed';
                 if (typeof createDownloadElement === 'function') {
                     itemsContainer.appendChild(createDownloadElement(t));
                 }
@@ -307,6 +309,7 @@
         } else {
             // Flat list
             extracted.forEach(item => {
+                item.status = item.status || 'completed';
                 if (typeof createDownloadElement === 'function') {
                     content.appendChild(createDownloadElement(item));
                 }
@@ -620,6 +623,7 @@
 
     // Expose playQueue globally
     window.playQueue = playQueue;
+    window._showPlaylistDropdown = _showPlaylistDropdown;
 
     // ── Mini Player UI wiring ───────────────────────────────────
 

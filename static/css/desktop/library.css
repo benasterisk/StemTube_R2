@@ -769,3 +769,26 @@
     font-size: 0.85rem;
     color: var(--text-muted);
 }
+
+/* Play All button */
+.library-play-all-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #1DB954, #1ed760);
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(29, 185, 84, 0.3);
+    white-space: nowrap;
+}
+.library-play-all-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(29, 185, 84, 0.4);
+}
+.library-play-all-btn i { font-size: 0.8rem; }

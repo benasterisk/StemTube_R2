@@ -671,18 +671,18 @@ function _displayMusicResults(container, data) {
 
 async function _expandAlbum(cardEl, browseId, container) {
     // Toggle: if already expanded, collapse
-    const existing = cardEl.parentNode.querySelector('.search-album-expanded[data-browse-id="' + browseId + '"]');
+    const existing = cardEl.closest('.search-section').querySelector('.search-album-expanded[data-browse-id="' + browseId + '"]');
     if (existing) { existing.remove(); return; }
 
     // Remove other expansions
-    cardEl.parentNode.querySelectorAll('.search-album-expanded').forEach(el => el.remove());
+    cardEl.closest('.search-section').querySelectorAll('.search-album-expanded').forEach(el => el.remove());
 
     // Loading indicator
     const loader = document.createElement('div');
     loader.className = 'search-album-expanded';
     loader.setAttribute('data-browse-id', browseId);
     loader.innerHTML = '<div style="padding:12px;text-align:center"><i class="fas fa-spinner fa-spin"></i> Loading tracks...</div>';
-    cardEl.after(loader);
+    cardEl.closest('.search-album-grid').after(loader);
 
     try {
         const res = await fetch(`/api/albums/ytmusic/${browseId}`);
@@ -766,6 +766,9 @@ function _createMusicSongRow(item) {
             <div class="search-song-meta">${_escHtml(artist)}${album ? ' · ' + _escHtml(album) : ''}</div>
         </div>
         <span class="search-song-dur">${duration}</span>
+        <button class="result-button add-to-playlist-btn" data-video-id="${videoId}" data-title="${_escHtml(artist + ' - ' + title)}" title="Add to playlist">
+            <i class="fas fa-plus"></i>
+        </button>
         <button class="result-button download-button" data-video-id="${videoId}" data-title="${_escHtml(artist + ' - ' + title)}" data-thumbnail="${thumbnailUrl}">
             <i class="fas fa-download"></i>
         </button>
@@ -807,6 +810,18 @@ function _wireSearchButtons(container) {
         button._wired = true;
         button.addEventListener('click', () => {
             openDownloadModal(button.dataset.videoId, button.dataset.title, button.dataset.thumbnail);
+        });
+    });
+    container.querySelectorAll('.add-to-playlist-btn').forEach(button => {
+        if (button._wired) return;
+        button._wired = true;
+        button.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (typeof window._showPlaylistDropdown === 'function') {
+                window._showPlaylistDropdown(button, button.dataset.videoId);
+            } else {
+                showToast('Open My Library > Playlists first', 'info');
+            }
         });
     });
 }

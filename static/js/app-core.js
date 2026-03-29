@@ -124,9 +124,15 @@ function initializeSocketIO() {
         updateDownloadProgress(data);
     });
     
+    let _dlCompleteDebounce = null;
     socket.on('download_complete', (data) => {
         console.log('Download complete:', data);
         updateDownloadComplete(data);
+        // Debounced library refresh — waits for batch to settle before full reload
+        clearTimeout(_dlCompleteDebounce);
+        _dlCompleteDebounce = setTimeout(() => {
+            if (typeof loadDownloads === 'function') loadDownloads();
+        }, 2000);
     });
     
     socket.on('download_error', (data) => {

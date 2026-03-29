@@ -42,10 +42,19 @@
             });
             const data = await res.json();
             if (!res.ok || !data.success) { showToast(data.error || 'Failed to import playlist', 'error'); return; }
-            showToast(`Loaded "${data.name}" — ${data.track_count} tracks`, 'success');
+            showToast(`Loaded "${data.name}" — ${data.track_count} tracks. Downloading...`, 'success');
             currentPlaylistId = data.playlist_id;
             currentPlaylistName = data.name;
             currentTracks = data.tracks;
+
+            // Auto-start batch download
+            if (data.playlist_id) {
+                fetch(`/api/spotify/playlists/${data.playlist_id}/download`, { method: 'POST' })
+                    .then(r => r.json())
+                    .then(d => { if (d.success) console.log('[StemTify] Auto-download started:', d.track_count, 'tracks'); })
+                    .catch(() => {});
+            }
+
             return data;
         } catch (e) {
             showToast('Error loading playlist', 'error');

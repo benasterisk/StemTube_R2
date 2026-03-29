@@ -1610,8 +1610,8 @@ function updateDownloadProgress(data) {
     // If the element doesn't exist, reload the downloads list
     const downloadElement = document.getElementById(`download-${data.download_id}`);
     if (!downloadElement) {
-        console.warn(`Download element for ID ${data.download_id} not found, refreshing downloads list`);
-        return loadDownloads();
+        // Don't trigger full reload on every progress event — causes flickering
+        return;
     }
 
     try {
