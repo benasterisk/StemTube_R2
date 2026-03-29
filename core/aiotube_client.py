@@ -242,6 +242,111 @@ class AiotubeClient:
         finally:
             conn.close()
 
+    def search_music(self, query: str, max_results: int = 10) -> Dict[str, Any]:
+        """Search YouTube Music for audio tracks. Returns results with album metadata.
+
+        Uses yt-dlp ytsearch with 'music' appended for music-focused results.
+        Results include album info when available from YouTube metadata.
+
+        Args:
+            query: Search query (artist, title, album).
+            max_results: Maximum results.
+
+        Returns:
+            Dict with 'items' list and 'pageInfo', same structure as search_videos.
+        """
+        max_results = min(max(max_results, 1), 30)
+
+        try:
+            ydl_opts = {
+                'quiet': True,
+                'no_warnings': True,
+                'extract_flat': False,  # Need full metadata for album info
+                'skip_download': True,
+                'ignoreerrors': True,
+            }
+            ydl_opts.update(get_youtube_cookies_config())
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                search_results = ydl.extract_info(
+                    f"ytsearch{max_results}:{query}",
+                    download=False
+                )
+
+            entries = search_results.get('entries', []) if search_results else []
+            print(f"[YtDlpClient] Music search for '{query}': {len(entries)} results")
+
+            response = {
+                "items": [],
+                "pageInfo": {"totalResults": len(entries), "resultsPerPage": len(entries)},
+                "source": "ytmusic",
+            }
+
+            for entry in entries:
+                if not entry:
+                    continue
+                try:
+                    video_id = entry.get('id', '')
+                    if not video_id or len(video_id) != 11:
+                        continue
+
+                    title = entry.get('title', '')
+                    artist = entry.get('artist') or entry.get('creator') or entry.get('uploader') or entry.get('channel', '')
+                    album = entry.get('album') or ''
+                    total_seconds = int(entry.get('duration', 0) or 0)
+
+                    # Build ISO duration
+                    duration = ""
+                    if total_seconds > 0:
+                        h, m, s = total_seconds // 3600, (total_seconds % 3600) // 60, total_seconds % 60
+                        duration = "PT"
+                        if h: duration += f"{h}H"
+                        if m or h: duration += f"{m}M"
+                        duration += f"{s}S"
+
+                    # Thumbnail
+                    thumbnail_url = f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
+                    thumbnails = entry.get('thumbnails', [])
+                    for t in thumbnails:
+                        if t.get('width', 0) >= 320:
+                            thumbnail_url = t.get('url', thumbnail_url)
+                            break
+
+                    # Check if already in global library (dedup flag)
+                    already_in_library = False
+                    try:
+                        from core.db.downloads import find_global_download
+                        existing = find_global_download(video_id, 'audio', 'best')
+                        if existing:
+                            already_in_library = True
+                    except Exception:
+                        pass
+
+                    item = {
+                        "id": video_id,
+                        "snippet": {
+                            "title": title,
+                            "channelTitle": artist,
+                            "thumbnails": {"medium": {"url": thumbnail_url}},
+                        },
+                        "contentDetails": {"duration": duration},
+                        "musicMetadata": {
+                            "artist": artist,
+                            "album": album,
+                            "duration_seconds": total_seconds,
+                        },
+                        "already_in_library": already_in_library,
+                    }
+                    response["items"].append(item)
+                except Exception as e:
+                    print(f"[YtDlpClient] Error processing music result: {e}")
+                    continue
+
+            return response
+        except Exception as e:
+            print(f"[YtDlpClient] Music search error: {e}")
+            return {"items": [], "error": str(e), "source": "ytmusic"}
+
     def get_video_info(self, video_id: str) -> Dict[str, Any]:
         """Get detailed information about a specific video."""
         # Check if it's an ID or a URL

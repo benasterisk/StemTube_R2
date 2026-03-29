@@ -43,12 +43,31 @@ downloads_bp = Blueprint('downloads', __name__)
 def search_videos():
     query = request.args.get('query', '')
     max_results = int(request.args.get('max_results', 10))
-    logger.info(f"Search request: query='{query}', max_results={max_results}")
+    source = request.args.get('source', 'youtube')  # 'youtube' or 'ytmusic'
+    logger.info(f"Search request: query='{query}', max_results={max_results}, source={source}")
     if not query:
         return jsonify({'error': 'No query provided'}), 400
     try:
-        response = aiotube_client.search_videos(query, max_results=max_results)
-        logger.info(f"Returning {len(response.get('items', []))} search results")
+        if source == 'ytmusic':
+            # YouTube Music search — returns music-focused results with album metadata
+            response = aiotube_client.search_music(query, max_results=max_results)
+        else:
+            # Standard YouTube search
+            response = aiotube_client.search_videos(query, max_results=max_results)
+
+        # Add dedup flags to standard YouTube results too
+        if source != 'ytmusic':
+            from core.db.downloads import find_global_download
+            for item in response.get('items', []):
+                vid = item.get('id', '')
+                if vid:
+                    try:
+                        existing = find_global_download(vid, 'audio', 'best')
+                        item['already_in_library'] = bool(existing)
+                    except Exception:
+                        item['already_in_library'] = False
+
+        logger.info(f"Returning {len(response.get('items', []))} search results (source={source})")
         return jsonify(response)
     except Exception as e:
         logger.error(f"Search error: {e}")
