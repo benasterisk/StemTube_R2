@@ -407,6 +407,23 @@ def batch_download_playlist(
         tracks: List of track dicts from the playlists table, each containing
                 'spotify_track_id', 'title', 'artist', 'duration_ms', 'video_id'.
     """
+    # Ensure Flask app context for background thread DB operations
+    from core.models import thread_session
+    import importlib
+    try:
+        from flask import current_app
+        current_app._get_current_object()
+        _has_context = True
+    except RuntimeError:
+        _has_context = False
+
+    if not _has_context:
+        app_module = importlib.import_module('app')
+        _app_ctx = app_module.app.app_context()
+        _app_ctx.push()
+    else:
+        _app_ctx = None
+
     total = len(tracks)
     downloaded = 0
     skipped = 0
@@ -532,3 +549,7 @@ def batch_download_playlist(
         f"[Spotify DL] Batch complete: playlist_id={playlist_id}, "
         f"downloaded={downloaded}, skipped={skipped}, failed={failed}"
     )
+
+    # Pop app context if we pushed one
+    if _app_ctx is not None:
+        _app_ctx.pop()
