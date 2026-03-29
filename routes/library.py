@@ -468,3 +468,103 @@ def add_library_extraction_to_user(global_download_id):
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ------------------------------------------------------------------
+# Library Views API (Artists, Songs, Extracted, Queue)
+# ------------------------------------------------------------------
+
+@library_bp.route('/api/library/artists', methods=['GET'])
+@api_login_required
+def list_artists():
+    """Return unique artists with song counts for the current user."""
+    try:
+        from core.db.connection import _conn
+        with _conn() as conn:
+            rows = conn.execute("""
+                SELECT
+                    COALESCE(gd.artist, ud.artist) as artist,
+                    COUNT(DISTINCT ud.video_id) as song_count,
+                    MIN(COALESCE(gd.thumbnail, ud.thumbnail)) as thumbnail
+                FROM user_downloads ud
+                LEFT JOIN global_downloads gd ON ud.global_download_id = gd.id
+                WHERE ud.user_id = ? AND COALESCE(gd.artist, ud.artist) IS NOT NULL
+                    AND COALESCE(gd.artist, ud.artist) != ''
+                GROUP BY COALESCE(gd.artist, ud.artist)
+                ORDER BY COALESCE(gd.artist, ud.artist) COLLATE NOCASE
+            """, (current_user.id,)).fetchall()
+
+            artists = [{'artist': r['artist'], 'song_count': r['song_count'], 'thumbnail': r['thumbnail']} for r in rows]
+            return jsonify({'success': True, 'artists': artists})
+    except Exception as e:
+        logger.error(f"list_artists error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@library_bp.route('/api/library/songs', methods=['GET'])
+@api_login_required
+def list_songs():
+    """Return all songs for the current user with metadata."""
+    try:
+        downloads = db_list_downloads(current_user.id)
+        songs = [{
+            'id': d['id'], 'video_id': d['video_id'], 'title': d.get('title', ''),
+            'artist': d.get('artist', ''), 'album': d.get('album', ''),
+            'duration': d.get('duration'), 'thumbnail': d.get('thumbnail', ''),
+            'detected_bpm': d.get('detected_bpm'), 'detected_key': d.get('detected_key'),
+            'extracted': d.get('extracted', False), 'extraction_model': d.get('extraction_model'),
+            'file_path': d.get('file_path'), 'created_at': d.get('created_at'),
+        } for d in downloads if d.get('file_path')]
+        return jsonify({'success': True, 'songs': songs})
+    except Exception as e:
+        logger.error(f"list_songs error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@library_bp.route('/api/library/extracted', methods=['GET'])
+@api_login_required
+def list_extracted():
+    """Return only extracted tracks for the current user."""
+    try:
+        extractions = db_list_extractions(current_user.id)
+        songs = [{
+            'id': d['id'], 'video_id': d['video_id'], 'title': d.get('title', ''),
+            'artist': d.get('artist', ''), 'album': d.get('album', ''),
+            'duration': d.get('duration'), 'thumbnail': d.get('thumbnail', ''),
+            'detected_bpm': d.get('detected_bpm'), 'detected_key': d.get('detected_key'),
+            'extracted': True, 'extraction_model': d.get('extraction_model'),
+            'file_path': d.get('file_path'), 'stems_paths': d.get('stems_paths'),
+        } for d in extractions]
+        return jsonify({'success': True, 'songs': songs})
+    except Exception as e:
+        logger.error(f"list_extracted error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@library_bp.route('/api/library/queue', methods=['POST'])
+@api_login_required
+def get_queue_metadata():
+    """Return file paths and metadata for a list of video_ids (playlist player)."""
+    try:
+        data = request.get_json(silent=True) or {}
+        video_ids = data.get('video_ids', [])
+        if not video_ids:
+            return jsonify({'error': 'video_ids required'}), 400
+
+        downloads = db_list_downloads(current_user.id)
+        dl_map = {d['video_id']: d for d in downloads}
+
+        queue = []
+        for vid in video_ids:
+            d = dl_map.get(vid)
+            if d and d.get('file_path'):
+                queue.append({
+                    'video_id': vid, 'title': d.get('title', ''),
+                    'artist': d.get('artist', ''), 'album': d.get('album', ''),
+                    'duration': d.get('duration'), 'thumbnail': d.get('thumbnail', ''),
+                    'file_path': d.get('file_path'),
+                })
+        return jsonify({'success': True, 'queue': queue})
+    except Exception as e:
+        logger.error(f"get_queue_metadata error: {e}")
+        return jsonify({'error': str(e)}), 500

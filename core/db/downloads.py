@@ -34,39 +34,50 @@ def add_or_update(user_id, meta):
             # File doesn't exist - create global record
             cursor.execute("""
                 INSERT INTO global_downloads
-                    (video_id, title, thumbnail, file_path, media_type, quality, file_size)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (video_id, title, thumbnail, file_path, media_type, quality, file_size,
+                     artist, album, duration)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 video_id,
                 meta["title"],
-                meta.get("thumbnail_url") or None,  # Store NULL instead of empty string
+                meta.get("thumbnail_url") or None,
                 file_path,
                 media_type,
                 quality,
-                meta.get("file_size", 0)
+                meta.get("file_size", 0),
+                meta.get("artist") or None,
+                meta.get("album") or None,
+                meta.get("duration") or None,
             ))
             global_download_id = cursor.lastrowid
 
         # Add/update user access record
         conn.execute("""
             INSERT INTO user_downloads
-                (user_id, global_download_id, video_id, title, thumbnail, file_path, media_type, quality)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (user_id, global_download_id, video_id, title, thumbnail, file_path, media_type, quality,
+                 artist, album, duration)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id, video_id, media_type) DO UPDATE SET
                 global_download_id = excluded.global_download_id,
                 title              = excluded.title,
                 thumbnail          = excluded.thumbnail,
                 file_path          = excluded.file_path,
-                quality            = excluded.quality
+                quality            = excluded.quality,
+                artist             = COALESCE(excluded.artist, artist),
+                album              = COALESCE(excluded.album, album),
+                duration           = COALESCE(excluded.duration, duration)
         """, (
             user_id,
             global_download_id,
             video_id,
             meta["title"],
-            meta.get("thumbnail_url") or None,  # Store NULL instead of empty string
+            meta.get("thumbnail_url") or None,
             file_path,
             media_type,
-            quality
+            quality,
+            meta.get("artist") or None,
+            meta.get("album") or None,
+            meta.get("duration") or None,
         ))
         conn.commit()
 
@@ -248,7 +259,10 @@ def list_for(user_id):
                 COALESCE(gd.lyrics_data, ud.lyrics_data) as lyrics_data,
                 COALESCE(gd.beat_times, ud.beat_times) as beat_times,
                 COALESCE(gd.beat_positions, ud.beat_positions) as beat_positions,
-                COALESCE(gd.music_start_time, ud.music_start_time) as music_start_time
+                COALESCE(gd.music_start_time, ud.music_start_time) as music_start_time,
+                COALESCE(gd.artist, ud.artist) as artist,
+                COALESCE(gd.album, ud.album) as album,
+                COALESCE(gd.duration, ud.duration) as duration
             FROM user_downloads ud
             LEFT JOIN global_downloads gd ON ud.global_download_id = gd.id
             WHERE ud.user_id=?
@@ -287,7 +301,10 @@ def get_download_by_id(user_id, download_id):
                 COALESCE(gd.lyrics_data, ud.lyrics_data) as lyrics_data,
                 COALESCE(gd.beat_times, ud.beat_times) as beat_times,
                 COALESCE(gd.beat_positions, ud.beat_positions) as beat_positions,
-                COALESCE(gd.music_start_time, ud.music_start_time) as music_start_time
+                COALESCE(gd.music_start_time, ud.music_start_time) as music_start_time,
+                COALESCE(gd.artist, ud.artist) as artist,
+                COALESCE(gd.album, ud.album) as album,
+                COALESCE(gd.duration, ud.duration) as duration
             FROM user_downloads ud
             LEFT JOIN global_downloads gd ON ud.global_download_id = gd.id
             WHERE ud.user_id=? AND ud.id=?

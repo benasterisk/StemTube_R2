@@ -621,6 +621,12 @@ class DownloadManager:
                                 self.on_download_error(item.download_id, error_msg)
                             return
                     
+                    # Extract metadata from yt-dlp info for library views
+                    if info:
+                        item.yt_artist = info.get('artist') or info.get('creator') or info.get('uploader') or ''
+                        item.yt_album = info.get('album') or ''
+                        item.yt_duration = info.get('duration') or 0
+
                     # Ensure progress reaches 100% in the interface
                     if self.on_download_progress:
                         self.on_download_progress(

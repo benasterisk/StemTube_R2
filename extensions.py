@@ -337,6 +337,14 @@ class UserSessionManager:
                     except:
                         file_size = 0
 
+                # Extract artist/album/duration from yt-dlp metadata
+                yt_artist = getattr(download_item, 'yt_artist', '') or ''
+                yt_album = getattr(download_item, 'yt_album', '') or ''
+                yt_duration = getattr(download_item, 'yt_duration', 0) or 0
+                # Parse artist from title as fallback
+                if not yt_artist and ' - ' in download_item.title:
+                    yt_artist = download_item.title.split(' - ', 1)[0].strip()
+
                 global_download_id = db_add_download(user_id, {
                     "video_id": download_item.video_id,
                     "title": download_item.title,
@@ -344,7 +352,10 @@ class UserSessionManager:
                     "file_path": file_path,
                     "download_type": download_item.download_type.value,
                     "quality": download_item.quality,
-                    "file_size": file_size
+                    "file_size": file_size,
+                    "artist": yt_artist or None,
+                    "album": yt_album or None,
+                    "duration": yt_duration or None,
                 })
 
                 pending_reload_users = self.pending_reload_users.pop(download_item.video_id, set()) if download_item.video_id in self.pending_reload_users else set()

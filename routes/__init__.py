@@ -18,6 +18,7 @@ from .logging_routes import logging_bp
 from .jam import jam_bp, register_jam_socketio_events
 from .recordings import recordings_bp
 from .spotify import spotify_bp
+from .playlists import playlists_bp
 
 ALL_BLUEPRINTS = [
     auth_bp,
@@ -34,6 +35,7 @@ ALL_BLUEPRINTS = [
     jam_bp,
     recordings_bp,
     spotify_bp,
+    playlists_bp,
 ]
 
 

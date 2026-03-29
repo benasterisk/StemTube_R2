@@ -250,7 +250,11 @@ def get_all_downloads():
                 # Extraction information
                 'extracted': db_item.get('extracted', False),
                 'stems_paths': db_item.get('stems_paths'),
-                'extraction_model': db_item.get('extraction_model')
+                'extraction_model': db_item.get('extraction_model'),
+                # Library metadata
+                'artist': db_item.get('artist'),
+                'album': db_item.get('album'),
+                'duration': db_item.get('duration'),
             })
 
         return jsonify(live + history)
