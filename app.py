@@ -187,6 +187,29 @@ app.config['REMEMBER_COOKIE_HTTPONLY'] = True
 
 Session(app)
 
+# Initialize SQLAlchemy ORM with PostgreSQL
+from core.models import db
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+    'DATABASE_URL', 'sqlite:///stemtubes.db'
+)
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_size': 10,
+    'max_overflow': 20,
+    'pool_timeout': 30,
+    'pool_recycle': 1800,
+    'pool_pre_ping': True,
+}
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db.init_app(app)
+
+from flask_migrate import Migrate
+migrate = Migrate(app, db)
+
+# Create tables if they don't exist (safety net alongside Alembic)
+with app.app_context():
+    db.create_all()
+    logger.info("PostgreSQL tables verified via SQLAlchemy")
+
 # Initialize extensions with the app
 login_manager.init_app(app)
 
