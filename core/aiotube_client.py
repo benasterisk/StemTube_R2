@@ -5,14 +5,10 @@ Alternative implementation that doesn't require an API key.
 import os
 import json
 import time
-import sqlite3
 import threading
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 
-# aiotube is deprecated/broken - using yt-dlp instead
-# import aiotube
-# pytubefix is also blocked by YouTube bot detection, so we use yt-dlp
 import yt_dlp
 import re
 import requests
@@ -20,65 +16,19 @@ from bs4 import BeautifulSoup
 
 from .config import get_setting
 from .download_manager import get_youtube_cookies_config
+from .redis_cache import YouTubeCache
 
 # Constants
-MAX_RESULTS_PER_PAGE = 50  # Increased limit to allow more results
-SEARCH_CACHE_DURATION = 86400  # 24 hours
-
-# Database for caching
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "youtube_cache.db")
+MAX_RESULTS_PER_PAGE = 50
+SEARCH_CACHE_DURATION = 86400  # 24 hours (managed by Redis TTL now)
 
 
 class AiotubeClient:
     """Client for interacting with YouTube using aiotube library."""
 
     def __init__(self):
-        """Initialize the aiotube client."""
-        # Cache for search results
-        self._search_cache = {}
-        self._search_cache_timestamps = {}
-
-        # Initialize SQLite cache
-        self._init_cache_db()
-
-    def _init_cache_db(self):
-        """Initialize SQLite cache database."""
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-
-        # Table for searches
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS search_cache (
-            query TEXT,
-            max_results INTEGER,
-            page_token TEXT,
-            filters TEXT,
-            response TEXT,
-            timestamp INTEGER,
-            PRIMARY KEY (query, max_results, page_token, filters)
-        )
-        ''')
-
-        # Table for suggestions
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS suggestions_cache (
-            query TEXT PRIMARY KEY,
-            suggestions TEXT,
-            timestamp INTEGER
-        )
-        ''')
-
-        # Table for video information
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS video_info_cache (
-            video_id TEXT PRIMARY KEY,
-            info TEXT,
-            timestamp INTEGER
-        )
-        ''')
-
-        conn.commit()
-        conn.close()
+        """Initialize the YouTube client with Redis cache."""
+        pass  # Redis cache is stateless — no init needed
 
     def search_videos(self, query: str, max_results: int = 5, 
                      page_token: Optional[str] = None, 
@@ -97,25 +47,13 @@ class AiotubeClient:
         # Validate max_results (allow up to 50)
         max_results = min(max(max_results, 1), 50)
 
-        # Check cache in SQLite
+        # Check Redis cache
         filters_str = json.dumps(filters or {}) if filters else "{}"
         page_token_str = page_token or ""
 
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-
-        cursor.execute(
-            "SELECT response, timestamp FROM search_cache WHERE query = ? AND max_results = ? AND page_token = ? AND filters = ?",
-            (query, max_results, page_token_str, filters_str)
-        )
-        result = cursor.fetchone()
-
-        if result:
-            response_str, timestamp = result
-            # Check if cache is still valid
-            if time.time() - timestamp < SEARCH_CACHE_DURATION:
-                conn.close()
-                return json.loads(response_str)
+        cached = YouTubeCache.get_search(query, max_results, page_token_str, filters_str)
+        if cached:
+            return cached
 
         try:
             # Use yt-dlp to search for videos (aiotube and pytubefix are blocked by YouTube)
@@ -228,19 +166,13 @@ class AiotubeClient:
                     print(f"Error getting video details: {e}")
                     continue
             
-            # Cache results in SQLite
-            cursor.execute(
-                "INSERT OR REPLACE INTO search_cache VALUES (?, ?, ?, ?, ?, ?)",
-                (query, max_results, page_token_str, filters_str, json.dumps(response), int(time.time()))
-            )
-            conn.commit()
-            
+            # Cache results in Redis
+            YouTubeCache.set_search(query, max_results, page_token_str, filters_str, response)
+
             return response
         except Exception as e:
             print(f"Error searching videos: {e}")
             return {"items": [], "error": str(e)}
-        finally:
-            conn.close()
 
     def search_music(self, query: str, max_results: int = 10) -> Dict[str, Any]:
         """Search YouTube Music for songs and albums using ytmusicapi.
@@ -435,22 +367,10 @@ class AiotubeClient:
                 print(f"Error extracting ID: {e}")
                 return {"error": f"Error extracting ID: {e}"}
         
-        # Check if cache exists
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        
-        cursor.execute(
-            "SELECT info, timestamp FROM video_info_cache WHERE video_id = ?",
-            (video_id,)
-        )
-        result = cursor.fetchone()
-
-        if result:
-            info_str, timestamp = result
-            # Check if cache is still valid
-            if time.time() - timestamp < SEARCH_CACHE_DURATION:
-                conn.close()
-                return json.loads(info_str)
+        # Check Redis cache
+        cached = YouTubeCache.get_video(video_id)
+        if cached:
+            return cached
 
         try:
             # Detect if the ID starts with a dash causing issues with aiotube
@@ -593,19 +513,13 @@ class AiotubeClient:
                     }]
                 }
             
-            # Cache results in SQLite
-            cursor.execute(
-                "INSERT OR REPLACE INTO video_info_cache VALUES (?, ?, ?)",
-                (video_id, json.dumps(response), int(time.time()))
-            )
-            conn.commit()
+            # Cache results in Redis
+            YouTubeCache.set_video(video_id, response)
 
             return response
         except Exception as e:
             print(f"Error getting video info: {e}")
             return {"error": str(e)}
-        finally:
-            conn.close()
 
     def get_search_suggestions(self, query: str) -> List[str]:
         """Get search suggestions for a query.
@@ -619,22 +533,10 @@ class AiotubeClient:
         if not query:
             return []
 
-        # Check cache in SQLite
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-
-        cursor.execute(
-            "SELECT suggestions, timestamp FROM suggestions_cache WHERE query = ?",
-            (query,)
-        )
-        result = cursor.fetchone()
-
-        if result:
-            suggestions_str, timestamp = result
-            # Check if cache is still valid
-            if time.time() - timestamp < SEARCH_CACHE_DURATION * 7:  # 7 days for suggestions
-                conn.close()
-                return json.loads(suggestions_str)
+        # Check Redis cache
+        cached = YouTubeCache.get_suggestions(query)
+        if cached:
+            return cached
 
         try:
             # Search for videos using yt-dlp (aiotube and pytubefix are blocked by YouTube)
@@ -660,19 +562,13 @@ class AiotubeClient:
                     print(f"Error getting video title: {e}")
                     continue
             
-            # Cache results in SQLite
-            cursor.execute(
-                "INSERT OR REPLACE INTO suggestions_cache VALUES (?, ?, ?)",
-                (query, json.dumps(suggestions), int(time.time()))
-            )
-            conn.commit()
-            
+            # Cache results in Redis
+            YouTubeCache.set_suggestions(query, suggestions)
+
             return suggestions
         except Exception as e:
             print(f"Error getting search suggestions: {e}")
             return []
-        finally:
-            conn.close()
 
     def parse_video_duration(self, duration: str) -> int:
         """Parse duration format to seconds.
