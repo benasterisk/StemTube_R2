@@ -4,7 +4,7 @@ import json
 import mimetypes
 import subprocess
 
-from flask import Blueprint, request, jsonify, send_from_directory
+from flask import Blueprint, request, jsonify, send_from_directory, send_file
 from flask_login import current_user
 from werkzeug.utils import secure_filename
 
@@ -16,9 +16,16 @@ _LEGACY_DOWNLOADS_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abs
 
 
 def _is_path_allowed(abs_path):
-    """Check if a file path is within an allowed downloads directory."""
+    """Check if a file path is within an allowed downloads directory or referenced in DB."""
     downloads_dir = os.path.abspath(ensure_valid_downloads_directory())
-    return abs_path.startswith(downloads_dir) or abs_path.startswith(_LEGACY_DOWNLOADS_DIR)
+    if abs_path.startswith(downloads_dir) or abs_path.startswith(_LEGACY_DOWNLOADS_DIR):
+        return True
+    # Allow files referenced in the database (downloaded with a previous config)
+    from core.db.connection import _conn
+    conn = _conn()
+    row = conn.execute('SELECT 1 FROM global_downloads WHERE file_path = ?', (abs_path,)).fetchone()
+    conn.close()
+    return row is not None
 from core.downloads_db import add_or_update as db_add_download
 from core.logging_config import get_logger
 
@@ -228,7 +235,7 @@ def stream_audio_route():
         mimetype = 'application/octet-stream'
 
     try:
-        return send_from_directory(directory, filename, mimetype=mimetype, as_attachment=False)
+        return send_file(abs_file_path, mimetype=mimetype, conditional=True)
     except Exception as e:
         return jsonify({'error': f'Error streaming file: {str(e)}'}), 500
 
