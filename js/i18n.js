@@ -1,6 +1,6 @@
 // ── i18n language switching ──────────────────────────────────────
 (function () {
-    const LANG_LABELS = { en: 'EN', fr: 'FR', de: 'DE', pt: 'PT', it: 'IT', ar: 'AR', zh: 'ZH', ja: 'JA' };
+    const LANG_LABELS = { en: 'EN', fr: 'FR', es: 'ES', de: 'DE', pt: 'PT', it: 'IT', nl: 'NL', sv: 'SV', pl: 'PL', ru: 'RU', uk: 'UK', tr: 'TR', ar: 'AR', hi: 'HI', zh: 'ZH', ja: 'JA', ko: 'KO', th: 'TH', vi: 'VI', id: 'ID' };
     const RTL_LANGS = ['ar'];
     let currentLang = localStorage.getItem('stemtube_lang') || navigator.language.slice(0, 2) || 'en';
     if (!LANG_LABELS[currentLang]) currentLang = 'en';
