@@ -1023,23 +1023,28 @@ html[dir="rtl"] .badge-experimental {
     .lang-switcher {
         margin-left: auto;
         margin-right: 8px;
-        position: static;
     }
 
     .lang-dropdown {
         position: fixed;
         top: 56px;
-        right: 8px;
-        left: 8px;
+        left: 16px;
+        right: 16px;
         width: auto;
         min-width: unset;
-        max-height: 60vh;
-        columns: 2;
-        column-gap: 0;
+        max-height: 65vh;
+        display: none;
+        grid-template-columns: 1fr 1fr;
+        border-radius: 12px;
+    }
+
+    .lang-dropdown.open {
+        display: grid;
     }
 
     .lang-dropdown a {
-        break-inside: avoid;
+        text-align: center;
+        padding: 12px 8px;
     }
 
     .features-grid {
