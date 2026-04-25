@@ -330,6 +330,10 @@ section {
 /* ── Hero Showcase ────────────────────────────────────────────── */
 .hero-showcase {
     margin-top: 48px;
+    position: relative;
+}
+
+.hero-showcase-desktop {
     border-radius: var(--radius-lg);
     overflow: hidden;
     border: 1px solid var(--border);
@@ -337,19 +341,46 @@ section {
     position: relative;
 }
 
-.hero-showcase img {
+.hero-showcase-desktop img {
     width: 100%;
     height: auto;
     display: block;
 }
 
-.hero-showcase::after {
+.hero-showcase-desktop::after {
     content: '';
     position: absolute;
     inset: 0;
     border-radius: var(--radius-lg);
     border: 1px solid rgba(229, 57, 53, 0.15);
     pointer-events: none;
+}
+
+.hero-showcase-mobile {
+    position: absolute;
+    right: -1.5%;
+    bottom: -6%;
+    width: 15%;
+    max-width: 200px;
+    min-width: 130px;
+    border-radius: 22px;
+    border: 6px solid #0f0f14;
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.75), 0 0 30px rgba(229, 57, 53, 0.25);
+    overflow: hidden;
+    background: #000;
+    z-index: 2;
+}
+
+.hero-showcase-mobile img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+@media (max-width: 768px) {
+    .hero-showcase-mobile {
+        display: none;
+    }
 }
 
 .hero-stats {
