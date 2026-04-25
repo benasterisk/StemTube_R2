@@ -29,6 +29,9 @@
 html {
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
 }
 
 body {
@@ -37,6 +40,9 @@ body {
     color: var(--text-primary);
     line-height: 1.6;
     overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
+    position: relative;
     -webkit-font-smoothing: antialiased;
 }
 
@@ -686,6 +692,7 @@ section {
 .cta-section {
     text-align: center;
     position: relative;
+    overflow: hidden;
 }
 
 .cta-section::before {
