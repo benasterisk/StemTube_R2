@@ -8,7 +8,7 @@
     "hero.title": "Learn, explore, repeat !<br>every song becomes <span class=\"accent\">a playground</span>",
     "hero.description": "Upload your audio files. StemTube separates stems, detects chords, syncs lyrics, and gives you a full mixer — ready to practice, learn, or create.",
     "hero.btnGithub": "View on GitHub",
-    "hero.statModels": "AI Models",
+    "hero.statCloud": "Cloud Dependency",
     "hero.statChords": "Chord Types",
     "hero.statMobile": "Mobile Ready",
     "hero.statLicense": "License",

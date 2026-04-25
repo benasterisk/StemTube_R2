@@ -8,7 +8,7 @@
     "hero.title": "学び、探求し、繰り返す !<br>すべての楽曲が <span class=\"accent\">遊び場</span> になる",
     "hero.description": "オーディオファイルをアップロードするだけ。StemTubeがステム分離、コード検出、歌詞同期を行い、フルミキサーを提供します — 練習、学習、制作にすぐ活用できます。",
     "hero.btnGithub": "GitHubで見る",
-    "hero.statModels": "AIモデル",
+    "hero.statCloud": "クラウド依存",
     "hero.statChords": "コードタイプ",
     "hero.statMobile": "モバイル対応",
     "hero.statLicense": "ライセンス",
