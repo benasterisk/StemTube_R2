@@ -83,5 +83,12 @@
     "hero.demoBadge": "Demo videosu yakında",
     "tech.audioAI": "Ses YZ",
     "tech.backend": "Arka Uç",
-    "tech.frontend": "Ön Yüz"
+    "tech.frontend": "Ön Yüz",
+    "mobileScreenshots.title": "Ve cebinizde",
+    "mobileScreenshots.subtitle": "iOS ve Android'de aynı akış — dokunmatik için optimize edilmiş PWA.",
+    "mobileScreenshot1.caption": "Kütüphanem",
+    "mobileScreenshot2.caption": "Mikser",
+    "mobileScreenshot3.caption": "Akorlar",
+    "mobileScreenshot4.caption": "Şarkı Sözleri",
+    "mobileScreenshot5.caption": "Ayarlar"
 }

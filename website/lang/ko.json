@@ -83,5 +83,12 @@
   "hero.demoBadge": "데모 영상 곧 공개",
   "tech.audioAI": "오디오 AI",
   "tech.backend": "백엔드",
-  "tech.frontend": "프론트엔드"
+  "tech.frontend": "프론트엔드",
+  "mobileScreenshots.title": "그리고 당신의 주머니 속에도",
+  "mobileScreenshots.subtitle": "iOS와 Android에서 같은 워크플로우 — 터치에 최적화된 PWA.",
+  "mobileScreenshot1.caption": "내 라이브러리",
+  "mobileScreenshot2.caption": "믹서",
+  "mobileScreenshot3.caption": "코드",
+  "mobileScreenshot4.caption": "가사",
+  "mobileScreenshot5.caption": "설정"
 }

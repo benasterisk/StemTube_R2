@@ -83,5 +83,12 @@
     "hero.demoBadge": "Vídeo de demostración próximamente",
     "tech.audioAI": "IA de audio",
     "tech.backend": "Backend",
-    "tech.frontend": "Frontend"
+    "tech.frontend": "Frontend",
+    "mobileScreenshots.title": "Y en tu bolsillo",
+    "mobileScreenshots.subtitle": "El mismo flujo en iOS y Android — PWA optimizada para el táctil.",
+    "mobileScreenshot1.caption": "Mi Biblioteca",
+    "mobileScreenshot2.caption": "Mezclador",
+    "mobileScreenshot3.caption": "Acordes",
+    "mobileScreenshot4.caption": "Letras",
+    "mobileScreenshot5.caption": "Ajustes"
 }

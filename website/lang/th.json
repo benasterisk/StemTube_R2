@@ -83,5 +83,12 @@
     "hero.demoBadge": "วิดีโอสาธิตเร็วๆ นี้",
     "tech.audioAI": "AI เสียง",
     "tech.backend": "แบ็กเอนด์",
-    "tech.frontend": "ฟรอนต์เอนด์"
+    "tech.frontend": "ฟรอนต์เอนด์",
+    "mobileScreenshots.title": "และในกระเป๋าของคุณ",
+    "mobileScreenshots.subtitle": "ขั้นตอนเดียวกันบน iOS และ Android — PWA ที่ปรับสำหรับการสัมผัส",
+    "mobileScreenshot1.caption": "คลังของฉัน",
+    "mobileScreenshot2.caption": "มิกเซอร์",
+    "mobileScreenshot3.caption": "คอร์ด",
+    "mobileScreenshot4.caption": "เนื้อเพลง",
+    "mobileScreenshot5.caption": "การตั้งค่า"
 }

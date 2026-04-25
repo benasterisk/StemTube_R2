@@ -551,6 +551,74 @@ section {
     font-weight: 500;
 }
 
+.mobile-screenshots-block {
+    margin-top: 96px;
+    padding-top: 64px;
+    border-top: 1px solid var(--border);
+}
+
+.mobile-screenshots-title {
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+}
+
+.mobile-screenshots-subtitle {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    margin-bottom: 48px;
+}
+
+.mobile-screenshots-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 20px;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.mobile-screenshot-card {
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    transition: var(--transition);
+    text-align: center;
+}
+
+.mobile-screenshot-card:hover {
+    border-color: rgba(229, 57, 53, 0.3);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.mobile-screenshot-img {
+    width: 100%;
+    aspect-ratio: 9 / 19;
+    background: var(--bg-primary);
+    overflow: hidden;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+}
+
+.mobile-screenshot-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top;
+}
+
+.mobile-screenshot-caption {
+    padding: 12px 14px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
 /* ── Hero Demo Badge ──────────────────────────────────────────── */
 .hero-demo-badge {
     display: inline-flex;
@@ -1065,6 +1133,16 @@ html[dir="rtl"] .badge-experimental {
 
     .screenshots-grid {
         grid-template-columns: 1fr;
+    }
+
+    .mobile-screenshots-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+
+    .mobile-screenshots-block {
+        margin-top: 64px;
+        padding-top: 48px;
     }
 
     .hero-stats {

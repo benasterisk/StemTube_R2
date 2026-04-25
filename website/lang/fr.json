@@ -83,5 +83,12 @@
     "hero.demoBadge": "Vidéo de démo bientôt disponible",
     "tech.audioAI": "Audio IA",
     "tech.backend": "Backend",
-    "tech.frontend": "Frontend"
+    "tech.frontend": "Frontend",
+    "mobileScreenshots.title": "Et dans votre poche",
+    "mobileScreenshots.subtitle": "Même workflow sur iOS et Android — PWA optimisée pour le tactile.",
+    "mobileScreenshot1.caption": "Ma Bibliothèque",
+    "mobileScreenshot2.caption": "Table de mixage",
+    "mobileScreenshot3.caption": "Accords",
+    "mobileScreenshot4.caption": "Paroles",
+    "mobileScreenshot5.caption": "Paramètres"
 }

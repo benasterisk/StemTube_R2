@@ -83,5 +83,12 @@
     "hero.demoBadge": "डेमो वीडियो जल्द आ रहा है",
     "tech.audioAI": "ऑडियो AI",
     "tech.backend": "बैकएंड",
-    "tech.frontend": "फ़्रंटएंड"
+    "tech.frontend": "फ़्रंटएंड",
+    "mobileScreenshots.title": "और आपकी जेब में",
+    "mobileScreenshots.subtitle": "iOS और Android पर वही वर्कफ़्लो — टच-ऑप्टिमाइज़्ड PWA।",
+    "mobileScreenshot1.caption": "मेरी लाइब्रेरी",
+    "mobileScreenshot2.caption": "मिक्सर",
+    "mobileScreenshot3.caption": "कॉर्ड्स",
+    "mobileScreenshot4.caption": "लिरिक्स",
+    "mobileScreenshot5.caption": "सेटिंग्स"
 }

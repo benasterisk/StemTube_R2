@@ -83,5 +83,12 @@
     "hero.demoBadge": "Demo video coming soon",
     "tech.audioAI": "Audio AI",
     "tech.backend": "Backend",
-    "tech.frontend": "Frontend"
+    "tech.frontend": "Frontend",
+    "mobileScreenshots.title": "And in your pocket",
+    "mobileScreenshots.subtitle": "Same workflow on iOS and Android — touch-optimized PWA.",
+    "mobileScreenshot1.caption": "My Library",
+    "mobileScreenshot2.caption": "Mixer",
+    "mobileScreenshot3.caption": "Chords",
+    "mobileScreenshot4.caption": "Lyrics",
+    "mobileScreenshot5.caption": "Settings"
 }

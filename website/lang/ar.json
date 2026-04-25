@@ -83,5 +83,12 @@
     "hero.demoBadge": "فيديو توضيحي قريبًا",
     "tech.audioAI": "الذكاء الاصطناعي الصوتي",
     "tech.backend": "الواجهة الخلفية",
-    "tech.frontend": "الواجهة الأمامية"
+    "tech.frontend": "الواجهة الأمامية",
+    "mobileScreenshots.title": "وفي جيبك",
+    "mobileScreenshots.subtitle": "نفس سير العمل على iOS و Android — تطبيق ويب تقدمي محسّن للمس.",
+    "mobileScreenshot1.caption": "مكتبتي",
+    "mobileScreenshot2.caption": "الخلّاط",
+    "mobileScreenshot3.caption": "الأوتار",
+    "mobileScreenshot4.caption": "الكلمات",
+    "mobileScreenshot5.caption": "الإعدادات"
 }
