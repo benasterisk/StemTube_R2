@@ -5,7 +5,7 @@
   "nav.contribute": "기여하기",
   "nav.about": "소개",
   "hero.badge": "오픈소스 · 셀프 호스팅 · 무료",
-  "hero.title": "배우고, 탐구하고, 반복하세요<br>모든 곡이 <span class=\"accent\">놀이터</span>가 됩니다",
+  "hero.title": "배우고, 탐구하고, 반복하세요!<br>모든 곡이 <span class=\"accent\">놀이터</span>가 됩니다",
   "hero.description": "오디오 파일을 업로드하세요. StemTube가 스템을 분리하고, 코드를 감지하고, 가사를 동기화하고, 완전한 믹서를 제공합니다 — 연습, 학습, 창작에 바로 활용하세요.",
   "hero.btnGithub": "GitHub에서 보기",
   "hero.statModels": "AI 모델",
