@@ -83,5 +83,12 @@
     "hero.demoBadge": "Video demo segera hadir",
     "tech.audioAI": "Audio AI",
     "tech.backend": "Backend",
-    "tech.frontend": "Frontend"
+    "tech.frontend": "Frontend",
+    "mobileScreenshots.title": "Dan di saku Anda",
+    "mobileScreenshots.subtitle": "Alur yang sama di iOS dan Android — PWA yang dioptimalkan untuk sentuhan.",
+    "mobileScreenshot1.caption": "Pustaka Saya",
+    "mobileScreenshot2.caption": "Mixer",
+    "mobileScreenshot3.caption": "Akor",
+    "mobileScreenshot4.caption": "Lirik",
+    "mobileScreenshot5.caption": "Pengaturan"
 }

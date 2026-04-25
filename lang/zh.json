@@ -83,5 +83,12 @@
     "hero.demoBadge": "演示视频即将推出",
     "tech.audioAI": "音频 AI",
     "tech.backend": "后端",
-    "tech.frontend": "前端"
+    "tech.frontend": "前端",
+    "mobileScreenshots.title": "也在你的口袋里",
+    "mobileScreenshots.subtitle": "iOS 和 Android 上相同的体验 — 为触控优化的 PWA。",
+    "mobileScreenshot1.caption": "我的库",
+    "mobileScreenshot2.caption": "混音台",
+    "mobileScreenshot3.caption": "和弦",
+    "mobileScreenshot4.caption": "歌词",
+    "mobileScreenshot5.caption": "设置"
 }

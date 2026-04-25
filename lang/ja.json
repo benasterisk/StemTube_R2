@@ -83,5 +83,12 @@
     "hero.demoBadge": "デモ動画近日公開",
     "tech.audioAI": "オーディオAI",
     "tech.backend": "バックエンド",
-    "tech.frontend": "フロントエンド"
+    "tech.frontend": "フロントエンド",
+    "mobileScreenshots.title": "ポケットの中にも",
+    "mobileScreenshots.subtitle": "iOSとAndroidで同じワークフロー — タッチに最適化されたPWA。",
+    "mobileScreenshot1.caption": "マイライブラリ",
+    "mobileScreenshot2.caption": "ミキサー",
+    "mobileScreenshot3.caption": "コード",
+    "mobileScreenshot4.caption": "歌詞",
+    "mobileScreenshot5.caption": "設定"
 }

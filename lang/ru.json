@@ -83,5 +83,12 @@
     "hero.demoBadge": "Демо-видео скоро появится",
     "tech.audioAI": "ИИ для аудио",
     "tech.backend": "Бэкенд",
-    "tech.frontend": "Фронтенд"
+    "tech.frontend": "Фронтенд",
+    "mobileScreenshots.title": "И в вашем кармане",
+    "mobileScreenshots.subtitle": "Тот же рабочий процесс на iOS и Android — PWA, оптимизированное для касания.",
+    "mobileScreenshot1.caption": "Моя библиотека",
+    "mobileScreenshot2.caption": "Микшер",
+    "mobileScreenshot3.caption": "Аккорды",
+    "mobileScreenshot4.caption": "Тексты",
+    "mobileScreenshot5.caption": "Настройки"
 }

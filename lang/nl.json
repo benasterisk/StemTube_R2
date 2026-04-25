@@ -83,5 +83,12 @@
     "hero.demoBadge": "Demovideo binnenkort beschikbaar",
     "tech.audioAI": "Audio-AI",
     "tech.backend": "Backend",
-    "tech.frontend": "Frontend"
+    "tech.frontend": "Frontend",
+    "mobileScreenshots.title": "En in je broekzak",
+    "mobileScreenshots.subtitle": "Zelfde workflow op iOS en Android — touch-geoptimaliseerde PWA.",
+    "mobileScreenshot1.caption": "Mijn bibliotheek",
+    "mobileScreenshot2.caption": "Mixer",
+    "mobileScreenshot3.caption": "Akkoorden",
+    "mobileScreenshot4.caption": "Songteksten",
+    "mobileScreenshot5.caption": "Instellingen"
 }

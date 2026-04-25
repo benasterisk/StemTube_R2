@@ -83,5 +83,12 @@
     "hero.demoBadge": "Демовідео незабаром",
     "tech.audioAI": "Аудіо ШІ",
     "tech.backend": "Бекенд",
-    "tech.frontend": "Фронтенд"
+    "tech.frontend": "Фронтенд",
+    "mobileScreenshots.title": "І у вашій кишені",
+    "mobileScreenshots.subtitle": "Той самий робочий процес на iOS та Android — PWA, оптимізоване для дотику.",
+    "mobileScreenshot1.caption": "Моя бібліотека",
+    "mobileScreenshot2.caption": "Мікшер",
+    "mobileScreenshot3.caption": "Акорди",
+    "mobileScreenshot4.caption": "Тексти",
+    "mobileScreenshot5.caption": "Налаштування"
 }

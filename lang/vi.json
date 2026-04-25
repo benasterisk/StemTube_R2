@@ -83,5 +83,12 @@
   "hero.demoBadge": "Video demo s\u1ebd c\u00f3 s\u1edbm",
   "tech.audioAI": "AI \u00e2m thanh",
   "tech.backend": "Backend",
-  "tech.frontend": "Frontend"
+  "tech.frontend": "Frontend",
+  "mobileScreenshots.title": "V\u00e0 trong t\u00fai c\u1ee7a b\u1ea1n",
+  "mobileScreenshots.subtitle": "C\u00f9ng quy tr\u00ecnh tr\u00ean iOS v\u00e0 Android \u2014 PWA t\u1ed1i \u01b0u cho c\u1ea3m \u1ee9ng.",
+  "mobileScreenshot1.caption": "Th\u01b0 vi\u1ec7n c\u1ee7a t\u00f4i",
+  "mobileScreenshot2.caption": "Mixer",
+  "mobileScreenshot3.caption": "H\u1ee3p \u00e2m",
+  "mobileScreenshot4.caption": "L\u1eddi b\u00e0i h\u00e1t",
+  "mobileScreenshot5.caption": "C\u00e0i \u0111\u1eb7t"
 }

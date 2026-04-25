@@ -83,5 +83,12 @@
     "hero.demoBadge": "Demovideo kommer snart",
     "tech.audioAI": "Ljud-AI",
     "tech.backend": "Backend",
-    "tech.frontend": "Frontend"
+    "tech.frontend": "Frontend",
+    "mobileScreenshots.title": "Och i fickan",
+    "mobileScreenshots.subtitle": "Samma flöde på iOS och Android — touch-optimerad PWA.",
+    "mobileScreenshot1.caption": "Mitt bibliotek",
+    "mobileScreenshot2.caption": "Mixer",
+    "mobileScreenshot3.caption": "Ackord",
+    "mobileScreenshot4.caption": "Texter",
+    "mobileScreenshot5.caption": "Inställningar"
 }
