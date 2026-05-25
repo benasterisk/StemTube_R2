@@ -377,9 +377,88 @@ section {
     display: block;
 }
 
+/* ── Cross-promo banner ──────────────────────────────────────── */
+.cross-promo {
+    padding: 60px 0;
+}
+
+.cross-promo-card {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    padding: 32px 40px;
+    background:
+        linear-gradient(135deg, rgba(255, 177, 74, 0.06) 0%, rgba(229, 57, 53, 0.04) 100%),
+        var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    transition: var(--transition);
+}
+
+.cross-promo-card:hover {
+    border-color: rgba(255, 177, 74, 0.4);
+    transform: translateY(-2px);
+}
+
+.cross-promo-icon {
+    flex-shrink: 0;
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 177, 74, 0.12);
+    border-radius: 16px;
+    color: #ffb14a;
+    font-size: 1.8rem;
+}
+
+.cross-promo-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.cross-promo-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #ffb14a;
+    margin-bottom: 6px;
+}
+
+.cross-promo-content h3 {
+    font-size: 1.4rem;
+    margin: 0 0 8px;
+    font-weight: 700;
+}
+
+.cross-promo-content p {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.cross-promo-actions {
+    flex-shrink: 0;
+}
+
 @media (max-width: 768px) {
     .hero-showcase-mobile {
         display: none;
+    }
+
+    .cross-promo-card {
+        flex-direction: column;
+        text-align: center;
+        padding: 28px 22px;
+        gap: 18px;
+    }
+
+    .cross-promo-actions .btn {
+        width: 100%;
+        justify-content: center;
     }
 }
 
