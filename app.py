@@ -76,7 +76,7 @@ logger.info("StemTube Web application starting up...")
 from core.config import (
     ensure_ffmpeg_available, ensure_valid_downloads_directory,
     validate_and_fix_config_paths,
-    PORT, HOST,
+    PORT, HOST, SERVER_MODE, GUNICORN_THREADS,
 )
 from core.auth_db import init_db, get_user_by_id
 from core.auth_models import User
@@ -245,8 +245,35 @@ logger.info("All routes registered successfully")
 # ------------------------------------------------------------------
 # Run
 # ------------------------------------------------------------------
+# Two server modes, selected by the STEMTUBE_SERVER env var (see core/config.py):
+#   - "werkzeug" (default): Flask-SocketIO dev server. Unchanged historical behaviour.
+#   - "gunicorn": production WSGI server. We re-exec into gunicorn, which serves the
+#     same `app` object (SocketIO is wired in threading mode, so gthread works).
+# When gunicorn imports this module as `app:app`, __name__ != '__main__', so the
+# block below is skipped and gunicorn just uses the module-level `app`.
 if __name__ == '__main__':
-    import socket
-    logger.info(f"Starting StemTube Web server on {HOST}:{PORT}")
-    logger.info("Logging system active - all events will be recorded")
-    socketio.run(app, host=HOST, port=PORT, debug=False, allow_unsafe_werkzeug=True)
+    if SERVER_MODE == 'gunicorn':
+        logger.info(f"Starting StemTube Web via gunicorn (gthread) on {HOST}:{PORT}")
+        logger.info("Logging system active - all events will be recorded")
+        # Re-exec into gunicorn serving this module's `app`. gthread worker is
+        # compatible with SocketIO async_mode='threading'. A single worker keeps
+        # the in-process state (queues, SocketIO rooms) coherent; scale threads.
+        # Resolve gunicorn next to the current interpreter (venv-aware), with a
+        # PATH fallback so it works whether or not the venv is activated.
+        _gunicorn = os.path.join(os.path.dirname(sys.executable), "gunicorn")
+        if not os.path.exists(_gunicorn):
+            _gunicorn = "gunicorn"
+        os.execvp(_gunicorn, [
+            _gunicorn,
+            "--worker-class", "gthread",
+            "--workers", "1",
+            "--threads", str(GUNICORN_THREADS),
+            "--timeout", "120",
+            "--bind", f"{HOST}:{PORT}",
+            "app:app",
+        ])
+    else:
+        import socket
+        logger.info(f"Starting StemTube Web server on {HOST}:{PORT}")
+        logger.info("Logging system active - all events will be recorded")
+        socketio.run(app, host=HOST, port=PORT, debug=False, allow_unsafe_werkzeug=True)
