@@ -29,6 +29,17 @@ PORT = 5011
 # Application host address
 HOST = "0.0.0.0"  # Bind to all interfaces
 
+# WSGI server selection (infrastructure choice, set via environment).
+#   "werkzeug" (default) : Flask-SocketIO dev server. Simple, battle-tested for
+#                          this app's threading async_mode. Fine for low traffic.
+#   "gunicorn"           : production WSGI server (gthread worker, compatible
+#                          with async_mode='threading'). Use behind a reverse
+#                          proxy for heavier or public deployments.
+# Kept configurable so we can harden production without breaking the dev flow.
+SERVER_MODE = os.environ.get("STEMTUBE_SERVER", "werkzeug").strip().lower()
+# Number of gunicorn threads (only used when SERVER_MODE == "gunicorn").
+GUNICORN_THREADS = int(os.environ.get("STEMTUBE_GUNICORN_THREADS", "8"))
+
 # Paths
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 RESOURCES_DIR = os.path.join(APP_DIR, "resources")
