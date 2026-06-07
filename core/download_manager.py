@@ -500,8 +500,10 @@ class DownloadManager:
             'sleep_interval_requests': 1,
             # Let yt-dlp auto-select the best client (default handles SABR natively)
             # Forcing player_client to iOS/android limits formats to 360p muxed only
-            # Node.js runtime for YouTube JS challenge solving (Feb 2026)
-            'js_runtimes': {'node': {}},
+            # JS runtime for YouTube challenge solving (nsig/signature).
+            # Deno d'abord (EJS exige Node >=22 ; Deno est plus simple en conteneur),
+            # repli sur Node si Deno absent.
+            'js_runtimes': {'deno': {}, 'node': {}},
             # Cookies config added below
         }
 
