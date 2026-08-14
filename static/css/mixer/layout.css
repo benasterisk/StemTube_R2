@@ -917,7 +917,9 @@
     }
 
     .track-slider::-webkit-slider-thumb {
-        margin-top: -5px;
+        /* Center the 14px thumb on the 6px track (borders excluded from the
+           content box): (6 - 14) / 2 = -4px. Friend ships -5px, 1px high. */
+        margin-top: -4px;
     }
 
     .track-slider::-moz-range-track {

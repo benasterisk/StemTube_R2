@@ -504,6 +504,25 @@ body.neumorphic-custom .track-slider {
     border-radius: 4px;
 }
 
+/* Keep the neumorphic inset groove as the visible track: neutralize the
+   desktop track-bar pseudo-elements styled in layout.css, which would
+   otherwise paint a hard-bordered bar over the groove.
+   (Separate -webkit/-moz rules: an unknown pseudo-element in a selector
+   list drops the whole rule in the other engine.) */
+body.neumorphic-white .track-slider::-webkit-slider-runnable-track,
+body.neumorphic-anthracite .track-slider::-webkit-slider-runnable-track,
+body.neumorphic-custom .track-slider::-webkit-slider-runnable-track {
+    background: transparent;
+    border: none;
+}
+
+body.neumorphic-white .track-slider::-moz-range-track,
+body.neumorphic-anthracite .track-slider::-moz-range-track,
+body.neumorphic-custom .track-slider::-moz-range-track {
+    background: transparent;
+    border: none;
+}
+
 /* ---- Timeline ---- */
 body.neumorphic-white .timeline-container,
 body.neumorphic-anthracite .timeline-container,

@@ -54,7 +54,9 @@
 
             // Count active stems (stems live on window.stemMixer, not window.audioEngine)
             const stems = window.stemMixer?.stems || {};
-            const activeCount = Object.values(stems).filter(s => !s.muted && s.buffer).length;
+            const modalHasSolo = computeHasSolo(stems, window.stemMixer?.recordingEngine);
+            const activeCount = Object.values(stems)
+                .filter(s => s.buffer && !isEffectivelyMuted(s, modalHasSolo)).length;
             if (stemsCountEl) {
                 stemsCountEl.textContent = `${activeCount} active`;
             }
@@ -116,6 +118,9 @@
             // Collect stem states. Volume/pan are stored directly on the stem
             // object (stem.volume / stem.pan), NOT on gainNode/panNode (those are
             // null until audio graph is wired and don't reflect the slider value).
+            // Muted is the EFFECTIVE state (solo-aware) so the export matches
+            // what the user hears; the exporter filters on it.
+            const exportHasSolo = computeHasSolo(stems, window.stemMixer?.recordingEngine);
             for (const [name, stem] of Object.entries(stems)) {
                 if (stem.buffer) {
                     mixerState.stems[name] = {
@@ -124,7 +129,7 @@
                                 : (stem.gainNode?.gain?.value ?? 1.0),
                         pan: (typeof stem.pan === 'number') ? stem.pan
                                 : (stem.panNode?.pan?.value ?? 0),
-                        muted: stem.muted || false
+                        muted: isEffectivelyMuted(stem, exportHasSolo)
                     };
                 }
             }
@@ -140,7 +145,7 @@
             const recEngine = window.stemMixer?.recordingEngine;
             if (recEngine && recEngine.recordings.length > 0) {
                 mixerState.recordings = recEngine.recordings
-                    .filter(r => !r.muted && r.audioBuffer)
+                    .filter(r => r.audioBuffer && !isEffectivelyMuted(r, exportHasSolo))
                     .map(r => ({
                         audioBuffer: r.audioBuffer,
                         startOffset: r.startOffset,
@@ -212,6 +217,22 @@
         }
 
         // ── Helpers ───────────────────────────────────────────────────
+
+        /**
+         * Effective mute for export, mirroring the live playback semantics of
+         * AudioEngine.updateSoloMuteStates / RecordingEngine.updateSoloMuteStates:
+         * soloing zeroes the OTHER tracks' gain without ever setting .muted, so
+         * export must apply muted || (hasSolo && !solo) itself to stay WYSIWYG.
+         */
+        function computeHasSolo(stems, recEngine) {
+            const stemHasSolo = Object.values(stems).some(s => s.solo);
+            const recHasSolo = recEngine ? recEngine.hasAnySolo() : false;
+            return stemHasSolo || recHasSolo;
+        }
+
+        function isEffectivelyMuted(track, hasSolo) {
+            return !!(track.muted || (hasSolo && !track.solo));
+        }
 
         function getOriginalBpm() {
             return window.simplePitchTempo?.originalBPM
