@@ -1,0 +1,15 @@
+Metronome instrument samples — sourced from Freesound, license CC0 (public domain).
+https://creativecommons.org/publicdomain/zero/1.0/
+
+conga.wav  <-  Freesound #455637 "FD808A Conga low.wav" by Uberproduktion (CC0)
+conga_accent.wav  <-  Freesound #455630 "FD808A Conga hi.wav" by Uberproduktion (CC0)
+clave.wav  <-  Freesound #375641 "Claves (claves_mf.wav)" by sgossner (CC0)
+clave_accent.wav  <-  Freesound #634863 "clave4.wav" by collinb1000 (CC0)
+rimshot.wav  <-  Freesound #125269 "Sidestick 1.wav" by connersaw8 (CC0)
+rimshot_accent.wav  <-  Freesound #125270 "Sidestick 2.wav" by connersaw8 (CC0)
+cowbell.wav  <-  Freesound #455635 "FD808A Cowbell.wav" by Uberproduktion (CC0)
+cowbell_accent.wav  <-  Freesound #148931 "Cowbell.wav" by HUMANOISEMAKER (CC0)
+woodblock.wav  <-  Freesound #692828 "Woodblock-soft.wav" by hollandm (CC0)
+woodblock_accent.wav  <-  Freesound #692818 "Woodblock-hard.wav" by hollandm (CC0)
+shaker.wav  <-  Freesound #199823 "Egg Shaker - 1 Throw" by connermusician (CC0)
+shaker_accent.wav  <-  Freesound #199821 "Egg Shaker - 3 Accent" by connermusician (CC0)
