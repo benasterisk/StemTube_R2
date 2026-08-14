@@ -37,12 +37,15 @@ def admin_add_user():
     password = request.form.get('password', '').strip()
     email = request.form.get('email', '').strip() or None
     is_admin = 'is_admin' in request.form
+    # Unchecked checkboxes are absent from the POST, so presence-testing
+    # gives the correct bool (same pattern as is_admin above).
+    youtube_enabled = 'youtube_enabled' in request.form
 
     if not username or not password:
         flash('Username and password are required', 'error')
         return redirect(url_for('admin.admin_page'))
 
-    success, message = add_user(username, password, email, is_admin)
+    success, message = add_user(username, password, email, is_admin, youtube_enabled)
     flash(message, 'success' if success else 'error')
     return redirect(url_for('admin.admin_page'))
 
@@ -55,12 +58,16 @@ def admin_edit_user():
     username = request.form.get('username', '').strip()
     email = request.form.get('email', '').strip() or None
     is_admin = 'is_admin' in request.form
+    # The edit modal always prefills the current state, so writing the
+    # checkbox state unconditionally is correct (absent = unchecked).
+    youtube_enabled = 'youtube_enabled' in request.form
 
     if not user_id or not username:
         flash('User ID and username are required', 'error')
         return redirect(url_for('admin.admin_page'))
 
-    success, message = update_user(user_id, username=username, email=email, is_admin=is_admin)
+    success, message = update_user(user_id, username=username, email=email, is_admin=is_admin,
+                                   youtube_enabled=youtube_enabled)
     flash(message, 'success' if success else 'error')
     return redirect(url_for('admin.admin_page'))
 
