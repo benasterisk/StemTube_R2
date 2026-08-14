@@ -85,22 +85,35 @@ def update_download_analysis(video_id, detected_bpm, detected_key, analysis_conf
         beat_times_json = json.dumps(beat_times) if beat_times else None
         beat_positions_json = json.dumps(beat_positions) if beat_positions else None
 
-        # Update global_downloads table
-        cursor = conn.execute("""
-            UPDATE global_downloads
-            SET detected_bpm=?, detected_key=?, analysis_confidence=?, chords_data=?, beat_offset=?, structure_data=?, lyrics_data=?, beat_times=?, beat_positions=?, music_start_time=?
+        # NULL params PRESERVE the existing value (COALESCE): callers pass None
+        # for "I did not compute this", and a partial result (e.g. a chord
+        # regenerate without positions, or an admin re-analysis) must never
+        # silently erase analysis another pass already stored. Clearing fields
+        # is the job of the dedicated reset helpers, not this updater.
+        _sql = """
+            SET detected_bpm=COALESCE(?, detected_bpm),
+                detected_key=COALESCE(?, detected_key),
+                analysis_confidence=COALESCE(?, analysis_confidence),
+                chords_data=COALESCE(?, chords_data),
+                beat_offset=COALESCE(?, beat_offset),
+                structure_data=COALESCE(?, structure_data),
+                lyrics_data=COALESCE(?, lyrics_data),
+                beat_times=COALESCE(?, beat_times),
+                beat_positions=COALESCE(?, beat_positions),
+                music_start_time=COALESCE(?, music_start_time)
             WHERE video_id=?
-        """, (detected_bpm, detected_key, analysis_confidence, chords_data, beat_offset, structure_json, lyrics_json, beat_times_json, beat_positions_json, music_start_time or 0.0, video_id))
+        """
+        _params = (detected_bpm, detected_key, analysis_confidence, chords_data,
+                   beat_offset, structure_json, lyrics_json, beat_times_json,
+                   beat_positions_json, music_start_time, video_id)
+
+        cursor = conn.execute("UPDATE global_downloads" + _sql, _params)
 
         rows_updated = cursor.rowcount
         print(f"[DB DEBUG] Updated {rows_updated} rows in global_downloads")
 
         # Update all user_downloads entries for this video_id
-        cursor2 = conn.execute("""
-            UPDATE user_downloads
-            SET detected_bpm=?, detected_key=?, analysis_confidence=?, chords_data=?, beat_offset=?, structure_data=?, lyrics_data=?, beat_times=?, beat_positions=?, music_start_time=?
-            WHERE video_id=?
-        """, (detected_bpm, detected_key, analysis_confidence, chords_data, beat_offset, structure_json, lyrics_json, beat_times_json, beat_positions_json, music_start_time or 0.0, video_id))
+        cursor2 = conn.execute("UPDATE user_downloads" + _sql, _params)
 
         rows_updated2 = cursor2.rowcount
         print(f"[DB DEBUG] Updated {rows_updated2} rows in user_downloads")
@@ -111,6 +124,30 @@ def update_download_analysis(video_id, detected_bpm, detected_key, analysis_conf
             print(f"[DB DEBUG] WARNING: No rows updated! Video_id '{video_id}' not found in global_downloads")
         else:
             print(f"[DB DEBUG] Analysis updated successfully for video_id='{video_id}'")
+
+
+def update_beat_grid(video_id, beat_times, beat_positions):
+    """Persist ONLY the beat grid (times + bar positions) for a song.
+
+    Unlike update_download_analysis - which rewrites every analysis column
+    and would null out chords/structure/lyrics when called with just beats -
+    this touches nothing else. Used by the POC mixer preparation to write
+    back its madmom downbeat detection so the expensive pass runs at most
+    once per song, for every user, forever.
+    """
+    beat_times_json = json.dumps(beat_times) if beat_times else None
+    beat_positions_json = json.dumps(beat_positions) if beat_positions else None
+    with _conn() as conn:
+        cur = conn.execute(
+            "UPDATE global_downloads SET beat_times=?, beat_positions=? WHERE video_id=?",
+            (beat_times_json, beat_positions_json, video_id))
+        conn.execute(
+            "UPDATE user_downloads SET beat_times=?, beat_positions=? WHERE video_id=?",
+            (beat_times_json, beat_positions_json, video_id))
+        conn.commit()
+        print(f"[DB] Beat grid saved for video_id='{video_id}': "
+              f"{len(beat_times) if beat_times else 0} beats "
+              f"({cur.rowcount} global row(s))")
 
 
 def update_download_lyrics(video_id, lyrics_data):

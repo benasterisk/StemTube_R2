@@ -424,6 +424,27 @@ def _bake_precount(meta, drums, cache, *, start_time, precount_count, stop_time,
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def _persist_beat_grid(row, beats, positions):
+    """Write freshly-detected beats/downbeats back to the shared DB rows.
+
+    The madmom downbeat pass costs minutes of CPU; persisting its RAW output
+    (pre-groove-snap - the snap is a metronome-render refinement, the DB keeps
+    the canonical analysis) means the detection runs at most once per SONG:
+    every later prepare - any user, any fresh cache - takes the _db_beats
+    fast path, and the metronome track loads together with the stems.
+    """
+    video_id = row.get('video_id')
+    if not (video_id and beats and positions and len(beats) == len(positions)):
+        return
+    try:
+        from core.downloads_db import update_beat_grid
+        update_beat_grid(video_id, [round(float(b), 4) for b in beats],
+                         [int(p) for p in positions])
+    except Exception as e:
+        # Persistence is an optimization: never fail the prepare over it.
+        logger.warning(f"[POC] Could not persist beat grid for {video_id}: {e}")
+
+
 def _db_beats(row):
     """Pull (beats, positions) from the DB row if present, else (None, None)."""
     bt = row.get('beat_times')
@@ -486,6 +507,7 @@ def _build_meta(user_id, row_id, extraction_id, row, stems_map, stems_dir, cache
         if not beats:
             step("Detecting beats (madmom)…", 25)
             beats, positions = M_beats.detect(drums)
+            _persist_beat_grid(row, beats, positions)
         step("Snapping to groove…", 55)
         beats, _snap_stats = M_groove.snap(beats, drums)
         step("Rendering metronome…", 70)
@@ -510,6 +532,7 @@ def _build_meta(user_id, row_id, extraction_id, row, stems_map, stems_dir, cache
         if drums and os.path.exists(drums):
             step("Detecting beats (madmom)…", 30)
             beats, positions = M_beats.detect(drums)
+            _persist_beat_grid(row, beats, positions)
             beats, _ = M_groove.snap(beats, drums)
         else:
             beats, positions = [], []
