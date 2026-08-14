@@ -88,6 +88,22 @@ class JamMetronome {
         // the metronome click (which is a direct oscillator). This delay shifts
         // clicks forward to match the perceived audio output.
         this.clickLatencyOffset = 0;
+        // ── Manual beat-grid alignment offset (seconds) ──────────────────
+        // A single user-facing nudge applied to the WHOLE effective beat grid
+        // (every click, the visual dot, AND the precount). Positive = grid
+        // later (clicks land later). This is on top of the backend's built-in
+        // +25 ms madmom latency correction. Sources that write it:
+        //   - Tap Sync (re-derives phase against the user's taps)
+        //   - The +/- fine-tune buttons in the metronome popover
+        // Persisted per-track by the mixer via the 'metronomeOffsetChanged' event.
+        this.manualOffsetSec = options.manualOffsetSec || 0;
+
+        // Tap Sync state
+        this.tapSyncOffset = 0;
+        this._tapTimes = [];          // wall-clock (performance.now) per tap — BPM estimate
+        this._tapSongPositions = [];  // song position (getCurrentTime) per tap — phase alignment
+        this._tapResetTimer = null;
+        this._tapAutoCloseTimer = null;
 
         // Long-press state
         this._longPressTimers = [];
@@ -313,6 +329,75 @@ class JamMetronome {
             popover.appendChild(item);
         }
 
+        // ── Tap to Sync section ──────────────────────────────────
+        const tapTitle = document.createElement('div');
+        tapTitle.className = 'metronome-precount-title';
+        tapTitle.style.marginTop = '6px';
+        tapTitle.textContent = 'Tap to Sync';
+        popover.appendChild(tapTitle);
+
+        const tapBtn = document.createElement('div');
+        tapBtn.className = 'metronome-tap-sync-btn';
+        tapBtn.textContent = 'Tap to Sync';
+        tapBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+        tapBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this._handleTapSync(tapBtn, popover);
+        });
+        popover.appendChild(tapBtn);
+
+        // ── Fine-tune alignment section ──────────────────────────
+        // These buttons shift the WHOLE effective beat grid (clicks, the
+        // visual dot, AND the precount) via manualOffsetSec. Positive =
+        // grid later. Applied on top of the backend latency correction.
+        const nudgeTitle = document.createElement('div');
+        nudgeTitle.className = 'metronome-precount-title';
+        nudgeTitle.style.marginTop = '6px';
+        nudgeTitle.textContent = 'Fine-tune Align';
+        popover.appendChild(nudgeTitle);
+
+        const nudgeRow = document.createElement('div');
+        nudgeRow.className = 'metronome-nudge-row';
+
+        const nudgeValues = [
+            { label: '-5ms', delta: -0.005 },
+            { label: '-1ms', delta: -0.001 },
+            { label: '+1ms', delta:  0.001 },
+            { label: '+5ms', delta:  0.005 }
+        ];
+
+        for (const nv of nudgeValues) {
+            const btn = document.createElement('div');
+            btn.className = 'metronome-nudge-btn';
+            btn.textContent = nv.label;
+            btn.addEventListener('pointerdown', (e) => e.stopPropagation());
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.nudgeManualOffset(nv.delta);
+                this._updateNudgeDisplay();
+                this._emitManualOffsetChanged();
+            });
+            nudgeRow.appendChild(btn);
+        }
+
+        popover.appendChild(nudgeRow);
+
+        // Alignment offset display. Clicking it resets the offset to 0.
+        const nudgeDisplay = document.createElement('div');
+        nudgeDisplay.className = 'metronome-nudge-display';
+        nudgeDisplay.style.cursor = 'pointer';
+        nudgeDisplay.title = 'Click to reset alignment to 0';
+        nudgeDisplay.addEventListener('pointerdown', (e) => e.stopPropagation());
+        nudgeDisplay.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.setManualOffset(0);
+            this._updateNudgeDisplay();
+            this._emitManualOffsetChanged();
+        });
+        popover.appendChild(nudgeDisplay);
+        this._nudgeDisplay = nudgeDisplay;
+        this._updateNudgeDisplay();
+
         // Position on document.body with fixed positioning
         const rect = container.getBoundingClientRect();
         popover.style.position = 'fixed';
@@ -350,7 +435,211 @@ class JamMetronome {
         if (this._popoverCloseHandler) {
             document.removeEventListener('pointerdown', this._popoverCloseHandler);
             this._popoverCloseHandler = null;
+        }        // Clean up tap sync timers
+        if (this._tapResetTimer) {
+            clearTimeout(this._tapResetTimer);
+            this._tapResetTimer = null;
         }
+        if (this._tapAutoCloseTimer) {
+            clearTimeout(this._tapAutoCloseTimer);
+            this._tapAutoCloseTimer = null;
+        }
+        this._tapTimes = [];
+        this._tapSongPositions = [];
+        this._nudgeDisplay = null;
+    }
+
+    // ── Tap Sync ─────────────────────────────────────────────────
+
+    /**
+     * Handle a single tap for "Tap to Sync".
+     *
+     * Two modes, decided by whether playback is active:
+     *
+     *  • PLAYBACK ACTIVE — each tap also records the current song position
+     *    (getCurrentTime). After ≥4 taps we find, for every tapped position,
+     *    the nearest beat in the EFFECTIVE grid and take the mean signed delta
+     *    (tapPos − nearestBeat). That delta is exactly how far the existing
+     *    variable-tempo grid must shift to sit under the user's taps, so we
+     *    apply it with nudgeManualOffset(). The madmom grid is preserved —
+     *    only its phase moves. The detected BPM is shown as info only.
+     *
+     *  • STOPPED — we have no playback clock to anchor phase, so we fall back
+     *    to the legacy behavior: show the BPM and set it (constant-BPM path),
+     *    but make NO alignment change.
+     *
+     * After 4+ taps, auto-apply and close after 1 second.
+     * Resets if no tap for 2 seconds.
+     */
+    _handleTapSync(tapBtn, popover) {
+        const now = performance.now();
+        const songPos = this.getCurrentTime();
+
+        // Clear the 2-second inactivity reset timer
+        if (this._tapResetTimer) {
+            clearTimeout(this._tapResetTimer);
+            this._tapResetTimer = null;
+        }
+
+        // Clear any pending auto-close timer
+        if (this._tapAutoCloseTimer) {
+            clearTimeout(this._tapAutoCloseTimer);
+            this._tapAutoCloseTimer = null;
+        }
+
+        this._tapTimes.push(now);
+        this._tapSongPositions.push(songPos);
+
+        // Set a 2-second inactivity timer to reset
+        this._tapResetTimer = setTimeout(() => {
+            this._tapTimes = [];
+            this._tapSongPositions = [];
+            if (tapBtn && tapBtn.isConnected) {
+                tapBtn.textContent = 'Tap to Sync';
+                tapBtn.classList.remove('metronome-tap-sync-applied');
+            }
+        }, 2000);
+
+        const tapCount = this._tapTimes.length;
+
+        if (tapCount < 2) {
+            tapBtn.textContent = 'Tap...';
+            return;
+        }
+
+        // Calculate average interval from all taps
+        const intervals = [];
+        for (let i = 1; i < this._tapTimes.length; i++) {
+            intervals.push(this._tapTimes[i] - this._tapTimes[i - 1]);
+        }
+        const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+        const detectedBPM = Math.round(60000 / avgInterval);
+
+        if (tapCount < 3) {
+            tapBtn.textContent = `Tap... ${detectedBPM} BPM`;
+            return;
+        }
+
+        // 3+ taps: show running BPM estimate
+        tapBtn.textContent = `Tap... ${detectedBPM} BPM`;
+
+        if (tapCount >= 4) {
+            // Decide whether we have a live playback clock: the song position
+            // must be positive AND have actually advanced across the taps.
+            const positions = this._tapSongPositions;
+            const firstPos = positions[0];
+            const lastPos = positions[positions.length - 1];
+            const playbackActive = lastPos > 0 && Math.abs(lastPos - firstPos) > 0.05;
+
+            let aligned = false;
+            if (playbackActive && this._beatTimesReady) {
+                // Shift the existing grid onto the taps (do NOT rebuild it).
+                const meanDelta = this._computeTapAlignmentDelta(positions);
+                if (meanDelta !== null && isFinite(meanDelta)) {
+                    this.nudgeManualOffset(meanDelta);
+                    this._updateNudgeDisplay();
+                    this._emitManualOffsetChanged();
+                    aligned = true;
+                }
+            }
+
+            if (!aligned) {
+                // Stopped (or no beat grid): legacy constant-BPM fallback.
+                // No phase information is available, so don't touch alignment.
+                this.setBPM(detectedBPM);
+            }
+
+            // Show applied state (report alignment when we shifted the grid)
+            tapBtn.textContent = aligned
+                ? `Aligned: ${detectedBPM} BPM`
+                : `Applied: ${detectedBPM} BPM`;
+            tapBtn.classList.add('metronome-tap-sync-applied');
+
+            // Clear the reset timer since we're done
+            if (this._tapResetTimer) {
+                clearTimeout(this._tapResetTimer);
+                this._tapResetTimer = null;
+            }
+
+            // Auto-close popover after 1 second
+            this._tapAutoCloseTimer = setTimeout(() => {
+                this._tapTimes = [];
+                this._tapSongPositions = [];
+                this._tapAutoCloseTimer = null;
+                this._hidePrecountPopover();
+            }, 1000);
+        }
+    }
+
+    /**
+     * Given an array of tapped song positions, compute the mean signed delta
+     * (tapPos − nearestEffectiveBeat). This is how far the grid must move to
+     * land on the taps. Returns null if no usable beat grid exists.
+     */
+    _computeTapAlignmentDelta(tapPositions) {
+        const beats = (this._beatTimesReady && this.beatTimes && this.beatTimes.length >= 2)
+            ? this._getEffectiveBeats() : null;
+        if (!beats || beats.length === 0) return null;
+
+        const n = beats.length;
+        let sum = 0;
+        let count = 0;
+        for (const pos of tapPositions) {
+            if (!(pos > 0)) continue; // skip taps with no valid position
+
+            // Binary search for the last beat at or before pos.
+            let lo = 0, hi = n - 1;
+            while (lo < hi) {
+                const mid = (lo + hi + 1) >>> 1;
+                if (beats[mid] <= pos) lo = mid;
+                else hi = mid - 1;
+            }
+            // Nearest beat is either beats[lo] or beats[lo+1].
+            let nearest = beats[lo];
+            if (lo + 1 < n && Math.abs(beats[lo + 1] - pos) < Math.abs(pos - nearest)) {
+                nearest = beats[lo + 1];
+            }
+            sum += (pos - nearest);
+            count++;
+        }
+        if (count === 0) return null;
+        return sum / count;
+    }
+
+    /**
+     * Refresh the alignment display in the popover (if open) to reflect the
+     * current manualOffsetSec. Shows e.g. "Align: +12.5 ms".
+     */
+    _updateNudgeDisplay() {
+        if (this._nudgeDisplay && this._nudgeDisplay.isConnected) {
+            const ms = (this.manualOffsetSec || 0) * 1000;
+            const sign = ms >= 0 ? '+' : '';
+            this._nudgeDisplay.textContent = `Align: ${sign}${ms.toFixed(1)} ms`;
+        }
+    }
+
+    /**
+     * Dispatch the 'metronomeOffsetChanged' event so the mixer can persist the
+     * manual offset per-track. Carries the current video_id (from
+     * window.EXTRACTION_INFO) and the offset in milliseconds.
+     */
+    _emitManualOffsetChanged() {
+        const videoId = (typeof window !== 'undefined' && window.EXTRACTION_INFO)
+            ? window.EXTRACTION_INFO.video_id : undefined;
+        window.dispatchEvent(new CustomEvent('metronomeOffsetChanged', {
+            detail: { video_id: videoId, offsetMs: (this.manualOffsetSec || 0) * 1000 }
+        }));
+    }
+
+    /**
+     * Backwards-compatible alias: legacy callers nudged tapSyncOffset, which
+     * never affected audio. Delegate to the real grid-alignment offset so the
+     * displayed value always reflects manualOffsetSec.
+     */
+    _nudgeTapSyncOffset(deltaSec) {
+        this.nudgeManualOffset(deltaSec);
+        this._updateNudgeDisplay();
+        this._emitManualOffsetChanged();
     }
 
     // ── Precount Engine ───────────────────────────────────────────
@@ -377,20 +666,23 @@ class JamMetronome {
 
         const ctx = this.audioContext;
 
-        // Derive beat duration from beat map if available
-        let beatDuration;
-        if (this._beatTimesReady && this.beatTimes.length >= 2) {
-            const count = Math.min(4, this.beatTimes.length - 1);
+        // Derive the click interval from the EFFECTIVE beat grid so the
+        // precount spacing matches exactly what the running metronome plays
+        // (same resolution, same local tempo). A constant manual offset does
+        // not change inter-beat spacing, so the interval is robust to it.
+        let clickInterval;
+        const eb = (this._beatTimesReady && this.beatTimes && this.beatTimes.length >= 2)
+            ? this._getEffectiveBeats() : null;
+        if (eb && eb.length >= 2) {
+            const count = Math.min(4, eb.length - 1);
             let sum = 0;
-            for (let i = 0; i < count; i++) sum += this.beatTimes[i + 1] - this.beatTimes[i];
-            beatDuration = sum / count;
+            for (let i = 0; i < count; i++) sum += eb[i + 1] - eb[i];
+            clickInterval = sum / count;  // already resolution-adjusted by _getEffectiveBeats
         } else {
-            beatDuration = 60 / this.bpm;
+            const beatDuration = 60 / this.bpm;
+            const step = 1 / this.clickResolution;
+            clickInterval = beatDuration * step;
         }
-
-        // Apply resolution so precount clicks match metronome spacing
-        const step = 1 / this.clickResolution;
-        const clickInterval = beatDuration * step;
 
         const baseTime = ctx ? ctx.currentTime : performance.now() / 1000;
 
@@ -660,15 +952,16 @@ class JamMetronome {
      * Uses beat map intervals when available (matches startPrecount's internal timing).
      */
     getPrecountDuration(precountBeats) {
-        let beatDuration;
-        if (this._beatTimesReady && this.beatTimes.length >= 2) {
-            const count = Math.min(4, this.beatTimes.length - 1);
+        const eb = (this._beatTimesReady && this.beatTimes && this.beatTimes.length >= 2)
+            ? this._getEffectiveBeats() : null;
+        if (eb && eb.length >= 2) {
+            const count = Math.min(4, eb.length - 1);
             let sum = 0;
-            for (let i = 0; i < count; i++) sum += this.beatTimes[i + 1] - this.beatTimes[i];
-            beatDuration = sum / count;
-        } else {
-            beatDuration = 60 / this.bpm;
+            for (let i = 0; i < count; i++) sum += eb[i + 1] - eb[i];
+            const clickInterval = sum / count; // already resolution-adjusted
+            return precountBeats * clickInterval;
         }
+        const beatDuration = 60 / this.bpm;
         const step = 1 / this.clickResolution;
         return precountBeats * beatDuration * step;
     }
@@ -890,7 +1183,9 @@ class JamMetronome {
     _getEffectiveBeats() {
         const res = this.clickResolution;
         const bt = this.beatTimes;
-        const cacheKey = `${bt.length}_${res}`;
+        const off = this.manualOffsetSec || 0;
+        // Cache key includes the manual offset so a nudge invalidates the cache.
+        const cacheKey = `${bt.length}_${res}_${off.toFixed(4)}`;
         if (this._effectiveBeatsKey === cacheKey && this._effectiveBeats) {
             return this._effectiveBeats;
         }
@@ -909,12 +1204,38 @@ class JamMetronome {
                 }
             }
         } else {
-            effective = bt;
+            effective = bt.slice();
+        }
+
+        // Apply the manual alignment offset to the whole grid (clamp ≥ 0).
+        if (off !== 0) {
+            effective = effective.map(t => Math.max(0, t + off));
         }
 
         this._effectiveBeats = effective;
         this._effectiveBeatsKey = cacheKey;
         return effective;
+    }
+    /**
+     * Set the manual beat-grid alignment offset (seconds) and refresh.
+     * Applied on top of the backend's built-in latency correction.
+     * Positive = grid (clicks/dot/precount) shifted later.
+     */
+    setManualOffset(offsetSec) {
+        const v = Number(offsetSec) || 0;
+        // Sanity clamp: a full second of nudge is already absurd.
+        this.manualOffsetSec = Math.max(-1.0, Math.min(1.0, v));
+        // Invalidate caches so the new grid takes effect immediately.
+        this._effectiveBeats = null;
+        this._effectiveBeatsKey = null;
+        // Re-schedule upcoming clicks if currently running.
+        if (this.running) this.resetScheduling();
+        return this.manualOffsetSec;
+    }
+
+    /** Nudge the manual offset by a delta (seconds). Returns the new value. */
+    nudgeManualOffset(deltaSec) {
+        return this.setManualOffset((this.manualOffsetSec || 0) + (Number(deltaSec) || 0));
     }
 
     _scheduleFromBeatMap(currentSongTime, audioNow) {
@@ -1143,7 +1464,17 @@ class JamMetronome {
         if (this.clickGainNode) {
             this.clickGainNode.disconnect();
             this.clickGainNode = null;
+        }        // Clean up tap sync timers
+        if (this._tapResetTimer) {
+            clearTimeout(this._tapResetTimer);
+            this._tapResetTimer = null;
         }
+        if (this._tapAutoCloseTimer) {
+            clearTimeout(this._tapAutoCloseTimer);
+            this._tapAutoCloseTimer = null;
+        }
+        this._tapTimes = [];
+        this._tapSongPositions = [];
         for (const container of this.containers) {
             container.innerHTML = '';
         }
