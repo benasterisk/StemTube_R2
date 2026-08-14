@@ -39,6 +39,15 @@ def patch_file(filepath):
         content = re.sub(r'from collections import (.*?)MutableSequence',
                         r'from collections.abc import \1MutableSequence', content)
 
+        # numpy >= 1.24: np.asarray on a ragged list raises instead of building
+        # an object array. features/downbeats.py builds `results` as
+        # [(path, log_prob), ...] with different path lengths per bar model
+        # (hit whenever beats_per_bar has more than one entry, e.g. [3, 4]).
+        # Select the best model without numpy instead.
+        content = content.replace(
+            'best = np.argmax(np.asarray(results)[:, 1])',
+            'best = max(range(len(results)), key=lambda i: results[i][1])')
+
         if content != original:
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(content)
