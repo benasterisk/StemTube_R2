@@ -6,6 +6,7 @@ Provides Chordify/Moises-level accuracy with advanced beat tracking and extended
 import os
 import sys
 import json
+import core.numpy_compat  # noqa: F401  (must precede madmom imports)
 import numpy as np
 from typing import Tuple, List, Dict, Optional
 

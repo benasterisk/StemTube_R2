@@ -1,6 +1,8 @@
 """Beat & downbeat detection (madmom)."""
 from __future__ import annotations
 
+import core.numpy_compat  # noqa: F401  (must precede madmom imports)
+
 
 def detect(audio_path: str) -> tuple[list[float], list[int]]:
     """

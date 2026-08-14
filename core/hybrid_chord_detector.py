@@ -5,6 +5,7 @@ Provides better accuracy for folk/acoustic guitar by using key-aware detection.
 
 import os
 import json
+import core.numpy_compat  # noqa: F401  (must precede madmom imports)
 import numpy as np
 import librosa
 from typing import Tuple, List, Dict, Optional
