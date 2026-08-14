@@ -71,10 +71,12 @@ class TabManager {
         this.setupVisibilityToggles();
 
         // Restore saved tab state
-        const savedTab = this.normalizeTabName(localStorage.getItem('mixer_active_tab'));
-        if (savedTab && this.validTabs.includes(savedTab)) {
-            this.switchTab(savedTab, false); // false = don't save to localStorage again
-        }
+        try {
+            const savedTab = this.normalizeTabName(localStorage.getItem('mixer_active_tab'));
+            if (savedTab && this.validTabs.includes(savedTab)) {
+                this.switchTab(savedTab, false);
+            }
+        } catch (e) { /* localStorage blocked in WebView2 iframe */ }
 
         // Apply initial visibility state
         this.applyVisibilityState();
@@ -121,7 +123,7 @@ class TabManager {
 
         // Save state to localStorage
         if (saveState) {
-            localStorage.setItem('mixer_active_tab', tabName);
+            try { localStorage.setItem('mixer_active_tab', tabName); } catch (e) {}
         }
 
         // Apply visibility state for chords/lyrics practice tabs
@@ -271,7 +273,7 @@ class TabManager {
      * Save visibility state to localStorage
      */
     saveVisibilityState() {
-        localStorage.setItem('mixer_section_visibility', JSON.stringify(this.sectionVisibility));
+        try { localStorage.setItem('mixer_section_visibility', JSON.stringify(this.sectionVisibility)); } catch (e) {}
     }
 
     /**
