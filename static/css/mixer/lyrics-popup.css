@@ -1,0 +1,92 @@
+/* lyrics-popup.css — Lyrics Focus popup styling.
+ * Extracted verbatim from StemTube Friend's layout.css (the lyrics popup lived
+ * there, while the chords-grid popup + shared popup-controls live in export.css).
+ * Pulled out so we get the exact Friend look without importing the whole
+ * 942-line layout.css (which would clobber the POC mixer layout). */
+
+.lyrics-popup-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 2rem;
+}
+
+.lyrics-popup-overlay.active {
+    display: flex;
+}
+
+.lyrics-popup-dialog {
+    background: var(--bg-primary);
+    border-radius: var(--border-radius);
+    width: 98vw;
+    height: 98vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 80px rgba(0, 0, 0, 0.45);
+}
+
+.lyrics-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.lyrics-popup-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.lyrics-popup-close {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.8rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.lyrics-popup-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem 2rem 2rem;
+    min-height: 0;
+}
+
+.lyrics-popup-content {
+    flex: 1;
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    padding: 2rem;
+    overflow-y: auto;
+}
+
+.lyrics-popup-overlay .karaoke-lyrics {
+    background: transparent;
+    padding: 0;
+    padding-top: 10%;
+    padding-bottom: 70%;
+    max-height: none;
+    font-size: 1.4rem;
+    line-height: 2rem;
+    height: auto;
+    overflow-y: visible;
+}
+
+.lyrics-popup-overlay .karaoke-lyrics.section-hidden {
+    display: block !important;
+}
+
+/* Hide sections when visibility is toggled off in practice tabs */
+.karaoke-in-content .karaoke-lyrics.section-hidden {
+    display: none !important;
+}

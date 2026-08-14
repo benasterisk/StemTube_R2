@@ -1,18 +1,509 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StemTubes Mixer</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ cache_buster }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/desktop/base.css') }}?v={{ cache_buster }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/desktop/neumorphic.css') }}?v={{ cache_buster }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/mixer/mixer.css') }}?v={{ cache_buster }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/mixer/neumorphic.css') }}?v={{ cache_buster }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/recording.css') }}?v={{ cache_buster }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-style.css') }}?v={{ cache_buster }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/jam.css') }}?v={{ cache_buster }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StemTubes Mixer</title>
+<style>
+  /* ──────────────────────────────────────────────────────────────────────────
+     THEME SYSTEM
+     Every colour is a CSS variable. The DEFAULT (POC green) lives on :root so the
+     app looks right even before JS runs. Alternative themes override the same
+     variable names on body[data-theme="…"], so switching is a single attribute
+     flip with zero structural change — and stays re-integrable into StemTube,
+     whose palette these themes mirror (Dark = Spotify green, Cyberpunk, Neumorphic).
+     Variable names are kept stable (--bg/--panel/--line/--accent/--text/--muted)
+     so nothing downstream breaks. ────────────────────────────────────────────── */
+  :root, body[data-theme="poc"] {
+    --bg:#15171c; --panel:#1e2128; --bg-secondary:#1e1e1e; --bg-tertiary:#262a33;
+    --line:#2c313b; --accent:#3ddc84; --accent-hi:#66e6a0;
+    --muted:#5a6472; --text:#e7ebf0; --on-accent:#0c1410;
+    --ctrlW:190px;
+    /* action colours (StemTube palette) */
+    --play:#4caf50; --play-hi:#66d96b;      /* Play / From Start — green */
+    --play-bg:rgba(76,175,80,.18); --play-bg-hi:rgba(76,175,80,.28); --play-fg:#9be29e;
+    --stop:#ff5252; --stop-bg:rgba(255,82,82,.15); --stop-bg-hi:rgba(255,82,82,.25); --stop-fg:#ff9a9a;
+    --rec:#ff3b3b;                           /* Record — red dot */
+    --rec-bg:rgba(255,59,59,.15); --rec-bg-hi:rgba(255,59,59,.26);
+    --export-a:#1db954; --export-b:#1ed760;  /* Export — Spotify green gradient */
+    --export-fg:#08210f;
+    --beat-rgb:102,217,107;                  /* Play beat-pulse glow */
+    --pulse-bg:rgba(76,175,80,.42); --pulse-bg-down:rgba(102,217,107,.6); --pulse-rest:rgba(76,175,80,.16);
+    --playhead:#ff5d5d;
+    --ctrlH:30px;                            /* compact, single-line bar */
+    --radius:7px; --radius-lg:8px;
+    --panel-shadow:none;
+  }
+  /* ── StemTube Dark (the app's default theme — Spotify green on near-black) ── */
+  body[data-theme="dark"] {
+    --bg:#121212; --panel:#1e1e1e; --bg-secondary:#181818; --bg-tertiary:#2d2d2d;
+    --line:#333333; --accent:#1DB954; --accent-hi:#1ed760;
+    --muted:#8a8a8a; --text:#ffffff; --on-accent:#06140b;
+    --play:#1DB954; --play-hi:#1ed760;
+    --play-bg:rgba(29,185,84,.18); --play-bg-hi:rgba(29,185,84,.30); --play-fg:#5be08a;
+    --stop:#ff5252; --stop-bg:rgba(255,82,82,.15); --stop-bg-hi:rgba(255,82,82,.26); --stop-fg:#ff9a9a;
+    --rec:#ff3b3b; --rec-bg:rgba(255,59,59,.15); --rec-bg-hi:rgba(255,59,59,.26);
+    --export-a:#1db954; --export-b:#1ed760; --export-fg:#06140b;
+    --beat-rgb:30,215,96;
+    --pulse-bg:rgba(29,185,84,.42); --pulse-bg-down:rgba(30,215,96,.6); --pulse-rest:rgba(29,185,84,.16);
+    --playhead:#ff5d5d;
+    --radius:8px; --radius-lg:8px; --panel-shadow:none;
+  }
+  /* ── Cyberpunk Neon (deep indigo, electric cyan) ── */
+  body[data-theme="cyberpunk"] {
+    --bg:#0f0c29; --panel:#171340; --bg-secondary:#120e33; --bg-tertiary:#211a55;
+    --line:#2c2470; --accent:#00d4ff; --accent-hi:#33dfff;
+    --muted:#7a78c8; --text:#e8eaf6; --on-accent:#001016;
+    --play:#00e676; --play-hi:#33ff95;
+    --play-bg:rgba(0,212,255,.16); --play-bg-hi:rgba(0,212,255,.28); --play-fg:#7ce9ff;
+    --stop:#ff5252; --stop-bg:rgba(255,82,82,.16); --stop-bg-hi:rgba(255,82,82,.28); --stop-fg:#ff9a9a;
+    --rec:#ff4081; --rec-bg:rgba(255,64,129,.16); --rec-bg-hi:rgba(255,64,129,.28);
+    --export-a:#00d4ff; --export-b:#33dfff; --export-fg:#001016;
+    --beat-rgb:0,212,255;
+    --pulse-bg:rgba(0,212,255,.40); --pulse-bg-down:rgba(51,223,255,.6); --pulse-rest:rgba(0,212,255,.14);
+    --playhead:#ff4081;
+    --radius:6px; --radius-lg:10px; --panel-shadow:0 0 0 1px rgba(0,212,255,.04);
+  }
+  /* ── Neumorphic Anthracite (soft slate, dual-tone shadows) ── */
+  body[data-theme="neumorphic"] {
+    --bg:#2a2d35; --panel:#2a2d35; --bg-secondary:#23262d; --bg-tertiary:#32363f;
+    --line:#3a3f4a; --accent:#1DB954; --accent-hi:#1ed760;
+    --muted:#8a92a1; --text:#e0e4ea; --on-accent:#06140b;
+    --play:#1DB954; --play-hi:#1ed760;
+    --play-bg:rgba(29,185,84,.16); --play-bg-hi:rgba(29,185,84,.28); --play-fg:#7ad79a;
+    --stop:#ff5252; --stop-bg:rgba(255,82,82,.14); --stop-bg-hi:rgba(255,82,82,.24); --stop-fg:#ff9a9a;
+    --rec:#ff3b3b; --rec-bg:rgba(255,59,59,.14); --rec-bg-hi:rgba(255,59,59,.24);
+    --export-a:#1db954; --export-b:#1ed760; --export-fg:#06140b;
+    --beat-rgb:30,215,96;
+    --pulse-bg:rgba(29,185,84,.40); --pulse-bg-down:rgba(30,215,96,.55); --pulse-rest:rgba(29,185,84,.14);
+    --playhead:#ff6b6b;
+    --radius:9px; --radius-lg:12px;
+    --panel-shadow:4px 4px 8px #1c1e24, -4px -4px 8px #383c48;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.4 system-ui,Segoe UI,Roboto,sans-serif; }
+  header { padding:12px 16px; border-bottom:1px solid var(--line); display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  h1 { font-size:16px; margin:0 8px 0 0; font-weight:600; }
+  /* theme switcher — colour swatches; the active theme gets an accent ring */
+  .theme-switch { display:inline-flex; gap:7px; align-items:center; margin-left:auto; flex:0 0 auto; }
+  .theme-switch .swatch {
+    width:20px; height:20px; padding:0; border-radius:50%; cursor:pointer; position:relative;
+    border:1px solid rgba(255,255,255,.18);
+    background:linear-gradient(135deg, var(--sw) 0 50%, var(--sw2) 50% 100%);
+    transition:transform .12s, box-shadow .12s; box-shadow:0 1px 3px rgba(0,0,0,.4);
+  }
+  .theme-switch .swatch:hover { transform:scale(1.12); }
+  .theme-switch .swatch.on { box-shadow:0 0 0 2px var(--bg), 0 0 0 4px var(--sw); }
+  input[type=text] { background:var(--panel); border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:6px; min-width:260px; }
+  select { background:var(--panel); color:var(--text); border:1px solid var(--line); padding:8px; border-radius:6px; }
+  button { background:var(--panel); border:1px solid var(--line); color:var(--text); padding:8px 14px; border-radius:6px; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:600; }
+  button:disabled { opacity:.45; cursor:default; }
+  button.toggle.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  /* ───────────── Transport bar — compact, icon-first, single line ─────────── */
+  .transport { padding:6px 14px; border-bottom:1px solid var(--line); display:flex; gap:5px; align-items:center; flex-wrap:wrap; }
+  .transport .sep { width:1px; height:20px; background:var(--line); margin:0 4px; flex:0 0 auto; }
+  .transport .spacer { flex:1 1 auto; }   /* pushes the right-hand group out */
+  .trgroup { display:inline-flex; align-items:center; gap:5px; flex-wrap:nowrap; }
+
+  /* one shared height for every interactive control in the bar */
+  .transport button,
+  .transport .tpgroup,
+  .transport .zoomctl,
+  .transport .zoomctl .zgroup { height:var(--ctrlH); box-sizing:border-box; }
+  .transport .tpgroup button { height:22px; }
+
+  /* base button — square icon button; labelled variant opts in with .labeled */
+  .transport > button, .trgroup > button {
+    display:inline-flex; align-items:center; justify-content:center; gap:5px;
+    min-width:var(--ctrlH); padding:0 6px; font-size:12px; font-weight:500; line-height:1;
+    border-radius:7px; background:var(--panel); border:1px solid var(--line); color:var(--text);
+    transition:background .12s, border-color .12s, box-shadow .12s, opacity .12s; white-space:nowrap;
+  }
+  .transport > button.labeled, .trgroup > button.labeled { padding:0 10px; }
+  .transport > button:hover:not(:disabled), .trgroup > button:hover:not(:disabled) { background:var(--bg-tertiary); border-color:var(--accent); }
+  .transport > button:disabled, .trgroup > button:disabled { opacity:.4; }
+  .transport > button .ico, .trgroup > button .ico { font-size:13px; line-height:1; }
+  /* hide a button's text label, keep only the icon (compact mode) */
+  .transport > button .lbl, .trgroup > button .lbl { display:none; }
+
+  /* semantic colours — all theme-driven */
+  #playBtn, #fromStartBtn { border-color:transparent; background:var(--play-bg); color:var(--play-fg); }
+  #playBtn:hover:not(:disabled), #fromStartBtn:hover:not(:disabled) { background:var(--play-bg-hi); }
+  #stopBtn { border-color:transparent; background:var(--stop-bg); color:var(--stop-fg); }
+  #stopBtn:hover:not(:disabled) { background:var(--stop-bg-hi); }
+  #recordBtn { border-color:transparent; background:var(--rec-bg); }
+  #recordBtn:hover:not(:disabled) { background:var(--rec-bg-hi); }
+  #recordBtn .dot { width:9px; height:9px; border-radius:50%; background:var(--rec); display:inline-block; }
+  #exportBtn { border:none; background:linear-gradient(135deg,var(--export-a),var(--export-b)); color:var(--export-fg); font-weight:600; }
+  #exportBtn:hover:not(:disabled) { filter:brightness(1.08); }
+
+  /* active toggle (Detect Intro, Precount, Scroll mode) */
+  .transport button.toggle.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:600; }
+  /* precount/scroll-mode show a tiny value next to the icon */
+  #precountBtn .lbl, #scrollModeBtn .lbl { display:inline; font-size:11px; font-weight:600; }
+
+  /* Play beat-pulse: a green glow that beats with the metronome/precount.
+     .pulse triggers one flash; .pulse-strong (downbeats) is bigger. */
+  #playBtn.beat { animation:beatGlow .18s ease-out; }
+  #playBtn.beat.down { animation:beatGlowStrong .22s ease-out; }
+  @keyframes beatGlow {
+    0% { box-shadow:0 0 0 0 rgba(var(--beat-rgb),.55); background:var(--pulse-bg); }
+    100% { box-shadow:0 0 0 7px rgba(var(--beat-rgb),0); background:var(--pulse-rest); }
+  }
+  @keyframes beatGlowStrong {
+    0% { box-shadow:0 0 0 0 rgba(var(--beat-rgb),.85); background:var(--pulse-bg-down); }
+    100% { box-shadow:0 0 0 12px rgba(var(--beat-rgb),0); background:var(--pulse-rest); }
+  }
+
+  .time { font-variant-numeric:tabular-nums; color:var(--muted); font-size:13px; min-width:108px; text-align:center; }
+  .muted-label { color:var(--muted); font-size:12px; }
+
+  /* zoom controls — label + grouped −/+ buttons + reset */
+  .zoomctl { display:inline-flex; align-items:center; gap:5px; color:var(--muted); font-size:12px; }
+  .zoomctl .zlab { font-weight:600; color:var(--text); }
+  .zoomctl .zgroup { display:inline-flex; align-items:center; background:var(--bg); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .zbtn { background:transparent; border:none; color:var(--text); width:32px; height:100%; font-size:15px; line-height:1; cursor:pointer; padding:0; display:inline-flex; align-items:center; justify-content:center; }
+  .zbtn:hover { background:var(--line); }
+  .zoomctl .zgroup .zbtn:first-child { border-right:1px solid var(--line); }
+  .zreset { border:1px solid var(--line); border-radius:8px; width:var(--ctrlH); height:var(--ctrlH); box-sizing:border-box; }
+
+  /* tempo / pitch controls (BPM + Key) */
+  .tpgroup { display:inline-flex; align-items:center; gap:5px; color:var(--muted); font-size:12px;
+    border:1px solid var(--line); border-radius:8px; padding:0 8px; background:var(--panel); }
+  .tpgroup .lab { font-weight:600; color:var(--text); margin-right:1px; font-size:12px; }
+  .tpgroup button { padding:0 7px; font-size:14px; line-height:1; min-width:24px; height:26px; background:var(--bg); border:1px solid var(--line); border-radius:6px; color:var(--text); cursor:pointer; }
+  .tpgroup button:hover { border-color:var(--accent); }
+  .tpgroup .val { font-variant-numeric:tabular-nums; color:var(--accent); min-width:34px; text-align:center; font-size:14px; font-weight:600; }
+  #pitchVal { min-width:52px; }   /* room for "C# min" */
+  .tpgroup input.val { background:var(--bg); border:1px solid var(--line); border-radius:5px; padding:3px 4px; width:46px; min-width:46px; }
+  .tpgroup .unit { font-size:11px; color:var(--muted); }
+  .tpgroup .reset { font-size:11px; opacity:.55; min-width:22px; }
+  .tpgroup .reset.active { opacity:1; border-color:var(--accent); color:var(--accent); }
+  .tpgroup .ratio { font-size:11px; color:var(--muted); min-width:38px; text-align:right; }
+
+  /* single load zone */
+  #dropzone { flex:1; min-width:280px; border:1.5px dashed var(--line); border-radius:8px; padding:10px 14px; color:var(--muted); text-align:center; transition:.15s; }
+  #dropzone.drag { border-color:var(--accent); color:var(--accent); background:rgba(61,220,132,.06); }
+  #dropzone button { padding:3px 8px; }
+
+  /* progress bar */
+  .progress { padding:8px 16px; border-bottom:1px solid var(--line); display:flex; gap:12px; align-items:center; }
+  .pbar { flex:1; height:10px; background:var(--panel); border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+  .pfill { height:100%; width:0%; background:var(--accent); transition:width .25s; }
+  .pstage { color:var(--text); font-size:13px; min-width:200px; }
+
+  /* ── Fixed layout: header + transport + status are flow; the editor below is
+     a 2-column grid. LEFT = fixed control column (never scrolls). RIGHT = the
+     ONLY scroll/zoom area (timeline pinned at its top, waveforms below). ── */
+  html,body { height:100%; }
+  body { display:flex; flex-direction:column; }
+  header, .transport, .status { flex:0 0 auto; }
+  #editor { flex:1 1 auto; min-height:0; display:grid; grid-template-columns: var(--ctrlW) 1fr; border-top:1px solid var(--line); }
+
+  /* left column (controls) — fixed, vertical scroll mirrors the right pane */
+  #leftcol { border-right:1px solid var(--line); background:var(--panel); overflow:hidden; }
+  #left-corner { height:26px; border-bottom:1px solid var(--line); background:var(--bg); }
+  /* ── Track controls — compact, two-row grid that NEVER grows vertically ──
+     Row 1: colour dot + stem name (+ metronome resolution selector, right-aligned).
+     Row 2: square M / S / ● buttons (perfectly aligned) · compact volume fader
+            (flex-grows into the free space, no longer a full-width bar) · pan.
+     Square icon buttons (fixed 24px) guarantee vertical alignment that the old
+     variable-width "Mute"/"Solo" text labels couldn't. Uses StemTube colours via
+     the theme variables, so it restyles with the rest of the app. ── */
+  #left-tracks .lctrl { padding:7px 12px; border-bottom:1px solid var(--line); display:flex; flex-direction:column; gap:6px; justify-content:center; }
+  .lctrl.metro .name, .lctrl.drums .name { color:var(--accent); }
+  .lctrl .name { font-weight:600; font-size:13px; text-transform:capitalize; display:flex; align-items:center; gap:7px; min-height:18px; }
+  .lctrl .name .dot { width:10px; height:10px; border-radius:50%; flex:0 0 10px; box-shadow:0 0 0 2px rgba(0,0,0,.18); }
+
+  /* control row: button cluster | volume fader | pan */
+  .lctrl .ctl-row { display:flex; align-items:center; gap:8px; }
+  .lctrl .btns { display:flex; gap:4px; align-items:center; flex:0 0 auto; }
+  /* square, uniform icon buttons — identical footprint → columns line up */
+  .lctrl .btns button {
+    width:24px; height:24px; padding:0; font-size:11px; font-weight:700; line-height:1;
+    display:inline-flex; align-items:center; justify-content:center;
+    border-radius:6px; background:var(--bg-tertiary); border:1px solid var(--line); color:var(--muted);
+    transition:background .12s, border-color .12s, color .12s;
+  }
+  .lctrl .btns button:hover { border-color:var(--accent); color:var(--text); }
+  .lctrl .btns button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .lctrl .btns button.rec.on { background:var(--rec); color:#fff; border-color:var(--rec); }
+  .lctrl .btns button.rec .dot { width:8px; height:8px; border-radius:50%; background:var(--rec); display:inline-block; }
+  .lctrl .btns button.rec.on .dot { background:#fff; }
+
+  /* volume fader — fills the free space (compact, not a giant full-width bar) */
+  .lctrl .vol { flex:1 1 auto; min-width:40px; }
+
+  /* pan — compact, right-aligned (does not change row height) */
+  .lctrl .pan { flex:0 0 auto; display:flex; align-items:center; gap:3px; }
+  .lctrl .pan .panlab { font-size:9px; color:var(--muted); line-height:1; }
+  .lctrl .pan .panrange { width:40px; }
+
+  /* metronome resolution selector, docked to the right of the name row */
+  .lctrl .name .metrores { margin-left:auto; }
+
+  /* the metronome control hosts an extra row → top-align its rows (don't vertical-
+     center) and never crush them below the content height. */
+  .lctrl.metro { justify-content:flex-start; }
+  .lctrl.metro .ctl-row { margin-top:2px; }
+
+  /* metronome instrument (timbre) row — its OWN line below the control row, so the
+     full-width dropdown is always visible and aligned with the controls above. */
+  .lctrl .metroinst-row { display:flex; align-items:center; gap:8px; margin-top:2px; }
+  .lctrl .metroinst-row .metroinst-lab {
+    font-size:10px; font-weight:600; color:var(--muted); text-transform:uppercase;
+    letter-spacing:.04em; flex:0 0 auto; }
+  .lctrl .metroinst-row .metroinst {
+    flex:1 1 auto; min-width:0; height:24px; font-size:11px; font-weight:600;
+    border-radius:6px; padding:0 6px; background:var(--bg-tertiary);
+    border:1px solid var(--line); color:var(--text); cursor:pointer;
+    transition:border-color .12s; }
+  .lctrl .metroinst-row .metroinst:hover { border-color:var(--accent); }
+  .lctrl .metroinst-row .metroinst:disabled { opacity:.5; cursor:progress; }
+
+  /* ── Track sliders: StemTube style (thin track + round accent thumb) ── */
+  .lctrl .vol, input.panrange {
+    -webkit-appearance:none; appearance:none;
+    height:4px; background:var(--bg-secondary); border-radius:2px; outline:none;
+    margin:0; cursor:pointer;
+  }
+  .lctrl .vol::-webkit-slider-thumb, input.panrange::-webkit-slider-thumb {
+    -webkit-appearance:none; appearance:none;
+    width:12px; height:12px; border-radius:50%; background:var(--accent); cursor:pointer; border:none;
+    box-shadow:0 1px 3px rgba(0,0,0,.35);
+  }
+  .lctrl .vol::-webkit-slider-thumb:hover, input.panrange::-webkit-slider-thumb:hover { background:var(--accent-hi); }
+  .lctrl .vol::-moz-range-thumb, input.panrange::-moz-range-thumb {
+    width:12px; height:12px; border-radius:50%; background:var(--accent); cursor:pointer; border:none;
+  }
+  .lctrl .vol::-moz-range-track, input.panrange::-moz-range-track {
+    height:4px; background:var(--bg-secondary); border-radius:2px;
+  }
+  /* floating value bubble shown on hover / while dragging vol & pan sliders */
+  #ctrl-bubble { position:fixed; z-index:60; pointer-events:none; display:none;
+    background:var(--bg); color:var(--accent); border:1px solid var(--accent);
+    border-radius:5px; padding:2px 7px; font-size:12px; font-variant-numeric:tabular-nums;
+    font-weight:600; white-space:nowrap; transform:translate(-50%,-115%);
+    box-shadow:0 3px 12px rgba(0,0,0,.5); }
+  /* metronome click-resolution selector (½ / 1 / 2) — compact, inline on the name row */
+  .metrores { display:inline-flex; gap:3px; }
+  .metrores button { padding:1px 6px; height:18px; font-size:10px; font-weight:600; line-height:1;
+    font-variant-numeric:tabular-nums; border-radius:5px; background:var(--bg-tertiary);
+    border:1px solid var(--line); color:var(--muted); cursor:pointer; transition:background .12s,border-color .12s,color .12s; }
+  .metrores button:hover { border-color:var(--accent); color:var(--text); }
+  .metrores button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+
+  /* right pane — the ONLY horizontally scrollable region */
+  #rightpane { overflow-x:auto; overflow-y:auto; position:relative; }
+  /* ── Waveform scroll bars: StemTube "lyrics" style — green thumb on a thin track ── */
+  #rightpane::-webkit-scrollbar { width:8px; height:8px; }
+  #rightpane::-webkit-scrollbar-track { background:var(--bg-secondary,#1e1e1e); border-radius:4px; }
+  #rightpane::-webkit-scrollbar-thumb { background:var(--accent); border-radius:4px; }
+  #rightpane::-webkit-scrollbar-thumb:hover { background:#1ed760; }
+  #rightpane::-webkit-scrollbar-corner { background:var(--bg-secondary,#1e1e1e); }
+  /* Firefox */
+  #rightpane { scrollbar-width:thin; scrollbar-color:var(--accent) var(--bg-secondary,#1e1e1e); }
+  /* Viewport rendering: the lane/timeline DIVs carry the full song width (so the
+     scrollbar is correct), but their CANVAS is sticky at left:0 and only as wide
+     as the viewport — drawn for the visible slice. Avoids the 65536px canvas cap. */
+  #timeline-wrap { height:26px; border-bottom:1px solid var(--line); background:var(--bg); position:sticky; top:0; z-index:2; overflow:hidden; }
+  /* Canvas is viewport-sized and absolutely positioned; we move it with style.left
+     = scrollLeft on every scroll so it stays pinned to the visible edge while the
+     lane DIV (full song width) drives the scrollbar. (sticky doesn't work here:
+     an overflow container re-anchors it to the wrong edge.) */
+  #timeline-canvas { position:absolute; left:0; top:0; }
+  #lanes { position:relative; }
+  #lanes .lane { border-bottom:1px solid var(--line); overflow:hidden; position:relative; }
+  #lanes .lane canvas { position:absolute; left:0; top:0; }
+  /* playhead = a thin absolutely-positioned line moved with style.left (no per-frame canvas redraw).
+     Lives in #rightpane so it spans the timeline + all lanes; scrolls with the content. */
+  /* height is set in JS to span the timeline + all lanes (full content height),
+     because top:0/bottom:0 in a scroll container only covers the VISIBLE height. */
+  #playhead-line { position:absolute; top:0; width:0; border-left:1.5px solid var(--playhead); pointer-events:none; z-index:4; left:0; }
+  /* Start marker (count-in target) — a dashed green line, height set in JS. */
+  /* Start marker — same ⚑ flag glyph as the From-Start button, planted on the timeline */
+  #start-line { position:absolute; top:0; width:0; border-left:2px dashed var(--accent); pointer-events:none; z-index:3; left:0; }
+  #start-line::before { content:"⚑"; position:absolute; top:-1px; left:2px; font-size:13px; line-height:1;
+    color:var(--on-accent); background:var(--accent); padding:1px 3px 2px; border-radius:0 4px 4px 0; }
+  /* Metronome-stop marker — where the click goes silent (the stems keep playing). */
+  /* Amber dashed line with a ⏹ glyph, mirroring the green Start flag. */
+  #stop-line { position:absolute; top:0; width:0; border-left:2px dashed #ffb02e; pointer-events:none; z-index:3; left:0; }
+  #stop-line::before { content:"⏹"; position:absolute; top:-1px; left:-15px; font-size:13px; line-height:1;
+    color:#08210f; background:#ffb02e; padding:1px 3px 2px; border-radius:4px 0 0 4px; }
+  /* A/B loop region — a translucent band from A to B across timeline + all lanes.
+     Defined by dragging on a waveform; spans every track. Brighter borders when looping. */
+  #loop-region { position:absolute; top:0; left:0; pointer-events:none; z-index:2;
+    background:rgba(90,141,239,.12); border-left:2px solid rgba(90,141,239,.7); border-right:2px solid rgba(90,141,239,.7); }
+  #loop-region.on { background:rgba(90,141,239,.22); border-left-color:#5a8def; border-right-color:#5a8def; }
+  /* count-in overlay number — fixed, centered on the whole viewport */
+  #countdown { position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+    font-size:160px; font-weight:800; color:var(--accent); opacity:.92; text-shadow:0 4px 28px rgba(0,0,0,.7);
+    pointer-events:none; z-index:50; }
+  canvas { display:block; }
+  .status { padding:8px 16px; color:var(--muted); font-size:13px; min-height:20px; border-top:1px solid var(--line); }
+
+  /* file browser modal */
+  #browser { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:10; }
+  #browser .box { background:var(--panel); border:1px solid var(--line); border-radius:10px; width:560px; max-height:70vh; display:flex; flex-direction:column; }
+  #browser .bhead { padding:12px 14px; border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:center; }
+  #browser .blist { overflow:auto; padding:6px; }
+  #browser .file { padding:8px 10px; border-radius:6px; cursor:pointer; display:flex; justify-content:space-between; }
+  #browser .file:hover { background:var(--line); }
+  #browser .file .sz { color:var(--muted); font-size:12px; }
+
+  /* song title — POC size, but accent-green like the Friend header */
+  #song-title-display { color:var(--accent); }
+
+  /* ── Internal mixer tabs (Mixer / Chords / Lyrics) ── */
+  .mixer-tabs { display:inline-flex; gap:4px; margin-left:auto; }
+  .mixer-tabs .mtab { background:var(--panel); border:1px solid var(--line); color:var(--muted);
+    padding:6px 12px; border-radius:7px; cursor:pointer; font-size:13px; font-weight:600; }
+  .mixer-tabs .mtab:hover { border-color:var(--accent); color:var(--text); }
+  .mixer-tabs .mtab.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+
+  /* Tab content swap: #editor is the Mixer tab; .tabview are Chords/Lyrics.
+     The transport bar stays shared/visible in every tab. */
+  .tabview { display:none; flex:1 1 auto; min-height:0; overflow:auto; }
+  body[data-tab="mixer"]   #editor      { display:grid; }
+  body[data-tab="mixer"]   #chords-view,
+  body[data-tab="mixer"]   #lyrics-view { display:none; }
+  body[data-tab="chords"]  #editor      { display:none; }
+  body[data-tab="chords"]  #chords-view { display:block; }
+  body[data-tab="lyrics"]  #editor      { display:none; }
+  body[data-tab="lyrics"]  #lyrics-view { display:block; }
+  /* Mixer-only view controls (zoom / scroll-mode / export) hidden on Chords+Lyrics.
+     The Focus button replaces them on those tabs. */
+  body:not([data-tab="mixer"]) #viewControls { display:none; }
+  body[data-tab="mixer"] #focusBtn { display:none !important; }
+
+  /* The chords/lyrics/popup look comes from Friend's own CSS (chords.css,
+     karaoke.css, export.css, structure.css), kept verbatim. Those files use
+     Friend's variable names (--accent-color, --bg-tertiary, --text-primary…);
+     the POC theme defines different names (--accent, --bg, --text…). Bridge the
+     two so Friend's CSS renders with the active POC theme colours. */
+  :root, body {
+    --bg-color: var(--bg);
+    --bg-primary: var(--bg);
+    --bg-secondary: var(--bg-secondary, var(--panel));
+    --bg-tertiary: var(--bg-tertiary, var(--panel));
+    --bg-hover: var(--line);
+    --text-color: var(--text);
+    --text-primary: var(--text);
+    --text-secondary: var(--muted);
+    --text-muted: var(--muted);
+    --accent-color: var(--accent);
+    --accent-hover: var(--accent-hi);
+    --accent-rgb: var(--beat-rgb);
+    --border-color: var(--line);
+    --border-radius: var(--radius-lg);
+    --error-color: var(--stop);
+    --success-color: var(--play);
+  }
+  /* Just cap the chords view width so it doesn't sprawl on a wide screen;
+     the diagram sizing itself comes from chords.css. */
+  #chords-view { padding:10px 14px; }
+  #chords-view .practice-panel { max-width:980px; margin:0 auto; }
+
+  /* Lyric line under the chord grid: shown ONCE in its starting measure, allowed
+     to spill across the following (empty) bars instead of being clipped/ellipsised
+     to one measure or repeated in every bar. */
+  #chords-view .chord-linear-lyrics-row {
+    overflow: visible;
+    text-overflow: clip;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Recording track: control block (left) styled like a stem .lctrl; the lane
+     (right) holds a full-width .waveform whose canvas friend's engine draws into. */
+  .rec-lctrl .rec-arm-btn { width:24px; height:24px; padding:0; font-size:11px; font-weight:700;
+    display:inline-flex; align-items:center; justify-content:center; border-radius:6px;
+    background:var(--bg-tertiary); border:1px solid var(--line); color:var(--muted); cursor:pointer; }
+  .rec-lctrl .rec-arm-btn.on { background:var(--rec); border-color:var(--rec); color:#fff; }
+  .rec-lctrl .name .rec-expand-btn { flex:0 0 auto; width:20px; background:none; border:none; color:var(--muted); cursor:pointer; padding:0; font-size:11px; }
+  .rec-lctrl .name .rec-expand-btn:hover { color:var(--text); }
+  .rec-lctrl .name .rec-expand-btn.open i { transform:rotate(180deg); display:inline-block; }
+  .rec-lctrl .track-name { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Track-settings dropdown = a FLOATING popover (position:fixed). It must not
+     grow the left column: the columns' scroll is driven by the lanes' height, so
+     in-flow growth made the menu unreachable at the bottom ("not enough room to
+     scroll"). Fixed positioning escapes #leftcol's overflow:hidden clipping. */
+  .rec-lctrl .rec-expanded-controls { display:none; position:fixed; z-index:75;
+    width:236px; max-height:62vh; overflow:auto; flex-direction:column; gap:8px;
+    background:var(--panel); border:1px solid var(--line); border-radius:9px;
+    padding:10px 12px; box-shadow:0 12px 36px rgba(0,0,0,.55); }
+  .rec-lctrl .rec-expanded-controls.open { display:flex; }
+  .rec-lctrl .rec-expanded-controls .rec-popover-title { font-size:11px; font-weight:700;
+    color:var(--accent); text-transform:uppercase; letter-spacing:.4px; }
+  .rec-lctrl .rec-expanded-controls select { background:var(--bg); color:var(--text); border:1px solid var(--line);
+    border-radius:5px; font-size:11px; padding:3px 4px; }
+  .rec-lctrl .rec-input-row { display:flex; align-items:center; gap:6px; }
+  .rec-lctrl .input-level-meter { flex:1; height:6px; background:var(--bg); border-radius:3px; overflow:hidden; }
+  .rec-lctrl .input-level-fill { height:100%; width:0%; background:linear-gradient(90deg,#3ddc84,#e6d24a,#ff5252); transition:width .05s; }
+  .rec-lctrl .monitor-control { display:flex; align-items:center; gap:4px; color:var(--muted); font-size:11px; }
+  .rec-lctrl .monitor-slider { width:48px; }
+  .rec-lctrl .rec-debleed-row, .rec-lctrl .rec-fx-row { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--muted); }
+  .rec-lctrl .rec-fx-desc { font-size:10px; color:var(--muted); }
+  .rec-lctrl .rec-delete-btn { background:var(--bg-tertiary); border:1px solid var(--line); color:var(--stop-fg,#ff9a9a);
+    border-radius:5px; font-size:11px; padding:3px 8px; cursor:pointer; }
+  .rec-lctrl .rec-delete-btn:hover { border-color:var(--stop); }
+  .rec-lctrl.recording-track.empty-track .track-name::after { content:" (vide)"; color:var(--muted); font-weight:400; }
+  /* lane waveform fills the lane; canvas is full-width (not viewport-pinned) */
+  #lanes .rec-lane { overflow:hidden; }
+  #lanes .rec-lane .waveform { position:relative; height:100%; }
+  #lanes .rec-lane .waveform canvas { position:absolute; left:0; top:0; width:100%; height:100%; }
+  #lanes .rec-lane.is-recording { box-shadow:inset 0 0 0 1px var(--rec); }
+
+  /* The transport bar, while relocated into a Focus popup, drops its bottom border
+     and the mixer-only view controls (zoom/scroll/export) — only the practice-
+     relevant controls (Play / From-Start / Stop / Rec / BPM / Key / count-in) stay. */
+  .popup-transport-slot { flex:1 1 auto; min-width:0; }
+  .transport.in-popup { border-bottom:none; padding:8px 12px; }
+  .transport.in-popup #viewControls,
+  .transport.in-popup #focusBtn,
+  .transport.in-popup .spacer { display:none !important; }
+
+  /* Karaoke word-fill robustness. The kept karaoke-display.js paints words with
+     background-clip:text + text-fill-color:transparent, but only ever updates the
+     CURRENT line's words — words on lines that are no longer active keep a stale
+     transparent fill (sometimes with an emptied background) and VANISH.
+     Fix without touching the JS: the transparent/gradient karaoke treatment only
+     makes sense on the ACTIVE line, so force every word OUTSIDE the active line to
+     show solid, normal text (overriding the stale inline transparent fill). On the
+     active line we leave the JS's inline gradient/clip alone so the live wipe works. */
+  #karaoke-container-lyrics .karaoke-line:not(.active) .karaoke-word,
+  .lyrics-popup-overlay .karaoke-line:not(.active) .karaoke-word {
+    background: none !important;
+    -webkit-text-fill-color: currentColor !important;
+    color: var(--text-secondary);
+    opacity: 1;
+  }
+  /* past lines (already sung) read a touch dimmer than upcoming ones */
+  #karaoke-container-lyrics .karaoke-line.past .karaoke-word,
+  .lyrics-popup-overlay .karaoke-line.past .karaoke-word { color: var(--text-muted, var(--muted)); }
+</style>
+<!-- Friend's chord / lyric / popup / structure styling — kept verbatim so the
+     look matches StemTube Desktop exactly. (export.css holds the Focus-popup +
+     chords-grid styles; layout.css holds the lyrics-popup styles.) -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mixer/chords.css') }}?v={{ cache_buster }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mixer/karaoke.css') }}?v={{ cache_buster }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mixer/export.css') }}?v={{ cache_buster }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mixer/structure.css') }}?v={{ cache_buster }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mixer/lyrics-popup.css') }}?v={{ cache_buster }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/recording.css') }}?v={{ cache_buster }}">
+<!-- Font Awesome for the chord/lyrics icons used in friend's markup -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<!-- R2 web-edition extras: mobile layout + jam session styling (not in Friend). -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-style.css') }}?v={{ cache_buster }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/jam.css') }}?v={{ cache_buster }}">
+<!-- JAM GUEST STYLE (kept verbatim from R2): the selectors below still target the
+     LEGACY mixer IDs (#play-btn, #stop-btn, .bpm-control/.key-control button,
+     #current-bpm, .export-controls, #regenerateChordsBtn). They must be re-targeted
+     to the POC ids (#playBtn, #fromStartBtn, #stopBtn, #loopBtn, #recordBtn,
+     #addTrackBtn, #detectIntroBtn, #precountBtn, #stopMetroBtn, .tpgroup button,
+     #bpmVal, #exportBtn, #viewControls) in 14c. -->
     {% if jam_guest_mode %}
     <style>
         /* Jam Guest: disable host-only controls */
@@ -48,322 +539,29 @@
         <button class="jam-guest-leave" onclick="if(confirm('Leave this jam session?')) window.location.href='/';">Leave</button>
     </div>
     {% endif %}
-    <div class="mixer-app" id="mixer-app" style="display: none;" data-active-tab="mixer">
-        <!-- Tab Navigation -->
-        <div class="mixer-tabs">
-            <button id="mixer-tab-btn" class="tab-btn active" data-tab="mixer">
-                <i class="fas fa-sliders-h"></i> Mixer
-            </button>
-            <button id="chords-tab-btn" class="tab-btn" data-tab="chords">
-                <i class="fas fa-music"></i> Chords
-            </button>
-            <button id="lyrics-tab-btn" class="tab-btn" data-tab="lyrics">
-                <i class="fas fa-microphone"></i> Lyrics
-            </button>
-        </div>
-
-        <!-- Song Title Display -->
-        <div class="song-title-bar">
-            <span class="song-title" id="song-title-display">Loading...</span>
-        </div>
-
-        <!-- Fixed header containing transport controls and timeline -->
-        <div class="fixed-header">
-            <!-- Barre de transport avec contrôles de lecture (SHARED) -->
-            <div class="transport-container">
-                <div class="transport-controls">
-                    <button id="play-btn" class="transport-btn play">
-                        <i class="fas fa-play"></i> Play
-                    </button>
-                    <button id="record-btn" class="transport-btn record" title="Record (arm a track first, or a new track will be created)">
-                        <i class="fas fa-circle"></i> Rec
-                    </button>
-                    <button id="stop-btn" class="transport-btn stop">
-                        <i class="fas fa-stop"></i> Stop
-                    </button>
-                    <button id="skip-intro-btn" class="transport-btn skip-intro" title="Skip non-musical intro" style="display:none;">
-                        <i class="fas fa-forward"></i> Skip Intro
-                    </button>
-                    <div class="time-display" id="time-display">00:00</div>
-                    <div id="metronome-container"></div>
-
-                    <!-- Contrôles BPM/Key simples (SHARED) -->
-                    <div class="bpm-key-controls">
-                        <div class="bpm-control">
-                            <span>BPM:</span>
-                            <button id="bpm-down" class="control-btn">-</button>
-                            <input id="current-bpm" class="bpm-input" type="number" min="50" max="300" step="1" value="120" aria-label="Current tempo (BPM)">
-                            <button id="bpm-up" class="control-btn">+</button>
-                            <button id="bpm-reset" class="control-btn reset-btn" title="Reset BPM to original">⟲</button>
-                        </div>
-                        <div class="key-control">
-                            <span>Key:</span>
-                            <button id="key-down" class="control-btn">-</button>
-                            <span id="current-key">C</span>
-                            <button id="key-up" class="control-btn">+</button>
-                            <button id="key-reset" class="control-btn reset-btn" title="Reset Key to original">⟲</button>
-                        </div>
-                    </div>
-
-                    <div class="chords-transport-controls" data-tab-visible="chords" data-tab-display="flex">
-                        <button class="chord-mode-toggle" id="regenerateChordsBtn" title="Re-analyze chords and beats" style="display: none;">
-                            <i class="fas fa-sync-alt"></i>
-                            <span>Reanalyze</span>
-                        </button>
-                        <button class="chord-mode-toggle" id="madmomBeatsBtn" title="Madmom downbeat detection" style="display: none;">
-                            <i class="fas fa-drum"></i>
-                            <span>Madmom</span>
-                        </button>
-                        <button class="chord-mode-toggle" id="chord-grid-view-btn" title="Open chord grid view">
-                            <i class="fas fa-th"></i>
-                            <span>Grid View</span>
-                        </button>
-                    </div>
-
-                    <div class="lyrics-transport-controls" data-tab-visible="lyrics" data-tab-display="flex">
-                        <button class="chord-mode-toggle" id="karaoke-regenerate-btn" title="Regenerate lyrics (LrcLib + Whisper fallback)">
-                            <i class="fas fa-sync-alt"></i>
-                            <span id="regenerate-btn-label">Regenerate Lyrics</span>
-                        </button>
-                        <button class="chord-mode-toggle" id="lyrics-popup-open" title="Open focused lyrics view">
-                            <i class="fas fa-expand"></i>
-                            <span>Focus Lyrics</span>
-                        </button>
-                    </div>
-
-                    <!-- Recording controls (inline in transport) -->
-                    <div class="recording-transport-controls" data-tab-visible="mixer" data-tab-display="flex">
-                        <div class="rec-toolbar-separator"></div>
-                        <button class="rec-toolbar-btn" id="add-recording-track-btn" title="Add a new recording track">
-                            <i class="fas fa-plus"></i> Add Track
-                        </button>
-                    </div>
-
-                    <!-- Export Mix Button -->
-                    <div class="export-controls" data-tab-visible="mixer" data-tab-display="flex">
-                        <button class="transport-btn export" id="export-mix-btn" title="Export current mix to MP3">
-                            <i class="fas fa-file-export"></i> Export Mix
-                        </button>
-                    </div>
-
-                </div>
-
-                <!-- Zoom controls (MIXER MODE ONLY) -->
-                <div class="zoom-controls" data-tab-visible="mixer" data-tab-display="flex">
-                    <div class="zoom-group">
-                        <span class="zoom-label">H:</span>
-                        <button id="zoom-out-h" class="zoom-btn" title="Réduire zoom horizontal">
-                            <i class="fas fa-minus"></i>
-                        </button>
-                        <button id="zoom-in-h" class="zoom-btn" title="Augmenter zoom horizontal">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </div>
-                    <div class="zoom-group">
-                        <span class="zoom-label">V:</span>
-                        <button id="zoom-out-v" class="zoom-btn" title="Réduire zoom vertical">
-                            <i class="fas fa-minus"></i>
-                        </button>
-                        <button id="zoom-in-v" class="zoom-btn" title="Augmenter zoom vertical">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </div>
-                    <button id="zoom-reset" class="zoom-btn" title="Réinitialiser zoom">
-                        <i class="fas fa-sync-alt"></i>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Timeline avec marqueurs de temps et tête de lecture (shown in both modes) -->
-            <div class="timeline-container">
-                <div class="timeline" id="timeline">
-                    <div id="timeline-playhead" class="playhead"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Scrollable content area -->
-        <div class="scrollable-content">
-            <!-- Recording tracks (above stems) -->
-            <div class="recording-tracks-container" id="recording-tracks-container" data-tab-visible="mixer" data-tab-display="flex">
-                <!-- Recording tracks are generated dynamically here -->
-            </div>
-
-            <!-- MIXER TAB: All stem tracks -->
-            <div class="tracks-container" id="tracks-container" data-tab-visible="mixer" data-tab-display="flex">
-                <!-- Stem tracks are generated dynamically here -->
-            </div>
-
-            <!-- PRACTICE TABS -->
-            <div class="practice-mode-content" data-tab-visible="chords lyrics" data-tab-display="flex">
-                <!-- Master Track (Full Mix Waveform) - Chords tab only -->
-                <div class="master-track" id="master-track" data-tab-visible="chords" data-tab-display="block">
-                    <div class="master-track-header">
-                        <span class="master-track-title">Master Mix</span>
-                        <span class="track-status active" id="master-status"></span>
-                    </div>
-                    <div class="waveform-container" id="master-waveform-container">
-                        <canvas class="waveform" id="master-waveform"></canvas>
-                        <div class="track-playhead" id="master-playhead"></div>
-                    </div>
-                </div>
-
-                <!-- Chords practice tab -->
-                <div class="practice-panel chords-panel" data-tab-visible="chords" data-tab-display="flex">
-                    <!-- Chord Timeline (Mobile-style) -->
-                    <div class="mobile-chord-timeline" id="mobileChordTimeline">
-                        <!-- Chord timeline will be rendered here by chord-display.js -->
-                    </div>
-
-                    <!-- Chord Diagram Panel (Mobile-style) -->
-                    <div class="mobile-chord-diagram-panel">
-                        <div class="mobile-chord-diagram-header">
-                            <span>Accords</span>
-                            <div class="mobile-chord-instrument-toggle">
-                                <button type="button" class="active" data-chord-instrument="guitar">Guitar</button>
-                                <button type="button" data-chord-instrument="piano">Piano</button>
-                            </div>
-                        </div>
-                        <div class="mobile-chord-diagram-carousel">
-                            <div class="mobile-chord-diagram mobile-chord-diagram-prev" id="mobileChordDiagramPrev">
-                                <p class="mobile-text-muted">—</p>
-                            </div>
-                            <div class="mobile-chord-diagram mobile-chord-diagram-current" id="mobileChordDiagram">
-                                <p class="mobile-text-muted">Select a chord to view the diagram.</p>
-                            </div>
-                            <div class="mobile-chord-diagram mobile-chord-diagram-next" id="mobileChordDiagramNext">
-                                <p class="mobile-text-muted">—</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="structure-controls">
-                        <button class="visibility-toggle" id="structure-visibility-toggle" data-section="structure" title="Show/hide structure display">
-                            <i class="fas fa-eye-slash"></i>
-                            <span>Hide Structure</span>
-                        </button>
-                    </div>
-
-                    <!-- Structure Display (Song Sections) -->
-                    <div id="structure-container" style="display: none;">
-                        <!-- Structure sections will be rendered here by structure-display.js -->
-                    </div>
-                </div>
-
-                <!-- Lyrics practice tab -->
-                <div class="practice-panel lyrics-panel" data-tab-visible="lyrics" data-tab-display="flex">
-                    <!-- Karaoke/Lyrics Section -->
-                    <div id="karaoke-container-lyrics" class="karaoke-in-content">
-                        <div class="karaoke-lyrics">
-                            <!-- Karaoke lyrics will be rendered here -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Lyrics Focus Popup -->
-    <div class="lyrics-popup-overlay" id="lyrics-popup" aria-hidden="true">
-        <div class="lyrics-popup-dialog">
-            <div class="lyrics-popup-header">
-                <h3>Lyrics Focus</h3>
-                <button class="lyrics-popup-close" id="lyrics-popup-close">
-                    <i class="fas fa-times"></i>
-                    <span>Back to Mixer</span>
-                </button>
-            </div>
-            <!-- Control bar for Lyrics Focus -->
-            <div class="popup-controls-bar">
-                <div class="popup-playback-controls">
-                    <button id="lyricsPopupPlayBtn" class="popup-control-btn popup-play-sync">
-                        <i class="fas fa-play"></i>
-                    </button>
-                    <button id="lyricsPopupStopBtn" class="popup-control-btn popup-stop-sync">
-                        <i class="fas fa-stop"></i>
-                    </button>
-                    <div class="popup-time-display">
-                        <span id="lyricsPopupCurrentTime" class="popup-time-sync">0:00</span> / <span id="lyricsPopupDuration" class="popup-duration-sync">0:00</span>
-                    </div>
-                </div>
-                <div class="popup-sliders">
-                    <div class="popup-slider-group">
-                        <span class="popup-slider-label">Tempo</span>
-                        <input type="range" id="lyricsPopupTempoSlider" min="0.5" max="2.0" value="1.0" step="0.05" class="popup-slider popup-tempo-sync">
-                        <span id="lyricsPopupTempoValue" class="popup-slider-value popup-tempo-value-sync">1.0x</span>
-                    </div>
-                    <div class="popup-slider-group">
-                        <span class="popup-slider-label">Pitch</span>
-                        <input type="range" id="lyricsPopupPitchSlider" min="-12" max="12" value="0" step="1" class="popup-slider popup-pitch-sync">
-                        <span id="lyricsPopupPitchValue" class="popup-slider-value popup-pitch-value-sync">0</span>
-                    </div>
-                    <div class="popup-slider-group">
-                        <span class="popup-slider-label">Size</span>
-                        <input type="range" id="lyrics-popup-slider" min="0.8" max="1.6" step="0.05" value="1" class="popup-slider">
-                        <span id="lyrics-popup-size-value" class="popup-slider-value">1.0x</span>
-                    </div>
-                </div>
-            </div>
-            <div class="lyrics-popup-body">
-                <div class="lyrics-popup-content" id="lyrics-popup-lyrics">
-                    <!-- Karaoke lyrics element will be moved here dynamically -->
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Chords Grid Popup -->
-    <div class="chords-grid-popup-overlay" id="chords-grid-popup" aria-hidden="true">
-        <div class="chords-grid-popup-dialog">
-            <div class="chords-grid-popup-header">
-                <h3>Chords Grid View</h3>
-                <button class="chords-grid-popup-close" id="chords-grid-popup-close">
-                    <i class="fas fa-times"></i>
-                    <span>Back to Mixer</span>
-                </button>
-            </div>
-            <!-- Control bar for Grid View -->
-            <div class="popup-controls-bar">
-                <div class="popup-playback-controls">
-                    <button id="gridPlayBtn" class="popup-control-btn popup-play-sync">
-                        <i class="fas fa-play"></i>
-                    </button>
-                    <button id="gridStopBtn" class="popup-control-btn popup-stop-sync">
-                        <i class="fas fa-stop"></i>
-                    </button>
-                    <div class="popup-time-display">
-                        <span id="gridCurrentTime" class="popup-time-sync">0:00</span> / <span id="gridDuration" class="popup-duration-sync">0:00</span>
-                    </div>
-                </div>
-                <div class="popup-sliders">
-                    <div class="popup-slider-group">
-                        <span class="popup-slider-label">Tempo</span>
-                        <input type="range" id="gridTempoSlider" min="0.5" max="2.0" value="1.0" step="0.05" class="popup-slider popup-tempo-sync">
-                        <span id="gridTempoValue" class="popup-slider-value popup-tempo-value-sync">1.0x</span>
-                    </div>
-                    <div class="popup-slider-group">
-                        <span class="popup-slider-label">Pitch</span>
-                        <input type="range" id="gridPitchSlider" min="-12" max="12" value="0" step="1" class="popup-slider popup-pitch-sync">
-                        <span id="gridPitchValue" class="popup-slider-value popup-pitch-value-sync">0</span>
-                    </div>
-                </div>
-            </div>
-            <div class="chords-grid-popup-body">
-                <div class="chords-grid-container" id="chords-grid-container">
-                    <!-- Chords grid will be rendered here -->
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Écran de chargement -->
-    <div class="loading-container" id="loading-container">
-        <div class="loading-spinner"></div>
-        <h2>Chargement des stems audio...</h2>
-        <p>Veuillez patienter pendant le chargement des pistes</p>
-    </div>
-    
-    <!-- Initialisation des variables pour le mixeur -->
+<!-- Safe localStorage for WebView2 iframe (Tracking Prevention may block storage) -->
+<script>
+  (function() {
+    try { localStorage.getItem('_test'); } catch(e) {
+      const _mem = {};
+      window.localStorage = {
+        getItem: k => _mem[k] || null,
+        setItem: (k,v) => { _mem[k] = String(v); },
+        removeItem: k => { delete _mem[k]; },
+        clear: () => { for(const k in _mem) delete _mem[k]; },
+        get length() { return Object.keys(_mem).length; },
+        key: i => Object.keys(_mem)[i] || null
+      };
+      console.warn('[WebView2] localStorage blocked, using in-memory fallback');
+    }
+  })();
+</script>
+<!-- Extraction context, injected by the /mixer?extraction_id=... route.
+     R2 superset block: ENCODED_EXTRACTION_ID + [MIXER INIT] debug logs.
+     Jam guest flags come FIRST so they exist before any engine script reads stem
+     URLs. The POC engine loads this song via window.EXTRACTION_ID (poc/main.js).
+     NOTE: the jam guest route (routes/jam.py) may pass extraction_info=None ->
+     EXTRACTION_INFO renders as null; the guest controller fills it from host data. -->
     <script>
         {% if jam_guest_mode %}
         // Jam guest mode flags
@@ -389,81 +587,219 @@
         console.log('[MIXER INIT] Key:', EXTRACTION_INFO?.detected_key);
         console.log('[MIXER INIT] Chords:', EXTRACTION_INFO?.chords_data);
         console.log('[MIXER INIT] Lyrics:', EXTRACTION_INFO?.lyrics_data);
-
-        // Initialize song title display
-        const songTitleElement = document.getElementById('song-title-display');
-        if (songTitleElement && EXTRACTION_INFO?.title) {
-            songTitleElement.textContent = EXTRACTION_INFO.title;
-            songTitleElement.title = EXTRACTION_INFO.title; // Full title on hover
-
-            // Send title to parent window (index.html)
-            if (window.parent && window.parent !== window) {
-                window.parent.postMessage({
-                    type: 'mixer_song_title',
-                    title: EXTRACTION_INFO.title
-                }, '*');
-            }
-        } else if (songTitleElement) {
-            songTitleElement.textContent = 'Unknown Track';
-        }
     </script>
+<!-- Anti-FOUC theme bootstrap — runs before paint. The POC mixer interior is styled
+     via body[data-theme]; friend's parent app uses class-based themes and pushes
+     changes by postMessage. We map friend's theme name → a POC data-theme here, and
+     keep listening for live theme_change messages (see the script block at the end). -->
+<script>
+  (function(){
+    function mapFriendTheme(t){
+      // friend theme classes → POC data-theme buckets
+      if(!t || t === 'dark') return 'dark';
+      if(t.indexOf('cyberpunk') !== -1) return 'cyberpunk';
+      if(t.indexOf('neumorphic') !== -1) return 'neumorphic';
+      return 'dark';
+    }
+    var t = 'dark';
+    try { t = localStorage.getItem('stemtube_theme') || 'dark'; } catch(e){}
+    document.body.setAttribute('data-theme', mapFriendTheme(t));
+    document.body.setAttribute('data-tab', 'mixer');   // default internal tab
+    window.__mapFriendTheme = mapFriendTheme;   // reused by the live listener
+  })();
+</script>
+<header>
+  <h1 class="mixer-song-title" id="song-title-display" title="">Mixer</h1>
+  <span id="nowLoaded" class="muted-label"></span>
+  <!-- Internal mixer tabs: Mixer / Chords / Lyrics. The transport bar below is
+       SHARED across tabs; only the content area swaps (body[data-tab]). -->
+  <div id="mixerTabs" class="mixer-tabs">
+    <button class="mtab on" data-tab="mixer">🎚 Mixer</button>
+    <button class="mtab" data-tab="chords">🎵 Chords</button>
+    <button class="mtab" data-tab="lyrics">🎤 Lyrics</button>
+  </div>
+</header>
 
-    <!-- Export Mix Modal -->
-    <div class="export-modal-overlay" id="export-modal" aria-hidden="true">
-        <div class="export-modal-dialog">
-            <div class="export-modal-header">
-                <h3>Export Mix</h3>
-                <button class="export-modal-close" id="export-modal-close">&times;</button>
-            </div>
-            <div class="export-modal-body">
-                <div class="export-field">
-                    <label for="export-filename">Filename</label>
-                    <div class="export-filename-row">
-                        <input type="text" id="export-filename" class="export-input" placeholder="my_mix">
-                        <span class="export-extension">.mp3</span>
-                    </div>
-                </div>
-                <div class="export-info">
-                    <div class="export-info-row">
-                        <span>Format:</span>
-                        <span>MP3 192 kbps</span>
-                    </div>
-                    <div class="export-info-row">
-                        <span>Active stems:</span>
-                        <span id="export-stems-count">-</span>
-                    </div>
-                    <div class="export-info-row">
-                        <span>Tempo:</span>
-                        <span id="export-tempo">100%</span>
-                    </div>
-                    <div class="export-info-row">
-                        <span>Pitch:</span>
-                        <span id="export-pitch">0 st</span>
-                    </div>
-                    <div class="export-info-row">
-                        <label for="export-include-metronome" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                            <input type="checkbox" id="export-include-metronome">
-                            <span>Include metronome clicks</span>
-                        </label>
-                    </div>
-                </div>
-                <div class="export-progress" id="export-progress" style="display: none;">
-                    <div class="export-progress-bar">
-                        <div class="export-progress-fill" id="export-progress-fill"></div>
-                    </div>
-                    <div class="export-status" id="export-status">Preparing...</div>
-                </div>
-            </div>
-            <div class="export-modal-footer">
-                <button class="export-btn-secondary" id="export-cancel">Cancel</button>
-                <button class="export-btn-primary" id="export-start">
-                    <i class="fas fa-download"></i> Export
-                </button>
-            </div>
+<!-- extraction progress -->
+<div id="progress" class="progress" style="display:none">
+  <div class="pbar"><div class="pfill" id="pfill"></div></div>
+  <span class="pstage" id="pstage"></span>
+</div>
+
+<div class="transport">
+  <!-- Transport: Play pulses with the metronome/precount; Stop red; Record reserved red -->
+  <button id="playBtn" disabled title="Play / Pause"><span class="ico">▶</span></button>
+  <button id="fromStartBtn" disabled title="Play from the Start marker (with count-in)"><span class="ico">⚑</span></button>
+  <button id="stopBtn" disabled title="Stop and rewind to start"><span class="ico">■</span></button>
+  <button id="loopBtn" class="toggle" disabled title="Loop — glisse sur une piste pour définir une zone à boucler, puis active le bouclage"><span class="ico">🔁</span></button>
+  <button id="recordBtn" disabled title="Enregistrer (armer une piste d'abord)"><span class="dot"></span></button>
+  <button id="addTrackBtn" disabled title="Ajouter une piste d'enregistrement"><span class="ico">＋</span></button>
+  <span class="time" id="latency-value" title="Latence d'enregistrement compensée" style="min-width:auto"></span>
+
+  <span class="sep"></span>
+
+  <!-- Intro detection + count-in -->
+  <button id="detectIntroBtn" class="toggle" disabled title="Detect Intro — find the real song start, erase the pre-intro metronome, bake a count-in into the metronome track"><span class="ico">🔍</span></button>
+  <button id="precountBtn" class="toggle" disabled title="Count-in beats to play: Off → 2 → 4 → 8"><span class="ico">⏱</span><span class="lbl">Off</span></button>
+  <button id="stopMetroBtn" class="toggle" disabled title="Fin du métronome — le clic s'arrête à cette position, les pistes continuent. Clic = poser/retirer à la tête de lecture (Ctrl-clic sur une piste pour la placer)."><span class="ico">⏹</span></button>
+
+  <span class="sep"></span>
+
+  <!-- Tempo + Key -->
+  <span class="tpgroup" title="Tempo (time-stretch) — BPM read from the snapped metronome">
+    <span class="lab">BPM</span>
+    <button id="bpmDown">−</button>
+    <input id="bpmVal" class="val" type="text" value="120">
+    <button id="bpmUp">+</button>
+    <button id="bpmReset" class="reset" title="Reset tempo">⟲</button>
+    <span id="tempoRatio" class="ratio">×1.00</span>
+  </span>
+
+  <span class="muted-label" id="startInfo" title="Count-in target. Click a lane to move it."></span>
+
+  <span class="tpgroup" title="Key — detected tonality from the chords. − / + transposes by a semitone (pitch-shift). Does not change tempo, never pitches the metronome.">
+    <span class="lab">Key</span>
+    <button id="pitchDown">−</button>
+    <span id="pitchVal" class="val">—</span>
+    <span id="pitchSemi" class="unit">0 st</span>
+    <button id="pitchUp">+</button>
+    <button id="pitchReset" class="reset" title="Reset to detected key">⟲</button>
+  </span>
+
+  <span class="time" id="time">0.00 / 0.00</span>
+
+  <!-- push the right-hand group out; it wraps as ONE block when space is tight -->
+  <span class="spacer"></span>
+
+  <!-- Focus button: opens the enlarged Chords-grid / Lyrics popup. Shown only on
+       the Chords and Lyrics tabs (the mixer-only view controls hide there). -->
+  <button id="focusBtn" class="labeled" title="Focus view"><span class="ico">⤢</span><span class="lbl" id="focusBtnLbl">Focus</span></button>
+  <!-- Hidden trigger so chord-display.js initGridPopup() wires the popup's
+       close/overlay/ESC handlers (it keys off this id). #focusBtn opens it. -->
+  <button id="chord-grid-view-btn" style="display:none" aria-hidden="true"></button>
+
+  <!-- View controls (scroll mode + zoom + export) — Mixer tab only. -->
+  <div class="trgroup right" id="viewControls">
+    <!-- View: scroll mode + zoom -->
+    <button id="scrollModeBtn" class="toggle on" title="Scroll mode: Manual → Page → Center"><span class="ico">⏭</span><span class="lbl">Page</span></button>
+    <span class="zoomctl">
+      <span class="zlab">H</span>
+      <span class="zgroup">
+        <button id="zoomHout" class="zbtn" title="Zoom out (horizontal)">−</button>
+        <button id="zoomHin"  class="zbtn" title="Zoom in (horizontal)">+</button>
+      </span>
+      <span class="zlab">V</span>
+      <span class="zgroup">
+        <button id="zoomVout" class="zbtn" title="Zoom out (vertical)">−</button>
+        <button id="zoomVin"  class="zbtn" title="Zoom in (vertical)">+</button>
+      </span>
+      <button id="zoomReset" class="zbtn zreset" title="Reset zoom">⟲</button>
+    </span>
+
+    <span class="sep"></span>
+
+    <!-- Export (placeholder, wired later) -->
+    <button id="exportBtn" disabled title="Exporter le mix (pistes + métronome avec count-in / début / fin)"><span class="ico">⤓</span></button>
+  </div>
+</div>
+
+<div id="editor">
+  <!-- LEFT: fixed control column -->
+  <div id="leftcol">
+    <div id="left-corner"></div>
+    <div id="left-tracks"></div>
+  </div>
+  <!-- RIGHT: the only horizontally scrollable region (timeline + waveforms) -->
+  <div id="rightpane">
+    <div id="timeline-wrap"><canvas id="timeline-canvas"></canvas></div>
+    <div id="lanes"></div>
+  </div>
+</div>
+
+<!-- ── CHORDS view (friend's chord-display DOM, kept verbatim; synced to the POC
+     engine via mixer-compat.js). Shown only on the Chords tab. ── -->
+<div id="chords-view" class="tabview">
+  <div class="practice-panel chords-panel">
+    <!-- Chord Timeline (rendered by chord-display.js) -->
+    <div class="mobile-chord-timeline" id="mobileChordTimeline"></div>
+
+    <!-- Chord Diagram carousel (prev / current / next) -->
+    <div class="mobile-chord-diagram-panel">
+      <div class="mobile-chord-diagram-header">
+        <span>Accords</span>
+        <div class="mobile-chord-instrument-toggle">
+          <button type="button" class="active" data-chord-instrument="guitar">Guitar</button>
+          <button type="button" data-chord-instrument="piano">Piano</button>
         </div>
+      </div>
+      <div class="mobile-chord-diagram-carousel">
+        <div class="mobile-chord-diagram mobile-chord-diagram-prev" id="mobileChordDiagramPrev"><p class="mobile-text-muted">—</p></div>
+        <div class="mobile-chord-diagram mobile-chord-diagram-current" id="mobileChordDiagram"><p class="mobile-text-muted">Select a chord to view the diagram.</p></div>
+        <div class="mobile-chord-diagram mobile-chord-diagram-next" id="mobileChordDiagramNext"><p class="mobile-text-muted">—</p></div>
+      </div>
     </div>
+    <!-- Song structure (sections) — rendered by structure-display.js, synced to playback -->
+    <div id="structure-container"></div>
+  </div>
+</div>
 
-    <!-- Scripts modulaires -->
+<!-- ── LYRICS view (friend's karaoke DOM, kept; synced via mixer-compat.js) ── -->
+<div id="lyrics-view" class="tabview">
+  <div class="practice-panel lyrics-panel">
+    <div class="lyrics-toolbar">
+      <button class="chord-mode-toggle" id="karaoke-regenerate-btn" title="Regénérer les paroles (Musixmatch + faster-whisper)">
+        <i class="fas fa-sync-alt"></i> <span id="regenerate-btn-label">Regénérer les paroles</span>
+      </button>
+    </div>
+    <div id="karaoke-container-lyrics" class="karaoke-in-content">
+      <div class="karaoke-lyrics"><!-- karaoke lines rendered by karaoke-display.js --></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Focus popups (friend's markup, kept). Chords grid wired now; Lyrics in Phase 5.
+     The popup control bars are wired by chord-display.js initPopupControls() → POC
+     engine via the mixer shim. ── -->
+<div class="chords-grid-popup-overlay" id="chords-grid-popup" aria-hidden="true">
+  <div class="chords-grid-popup-dialog">
+    <div class="chords-grid-popup-header">
+      <h3>Chords Grid View</h3>
+      <button class="chords-grid-popup-close" id="chords-grid-popup-close"><i class="fas fa-times"></i><span>Fermer</span></button>
+    </div>
+    <!-- The real transport bar (Play / From-Start / Stop / Rec + BPM value + Key
+         note) is MOVED into this slot while the popup is open, then restored on
+         close — same controls as the main bar, no duplication. -->
+    <div class="popup-transport-slot" id="chordsPopupTransportSlot"></div>
+    <div class="chords-grid-popup-body">
+      <div class="chords-grid-container" id="chords-grid-container"></div>
+    </div>
+  </div>
+</div>
+
+<div class="lyrics-popup-overlay" id="lyrics-popup" aria-hidden="true">
+  <div class="lyrics-popup-dialog">
+    <div class="lyrics-popup-header">
+      <h3>Lyrics Focus</h3>
+      <button class="lyrics-popup-close" id="lyrics-popup-close"><i class="fas fa-times"></i><span>Fermer</span></button>
+    </div>
+    <!-- Real transport bar moved here while open (Play / From-Start / Stop / Rec +
+         BPM value + Key note) — plus a lyrics-only text "Taille" (size) slider. -->
+    <div class="popup-controls-bar">
+      <div class="popup-transport-slot" id="lyricsPopupTransportSlot"></div>
+      <div class="popup-slider-group"><span class="popup-slider-label">Taille</span>
+        <input type="range" id="lyrics-popup-slider" min="0.8" max="1.6" step="0.05" value="1" class="popup-slider">
+        <span id="lyrics-popup-size-value" class="popup-slider-value">1.0x</span></div>
+    </div>
+    <div class="lyrics-popup-body">
+      <div class="lyrics-popup-content" id="lyrics-popup-lyrics"></div>
+    </div>
+  </div>
+</div>
+
+<div id="countdown"></div>
+<div id="ctrl-bubble"></div>
+
+<div class="status" id="status">Loading…</div>
     <!-- ngrok free-tier: inject bypass header on all socket.io XHR requests (iOS Safari fix) -->
     <script>
     (function(){
@@ -481,28 +817,214 @@
         };
     })();
     </script>
-    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
-    <script src="/static/js/lib/lame.min.js"></script>
-    <script src="/static/wasm/soundtouch.js"></script>
-    <script src="/static/js/mixer/mix-exporter.js"></script>
-    <script src="/static/js/mixer/export-handler.js"></script>
-    <script src="/static/js/mixer/timeline.js"></script>
-    <script src="/static/js/mixer/waveform.js"></script>
-    <script src="/static/js/mixer/track-controls.js"></script>
-    <script src="/static/js/mixer/recording-effects.js"></script>
-    <script src="/static/js/mixer/recording-engine.js"></script>
-    <script src="{{ url_for('static', filename='js/mixer/chord-display.js') }}?v={{ cache_buster }}"></script>
-    <script src="{{ url_for('static', filename='js/mixer/structure-display.js') }}?v={{ cache_buster }}"></script>
-    <script src="{{ url_for('static', filename='js/mixer/karaoke-display.js') }}?v={{ cache_buster }}"></script>
-    <script src="{{ url_for('static', filename='js/mixer/tab-manager.js') }}?v={{ cache_buster }}"></script>
-    <script src="{{ url_for('static', filename='js/mixer/audio-engine.js') }}?v={{ cache_buster }}"></script>
-    <script src="{{ url_for('static', filename='js/mixer/mobile-audio-engine.js') }}?v={{ cache_buster }}"></script>
-    <script src="{{ url_for('static', filename='js/mixer/mobile-debug-fix.js') }}?v={{ cache_buster }}"></script>
-    <script src="{{ url_for('static', filename='js/mixer/mixer-persistence.js') }}?v={{ cache_buster }}"></script>
-    <script src="{{ url_for('static', filename='js/mixer/simple-pitch-tempo.js') }}?v={{ cache_buster }}"></script>
-    <script src="{{ url_for('static', filename='js/mixer/lyrics-popup.js') }}?v={{ cache_buster }}"></script>
-    <script src="{{ url_for('static', filename='js/mixer/core.js') }}?v={{ cache_buster }}"></script>
-    <script src="{{ url_for('static', filename='js/jam-metronome.js') }}?v={{ cache_buster }}"></script>
+<!-- Socket.IO — used by the kept Lyrics regeneration (faster-whisper) for live
+     progress (lyrics_progress). Loaded before the practice-tab components. -->
+<script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+
+<!-- POC mixer engine (friend-v2: fed by extraction_id via the /poc-mixer bridge).
+     theme.js is omitted — theming is driven by the parent app (see listener below). -->
+<script src="{{ url_for('static', filename='js/poc/api.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/poc/audio.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/poc/state.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/poc/timeline.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/poc/mixer.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/poc/tempo.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/poc/precount.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/poc/loop.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/poc/loader.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/poc/main.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/poc/export.js') }}?v={{ cache_buster }}"></script>
+
+<!-- Practice-tab display components (kept verbatim from friend) + the compat shim
+     that lets them drive off the POC engine. Loaded AFTER main.js so `engine` and
+     `View`/`TempoPitch` globals exist; mixer-compat.js instantiates ChordDisplay. -->
+<script src="{{ url_for('static', filename='js/mixer/chord-display.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/mixer/structure-display.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/mixer/karaoke-display.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/mixer/lyrics-popup.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/poc/mixer-compat.js') }}?v={{ cache_buster }}"></script>
+<!-- Recording: friend's engine + effects (verbatim) + the POC UI bridge.
+     Loaded after the shim so window.mixer exists. -->
+<script src="{{ url_for('static', filename='js/mixer/recording-effects.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/mixer/recording-engine.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/poc/recording-ui.js') }}?v={{ cache_buster }}"></script>
+<script>
+  // Instantiate the kept Chords component against the shim, and wire it into the
+  // POC render loop + load lifecycle.
+  (function(){
+    if (!window.mixer || typeof ChordDisplay === "undefined") {
+      console.error("[chords] mixer shim or ChordDisplay missing"); return;
+    }
+    window.mixer.chordDisplay = new ChordDisplay(window.mixer);
+    window.chordDisplay = window.mixer.chordDisplay;   // some code expects the global
+
+    // ── Recording engine (friend's, verbatim) + button wiring ──
+    if (typeof RecordingEngine !== "undefined") {
+      window.mixer.recordingEngine = new RecordingEngine(window.mixer);
+      var recEngine = window.mixer.recordingEngine;
+
+      // de-bleed progress over socket.io (already loaded for lyrics regen)
+      var sock = window.mixerSocket || (typeof io !== "undefined" ? io() : null);
+      if (sock) { window.mixerSocket = sock; if (recEngine.setupDebleedSocketListeners) recEngine.setupDebleedSocketListeners(sock); }
+
+      var addBtn = document.getElementById("addTrackBtn");
+      var recBtn = document.getElementById("recordBtn");
+      if (addBtn) {
+        addBtn.disabled = false;
+        addBtn.addEventListener("click", function () {
+          var track = recEngine.addEmptyTrack();
+          if (track) window.mixer.trackControls.createRecordingTrackElement(track);
+        });
+      }
+      if (recBtn) {
+        recBtn.disabled = false;
+        // lock/unlock the per-track mic selectors so the input device can't change
+        // mid-take (that desyncs the live waveform from the recorder).
+        function lockDevices(lock){ document.querySelectorAll(".rec-device-select").forEach(function(s){ s.disabled = lock; }); }
+        recBtn.addEventListener("click", async function () {
+          if (recEngine.isRecording || recBtn.__busy) {
+            if (recBtn.__busy) return;            // a start/stop is already in flight
+            recBtn.__busy = true; recBtn.disabled = true;
+            try {
+              recBtn.classList.remove("recording");
+              await recEngine.stopRecording();
+              if (window.mixer.waveform && window.mixer.waveform.redrawAllRecordings) window.mixer.waveform.redrawAllRecordings();
+            } finally { recBtn.__busy = false; recBtn.disabled = false; lockDevices(false); }
+            return;
+          }
+          var armed = recEngine.getArmedTracks();
+          if (!armed.length) { window.mixer.showToast("Armez une piste d'abord (bouton R sur une piste d'enregistrement)", "warning"); return; }
+          // No mic selected = friend's behaviour: record on the system default mic.
+          armed.forEach(function (t) { var el = document.getElementById("rec-track-" + t.id); if (el) el.classList.add("is-recording"); });
+          recBtn.__busy = true; recBtn.disabled = true;
+          function abortStart(msg){
+            if (msg) window.mixer.showToast(msg, "error");
+            armed.forEach(function (t) { var el = document.getElementById("rec-track-" + t.id); if (el) el.classList.remove("is-recording"); });
+          }
+          try {
+            // auto-calibrate latency before each take (records a click round-trip)
+            try { await recEngine.calibrateLatency(); }
+            catch (e) { console.warn("[recording] calibration failed, using fallback:", e); }
+            // START PLAYBACK FIRST, capture SECOND. togglePlayPause can MOVE the
+            // transport before audio rolls (rewind-at-end, baked count-in via
+            // startWithPrecount) — snapshotting the offset before that misplaced
+            // the take and recorded the whole count-in into it. So: play, wait
+            // until the engine is really rolling (and past the Start point when a
+            // count-in is armed), THEN start the MediaRecorder at the live pos.
+            var hasPrecount = !engine.playing && window.PreCount && PreCount.beats > 0 && window.View && View.meta
+              && engine.staticPos <= PreCount.startTime + 0.05;
+            if (!engine.playing && typeof togglePlayPause === "function") togglePlayPause();
+            var rolling = await new Promise(function (res) {
+              var t0 = Date.now();
+              (function poll() {
+                if (engine.playing && (!hasPrecount || engine.pos() >= PreCount.startTime - 0.02)) return res(true);
+                if (Date.now() - t0 > 30000) return res(false);   // count-in bake can take seconds
+                requestAnimationFrame(poll);
+              })();
+            });
+            if (!rolling) { abortStart("Lecture impossible — enregistrement annulé"); return; }
+            var ok = await recEngine.startRecording(engine.pos() || 0);
+            if (!ok) { abortStart("Enregistrement impossible — vérifiez l'autorisation micro"); return; }
+            recBtn.classList.add("recording");
+            lockDevices(true);
+            // show compensated latency
+            var lv = document.getElementById("latency-value");
+            if (lv && recEngine.getEffectiveLatency) { var l = recEngine.getEffectiveLatency(); lv.textContent = l > 0 ? ("⏺ " + Math.round(l * 1000) + "ms") : ""; }
+          } finally { recBtn.__busy = false; recBtn.disabled = false; }
+        });
+      }
+    }
+
+    // Structure (song sections) — constructor auto-loads from EXTRACTION_INFO; we
+    // re-load with the real duration once the engine reports it (in onLoaded).
+    if (typeof StructureDisplay !== "undefined") {
+      window.mixer.structureDisplay = new StructureDisplay("#structure-container", window.EXTRACTION_ID);
+    }
+    // Karaoke/Lyrics — constructor auto-loads lyrics from EXTRACTION_INFO and sets
+    // enabled=true when present, so sync() works straight away.
+    if (typeof KaraokeDisplay !== "undefined") {
+      window.mixer.karaokeDisplay = new KaraokeDisplay("#karaoke-container-lyrics", window.EXTRACTION_ID);
+      window.karaokeDisplayInstance = window.mixer.karaokeDisplay;   // LyricsPopup expects this
+    }
+    // Lyrics Focus popup (kept). Instantiate so its close/slider/ESC wire up; we
+    // trigger open() from the shared Focus button below.
+    if (typeof LyricsPopup !== "undefined") {
+      window.lyricsPopupInstance = new LyricsPopup();
+    }
+
+    var focusBtn = document.getElementById("focusBtn");
+    var focusBtnLbl = document.getElementById("focusBtnLbl");
+
+    function applyTab(tab){
+      document.body.setAttribute("data-tab", tab);
+      document.querySelectorAll("#mixerTabs .mtab").forEach(function(x){ x.classList.toggle("on", x.dataset.tab===tab); });
+      // Focus button label per tab (hidden on Mixer via CSS)
+      if(focusBtnLbl) focusBtnLbl.textContent = (tab==="chords") ? "Focus Chords" : (tab==="lyrics") ? "Focus Lyrics" : "Focus";
+      // canvases sized to a hidden pane render at 0 width; redraw on return to Mixer
+      if(tab === "mixer" && window.View && View.meta) View.redrawAll();
+      // (re)sync the practice tab we're entering so its playhead is correct at once
+      var p = engine.pos();
+      if(tab === "chords" && window.mixer.chordDisplay) window.mixer.chordDisplay.sync(p);
+      if(tab === "lyrics" && window.mixer.karaokeDisplay) window.mixer.karaokeDisplay.sync(p);
+    }
+
+    // Internal tab switcher (Mixer / Chords / Lyrics). Transport stays shared.
+    document.getElementById("mixerTabs").addEventListener("click", function(e){
+      var b = e.target.closest(".mtab"); if(!b) return;
+      applyTab(b.dataset.tab);
+    });
+
+    // Focus button → open the popup matching the current tab.
+    if(focusBtn){
+      focusBtn.addEventListener("click", function(){
+        var tab = document.body.getAttribute("data-tab");
+        if(tab === "chords" && window.mixer.chordDisplay && window.mixer.chordDisplay.openGridPopup){
+          window.mixer.chordDisplay.openGridPopup();
+        } else if(tab === "lyrics" && window.lyricsPopupInstance && window.lyricsPopupInstance.open){
+          window.lyricsPopupInstance.open();
+        }
+      });
+    }
+
+    // ── Move the REAL transport bar into whichever Focus popup is open ──
+    // Gives the popup the exact same controls (Play / From-Start / Stop / Rec +
+    // BPM value + Key note) as the main bar, with zero duplication. A placeholder
+    // remembers the bar's home so we can restore it on close. We observe each
+    // popup's open-state attribute so every close path (button / ESC / overlay)
+    // restores the bar.
+    (function(){
+      var transport = document.querySelector(".transport");
+      if(!transport) return;
+      var home = document.createElement("div");
+      home.style.display = "none";
+      transport.parentNode.insertBefore(home, transport);   // marks the original spot
+
+      function moveTo(slot){
+        if(slot && transport.parentNode !== slot){ slot.appendChild(transport); }
+        transport.classList.add("in-popup");
+      }
+      function restore(){
+        if(transport.parentNode !== home.parentNode || transport.previousSibling !== home){
+          home.parentNode.insertBefore(transport, home.nextSibling);
+        }
+        transport.classList.remove("in-popup");
+        if(window.View && View.meta) View.redrawAll();   // lanes were hidden under the popup
+      }
+
+      function watch(popupId, slotId, isOpen){
+        var popup = document.getElementById(popupId), slot = document.getElementById(slotId);
+        if(!popup || !slot) return;
+        new MutationObserver(function(){
+          if(isOpen(popup)) moveTo(slot); else if(transport.classList.contains("in-popup")) restore();
+        }).observe(popup, { attributes:true, attributeFilter:["aria-hidden","class"] });
+      }
+      // chords grid popup opens via aria-hidden="false"; lyrics popup via .active
+      watch("chords-grid-popup", "chordsPopupTransportSlot", function(p){ return p.getAttribute("aria-hidden")==="false"; });
+      watch("lyrics-popup", "lyricsPopupTransportSlot", function(p){ return p.classList.contains("active"); });
+    })();
+  })();
+</script>
+<!-- JAM WIRING: legacy API, rewritten in 14c -->
     {% if not jam_guest_mode %}
     <script src="/static/js/jam-bridge.js"></script>
     {% else %}
@@ -705,7 +1227,6 @@
     })();
     </script>
     {% endif %}
-
     <script src="{{ url_for('static', filename='js/theme-generator.js') }}?v={{ cache_buster }}"></script>
     <script>
     // Theme initialization for mixer iframe
@@ -720,6 +1241,8 @@
                 var txt = customTextColor || '#e0e0e0';
                 applyCustomThemeVariables(document.body, accent, bg, txt);
             }
+            // 14b: also drive the POC inline palettes (Friend data-theme buckets).
+            document.body.setAttribute('data-theme', (window.__mapFriendTheme || function () { return 'dark'; })(theme));
         }
         // Restore from localStorage immediately for instant theme
         try {
@@ -736,24 +1259,23 @@
             if (e.data && e.data.type === 'theme_change') applyMixerTheme(e.data.theme, e.data.customColor, e.data.customBgColor, e.data.customTextColor);
         });
     })();
-
-    // Compact transport buttons when they overflow their container
-    (function() {
-        var tc = document.querySelector('.transport-controls');
-        if (!tc || typeof ResizeObserver === 'undefined') return;
-        function check() {
-            tc.classList.remove('compact');
-            void tc.offsetWidth;
-            if (tc.scrollWidth > tc.clientWidth + 1) {
-                tc.classList.add('compact');
-            }
-        }
-        // Observe the parent — tc itself doesn't resize when content overflows
-        var target = tc.parentElement || tc;
-        new ResizeObserver(check).observe(target);
-        window.addEventListener('resize', check);
-        check();
-    })();
     </script>
+<!-- Song title → parent library (index.html). Runs after main.js so the engine is
+     wired; title comes from EXTRACTION_INFO. (Friend's theme_change listener was
+     dropped: R2's theme-init IIFE above already handles live theme changes.) -->
+<script>
+  (function(){
+    // Push the song title up to the parent shell.
+    var info = window.EXTRACTION_INFO || {};
+    var titleEl = document.getElementById('song-title-display');
+    if (titleEl && info.title) {
+      titleEl.textContent = info.title;
+      titleEl.title = info.title;
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'mixer_song_title', title: info.title }, '*');
+      }
+    }
+  })();
+</script>
 </body>
 </html>
