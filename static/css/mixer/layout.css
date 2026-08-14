@@ -872,17 +872,9 @@
     -webkit-appearance: none;
     appearance: none;
     height: 6px;
-    background: transparent;
+    background: var(--bg-secondary);
     border-radius: 3px;
     outline: none;
-    margin: 4px 0;
-}
-
-.track-slider::-webkit-slider-runnable-track {
-    height: 6px;
-    background: var(--border-color, #444);
-    border-radius: 3px;
-    border: 1px solid rgba(128, 128, 128, 0.3);
 }
 
 .track-slider::-webkit-slider-thumb {
@@ -893,15 +885,7 @@
     border-radius: 50%;
     background: var(--accent-color, #6c5ce7);
     cursor: pointer;
-    margin-top: -5px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-}
-
-.track-slider::-moz-range-track {
-    height: 6px;
-    background: var(--border-color, #444);
-    border-radius: 3px;
-    border: 1px solid rgba(128, 128, 128, 0.3);
 }
 
 .track-slider::-moz-range-thumb {
@@ -912,6 +896,36 @@
     cursor: pointer;
     border: none;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Desktop-width slider polish (explicit track bar + thumb centering).
+   Scoped to >768px: the responsive touch-pill styling (responsive.css,
+   <=768px) sizes the slider element itself as a 100x35px pill and relies
+   on the element-level background and WebKit's auto-centered thumb, both
+   of which these rules would otherwise defeat. */
+@media (min-width: 769px) {
+    .track-slider {
+        background: transparent;
+        margin: 4px 0;
+    }
+
+    .track-slider::-webkit-slider-runnable-track {
+        height: 6px;
+        background: var(--border-color, #444);
+        border-radius: 3px;
+        border: 1px solid rgba(128, 128, 128, 0.3);
+    }
+
+    .track-slider::-webkit-slider-thumb {
+        margin-top: -5px;
+    }
+
+    .track-slider::-moz-range-track {
+        height: 6px;
+        background: var(--border-color, #444);
+        border-radius: 3px;
+        border: 1px solid rgba(128, 128, 128, 0.3);
+    }
 }
 
 /* Conteneur de forme d'onde */
