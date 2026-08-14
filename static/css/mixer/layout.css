@@ -871,29 +871,47 @@
     width: 100%;
     -webkit-appearance: none;
     appearance: none;
-    height: 4px;
-    background: var(--bg-secondary);
-    border-radius: 2px;
+    height: 6px;
+    background: transparent;
+    border-radius: 3px;
     outline: none;
+    margin: 4px 0;
+}
+
+.track-slider::-webkit-slider-runnable-track {
+    height: 6px;
+    background: var(--border-color, #444);
+    border-radius: 3px;
+    border: 1px solid rgba(128, 128, 128, 0.3);
 }
 
 .track-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
-    background: var(--accent-color);
+    background: var(--accent-color, #6c5ce7);
     cursor: pointer;
+    margin-top: -5px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.track-slider::-moz-range-track {
+    height: 6px;
+    background: var(--border-color, #444);
+    border-radius: 3px;
+    border: 1px solid rgba(128, 128, 128, 0.3);
 }
 
 .track-slider::-moz-range-thumb {
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
-    background: var(--accent-color);
+    background: var(--accent-color, #6c5ce7);
     cursor: pointer;
     border: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* Conteneur de forme d'onde */
