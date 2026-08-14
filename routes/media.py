@@ -283,6 +283,49 @@ def regenerate_extraction_beats(extraction_id):
 
 
 # ------------------------------------------------------------------
+# Metronome grid alignment (per-user manual nudge)
+# ------------------------------------------------------------------
+
+@media_bp.route('/api/media/<video_id>/metronome-offset', methods=['POST'])
+@api_login_required
+def update_metronome_offset(video_id):
+    """Save the manual metronome grid-alignment nudge (milliseconds).
+
+    Backported from the Friend desktop edition, REWRITTEN for multi-user:
+    Friend updates global_downloads unconditionally, which in a shared
+    library would let one user's nudge overwrite the grid alignment for
+    everyone. Here the nudge is personal - write ONLY the current user's
+    user_downloads row (read back user-first via
+    COALESCE(ud.metronome_offset_ms, gd.metronome_offset_ms)).
+    """
+    try:
+        data = request.json or {}
+        offset_ms = float(data.get('offset_ms', 0))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Invalid offset_ms'}), 400
+
+    # Clamp to the client-side nudge range (+/-1 s) to keep stored values sane
+    offset_ms = max(-1000.0, min(1000.0, offset_ms))
+
+    try:
+        from core.db.connection import _conn
+        with _conn() as conn:
+            cur = conn.execute(
+                "UPDATE user_downloads SET metronome_offset_ms=? WHERE user_id=? AND video_id=?",
+                (offset_ms, current_user.id, video_id)
+            )
+            updated = cur.rowcount
+
+        if updated == 0:
+            return jsonify({'error': 'No matching download for this user'}), 404
+
+        return jsonify({'success': True, 'metronome_offset_ms': offset_ms})
+    except Exception as e:
+        logger.error(f"Error saving metronome offset: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+# ------------------------------------------------------------------
 # Lyrics regeneration (unified endpoint)
 # ------------------------------------------------------------------
 
