@@ -1,21 +1,36 @@
 /**
  * Jam Bridge - Runs inside mixer.html (iframe) on the HOST side.
- * Detects active jam session via window.parent.jamState, then:
- *  - Wraps play/pause/stop/seek to broadcast commands to guests
- *  - Listens for tempo/pitch change events and broadcasts them
- *  - Sends periodic sync heartbeats during playback
- *  - Broadcasts track load when extraction changes
- *  - Listens for postMessage from parent to detect new jam sessions
+ *
+ * POC-engine edition: the mixer page now runs the POC chassis (engine from
+ * poc/audio.js, transport in poc/main.js, tempo in poc/tempo.js). This bridge
+ * keeps the EXACT same socket protocol as before (sendPlayback / sendTempo /
+ * sendPitch / loadTrack / jam_sync), so jam-client.js, the server events and
+ * the guest pages (jam-guest.html, mobile) are untouched.
+ *
+ * What changed vs the legacy bridge:
+ *  - transport hooks target the POC surface: engine.play/stop/seek (property
+ *    reassignment; mixer-compat has already wrapped them once for recordings,
+ *    we stack on top - script order guarantees we patch last), plus the
+ *    global stopAll() for the full-stop path (engine.stop() alone is PAUSE
+ *    in the POC engine: it remembers the position).
+ *  - position is engine.pos() (a method; negative during a count-in lead-in,
+ *    clamped to 0 for broadcasts) and playing state is engine.playing.
+ *  - tempo/pitch have no DOM events in the POC chassis: we wrap
+ *    TempoPitch.setBpm / setPitch / resetBpm / resetPitch instead.
+ *  - precount: the POC count-in is a baked lead-in passed to
+ *    engine.play(whenDelay, leadIn). When leadIn > 0 we convert it to beats
+ *    at the current BPM and forward it as precount_beats so legacy guests
+ *    run their own client-side count-in of the same length.
  */
 (function() {
     'use strict';
 
     let parentJamState = null;
     let parentJamClient = null;
-    let mixerPatched = false;
+    let transportPatched = false;
     let syncInterval = null;
     let lastBroadcastedExtractionId = null;
-    let jamCheckInterval = null;
+    let suppressPauseBroadcast = false;
 
     function getParentJamState() {
         try {
@@ -41,121 +56,142 @@
         return !!(parentJamState && parentJamState.active && parentJamClient && parentJamClient.isActive());
     }
 
-    // Patch the mixer's transport methods to broadcast jam commands
-    function patchMixer() {
-        if (mixerPatched) return;
-        const mixer = window.stemMixer;
-        if (!mixer || !mixer.audioEngine) return;
+    // ── POC surface accessors ────────────────────────────────────────
 
-        const engine = mixer.audioEngine;
+    function pocEngine() {
+        // `engine` is a top-level const in poc/audio.js: not a window property,
+        // but visible to this plain script through the global lexical scope.
+        try { return engine; } catch (e) { return null; }
+    }
 
-        // Snap playback to a beat-aligned position for seamless precount→metronome transition
-        function computePrecountTarget(engine, metronome) {
-            const pos = engine.playbackPosition || engine.mixer?.currentTime || 0;
-            const firstRealBeat = metronome.getFirstRealBeat();
-            if (pos < firstRealBeat) return firstRealBeat;
-            return metronome.findBarDownbeat(pos);
+    function engineReady() {
+        const e = pocEngine();
+        return !!(e && e.duration > 0);
+    }
+
+    function currentPos() {
+        const e = pocEngine();
+        if (!e) return 0;
+        try { return Math.max(0, e.pos() || 0); } catch (err) { return 0; }
+    }
+
+    function currentBpm() {
+        try { return TempoPitch.bpmTarget || TempoPitch.bpmBase || 120; } catch (e) { return 120; }
+    }
+
+    function originalBpm() {
+        try { return TempoPitch.bpmBase || 120; } catch (e) { return 120; }
+    }
+
+    // ── Transport hooks ──────────────────────────────────────────────
+
+    function patchTransport() {
+        if (transportPatched) return;
+        const e = pocEngine();
+        if (!e) return;
+
+        // play: broadcast the position playback will start from. A count-in
+        // arrives as play(whenDelay, leadIn); convert leadIn to beats so
+        // legacy guests can mirror it with their own client-side precount.
+        const origPlay = e.play.bind(e);
+        e.play = function(whenDelay, leadIn) {
+            const startPos = currentPos();
+            const ret = origPlay(whenDelay, leadIn);
+            if (isJamActive()) {
+                const opts = {};
+                if (leadIn && leadIn > 0) {
+                    const beatDur = 60 / currentBpm();
+                    opts.precount_beats = Math.max(1, Math.round(leadIn / beatDur));
+                }
+                parentJamClient.sendPlayback('play', startPos, opts);
+                startSyncHeartbeat();
+            }
+            return ret;
+        };
+
+        // engine.stop() is PAUSE in the POC engine (position preserved).
+        // stopAll() (full stop) calls it too: suppress the pause broadcast
+        // there and send the real 'stop' after.
+        const origStop = e.stop.bind(e);
+        e.stop = function() {
+            const pos = currentPos();
+            const ret = origStop();
+            if (isJamActive() && !suppressPauseBroadcast) {
+                parentJamClient.sendPlayback('pause', pos);
+                stopSyncHeartbeat();
+            }
+            return ret;
+        };
+
+        // Full stop: the global stopAll from poc/main.js (function declaration
+        // => reassignable window property; the UI closures resolve to it).
+        if (typeof window.stopAll === 'function') {
+            const origStopAll = window.stopAll;
+            window.stopAll = function() {
+                suppressPauseBroadcast = true;
+                try { origStopAll.apply(this, arguments); }
+                finally { suppressPauseBroadcast = false; }
+                if (isJamActive()) {
+                    parentJamClient.sendPlayback('stop', 0);
+                    stopSyncHeartbeat();
+                }
+            };
         }
 
-        // Wrap play (with precount support for jam sessions)
-        const originalPlay = engine.play.bind(engine);
-        engine.play = function() {
-            const metronome = window.stemMixer?.metronome;
-
-            if (isJamActive() && metronome && metronome.getPrecountBeats() > 0) {
-                const precountBeats = metronome.getPrecountBeats();
-                const targetPos = computePrecountTarget(engine, metronome);
-                engine.setPlaybackPosition(targetPos);
-                // Broadcast BEFORE starting local precount so guests precount simultaneously
-                parentJamClient.sendPlayback('play', targetPos, { precount_beats: precountBeats });
-                console.log(`[JamBridge] Starting precount: ${precountBeats} beats, snapped to ${targetPos.toFixed(3)}s`);
-                metronome.startPrecount(precountBeats, () => {
-                    originalPlay();
-                    metronome.start();
-                    startSyncHeartbeat();
-                });
-            } else if (isJamActive()) {
-                originalPlay();
-                const pos = engine.playbackPosition || engine.mixer?.currentTime || 0;
-                parentJamClient.sendPlayback('play', pos);
-                startSyncHeartbeat();
-            } else if (metronome && metronome.getPrecountBeats() > 0) {
-                // Solo mode with precount
-                const precountBeats = metronome.getPrecountBeats();
-                const targetPos = computePrecountTarget(engine, metronome);
-                engine.setPlaybackPosition(targetPos);
-                console.log(`[JamBridge] Solo precount: ${precountBeats} beats, snapped to ${targetPos.toFixed(3)}s`);
-                metronome.startPrecount(precountBeats, () => {
-                    originalPlay();
-                    metronome.start();
-                });
-            } else {
-                originalPlay();
-            }
-        };
-
-        // Wrap pause
-        const originalPause = engine.pause.bind(engine);
-        engine.pause = function() {
-            // Cancel any active precount
-            const metronome = window.stemMixer?.metronome;
-            if (metronome) metronome.cancelPrecount();
-
-            originalPause();
+        // seek (mixer-compat aliases seekToPosition to the same method)
+        const origSeek = e.seek.bind(e);
+        e.seek = function(t) {
+            const ret = origSeek(t);
             if (isJamActive()) {
-                parentJamClient.sendPlayback('pause', engine.playbackPosition || engine.mixer?.currentTime || 0);
-                stopSyncHeartbeat();
+                parentJamClient.sendPlayback('seek', Math.max(0, t || 0));
             }
+            return ret;
         };
+        if (typeof e.seekToPosition === 'function') {
+            e.seekToPosition = function(t) { return e.seek(t); };
+        }
 
-        // Wrap stop
-        const originalStop = engine.stop.bind(engine);
-        engine.stop = function() {
-            // Cancel any active precount
-            const metronome = window.stemMixer?.metronome;
-            if (metronome) metronome.cancelPrecount();
-
-            originalStop();
-            if (isJamActive()) {
-                parentJamClient.sendPlayback('stop', 0);
-                stopSyncHeartbeat();
-            }
-        };
-
-        // Wrap seekToPosition
-        const originalSeek = engine.seekToPosition.bind(engine);
-        engine.seekToPosition = function(position) {
-            originalSeek(position);
-            if (isJamActive()) {
-                parentJamClient.sendPlayback('seek', position);
-            }
-        };
-
-        mixerPatched = true;
-        console.log('[JamBridge] Mixer transport patched for jam broadcasting');
+        transportPatched = true;
+        console.log('[JamBridge] POC transport patched for jam broadcasting');
     }
 
-    // Listen for tempo and pitch change events
-    function setupTempoAndPitchListeners() {
-        window.addEventListener('tempoChanged', (e) => {
+    // ── Tempo / pitch hooks (no DOM events in the POC chassis) ───────
+
+    function patchTempoPitch() {
+        let TP;
+        try { TP = TempoPitch; } catch (e) { return; }
+        if (!TP || TP._jamPatched) return;
+
+        function broadcastTempo() {
             if (!isJamActive()) return;
-            const detail = e.detail || {};
-            const bpm = window.simplePitchTempo?.currentBPM || 120;
-            const originalBpm = window.simplePitchTempo?.originalBPM || 120;
-            const syncRatio = detail.syncRatio || (bpm / originalBpm);
-            parentJamClient.sendTempo(bpm, originalBpm, syncRatio);
+            const bpm = currentBpm();
+            const base = originalBpm();
+            parentJamClient.sendTempo(bpm, base, bpm / base);
+        }
+
+        function broadcastPitch() {
+            if (!isJamActive()) return;
+            const semi = TP.pitchSemitones || 0;
+            const keyEl = document.getElementById('keyName') || document.getElementById('current-key');
+            parentJamClient.sendPitch(semi, keyEl ? keyEl.textContent : 'C');
+        }
+
+        ['setBpm', 'resetBpm'].forEach((m) => {
+            if (typeof TP[m] !== 'function') return;
+            const orig = TP[m].bind(TP);
+            TP[m] = function() { const r = orig.apply(TP, arguments); broadcastTempo(); return r; };
+        });
+        ['setPitch', 'resetPitch'].forEach((m) => {
+            if (typeof TP[m] !== 'function') return;
+            const orig = TP[m].bind(TP);
+            TP[m] = function() { const r = orig.apply(TP, arguments); broadcastPitch(); return r; };
         });
 
-        window.addEventListener('pitchShiftChanged', (e) => {
-            if (!isJamActive()) return;
-            const detail = e.detail || {};
-            const pitchShift = detail.pitchShift || 0;
-            const currentKey = document.getElementById('current-key')?.textContent || 'C';
-            parentJamClient.sendPitch(pitchShift, currentKey);
-        });
+        TP._jamPatched = true;
     }
 
-    // Broadcast current track to jam session
+    // ── Track + state broadcast (protocol unchanged) ─────────────────
+
     function broadcastCurrentTrack() {
         if (!isJamActive()) return;
         const extractionId = window.EXTRACTION_ID || '';
@@ -164,27 +200,20 @@
         parentJamClient.loadTrack(extractionId, extractionData);
         lastBroadcastedExtractionId = extractionId;
         console.log('[JamBridge] Broadcasted track:', extractionData.title);
-
-        // Send initial state sync so guests know host is stopped
         broadcastCurrentState();
     }
 
-    // Broadcast current playback state (used after reconnect)
     function broadcastCurrentState() {
-        if (!isJamActive()) return;
-        const engine = window.stemMixer?.audioEngine;
-        if (!engine) return;
-        const bpm = window.simplePitchTempo?.currentBPM || 120;
+        if (!isJamActive() || !engineReady()) return;
         parentJamClient.socket.emit('jam_sync', {
             code: parentJamClient.getCode(),
-            position: engine.playbackPosition || engine.mixer?.currentTime || 0,
-            bpm: bpm,
-            is_playing: !!engine.mixer?.isPlaying,
+            position: currentPos(),
+            bpm: currentBpm(),
+            is_playing: !!pocEngine().playing,
             timestamp: Date.now()
         });
     }
 
-    // Check if the extraction has changed and broadcast
     function checkExtractionChange() {
         if (!isJamActive()) return;
         const extractionId = window.EXTRACTION_ID || '';
@@ -193,24 +222,18 @@
         }
     }
 
-    // Periodic sync heartbeat during playback
+    // ── Sync heartbeat ───────────────────────────────────────────────
+
     function startSyncHeartbeat() {
         stopSyncHeartbeat();
         syncInterval = setInterval(() => {
-            if (!isJamActive()) {
-                stopSyncHeartbeat();
-                return;
-            }
-            const engine = window.stemMixer?.audioEngine;
-            if (!engine || !engine.mixer?.isPlaying) {
-                stopSyncHeartbeat();
-                return;
-            }
-            const bpm = window.simplePitchTempo?.currentBPM || 120;
+            if (!isJamActive()) { stopSyncHeartbeat(); return; }
+            const e = pocEngine();
+            if (!e || !e.playing) { stopSyncHeartbeat(); return; }
             parentJamClient.socket.emit('jam_sync', {
                 code: parentJamClient.getCode(),
-                position: engine.playbackPosition || engine.mixer?.currentTime || 0,
-                bpm: bpm,
+                position: currentPos(),
+                bpm: currentBpm(),
                 is_playing: true,
                 timestamp: Date.now()
             });
@@ -224,71 +247,61 @@
         }
     }
 
-    // Listen for messages from parent window (jam session created/ended)
+    // ── Lifecycle ────────────────────────────────────────────────────
+
     function setupParentMessageListener() {
         window.addEventListener('message', (event) => {
             if (!event.data || typeof event.data !== 'object') return;
 
             if (event.data.type === 'jam_session_created') {
-                console.log('[JamBridge] Received jam_session_created from parent, stemMixer=', !!window.stemMixer, 'isInitialized=', window.stemMixer?.isInitialized);
-                // Patch mixer if not done yet, then broadcast current track
-                if (window.stemMixer && window.stemMixer.isInitialized) {
-                    patchMixer();
+                console.log('[JamBridge] jam_session_created, engineReady=', engineReady());
+                if (engineReady()) {
+                    patchTransport();
+                    patchTempoPitch();
                     broadcastCurrentTrack();
                 } else {
-                    console.warn('[JamBridge] stemMixer not ready, cannot broadcast yet');
+                    console.warn('[JamBridge] POC engine not ready, cannot broadcast yet');
                 }
             } else if (event.data.type === 'jam_session_ended') {
-                console.log('[JamBridge] Received jam_session_ended from parent');
+                console.log('[JamBridge] jam_session_ended');
                 stopSyncHeartbeat();
                 lastBroadcastedExtractionId = null;
             }
         });
     }
 
-    // Periodically check if jam became active (fallback)
     function startJamStateMonitor() {
         let wasActive = false;
-        jamCheckInterval = setInterval(() => {
+        setInterval(() => {
             const active = isJamActive();
             if (active && !wasActive) {
-                // Jam just became active
                 console.log('[JamBridge] Jam session detected as active');
-                if (window.stemMixer && window.stemMixer.isInitialized) {
-                    patchMixer();
+                if (engineReady()) {
+                    patchTransport();
+                    patchTempoPitch();
                     broadcastCurrentTrack();
                 }
             }
             wasActive = active;
-
-            // Also check for extraction changes while jam is active
-            if (active) {
-                checkExtractionChange();
-            }
+            if (active) checkExtractionChange();
         }, 2000);
     }
 
-    // Initialize
     function init() {
         setupParentMessageListener();
-        setupTempoAndPitchListeners();
         startJamStateMonitor();
 
-        // Wait for StemMixer to be initialized, then patch
+        // Patch as soon as the POC engine has loaded the song.
         const checkReady = setInterval(() => {
-            if (window.stemMixer && window.stemMixer.isInitialized && window.stemMixer.audioEngine) {
+            if (engineReady()) {
                 clearInterval(checkReady);
-                patchMixer();
-                // Broadcast current track if jam is already active
-                if (isJamActive()) {
-                    broadcastCurrentTrack();
-                }
-                console.log('[JamBridge] Initialized (mixer ready)');
+                patchTransport();
+                patchTempoPitch();
+                if (isJamActive()) broadcastCurrentTrack();
+                console.log('[JamBridge] Initialized (POC engine ready)');
             }
         }, 500);
-
-        // Timeout after 30 seconds for the mixer-ready check
-        setTimeout(() => clearInterval(checkReady), 30000);
+        setTimeout(() => clearInterval(checkReady), 60000);
     }
 
     if (document.readyState === 'loading') {
