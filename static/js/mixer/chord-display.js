@@ -634,6 +634,16 @@ class ChordDisplay {
         this.guitarDiagramCache = new Map();
         this.guitarDiagramCacheLimit = 100;
         this.guitarDiagramBuilder = null;
+        this._popupControlsWired = false;
+
+        // Wire popup controls immediately so the Lyrics Focus popup works
+        // even if no chords are loaded. Defer slightly so the DOM is ready.
+        setTimeout(() => {
+            if (!this._popupControlsWired) {
+                this.initPopupControls();
+                this._popupControlsWired = true;
+            }
+        }, 0);
     }
 
     // Prevent manual horizontal scroll while allowing programmatic scrollTo()
@@ -692,6 +702,12 @@ class ChordDisplay {
             const beatDuration = 60 / bpm;
             const measureSeconds = beatDuration * beatsPerBar;
 
+            // Store grid params so the SAME real-time -> synthetic-grid mapping drives
+            // chord placement, lyric placement AND the runtime highlight (otherwise each
+            // uses a different clock and they drift apart from the audio).
+            this._gridBeatDuration = beatDuration;
+            this._gridRealBeats = (window.EXTRACTION_INFO && window.EXTRACTION_INFO.beat_times) || [];
+
             this.chordPxPerBeat = 100; // Fixed width per beat for grid
             this.chordBPM = bpm;
             this.chordSegments = [];
@@ -704,7 +720,7 @@ class ChordDisplay {
 
             // Quantize chords to nearest STRONG beat (1 or 3) with beatOffset
             const quantizedChords = [...this.chords].map(chord => {
-                const originalTime = (chord.timestamp || 0) - offset;
+                const originalTime = this._realToGridTime(chord.timestamp || 0);
 
                 // Find the measure this chord belongs to
                 const measureIndex = Math.floor(Math.max(0, originalTime) / measureSeconds);
@@ -803,6 +819,35 @@ class ChordDisplay {
             const lyrics = this.mixer?.lyricsDisplay?.lyrics || window.EXTRACTION_INFO?.lyrics_data;
             const lyricsArray = lyrics ? (typeof lyrics === 'string' ? JSON.parse(lyrics) : lyrics) : [];
 
+            // Real-time -> synthetic-grid time mapper. The chord grid lays measures on a
+            // uniform synthetic clock; real lyric timestamps drift from it, so we map each
+            // lyric time onto the grid via the real beat list (i-th real beat sits at
+            // synthetic time i*beatDuration) so words line up under their chords.
+            const realToGridTime = (t) => this._realToGridTime(t);
+
+            // Flatten lyrics to a WORD list with per-word timestamps. lyrics_data is
+            // line/segment-shaped ({start,end,text,words:[{word,start,end}]}); putting a
+            // whole line in the single bar its start falls in overflowed the cell and left
+            // the bars it spans empty (the chaotic lyrics). Spreading individual words
+            // across the bars they're sung in lines each word up under its chord.
+            const lyricWords = [];
+            (lyricsArray || []).forEach((seg) => {
+                if (seg && Array.isArray(seg.words) && seg.words.length) {
+                    seg.words.forEach((w) => {
+                        const txt = ((w.word != null ? w.word : w.text) || '').trim();
+                        if (txt) lyricWords.push({ text: txt, start: +w.start || 0 });
+                    });
+                } else {
+                    const txt = ((seg && (seg.text != null ? seg.text : seg.word)) || '').trim();
+                    if (!txt) return;
+                    const parts = txt.split(/\s+/).filter(Boolean);
+                    const st = +seg.start || 0;
+                    const en = (typeof seg.end === 'number' && seg.end > st) ? seg.end : st + parts.length * 0.3;
+                    const step = parts.length > 1 ? (en - st) / parts.length : 0;
+                    parts.forEach((pp, i) => lyricWords.push({ text: pp, start: st + i * step }));
+                }
+            });
+
             // Render the linear grid view
             container.innerHTML = '';
             const scroll = document.createElement('div');
@@ -860,17 +905,18 @@ class ChordDisplay {
                 const lyricsRow = document.createElement('div');
                 lyricsRow.className = 'chord-linear-lyrics-row';
 
-                // Find lyrics that fall in this measure
+                // Collect the WORDS sung during this measure, mapped to grid time so
+                // each word lines up under its chord (spread across the bars a line spans).
                 const measureEndTime = measure.startTime + measureSeconds;
-                const measureLyrics = lyricsArray.filter(lyric => {
-                    const lyricTime = lyric.start || 0;
-                    return lyricTime >= measure.startTime && lyricTime < measureEndTime;
+                const measureWords = lyricWords.filter((w) => {
+                    const gStart = realToGridTime(w.start || 0);
+                    return gStart >= measure.startTime && gStart < measureEndTime;
                 });
 
-                if (measureLyrics.length > 0) {
-                    const lyricsText = measureLyrics.map(l => l.text || '').join(' ');
-                    lyricsRow.textContent = lyricsText;
+                if (measureWords.length > 0) {
+                    lyricsRow.textContent = measureWords.map(w => w.text).join(' ');
                 } else {
+
                     lyricsRow.innerHTML = '&nbsp;';
                 }
 
@@ -934,8 +980,9 @@ class ChordDisplay {
         syncChordPlayhead(force = false) {
             if (!this.beatElements || !this.beatElements.length) return;
 
-            // Find current beat based on actual time (no tempo adjustment needed - timestamps are in original time)
-            const currentTime = this.currentTime - (this.beatOffset || 0);
+            // Map the live song time onto the synthetic grid (beat elements carry
+            // synthetic beatTime) so the highlight tracks the audio despite tempo drift.
+            const currentTime = this._realToGridTime(this.currentTime);
             const beatIdx = this.getBeatIndexForTime(currentTime);
             if (beatIdx === -1) return;
 
@@ -966,6 +1013,25 @@ class ChordDisplay {
             }
         }
     
+        // Map a real song time (seconds) onto the synthetic grid clock used by the
+        // chord/lyric/beat elements. The i-th real beat sits at synthetic time
+        // i*beatDuration, so interpolating between the surrounding real beats keeps
+        // chords, lyrics and the highlight aligned with the audio under tempo drift.
+        // Falls back to (time - offset) when no real beat map is available.
+        _realToGridTime(t) {
+            const beats = this._gridRealBeats || [];
+            const bd = this._gridBeatDuration || (60 / (this.chordBPM || 120));
+            const x = (t || 0) - (this.beatOffset || 0);
+            if (!beats.length) return x;
+            if (x <= beats[0]) return 0;
+            if (x >= beats[beats.length - 1]) return (beats.length - 1) * bd;
+            let lo = 0, hi = beats.length - 1;
+            while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (beats[mid] <= x) lo = mid; else hi = mid; }
+            const span = beats[hi] - beats[lo] || 1e-6;
+            const frac = (x - beats[lo]) / span;
+            return (lo + frac) * bd;
+        }
+
         getBeatIndexForTime(time) {
             if (!this.beatElements || !this.beatElements.length) return -1;
 
@@ -1921,6 +1987,13 @@ class ChordDisplay {
                     console.log(`[Madmom] Beats: BPM=${bpm.toFixed(1)}, ${beatTimes.length} beats, ${(beatPositions||[]).length} positions`);
                 }
             }
+            // Detect Beats also re-rendered the metronome click-track WAVs on the
+            // snapped grid. Reload the hidden metronome stem so it reflects the new
+            // grid (and re-sync it if currently playing).
+            if (this.mixer && typeof this.mixer._reloadMetronomeAfterDetect === 'function') {
+                this.mixer._reloadMetronomeAfterDetect().catch(e =>
+                    console.log('[Madmom] metronome reload skipped:', e?.message));
+            }
 
             if (btn) {
                 btn.innerHTML = '<i class="fas fa-check"></i> <span>Done!</span>';
@@ -1955,7 +2028,15 @@ class ChordDisplay {
                 if (window.EXTRACTION_INFO.detected_bpm) { this.currentBPM = window.EXTRACTION_INFO.detected_bpm; this.originalBPM = window.EXTRACTION_INFO.detected_bpm; this.chordBPM = window.EXTRACTION_INFO.detected_bpm; }
             }
             if (chordsJson) {
-                this.chords = typeof chordsJson === "string" ? JSON.parse(chordsJson) : chordsJson;
+                // Handle double-serialized JSON (string within string)
+                let parsed = chordsJson;
+                if (typeof parsed === "string") {
+                    parsed = JSON.parse(parsed);
+                    if (typeof parsed === "string") {
+                        parsed = JSON.parse(parsed);
+                    }
+                }
+                this.chords = parsed;
                 if (this.chords?.length) {
                     this.isEnabled = true;
                     this.duration = this.mixer.maxDuration || 300;
@@ -1984,6 +2065,14 @@ class ChordDisplay {
 
     // Chords Grid Popup Methods
     initGridPopup() {
+        // Always wire popup controls (Lyrics Focus + Chord Grid share these)
+        // even if the chord grid popup elements aren't present, so the Lyrics
+        // popup controls (Play/Stop/Tempo/Pitch) still work without chords.
+        if (!this._popupControlsWired) {
+            this.initPopupControls();
+            this._popupControlsWired = true;
+        }
+
         const openBtn = document.getElementById('chord-grid-view-btn') || document.getElementById('mobileChordGridViewBtn');
         const closeBtn = document.getElementById('chords-grid-popup-close');
         const popup = document.getElementById('chords-grid-popup');
@@ -2005,8 +2094,6 @@ class ChordDisplay {
             }
         });
 
-        // Initialize popup controls
-        this.initPopupControls();
     }
 
     initPopupControls() {
@@ -2177,7 +2264,7 @@ class ChordDisplay {
 
         // Quantize chords to nearest STRONG beat (1 or 3) with beatOffset
         const quantizedChords = [...this.chords].map(chord => {
-            const originalTime = (chord.timestamp || 0) - offset;
+            const originalTime = this._realToGridTime(chord.timestamp || 0);
 
             // Find the measure this chord belongs to
             const measureIndex = Math.floor(Math.max(0, originalTime) / measureSeconds);
@@ -2325,7 +2412,7 @@ class ChordDisplay {
 
         // Highlight current beat using beatIndex
         if (this.beatElements && this.beatElements.length) {
-            const currentBeatIdx = this.getBeatIndexForTime(this.currentTime - (this.beatOffset || 0));
+            const currentBeatIdx = this.getBeatIndexForTime(this._realToGridTime(this.currentTime));
             this.highlightGridBeat(currentBeatIdx);
         }
     }
@@ -2369,7 +2456,7 @@ class ChordDisplay {
         if (!popup || popup.getAttribute('aria-hidden') === 'true') return;
         if (!this.gridBeatElements || !this.gridBeatElements.length) return;
 
-        const currentTime = this.currentTime - (this.beatOffset || 0);
+        const currentTime = this._realToGridTime(this.currentTime);
         const beatIdx = this.getBeatIndexForTime(currentTime);
         if (beatIdx !== -1) {
             this.highlightGridBeat(beatIdx);
