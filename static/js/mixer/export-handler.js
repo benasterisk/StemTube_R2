@@ -52,15 +52,15 @@
                 filenameInput.value = `${safeTitle}_mix`;
             }
 
-            // Count active stems
-            const stems = window.audioEngine?.stems || {};
+            // Count active stems (stems live on window.stemMixer, not window.audioEngine)
+            const stems = window.stemMixer?.stems || {};
             const activeCount = Object.values(stems).filter(s => !s.muted && s.buffer).length;
             if (stemsCountEl) {
                 stemsCountEl.textContent = `${activeCount} active`;
             }
 
             // Get tempo info
-            const originalBpm = window.audioEngine?.originalBPM || window.EXTRACTION_INFO?.detected_bpm || 120;
+            const originalBpm = getOriginalBpm();
             const currentBpm = parseFloat(document.getElementById('current-bpm')?.value) || originalBpm;
             const tempoRatio = currentBpm / originalBpm;
             if (tempoEl) {
@@ -68,7 +68,7 @@
             }
 
             // Get pitch info
-            const pitchSemitones = window.audioEngine?.currentPitchShift || 0;
+            const pitchSemitones = getPitchSemitones();
             if (pitchEl) {
                 pitchEl.textContent = pitchSemitones >= 0 ? `+${pitchSemitones} st` : `${pitchSemitones} st`;
             }
@@ -91,7 +91,7 @@
         }
 
         async function startExport() {
-            const stems = window.audioEngine?.stems;
+            const stems = window.stemMixer?.stems;
             if (!stems || Object.keys(stems).length === 0) {
                 alert('No stems loaded');
                 return;
@@ -100,10 +100,10 @@
             const filename = filenameInput?.value?.trim() || 'mix';
 
             // Get tempo/pitch values
-            const originalBpm = window.audioEngine?.originalBPM || window.EXTRACTION_INFO?.detected_bpm || 120;
+            const originalBpm = getOriginalBpm();
             const currentBpm = parseFloat(document.getElementById('current-bpm')?.value) || originalBpm;
             const tempoRatio = currentBpm / originalBpm;
-            const pitchSemitones = window.audioEngine?.currentPitchShift || 0;
+            const pitchSemitones = getPitchSemitones();
 
             // Collect mixer state
             const mixerState = {
@@ -113,16 +113,27 @@
                 title: filename
             };
 
-            // Collect stem states
+            // Collect stem states. Volume/pan are stored directly on the stem
+            // object (stem.volume / stem.pan), NOT on gainNode/panNode (those are
+            // null until audio graph is wired and don't reflect the slider value).
             for (const [name, stem] of Object.entries(stems)) {
                 if (stem.buffer) {
                     mixerState.stems[name] = {
                         buffer: stem.buffer,
-                        volume: stem.gainNode?.gain?.value ?? 1.0,
-                        pan: stem.panNode?.pan?.value ?? 0,
+                        volume: (typeof stem.volume === 'number') ? stem.volume
+                                : (stem.gainNode?.gain?.value ?? 1.0),
+                        pan: (typeof stem.pan === 'number') ? stem.pan
+                                : (stem.panNode?.pan?.value ?? 0),
                         muted: stem.muted || false
                     };
                 }
+            }
+
+            // Optionally bake the metronome clicks into the export so the user can
+            // generate a calibrated test/practice audio without screen-capturing.
+            const includeMetro = document.getElementById('export-include-metronome')?.checked;
+            if (includeMetro && window.stemMixer?.metronome) {
+                mixerState.metronome = buildMetronomeExportSpec(window.stemMixer.metronome);
             }
 
             // Collect recording states
@@ -141,10 +152,12 @@
 
             // Show progress
             if (progressEl) progressEl.style.display = 'block';
+            if (progressFill) progressFill.style.width = '0%';
+            if (cancelBtn) cancelBtn.disabled = true;
             if (startBtn) {
                 startBtn.disabled = true;
                 startBtn.classList.add('exporting');
-                startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
+                startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting… 0%';
             }
 
             try {
@@ -152,36 +165,99 @@
                     sampleRate: 44100,
                     bitRate: 192,
                     onProgress: (percent, status) => {
-                        if (progressFill) {
-                            progressFill.style.width = `${percent}%`;
-                        }
-                        if (statusEl) {
-                            statusEl.textContent = status;
+                        const pct = Math.max(0, Math.min(100, Math.round(percent)));
+                        if (progressFill) progressFill.style.width = `${pct}%`;
+                        if (statusEl) statusEl.textContent = `${status} (${pct}%)`;
+                        if (startBtn) {
+                            startBtn.innerHTML =
+                                `<i class="fas fa-spinner fa-spin"></i> Exporting… ${pct}%`;
                         }
                     }
                 });
 
                 const mp3Blob = await exporter.exportMix(mixerState);
 
+                // Success feedback
+                if (statusEl) statusEl.textContent = `Done — ${(mp3Blob.size/1048576).toFixed(1)} MB. Downloading…`;
+                if (startBtn) startBtn.innerHTML = '<i class="fas fa-check"></i> Done!';
+
                 // Download
                 exporter.downloadBlob(mp3Blob, `${filename}.mp3`);
 
-                // Close modal after short delay
+                // Reset + close modal after a short delay so the user sees "Done"
                 setTimeout(() => {
+                    if (cancelBtn) cancelBtn.disabled = false;
+                    if (startBtn) {
+                        startBtn.disabled = false;
+                        startBtn.classList.remove('exporting');
+                        startBtn.innerHTML = '<i class="fas fa-download"></i> Export';
+                    }
+                    if (progressEl) progressEl.style.display = 'none';
                     closeExportModal();
-                }, 500);
+                }, 900);
 
             } catch (error) {
                 console.error('Export error:', error);
+                if (statusEl) statusEl.textContent = `Export failed: ${error.message}`;
                 alert(`Export failed: ${error.message}`);
 
                 // Reset button
+                if (cancelBtn) cancelBtn.disabled = false;
                 if (startBtn) {
                     startBtn.disabled = false;
                     startBtn.classList.remove('exporting');
                     startBtn.innerHTML = '<i class="fas fa-download"></i> Export';
                 }
             }
+        }
+
+        // ── Helpers ───────────────────────────────────────────────────
+
+        function getOriginalBpm() {
+            return window.simplePitchTempo?.originalBPM
+                || window.EXTRACTION_INFO?.detected_bpm
+                || 120;
+        }
+
+        function getPitchSemitones() {
+            return window.simplePitchTempo?.currentPitchShift || 0;
+        }
+
+        /**
+         * Build the metronome export spec: the exact click times (resolution +
+         * manual offset already baked in by _getEffectiveBeats), plus volume.
+         * The exporter synthesizes 1200Hz sine clicks at these song-times.
+         * Click times are in ORIGINAL song-time; the exporter divides by tempo
+         * to place them correctly in the (possibly time-stretched) output.
+         */
+        function buildMetronomeExportSpec(metro) {
+            let beats = [];
+            try {
+                beats = (typeof metro._getEffectiveBeats === 'function')
+                    ? metro._getEffectiveBeats()
+                    : (Array.isArray(metro.beatTimes) ? metro.beatTimes.slice() : []);
+            } catch (e) {
+                beats = Array.isArray(metro.beatTimes) ? metro.beatTimes.slice() : [];
+            }
+            // Bar positions (1 = downbeat) for accenting the downbeat click.
+            const positions = Array.isArray(metro.beatPositions) ? metro.beatPositions : [];
+            // Diagnostic: log the actual baked grid vs the raw DB grid so we can
+            // see any runtime offset (manualOffsetSec, extrapolation, etc.).
+            try {
+                const dbBeats = window.EXTRACTION_INFO?.beat_times;
+                const db = Array.isArray(dbBeats) ? dbBeats
+                          : (typeof dbBeats === 'string' ? JSON.parse(dbBeats) : []);
+                console.log('[Export] baked beats[0..4]:', beats.slice(0, 5).map(x => +x.toFixed(4)));
+                console.log('[Export] DB beat_times[0..4]:', (db || []).slice(0, 5).map(x => +x.toFixed(4)));
+                console.log('[Export] manualOffsetSec:', metro.manualOffsetSec,
+                            '| clickResolution:', metro.clickResolution,
+                            '| clickLatencyOffset:', metro.clickLatencyOffset);
+            } catch (e) { /* ignore */ }
+            return {
+                beatTimes: beats,
+                positions: positions,
+                volume: (typeof metro.clickVolume === 'number') ? metro.clickVolume : 0.7,
+            };
         }
 
         console.log('[ExportHandler] Initialized');
