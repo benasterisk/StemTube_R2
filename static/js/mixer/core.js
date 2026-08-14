@@ -980,6 +980,39 @@ class StemMixer {
             if (Array.isArray(bt) && bt.length > 0) this.metronome.setBeatTimes(bt);
         }
 
+        // Restore the per-track manual alignment offset (saved in ms).
+        // Applied on top of the backend latency correction; shifts the whole grid.
+        const savedOffsetMs = parseFloat(window.EXTRACTION_INFO?.metronome_offset_ms || 0);
+        if (!isNaN(savedOffsetMs) && savedOffsetMs !== 0) {
+            this.metronome.setManualOffset(savedOffsetMs / 1000);
+            this.log(`Metronome: restored manual offset ${savedOffsetMs.toFixed(1)}ms`);
+        }
+
+        // Persist the manual alignment offset per-track when it changes.
+        // Debounced so rapid +/- taps collapse into one save.
+        // NOTE: unlike Friend, persistence is per-user server-side
+        // (POST writes only the current user's user_downloads row).
+        this._metronomeOffsetSaveTimer = null;
+        window.addEventListener('metronomeOffsetChanged', (e) => {
+            const offsetMs = (e.detail && typeof e.detail.offsetMs === 'number') ? e.detail.offsetMs : 0;
+            const videoId = (e.detail && e.detail.video_id) || window.EXTRACTION_INFO?.video_id;
+            if (!videoId) {
+                this.log('Metronome offset changed but no video_id — not persisting');
+                return;
+            }
+            if (this._metronomeOffsetSaveTimer) clearTimeout(this._metronomeOffsetSaveTimer);
+            this._metronomeOffsetSaveTimer = setTimeout(() => {
+                this._metronomeOffsetSaveTimer = null;
+                fetch(`/api/media/${videoId}/metronome-offset`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ offset_ms: offsetMs })
+                })
+                .then(() => this.log(`Metronome offset saved: ${offsetMs.toFixed(1)}ms`))
+                .catch(err => this.log(`Could not save metronome offset: ${err.message}`));
+            }, 500);
+        });
+
         // Listen for tempo changes to update metronome BPM
         window.addEventListener('tempoChanged', (e) => {
             if (this.metronome && window.simplePitchTempo) {

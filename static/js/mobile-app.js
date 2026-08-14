@@ -3319,6 +3319,40 @@ class MobileApp {
             if (Array.isArray(bt) && bt.length > 0) this.metronome.setBeatTimes(bt);
         }
 
+        // Restore the per-user manual grid-alignment offset (saved in ms).
+        const savedOffsetMs = parseFloat(data?.metronome_offset_ms || 0);
+        if (!isNaN(savedOffsetMs) && savedOffsetMs !== 0 &&
+            typeof this.metronome.setManualOffset === 'function') {
+            this.metronome.setManualOffset(savedOffsetMs / 1000);
+            console.log(`[Metronome] Restored manual offset ${savedOffsetMs.toFixed(1)}ms`);
+        }
+
+        // Persist offset changes per-user (debounced). initMetronome runs on
+        // every song load in this long-lived SPA, so drop the previous
+        // handler before adding one. Jam guests are unauthenticated: skip.
+        if (this._metronomeOffsetHandler) {
+            window.removeEventListener('metronomeOffsetChanged', this._metronomeOffsetHandler);
+            this._metronomeOffsetHandler = null;
+        }
+        const offsetVideoId = data?.video_id;
+        if (offsetVideoId && !window.JAM_GUEST_MODE) {
+            this._metronomeOffsetHandler = (e) => {
+                const offsetMs = (e.detail && typeof e.detail.offsetMs === 'number') ? e.detail.offsetMs : 0;
+                if (this._metronomeOffsetSaveTimer) clearTimeout(this._metronomeOffsetSaveTimer);
+                this._metronomeOffsetSaveTimer = setTimeout(() => {
+                    this._metronomeOffsetSaveTimer = null;
+                    fetch(`/api/media/${offsetVideoId}/metronome-offset`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ offset_ms: offsetMs })
+                    })
+                    .then(() => console.log(`[Metronome] Offset saved: ${offsetMs.toFixed(1)}ms`))
+                    .catch(err => console.warn('[Metronome] Could not save offset:', err.message));
+                }, 500);
+            };
+            window.addEventListener('metronomeOffsetChanged', this._metronomeOffsetHandler);
+        }
+
         console.log(`[Metronome] Created with ${this.metronome.dotSets.length} container(s)`);
     }
 

@@ -94,6 +94,7 @@ def mixer():
     if extraction:
         extraction_info = {
             'extraction_id': extraction.extraction_id,
+            'video_id': getattr(extraction, 'video_id', None),
             'status': extraction.status.value,
             'output_paths': extraction.output_paths or {},
             'audio_path': extraction.audio_path,
@@ -137,6 +138,7 @@ def mixer():
 
                     extraction_info = {
                         'extraction_id': extraction_id,
+                        'video_id': db_extraction.get('video_id'),
                         'status': 'completed',
                         'output_paths': output_paths,
                         'audio_path': db_extraction['file_path'],
