@@ -62,7 +62,7 @@ class BTCChordDetector:
         # Initialize BTC detector with large vocabulary (170 chords)
         print(f"[BTC] Initializing detector from: {self.btc_path}")
         self.detector = BTCWrapper(use_large_vocab=True)
-        print("[BTC] ✓ Detector initialized with 170 chord vocabulary")
+        print("[BTC] [OK] Detector initialized with 170 chord vocabulary")
 
     def detect_chords(self, audio_file_path: str, bpm: Optional[float] = None) -> Tuple[Optional[str], float, List]:
         """
@@ -106,7 +106,7 @@ class BTCChordDetector:
             # Convert to JSON
             chords_json = json.dumps(chords_data)
 
-            print(f"[BTC] ✓ Detection complete: {len(chords_data)} chord changes, offset={beat_offset:.3f}s")
+            print(f"[BTC] [OK] Detection complete: {len(chords_data)} chord changes, offset={beat_offset:.3f}s")
 
             return chords_json, beat_offset, []
 
@@ -276,7 +276,7 @@ if __name__ == "__main__":
 
     if chords_json:
         chords = json.loads(chords_json)
-        print(f"\n✓ Detected {len(chords)} chord changes:")
+        print(f"\n[OK] Detected {len(chords)} chord changes:")
         print(f"Beat offset: {beat_offset:.3f}s\n")
 
         for i, chord_data in enumerate(chords[:20]):

@@ -254,7 +254,7 @@ class HybridChordDetector:
             # Convert to JSON
             chords_json = json.dumps(chords)
             beat_times_list = [round(float(b), 4) for b in beats]
-            print(f"[HYBRID] ✓ Detection complete: {len(chords)} chord changes, {len(beat_times_list)} beats")
+            print(f"[HYBRID] [OK] Detection complete: {len(chords)} chord changes, {len(beat_times_list)} beats")
 
             return chords_json, beat_offset, beat_times_list
 

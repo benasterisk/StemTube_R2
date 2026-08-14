@@ -489,7 +489,7 @@ def analyze_audio_file(audio_file_path, bpm=None, **_kwargs):
             result = btc_analyze(audio_file_path, bpm)
             chords_json = result[0]
             if chords_json:
-                print("[CHORDS] ✓ BTC detection successful")
+                print("[CHORDS] [OK] BTC detection successful")
             else:
                 print("[CHORDS] BTC returned no chords")
         else:

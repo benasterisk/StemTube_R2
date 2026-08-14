@@ -517,6 +517,6 @@ if __name__ == "__main__":
         output_file = audio_file.replace('.mp3', '_lyrics.json')
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
-        print(f"\n✅ Lyrics saved to: {output_file}")
+        print(f"\n[OK] Lyrics saved to: {output_file}")
     else:
-        print("❌ Failed to detect lyrics")
+        print("[ERROR] Failed to detect lyrics")
