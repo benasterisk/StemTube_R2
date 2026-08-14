@@ -16,7 +16,7 @@ def configure_gpu_and_restart():
     """
     # Check if already configured (prevent infinite restart loop)
     if os.environ.get('_STEMTUBE_GPU_CONFIGURED') == '1':
-        print(f"[INIT] ✅ GPU libraries configured: LD_LIBRARY_PATH={os.environ.get('LD_LIBRARY_PATH', 'NOT SET')}")
+        print(f"[INIT] [OK] GPU libraries configured: LD_LIBRARY_PATH={os.environ.get('LD_LIBRARY_PATH', 'NOT SET')}")
         return  # Already configured, continue normal startup
 
     try:
@@ -39,17 +39,17 @@ def configure_gpu_and_restart():
                 # Mark as configured
                 os.environ['_STEMTUBE_GPU_CONFIGURED'] = '1'
 
-                print(f"[INIT] 🔄 Restarting with GPU library path: {cudnn_lib_path}")
+                print(f"[INIT] [RESTART] Restarting with GPU library path: {cudnn_lib_path}")
 
                 # Re-execute Python with updated environment
                 os.execv(sys.executable, [sys.executable] + sys.argv)
             else:
-                print(f"[INIT] ✅ GPU libraries already configured")
+                print(f"[INIT] [OK] GPU libraries already configured")
         else:
-            print(f"[INIT] ℹ️  No GPU libraries found (CPU mode)")
+            print(f"[INIT] [INFO] No GPU libraries found (CPU mode)")
 
     except Exception as e:
-        print(f"[INIT] ⚠️  Could not configure GPU: {e}")
+        print(f"[INIT] [WARNING] Could not configure GPU: {e}")
 
 # Run configuration check and potentially restart
 configure_gpu_and_restart()
@@ -160,7 +160,7 @@ if not SECRET_KEY:
     raise RuntimeError("Missing required environment variable: FLASK_SECRET_KEY")
 
 app.config['SECRET_KEY'] = SECRET_KEY
-logger.info("Flask SECRET_KEY loaded from environment ✓")
+logger.info("Flask SECRET_KEY loaded from environment [OK]")
 
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SESSION_TYPE'] = 'filesystem'
