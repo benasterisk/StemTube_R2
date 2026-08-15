@@ -536,20 +536,10 @@
                     <div class="mixer-header-with-title">
                         <h2>Audio Mixer</h2>
                         <span class="mixer-song-title" id="mixer-song-title-display"></span>
-                        <!-- Stage View: opened from THIS top-level page (Chrome closes a
-                             Document PiP window on blur when the request originated in an
-                             iframe). The dialog is adopted from the mixer iframe. -->
-                        <span class="stage-view-buttons" id="stageViewButtons" style="display:none; margin-left:auto; gap:8px;">
-                            <button type="button" class="stage-view-btn" data-stage="chords" title="Open the chord chart in a separate always-on-top window (drag it to your stage screen)">&#x2922; Stage View: Chords</button>
-                            <button type="button" class="stage-view-btn" data-stage="lyrics" title="Open the lyrics prompter in a separate always-on-top window (drag it to your stage screen)">&#x2922; Stage View: Lyrics</button>
-                        </span>
                     </div>
                     <div class="mixer-container" id="mixerContainer">
                         <div id="loading" class="loading">Chargement des stems audio...</div>
-                        <!-- allow: the mixer opens detached always-on-top windows for the
-                             Lyrics/Chords stage views (Document Picture-in-Picture); the
-                             permission must be delegated to the iframe or Chrome refuses. -->
-                        <iframe id="mixerFrame" src="/mixer" allow="picture-in-picture; autoplay; microphone" style="width: 100%; height: 800px; min-height: 800px; border: none; display: none;"></iframe>
+                        <iframe id="mixerFrame" src="/mixer" allow="autoplay; microphone" style="width: 100%; height: 800px; min-height: 800px; border: none; display: none;"></iframe>
                     </div>
                 </div>
 
@@ -777,46 +767,6 @@
     <script src="{{ url_for('static', filename='js/app-utils.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/app-admin.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/app-extensions.js') }}?v={{ cache_buster }}"></script>
-    <!-- Stage View owner: the mixer iframe cannot open Document Picture-in-
-         Picture windows itself (Chrome: top-level browsing context only), so
-         this top-level page opens them on the iframe's request. -->
-    <script src="{{ url_for('static', filename='js/mixer/popup-detach.js') }}?v={{ cache_buster }}"></script>
-    <script>
-    // Stage View buttons (top-level page). Click here => user activation lives
-    // in the top-level document, the PiP window is owned by it, and Chrome no
-    // longer closes it on blur (that happens when the request comes from an
-    // iframe). The mixer iframe provides the dialog + drives the content.
-    (function () {
-      var wrap = document.getElementById('stageViewButtons');
-      if (!wrap || !window.StageView) return;
-      var frame = document.getElementById('mixerFrame');
-      function mixerWin() { try { return frame && frame.contentWindow; } catch (e) { return null; } }
-      function refresh() {
-        var w = mixerWin();
-        var ready = !!(w && w.mixer && w.mixer.maxDuration > 0 && window.StageView.supported);
-        wrap.style.display = ready ? 'inline-flex' : 'none';
-      }
-      setInterval(refresh, 1500);
-      wrap.addEventListener('click', function (e) {
-        var btn = e.target.closest('.stage-view-btn'); if (!btn) return;
-        var w = mixerWin(); if (!w) return;
-        var which = btn.dataset.stage;
-        try {
-          if (which === 'chords' && w.mixer && w.mixer.chordDisplay && w.mixer.chordDisplay.openGridPopup) {
-            w.mixer.chordDisplay.openGridPopup();
-            var dlg = w.document.querySelector('#chords-grid-popup .chords-grid-popup-dialog');
-            window.__stageViewOpen('chords', dlg, w, { title: 'Chords — StemTube Stage View' });
-          } else if (which === 'lyrics' && w.lyricsPopupInstance && w.lyricsPopupInstance.open) {
-            w.lyricsPopupInstance.open();
-            var dlg2 = w.document.querySelector('#lyrics-popup .lyrics-popup-dialog');
-            window.__stageViewOpen('lyrics', dlg2, w, { title: 'Lyrics — StemTube Stage View' }).then(function (ok) {
-              if (ok && w.karaokeDisplayInstance) setTimeout(function () { w.karaokeDisplayInstance.refocusCurrentLine(true); }, 150);
-            });
-          }
-        } catch (err) { console.warn('[StageView] open failed:', err); }
-      });
-    })();
-    </script>
     <script src="{{ url_for('static', filename='js/jam-client.js') }}"></script>
     <script src="{{ url_for('static', filename='js/jam-tab.js') }}"></script>
 

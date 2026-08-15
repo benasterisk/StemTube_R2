@@ -143,6 +143,10 @@
   .transport button.toggle.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:600; }
   /* precount/scroll-mode show a tiny value next to the icon */
   #precountBtn .lbl, #scrollModeBtn .lbl { display:inline; font-size:11px; font-weight:600; }
+  /* Stage window (?stage=...): the popup dialog IS the page */
+  body.stage-window #focusBtn, body.stage-window #mixerTabs, body.stage-window > header { display:none !important; }
+  body.stage-window .lyrics-popup-overlay, body.stage-window .chords-grid-popup-overlay { padding:0 !important; background:var(--bg-primary) !important; backdrop-filter:none !important; }
+  body.stage-window .lyrics-popup-dialog, body.stage-window .chords-grid-popup-dialog { width:100vw !important; height:100vh !important; max-width:none !important; max-height:none !important; border-radius:0 !important; box-shadow:none !important; transform:none !important; }
   /* Stage View: the label IS the affordance (icon alone reads as "fullscreen") */
   #focusBtn .lbl { display:inline; font-size:12px; font-weight:600; margin-left:6px; }
   #focusBtn { border-color:var(--accent); }
@@ -843,6 +847,7 @@
 <script src="{{ url_for('static', filename='js/poc/loop.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/poc/loader.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/poc/main.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/mixer/stage-window.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/poc/export.js') }}?v={{ cache_buster }}"></script>
 
 <!-- Practice-tab display components (kept verbatim from friend) + the compat shim
@@ -852,7 +857,6 @@
 <script src="{{ url_for('static', filename='js/mixer/structure-display.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/mixer/karaoke-display.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/mixer/lyrics-popup.js') }}?v={{ cache_buster }}"></script>
-<script src="{{ url_for('static', filename='js/mixer/popup-detach.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/poc/mixer-compat.js') }}?v={{ cache_buster }}"></script>
 <!-- Recording: friend's engine + effects (verbatim) + the POC UI bridge.
      Loaded after the shim so window.mixer exists. -->
@@ -985,27 +989,20 @@
       applyTab(b.dataset.tab);
     });
 
-    // Stage View button → open the popup matching the current tab, then move
-    // its whole dialog (transport bar + size slider + content) into a separate
-    // always-on-top window. The detach runs inside the same click, which is
-    // what the browser requires (user activation). Without support (Firefox,
-    // Safari, old Chrome) the in-page popup simply stays.
+    // Stage View button → open the current tab (Chords / Lyrics) in a REAL
+    // separate browser window (resizable without limit, maximizable, F11 full
+    // screen on any monitor). That window loads this same page with
+    // ?stage=... as a display mirror synced over a BroadcastChannel; see
+    // stage-window.js. In a stage window itself the button is hidden.
     if(focusBtn){
       focusBtn.addEventListener("click", function(){
         var tab = document.body.getAttribute("data-tab");
-        var SV = window.StageView;
-        if(tab === "chords" && window.mixer.chordDisplay && window.mixer.chordDisplay.openGridPopup){
-          window.mixer.chordDisplay.openGridPopup();
-          if(SV && SV.supported){
-            SV.detach("chords", { dialogSelector: "#chords-grid-popup .chords-grid-popup-dialog", title: "Chords — StemTube Stage View",
-              onClosed: function(){ if(window.mixer.chordDisplay) window.mixer.chordDisplay.closeGridPopup(); } });
-          }
-        } else if(tab === "lyrics" && window.lyricsPopupInstance && window.lyricsPopupInstance.open){
-          window.lyricsPopupInstance.open();
-          if(SV && SV.supported){
-            SV.detach("lyrics", { dialogSelector: "#lyrics-popup .lyrics-popup-dialog", title: "Lyrics — StemTube Stage View",
-              onClosed: function(){ if(window.lyricsPopupInstance) window.lyricsPopupInstance.close(); } })
-              .then(function(ok){ if(ok && window.karaokeDisplayInstance) setTimeout(function(){ window.karaokeDisplayInstance.refocusCurrentLine(true); }, 150); });
+        if(tab !== "chords" && tab !== "lyrics") return;
+        if(window.StageWindow && window.StageWindow.open){
+          if(!window.StageWindow.open(tab)){
+            // popup blocked: fall back to the in-page focus popup
+            if(tab === "chords" && window.mixer.chordDisplay) window.mixer.chordDisplay.openGridPopup();
+            if(tab === "lyrics" && window.lyricsPopupInstance) window.lyricsPopupInstance.open();
           }
         }
       });
@@ -1050,31 +1047,7 @@
   })();
 </script>
 
-<script>
-// Stage View support glue: while a dialog lives in the detached window, the
-// display code that scrolls by id must find it there.
-(function () {
-  if (!window.StageView || !window.mixer || !window.mixer.chordDisplay) return;
-  var SV = window.StageView, cd = window.mixer.chordDisplay;
-  if (cd._stageViewPatched) return;
-  var origHighlight = cd.highlightGridBeat.bind(cd);
-  cd.highlightGridBeat = function (beatIndex) {
-    if (!SV.isDetached("chords")) return origHighlight(beatIndex);
-    if (!this.gridBeatElements || !this.gridBeatElements.length) return;
-    var activeBeat = this.gridBeatElements[beatIndex];
-    if (!activeBeat) return;
-    this.gridBeatElements.forEach(function (el) { el.classList.remove("active"); });
-    activeBeat.classList.add("active");
-    var body = activeBeat.closest(".chords-grid-popup-body");
-    var measure = activeBeat.closest(".chord-grid-measure");
-    if (body && measure) {
-      var target = Math.max(0, measure.offsetTop - body.offsetTop - Math.round(body.clientHeight * 0.28));
-      if (Math.abs(body.scrollTop - target) >= 1) body.scrollTo({ top: target, behavior: "auto" });
-    }
-  };
-  cd._stageViewPatched = true;
-})();
-</script>
+
 <!-- JAM WIRING: legacy API, rewritten in 14c -->
     {% if not jam_guest_mode %}
     <script src="/static/js/jam-bridge.js"></script>

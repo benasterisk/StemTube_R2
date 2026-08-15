@@ -2269,11 +2269,6 @@ class ChordDisplay {
         const popup = document.getElementById('chords-grid-popup');
         if (!popup) return;
 
-        // Bring the grid back from a detached (PiP) window before hiding.
-        if (window.StageView && window.StageView.isDetached('chords')) {
-            window.StageView.reattach('chords');
-        }
-
         popup.setAttribute('aria-hidden', 'true');
         document.body.style.overflow = '';
     }

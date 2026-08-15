@@ -105,7 +105,14 @@
    scaled parent - so the slider only grew the line boxes (spacing), not the
    text. In the stage popup, words inherit the scaled size instead. */
 .lyrics-popup-overlay .karaoke-text { font-size: inherit; }   /* karaoke.css: 1rem */
-.lyrics-popup-overlay .karaoke-word { font-size: inherit; }   /* karaoke.css: 1.2rem */
+.lyrics-popup-overlay .karaoke-word {
+    font-size: inherit;                     /* karaoke.css: 1.2rem */
+    /* karaoke.css animates ALL properties on words (transition: all .3s):
+       with hundreds of words that made every Size-slider step a 300ms
+       font-size tween per word - sluggish, and frozen entirely in a
+       background tab. Only color/opacity may animate in the stage view. */
+    transition-property: color, opacity, text-shadow;
+}
 .lyrics-popup-overlay .karaoke-word.word-current { font-size: 1.08em; }
 
 /* Stage view: no per-line timecodes (noise when performing) */

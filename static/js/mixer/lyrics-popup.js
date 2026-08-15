@@ -112,12 +112,6 @@ class LyricsPopup {
             return;
         }
 
-        // If the lyrics live in a detached (PiP) window, bring them back first
-        // so the restore below moves the real element, not a stale reference.
-        if (window.StageView && window.StageView.isDetached('lyrics')) {
-            window.StageView.reattach('lyrics');
-        }
-
         if (this.placeholder && this.placeholder.parentNode) {
             this.placeholder.parentNode.replaceChild(this.originalLyricsElement, this.placeholder);
         } else if (this.originalParent) {
