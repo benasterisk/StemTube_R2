@@ -268,6 +268,21 @@ if __name__ == '__main__':
         ])
     else:
         import socket
-        logger.info(f"Starting StemTube Web server on {HOST}:{PORT}")
+        # Local HTTPS for LAN device testing (STEMTUBE_SSL=1): browsers only
+        # allow AudioWorklet (SoundTouch time-stretch/pitch) and other powerful
+        # APIs in a SECURE CONTEXT. localhost qualifies, a plain-http LAN IP
+        # (phone on the same Wi-Fi) does NOT. Serves a self-signed certificate
+        # (generated per start; accept the one-time warning on the device).
+        # Production sits behind a real TLS terminator and does not use this.
+        ssl_context = None
+        if os.environ.get('STEMTUBE_SSL', '').strip() in ('1', 'true', 'yes'):
+            try:
+                import OpenSSL  # noqa: F401  (werkzeug's adhoc certs need pyOpenSSL)
+                ssl_context = 'adhoc'
+                logger.info("STEMTUBE_SSL=1: serving HTTPS with a self-signed certificate")
+            except ImportError:
+                logger.warning("STEMTUBE_SSL=1 but pyOpenSSL is missing (pip install pyOpenSSL) - falling back to HTTP")
+        scheme = 'https' if ssl_context else 'http'
+        logger.info(f"Starting StemTube Web server on {scheme}://{HOST}:{PORT}")
         logger.info("Logging system active - all events will be recorded")
-        socketio.run(app, host=HOST, port=PORT, debug=False, allow_unsafe_werkzeug=True)
+        socketio.run(app, host=HOST, port=PORT, debug=False, allow_unsafe_werkzeug=True, ssl_context=ssl_context)
