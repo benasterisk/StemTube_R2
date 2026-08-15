@@ -100,6 +100,39 @@
             return meta;
         },
 
+        /**
+         * Jam GUEST loading: same pipeline as loadAll but through the jam
+         * routes (no login, validated by session code), which mirror
+         * /poc-mixer/meta and /audio against the HOST's POC cache. The guest
+         * gets the host's real stems + metronome (all resolutions) + baked
+         * count-in plan, so everyone hears the same click and lead-in.
+         * `job` is a synthetic id used for engine bookkeeping ("jam:<code>").
+         */
+        async loadAllFromJam(code, onProgress) {
+            const c = String(code).replace(/^JAM-/, '');
+            const job = 'jam:' + c;
+            this.job = job;
+            // Route the POC API to the jam endpoints for this session.
+            API.audioUrl = (j, stem) => '/api/jam/poc/audio/' + encodeURIComponent(c) + '/' + stem;
+            API.audioBuffer = async (j, stem) => (await fetch(API.audioUrl(j, stem), { credentials: 'same-origin' })).arrayBuffer();
+            if (onProgress) onProgress('Loading host mix…', 10);
+            const meta = await (await fetch('/api/jam/poc/meta/' + encodeURIComponent(c), { credentials: 'same-origin' })).json();
+            if (!meta || meta.error) throw new Error((meta && meta.error) || 'host mix not ready');
+            meta.job = job;
+            this.meta = meta;
+            view.meta = meta;
+            if (engine.loadWorklet) await engine.loadWorklet();
+            const names = STEM_ORDER.filter(n => meta.stems && meta.stems[n]);
+            await engine.setStems(job, names, meta.metronome_resolutions);
+            engine.duration = meta.duration;
+            // Guests never bake: PreCount only LOADS the host's plan (files served
+            // by the jam audio route through the redirected API above).
+            if (window.PreCount && PreCount.load) { PreCount._job = job; PreCount.load(meta); }
+            if (window.LoopSel && LoopSel.load) LoopSel.load(meta);
+            if (onProgress) onProgress('Ready', 100);
+            return meta;
+        },
+
         get stems() { return engine.stems; },
         get duration() { return engine.duration || 0; },
         get playing() { return !!engine.playing; },

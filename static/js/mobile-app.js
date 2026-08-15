@@ -7770,8 +7770,7 @@ class MobileApp {
     }
 
     async loadStemsForJamGuest(stemPaths) {
-        console.log('[Jam Guest] Loading stems...');
-
+        console.log('[Jam Guest] Loading host mix via POC jam routes...');
         if (typeof MobilePOC === 'undefined') throw new Error('Audio engine bridge (MobilePOC) not loaded');
 
         // AudioContext should already be initialized via user gesture in initJamGuestMode
@@ -7779,71 +7778,25 @@ class MobileApp {
             console.warn('[Jam Guest] AudioContext not ready — reinitializing');
             await this.initAudioContext();
         }
-        const ctx = this.audioContext;
 
-        // Clear existing stems (engine) and track container
         MobilePOC.unload();
         const container = document.getElementById('mobileTracksContainer');
         if (container) container.innerHTML = '';
 
-        const stemEntries = Object.entries(stemPaths);
-        const jamCode = window.JAM_CODE.replace('JAM-', '');
-
-        // Cache-busting: use extraction ID so SW doesn't serve stale stems after track change
-        const eid = this.currentExtractionId || Date.now();
-
-        // Guest stems come from the jam route (no /poc-mixer job for a guest), so
-        // fetch + decode here and inject POC-shaped records straight into the
-        // engine's stems map; the engine builds the audio graph at play time.
-        const engine = MobilePOC.engine;
-        const results = await Promise.allSettled(stemEntries.map(async ([stemName]) => {
-            const url = `/api/jam/stems/${jamCode}/${stemName}?eid=${encodeURIComponent(eid)}`;
-            const t0 = performance.now();
-
-            const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-
-            const arrayBuffer = await response.arrayBuffer();
-            const t1 = performance.now();
-            console.log(`[Jam Guest] ${stemName} fetched ${(arrayBuffer.byteLength / 1048576).toFixed(1)}MB in ${(t1 - t0).toFixed(0)}ms`);
-
-            const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-            const t2 = performance.now();
-            console.log(`[Jam Guest] ${stemName} decoded in ${(t2 - t1).toFixed(0)}ms`);
-
-            engine.stems[stemName] = {
-                name: stemName, buffer: audioBuffer,
-                source: null, soundTouch: null, gain: null, panNode: null,
-                muted: false, solo: false, vol: 1, pan: 0
-            };
-            this.createTrackControl(stemName);
-        }));
-
-        const loaded = results.filter(r => r.status === 'fulfilled').length;
-        results.forEach((r, i) => {
-            if (r.status === 'rejected') {
-                console.error(`[Jam Guest] Error loading stem ${stemEntries[i][0]}:`, r.reason);
-            }
+        // Same POC pipeline as the host, through /api/jam/poc/* (host's cache):
+        // real stems + metronome (all resolutions) + the host's baked count-in.
+        // stemPaths (legacy jam payload) is no longer needed for audio.
+        const meta = await MobilePOC.loadAllFromJam(window.JAM_CODE, (stage, pct) => {
+            console.log('[Jam Guest] ' + stage + ' ' + pct + '%');
         });
+        this.pocMeta = meta;
+        Object.keys(this.stems).forEach((name) => this.createTrackControl(name));
+        this.duration = MobilePOC.duration;
+        console.log('[Jam Guest] Loaded', Object.keys(this.stems).length, 'stems (metronome incl.), duration', this.duration);
 
-        if (loaded === 0) {
-            throw new Error('No stems could be loaded');
-        }
-
-        // Duration = longest stem (this.stems mirrors engine.stems)
-        const durations = Object.values(this.stems).map(s => s.buffer ? s.buffer.duration : 0).filter(d => d > 0);
-        if (durations.length) {
-            this.duration = Math.max(...durations);
-            engine.duration = this.duration;
-            this.updateTimeDisplay();
-        }
-
-        // Draw waveform
-        this.renderWaveform();
-
-        console.log(`[Jam Guest] Successfully loaded ${loaded}/${stemEntries.length} stems`);
+        // Refresh waveform if available
+        if (this.renderWaveform) this.renderWaveform();
+        this.updateTimeDisplay();
     }
 
     _handleJamPlaybackCommand(data) {
@@ -7870,15 +7823,23 @@ class MobileApp {
                 this.playbackPosition = position;
                 if (this.isPlaying && window.MobilePOC) MobilePOC.stopAll();
                 this.isPlaying = false;
-                // Host used a count-in: delay ALL our sources uniformly by the
-                // host's lead-in so we start together (the count-in itself is
-                // the host's metronome stem; guests have no metronome stem).
+                // Host used a count-in: play the SAME baked count-in WAV (the
+                // host's plan was loaded from its POC cache), so guests hear the
+                // identical clicks, sample-locked, and start together. Falls back
+                // to a uniform start delay if the plan is unavailable.
                 if (data.precount_beats > 0 && window.MobilePOC) {
+                    if (window.PreCount && PreCount.plan && PreCount.plan.files) {
+                        PreCount.setBeats(data.precount_beats);
+                        MobilePOC.engine.staticPos = 0;
+                        MobilePOC.playWithPrecount().then(() => this._startPlaybackInternal());
+                        this._precountBeatsUsed = 0;
+                        break;
+                    }
                     const bpm = this.currentBPM || 120;
                     const precountDuration = (typeof data.precount_seconds === 'number' && data.precount_seconds >= 0)
                         ? data.precount_seconds
                         : data.precount_beats * 60 / bpm;
-                    console.log(`[Jam Guest] Precount: ${data.precount_beats} beats, sources delayed ${precountDuration.toFixed(3)}s`);
+                    console.log(`[Jam Guest] Precount (no host plan): sources delayed ${precountDuration.toFixed(3)}s`);
                     MobilePOC.engine.staticPos = Math.max(0, Math.min(position, this.duration || Infinity));
                     MobilePOC.engine.play(precountDuration);
                 }

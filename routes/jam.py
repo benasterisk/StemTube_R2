@@ -255,6 +255,78 @@ def serve_jam_stem(code, stem_name):
     return response
 
 
+# ---------------------------------------------------------------------------
+# POC engine artifacts for guests
+#
+# Guests run the same POC engine as the host (metronome = server-rendered WAV
+# stem, count-in = baked WAV). Those artifacts live in the HOST's per-user
+# POC cache (/poc-mixer/* is login-scoped to the caller). These two routes
+# mirror /poc-mixer/meta and /poc-mixer/audio for the jam: validated by the
+# active session code only (no login, like /api/jam/stems), resolved against
+# the host's cache so every guest hears exactly the host's metronome timbre,
+# resolution set and count-in.
+# ---------------------------------------------------------------------------
+
+def _jam_host_context(code):
+    """(jam, host_user_id, extraction_id) for an active session, else (None, None, None)."""
+    full_code = code if code.startswith('JAM-') else f'JAM-{code}'
+    jam = active_jam_sessions.get(full_code)
+    if not jam:
+        return None, None, None
+    return jam, jam.get('host_user_id'), jam.get('extraction_id')
+
+
+@jam_bp.route('/api/jam/poc/meta/<code>')
+def get_jam_poc_meta(code):
+    """Host's POC meta (beats, positions, duration, stems map, metronome
+    resolutions, precount plan...) for guests. NO login required."""
+    jam, host_id, extraction_id = _jam_host_context(code)
+    if not jam:
+        return jsonify({'error': 'Session not found'}), 404
+    if not host_id or not extraction_id:
+        return jsonify({'error': 'No track loaded'}), 404
+    try:
+        from routes.poc_mixer import _resolve_context, _user_cache_dir, _read_meta
+        row, _stems_map, _stems_dir = _resolve_context(host_id, extraction_id)
+        cache = _user_cache_dir(host_id, row['id'])
+        meta = _read_meta(cache)
+    except Exception as e:
+        logger.warning(f"[Jam POC] meta unavailable for {code}: {e}")
+        return jsonify({'error': 'not prepared'}), 404
+    if not meta:
+        return jsonify({'error': 'not prepared'}), 404
+    return jsonify(meta)
+
+
+@jam_bp.route('/api/jam/poc/audio/<code>/<stem>', methods=['GET', 'HEAD'])
+def serve_jam_poc_audio(code, stem):
+    """Any POC stem id (real stems, metronome, metronome_0.5/_2,
+    metronome_precount_*, metronome_stop_*) from the host's cache. NO login."""
+    jam, host_id, extraction_id = _jam_host_context(code)
+    if not jam:
+        return jsonify({'error': 'Session not found'}), 404
+    if not host_id or not extraction_id:
+        return jsonify({'error': 'No track loaded'}), 404
+    try:
+        from routes.poc_mixer import _resolve_stem_file
+        path = _resolve_stem_file(host_id, extraction_id, stem)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 404
+    if not path or not os.path.exists(path):
+        return jsonify({'error': f'not found: {stem}'}), 404
+    if request.method == 'HEAD':
+        return '', 200
+    directory = os.path.dirname(os.path.abspath(path))
+    filename = os.path.basename(path)
+    mt, _ = mimetypes.guess_type(filename)
+    resp = send_from_directory(directory, filename, mimetype=mt or 'audio/wav', conditional=True)
+    if stem == 'metronome' or stem.startswith('metronome_'):
+        resp.headers['Cache-Control'] = 'no-store'      # host may re-bake / change timbre
+    else:
+        resp.headers['Cache-Control'] = 'public, max-age=604800, immutable'
+    return resp
+
+
 @jam_bp.route('/api/jam/extraction/<code>')
 def get_jam_extraction(code):
     """Return extraction data for a jam session -- NO login required."""

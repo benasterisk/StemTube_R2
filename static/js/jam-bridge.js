@@ -100,8 +100,15 @@
             if (isJamActive()) {
                 const opts = {};
                 if (leadIn && leadIn > 0) {
-                    const beatDur = 60 / currentBpm();
-                    opts.precount_beats = Math.max(1, Math.round(leadIn / beatDur));
+                    // Guests run the same POC engine and load the host's baked
+                    // count-in plan from the host's cache: send the ARMED beat
+                    // count (PreCount.beats) so they play the identical lead-in;
+                    // precount_seconds is a fallback for clients without the plan.
+                    let beats = 0;
+                    try { beats = (window.PreCount && PreCount.beats) || 0; } catch (e) { /* ignore */ }
+                    if (!beats) { const beatDur = 60 / currentBpm(); beats = Math.max(1, Math.round(leadIn / beatDur)); }
+                    opts.precount_beats = beats;
+                    opts.precount_seconds = leadIn / (e.syncRatio || 1);
                 }
                 parentJamClient.sendPlayback('play', startPos, opts);
                 startSyncHeartbeat();
