@@ -680,7 +680,7 @@
 
   <!-- Focus button: opens the enlarged Chords-grid / Lyrics popup. Shown only on
        the Chords and Lyrics tabs (the mixer-only view controls hide there). -->
-  <button id="focusBtn" class="labeled" title="Focus view"><span class="ico">⤢</span><span class="lbl" id="focusBtnLbl">Focus</span></button>
+  <button id="focusBtn" class="labeled" title="Stage View — open the current tab (Chords / Lyrics) full-size in a separate always-on-top window you can drag to your stage screen. Falls back to a full-page view when the browser does not support detached windows."><span class="ico">⤢</span><span class="lbl" id="focusBtnLbl">Stage View</span></button>
   <!-- Hidden trigger so chord-display.js initGridPopup() wires the popup's
        close/overlay/ESC handlers (it keys off this id). #focusBtn opens it. -->
   <button id="chord-grid-view-btn" style="display:none" aria-hidden="true"></button>
@@ -967,7 +967,7 @@
       document.body.setAttribute("data-tab", tab);
       document.querySelectorAll("#mixerTabs .mtab").forEach(function(x){ x.classList.toggle("on", x.dataset.tab===tab); });
       // Focus button label per tab (hidden on Mixer via CSS)
-      if(focusBtnLbl) focusBtnLbl.textContent = (tab==="chords") ? "Focus Chords" : (tab==="lyrics") ? "Focus Lyrics" : "Focus";
+      if(focusBtnLbl) focusBtnLbl.textContent = (tab==="chords") ? "Stage View: Chords" : (tab==="lyrics") ? "Stage View: Lyrics" : "Stage View";
       // canvases sized to a hidden pane render at 0 width; redraw on return to Mixer
       if(tab === "mixer" && window.View && View.meta) View.redrawAll();
       // (re)sync the practice tab we're entering so its playhead is correct at once
@@ -982,14 +982,28 @@
       applyTab(b.dataset.tab);
     });
 
-    // Focus button → open the popup matching the current tab.
+    // Stage View button → open the popup matching the current tab, then move
+    // its whole dialog (transport bar + size slider + content) into a separate
+    // always-on-top window. The detach runs inside the same click, which is
+    // what the browser requires (user activation). Without support (Firefox,
+    // Safari, old Chrome) the in-page popup simply stays.
     if(focusBtn){
       focusBtn.addEventListener("click", function(){
         var tab = document.body.getAttribute("data-tab");
+        var SV = window.StageView;
         if(tab === "chords" && window.mixer.chordDisplay && window.mixer.chordDisplay.openGridPopup){
           window.mixer.chordDisplay.openGridPopup();
+          if(SV && SV.supported){
+            SV.detach("chords", { dialogSelector: "#chords-grid-popup .chords-grid-popup-dialog", title: "Chords — StemTube Stage View",
+              onClosed: function(){ if(window.mixer.chordDisplay) window.mixer.chordDisplay.closeGridPopup(); } });
+          }
         } else if(tab === "lyrics" && window.lyricsPopupInstance && window.lyricsPopupInstance.open){
           window.lyricsPopupInstance.open();
+          if(SV && SV.supported){
+            SV.detach("lyrics", { dialogSelector: "#lyrics-popup .lyrics-popup-dialog", title: "Lyrics — StemTube Stage View",
+              onClosed: function(){ if(window.lyricsPopupInstance) window.lyricsPopupInstance.close(); } })
+              .then(function(ok){ if(ok && window.karaokeDisplayInstance) setTimeout(function(){ window.karaokeDisplayInstance.refocusCurrentLine(true); }, 150); });
+          }
         }
       });
     }
@@ -1034,58 +1048,28 @@
 </script>
 
 <script>
-// Detach buttons for the two focus popups (always-on-top system window via
-// Document Picture-in-Picture; hidden/disabled when unsupported).
+// Stage View support glue: while a dialog lives in the detached window, the
+// display code that scrolls by id must find it there.
 (function () {
-  if (!window.PopupDetach) return;
-  var PD = window.PopupDetach;
-
-  // Lyrics Focus: move the live lyrics block. The PiP scroller carries the
-  // .lyrics-popup-content class so karaoke-display's popup auto-scroll
-  // (closest('.lyrics-popup-content')) keeps targeting the right container.
-  PD.mountButton('.lyrics-popup-header', 'lyrics', {
-    contentSelector: '#lyrics-popup-lyrics .karaoke-lyrics',
-    shellClass: 'lyrics-popup-overlay active',
-    scrollerClass: 'lyrics-popup-content',
-    title: 'Lyrics — StemTube',
-    placeholderText: 'Lyrics are showing in the detached window (close it to bring them back)',
-    onDetached: function (pip) {
-      if (window.karaokeDisplayInstance) window.karaokeDisplayInstance.refocusCurrentLine(true);
+  if (!window.StageView || !window.mixer || !window.mixer.chordDisplay) return;
+  var SV = window.StageView, cd = window.mixer.chordDisplay;
+  if (cd._stageViewPatched) return;
+  var origHighlight = cd.highlightGridBeat.bind(cd);
+  cd.highlightGridBeat = function (beatIndex) {
+    if (!SV.isDetached("chords")) return origHighlight(beatIndex);
+    if (!this.gridBeatElements || !this.gridBeatElements.length) return;
+    var activeBeat = this.gridBeatElements[beatIndex];
+    if (!activeBeat) return;
+    this.gridBeatElements.forEach(function (el) { el.classList.remove("active"); });
+    activeBeat.classList.add("active");
+    var body = activeBeat.closest(".chords-grid-popup-body");
+    var measure = activeBeat.closest(".chord-grid-measure");
+    if (body && measure) {
+      var target = Math.max(0, measure.offsetTop - body.offsetTop - Math.round(body.clientHeight * 0.28));
+      if (Math.abs(body.scrollTop - target) >= 1) body.scrollTo({ top: target, behavior: "auto" });
     }
-  });
-
-  // Chords Grid View: move the rendered grid. Scroller carries
-  // .chords-grid-popup-body so chord-display's highlightGridBeat auto-scroll
-  // (popup.querySelector('.chords-grid-popup-body')) is re-pointed below.
-  PD.mountButton('.chords-grid-popup-header', 'chords', {
-    contentSelector: '#chords-grid-container',
-    shellClass: 'chords-grid-popup-overlay',
-    scrollerClass: 'chords-grid-popup-body',
-    title: 'Chords — StemTube',
-    placeholderText: 'Chord grid is showing in the detached window (close it to bring it back)'
-  });
-
-  // chord-display scrolls the element it finds INSIDE #chords-grid-popup; while
-  // detached, redirect that lookup to the PiP scroller.
-  if (window.mixer && window.mixer.chordDisplay && !window.mixer.chordDisplay._detachPatched) {
-    var cd = window.mixer.chordDisplay;
-    var origHighlight = cd.highlightGridBeat.bind(cd);
-    cd.highlightGridBeat = function (beatIndex) {
-      if (!PD.isDetached('chords')) return origHighlight(beatIndex);
-      if (!this.gridBeatElements || !this.gridBeatElements.length) return;
-      var activeBeat = this.gridBeatElements[beatIndex];
-      if (!activeBeat) return;
-      this.gridBeatElements.forEach(function (el) { el.classList.remove('active'); });
-      activeBeat.classList.add('active');
-      var body = PD.scrollerFor('chords');
-      var measure = activeBeat.closest('.chord-grid-measure');
-      if (body && measure) {
-        var target = Math.max(0, measure.offsetTop - Math.round(body.clientHeight * 0.28));
-        if (Math.abs(body.scrollTop - target) >= 1) body.scrollTo({ top: target, behavior: 'auto' });
-      }
-    };
-    cd._detachPatched = true;
-  }
+  };
+  cd._stageViewPatched = true;
 })();
 </script>
 <!-- JAM WIRING: legacy API, rewritten in 14c -->

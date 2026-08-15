@@ -560,24 +560,20 @@
     pointer-events: none;
 }
 
-/* ── Detach (pop out to an always-on-top window) — shared by both popups ── */
-.chords-grid-popup-header, .lyrics-popup-header { gap: 0.6rem; }
-.popup-detach-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin-left: auto;
-    margin-right: 0.6rem;
-    padding: 0.45rem 0.85rem;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius, 8px);
-    color: var(--text-primary);
-    font: inherit;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
+/* ── Stage View: the dialog lives in a detached always-on-top window and
+   fills it edge to edge (its overlay sizing/centering no longer applies) ── */
+.in-stage-view {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
+    max-height: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    transform: none !important;
 }
-.popup-detach-btn:hover:not(:disabled) { background: var(--bg-hover); border-color: var(--accent-color); }
-.popup-detach-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.popup-detach-placeholder { color: var(--text-secondary); font-size: 1rem; }
+.stage-view-placeholder {
+    color: var(--text-secondary);
+    font-size: 1.05rem;
+    text-align: center;
+    padding: 3rem 2rem;
+}

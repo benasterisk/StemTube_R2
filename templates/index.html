@@ -539,7 +539,10 @@
                     </div>
                     <div class="mixer-container" id="mixerContainer">
                         <div id="loading" class="loading">Chargement des stems audio...</div>
-                        <iframe id="mixerFrame" src="/mixer" style="width: 100%; height: 800px; min-height: 800px; border: none; display: none;"></iframe>
+                        <!-- allow: the mixer opens detached always-on-top windows for the
+                             Lyrics/Chords stage views (Document Picture-in-Picture); the
+                             permission must be delegated to the iframe or Chrome refuses. -->
+                        <iframe id="mixerFrame" src="/mixer" allow="picture-in-picture; autoplay; microphone" style="width: 100%; height: 800px; min-height: 800px; border: none; display: none;"></iframe>
                     </div>
                 </div>
 

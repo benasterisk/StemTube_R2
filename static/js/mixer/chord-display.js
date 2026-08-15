@@ -2270,8 +2270,8 @@ class ChordDisplay {
         if (!popup) return;
 
         // Bring the grid back from a detached (PiP) window before hiding.
-        if (window.PopupDetach && window.PopupDetach.isDetached('chords')) {
-            window.PopupDetach.reattach('chords');
+        if (window.StageView && window.StageView.isDetached('chords')) {
+            window.StageView.reattach('chords');
         }
 
         popup.setAttribute('aria-hidden', 'true');
