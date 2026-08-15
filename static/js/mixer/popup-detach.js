@@ -30,6 +30,18 @@
     const supported = 'documentPictureInPicture' in window;
     const isTop = (window.top === window);
 
+    // Diagnostic journal (kept short-lived in localStorage; read with
+    // JSON.parse(localStorage.stageViewLog)). Helps trace who closes the
+    // window on the user's machine when we cannot reproduce interactively.
+    function slog(msg) {
+        try {
+            const arr = JSON.parse(localStorage.getItem('stageViewLog') || '[]');
+            arr.push(new Date().toISOString().slice(11, 23) + ' [' + (isTop ? 'top' : 'iframe') + '] ' + msg + ' :: ' + (new Error().stack || '').split(String.fromCharCode(10)).slice(2, 4).map(l => l.trim()).join(' <- '));
+            localStorage.setItem('stageViewLog', JSON.stringify(arr.slice(-60)));
+        } catch (e) { /* storage blocked */ }
+    }
+    window.__stageViewLog = slog;
+
     // ── shared helpers ───────────────────────────────────────────────
 
     function copyStyles(fromDoc, targetDoc) {
@@ -94,6 +106,12 @@
 
         owned[key] = { pip, dialog, placeholder, sourceWin };
 
+        slog('window opened for ' + key);
+        pip.addEventListener('resize', () => slog('pip resize ' + pip.innerWidth + 'x' + pip.innerHeight));
+        pip.addEventListener('blur', () => slog('pip blur'));
+        pip.addEventListener('focus', () => slog('pip focus'));
+        pip.addEventListener('pagehide', (e) => slog('pip pagehide persisted=' + e.persisted));
+        pip.addEventListener('unload', () => slog('pip unload'));
         pip.document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') pip.close();
             else if (e.key === ' ' && !/INPUT|TEXTAREA|BUTTON/.test(e.target.tagName)) {
@@ -106,6 +124,7 @@
     }
 
     function closeWindow(key) {
+        slog('closeWindow(' + key + ')');
         const cur = owned[key];
         if (!cur) return;
         const { pip, dialog, placeholder, sourceWin } = cur;
@@ -148,6 +167,58 @@
                 closeWindow(data.key);
             }
         });
+    }
+
+    // ── DOM lookup bridge (mixer page) ───────────────────────────────
+    //
+    // The POC front and the display scripts look their controls up BY ID in
+    // `document` on every update ($("#playBtn"), getElementById("bpmVal"),
+    // "precountBtn", "stopMetroBtn"...). Once the dialog - and the transport
+    // bar inside it - is adopted by the Stage View window, those lookups
+    // return null: the play button stops toggling, BPM/precount displays
+    // freeze, setPlayBtn() throws mid-toggle. Rather than patching dozens of
+    // call sites, extend the page's lookups to fall back to the Stage View
+    // documents while a dialog is detached. Same origin, same logical UI.
+    if (!isTop) {
+        const stageDocs = () => {
+            const docs = [];
+            try {
+                const p = window.parent;
+                if (p && typeof p.__stageViewDocsFor === 'function') return p.__stageViewDocsFor(window);
+            } catch (e) { /* cross-origin */ }
+            return docs;
+        };
+        const origGetById = Document.prototype.getElementById;
+        const origQS = Document.prototype.querySelector;
+        const origQSA = Document.prototype.querySelectorAll;
+        document.getElementById = function (id) {
+            const el = origGetById.call(this, id);
+            if (el || !detachedKeys.size) return el;
+            for (const d of stageDocs()) { const f = origGetById.call(d, id); if (f) return f; }
+            return null;
+        };
+        document.querySelector = function (sel) {
+            const el = origQS.call(this, sel);
+            if (el || !detachedKeys.size) return el;
+            for (const d of stageDocs()) { try { const f = origQS.call(d, sel); if (f) return f; } catch (e) { return null; } }
+            return null;
+        };
+        document.querySelectorAll = function (sel) {
+            const list = origQSA.call(this, sel);
+            if (list.length || !detachedKeys.size) return list;
+            for (const d of stageDocs()) { try { const f = origQSA.call(d, sel); if (f.length) return f; } catch (e) { return list; } }
+            return list;
+        };
+    }
+    if (isTop) {
+        window.__stageViewDocsFor = function (sourceWin) {
+            const docs = [];
+            for (const k of Object.keys(owned)) {
+                const c = owned[k];
+                if (c.sourceWin === sourceWin && c.pip && !c.pip.closed) docs.push(c.pip.document);
+            }
+            return docs;
+        };
     }
 
     // ── mixer page API (used by the Stage View button) ───────────────
@@ -222,6 +293,32 @@
                 if (typeof cb === 'function') cb();
             }
         });
+    }
+
+    if (isTop) {
+        // Standalone mixer page (no app iframe): same lookup bridge, local owner.
+        const origGetById = Document.prototype.getElementById;
+        const origQS = Document.prototype.querySelector;
+        const origQSA = Document.prototype.querySelectorAll;
+        const localDocs = () => Object.keys(owned).map(k => owned[k]).filter(c => c.sourceWin === window && c.pip && !c.pip.closed).map(c => c.pip.document);
+        document.getElementById = function (id) {
+            const el = origGetById.call(this, id);
+            if (el || !detachedKeys.size) return el;
+            for (const d of localDocs()) { const f = origGetById.call(d, id); if (f) return f; }
+            return null;
+        };
+        document.querySelector = function (sel) {
+            const el = origQS.call(this, sel);
+            if (el || !detachedKeys.size) return el;
+            for (const d of localDocs()) { try { const f = origQS.call(d, sel); if (f) return f; } catch (e) { return null; } }
+            return null;
+        };
+        document.querySelectorAll = function (sel) {
+            const list = origQSA.call(this, sel);
+            if (list.length || !detachedKeys.size) return list;
+            for (const d of localDocs()) { try { const f = origQSA.call(d, sel); if (f.length) return f; } catch (e) { return list; } }
+            return list;
+        };
     }
 
     function isDetached(key) { return detachedKeys.has(key); }
