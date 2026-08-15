@@ -3133,6 +3133,7 @@ class MobileApp {
             else console.log('[LoadMixer]', label);
         });
         this.pocMeta = meta;
+        this._adoptPocBase(meta);
         console.log(`[LoadMixer] All stems loaded in ${(performance.now() - loadStart).toFixed(0)}ms`);
 
         // this.stems === MobilePOC.stems (engine map, POC order: metronome, drums, bass, ...)
@@ -7526,6 +7527,11 @@ class MobileApp {
         // Tempo change from host
         this.jamClient.onTempo((data) => {
             console.log('[Jam Guest] Tempo change:', data);
+            // The host sends its reference tempo too: adopt it so our ratio
+            // (bpm / originalBPM) matches the host's exactly.
+            if (data.original_bpm && Number.isFinite(+data.original_bpm) && +data.original_bpm > 0) {
+                this.originalBPM = +data.original_bpm;
+            }
             if (data.bpm) {
                 this.currentBPM = data.bpm;
                 this.syncTempoValueBPM(data.bpm);
@@ -7794,6 +7800,7 @@ class MobileApp {
             console.log('[Jam Guest] ' + stage + ' ' + pct + '%');
         });
         this.pocMeta = meta;
+        this._adoptPocBase(meta);
         Object.keys(this.stems).forEach((name) => this.createTrackControl(name));
         this.duration = MobilePOC.duration;
         console.log('[Jam Guest] Loaded', Object.keys(this.stems).length, 'stems (metronome incl.), duration', this.duration);
@@ -7933,6 +7940,28 @@ class MobileApp {
                 this.seekToPosition(hostPosition);
             }
         }
+    }
+
+    // The POC meta is the shared source of truth for the song's ORIGINAL tempo
+    // and key (same values the desktop host derives its ratios from). The DB
+    // fields (detected_bpm/detected_key) can be null for uploads, which left
+    // originalBPM at 120 and turned every host tempo broadcast into a wrong
+    // ratio on guests (bpm/120 instead of bpm/median). Keep the CURRENT tempo/
+    // pitch state (a jam guest may have joined mid-change), re-anchor the base.
+    _adoptPocBase(meta) {
+        if (!meta) return;
+        const base = Number(meta.median_bpm);
+        if (Number.isFinite(base) && base > 0) {
+            const hadCurrent = this.currentBPM && this.originalBPM && this.currentBPM !== this.originalBPM;
+            const keepBpm = hadCurrent ? this.currentBPM : base;
+            this.originalBPM = base;
+            this.currentBPM = keepBpm;
+        }
+        if (meta.key_tonic) {
+            this.originalKey = meta.key_tonic + (meta.key_mode ? ' ' + meta.key_mode : '');
+        }
+        if (typeof this.syncTempoValueBPM === 'function') this.syncTempoValueBPM(this.currentBPM);
+        if (typeof this.syncKeyDisplay === 'function') this.syncKeyDisplay();
     }
 
     _applyTempoChange(bpm) {
