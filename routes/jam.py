@@ -39,6 +39,38 @@ jam_bp = Blueprint('jam', __name__)
 # Helper functions
 # ------------------------------------------------------------------
 
+def _guest_base_url():
+    """Base URL guests can actually reach.
+
+    request.url_root is the address the HOST used. On a dev box that is
+    typically http://localhost:<port>/ - a QR/link built from it sends the
+    guest's phone to ITSELF. Substitute the machine's LAN IP for loopback
+    hosts; behind a real domain (production) url_root is returned as is.
+    """
+    root = request.url_root.rstrip('/')
+    try:
+        from urllib.parse import urlsplit, urlunsplit
+        parts = urlsplit(root)
+        host = parts.hostname or ''
+        if host in ('localhost', '127.0.0.1', '::1', '0.0.0.0'):
+            import socket
+            lan_ip = None
+            try:
+                # UDP connect trick: no packet sent, picks the outbound interface
+                s_ = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s_.connect(('8.8.8.8', 80))
+                lan_ip = s_.getsockname()[0]
+                s_.close()
+            except Exception:
+                lan_ip = None
+            if lan_ip and not lan_ip.startswith('127.'):
+                netloc = lan_ip + (f":{parts.port}" if parts.port else '')
+                root = urlunsplit((parts.scheme, netloc, parts.path, '', '')).rstrip('/')
+    except Exception as e:
+        logger.debug(f"[Jam] guest base url fallback: {e}")
+    return root
+
+
 def generate_jam_code():
     """Generate a unique jam session code like JAM-7X3K."""
     from core.auth_db import find_user_by_jam_code
@@ -472,7 +504,7 @@ def register_jam_socketio_events(sio):
                     existing['state']['position'] = 0.0
                     join_room(f'jam_{code}')
                     short_code = code.replace('JAM-', '')
-                    url = f"{request.url_root.rstrip('/')}/jam/{short_code}"
+                    url = f"{_guest_base_url()}/jam/{short_code}"
                     emit('jam_created', {'code': code, 'url': url})
                     _emit_jam_participants(code)
                     # Notify guests that host is back -- include full state for resync
@@ -516,7 +548,7 @@ def register_jam_socketio_events(sio):
         }
         join_room(f'jam_{code}')
         short_code = code.replace('JAM-', '')
-        url = f"{request.url_root.rstrip('/')}/jam/{short_code}"
+        url = f"{_guest_base_url()}/jam/{short_code}"
         emit('jam_created', {'code': code, 'url': url})
         _emit_jam_participants(code)
         logger.info(f"[Jam] Session {code} created by user {current_user.id}, host_sid={request.sid}")
