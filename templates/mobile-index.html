@@ -1426,7 +1426,14 @@
         {% endif %}
     </script>
     <script src="{{ url_for('static', filename='js/jam-client.js') }}?v={{ cache_buster }}"></script>
-    <script src="{{ url_for('static', filename='js/jam-metronome.js') }}?v={{ cache_buster }}"></script>
+    <!-- POC audio engine (shared with the desktop mixer): stems + server-rendered
+         metronome stem + baked count-in. Replaces the client-synthesized JamMetronome. -->
+    <script src="{{ url_for('static', filename='js/poc/api.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/poc/audio.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/poc/precount.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/poc/loop.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/mixer/mobile-poc-engine.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/mobile-metronome.js') }}?v={{ cache_buster }}"></script>
     <!-- mobile-app.js split into modular files -->
     <script src="{{ url_for('static', filename='js/theme-generator.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/spectrum-picker.js') }}?v={{ cache_buster }}"></script>

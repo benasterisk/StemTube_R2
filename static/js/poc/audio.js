@@ -226,7 +226,9 @@ class AudioEngine {
     // keep tempo/pitch state so it persists across songs (R2 caches it too)
   }
 
-  anySolo(){ return Object.values(this.stems).some(s=>s.solo); }
+  // extraSoloProbe: optional hook returning true when a NON-stem track is
+  // soloed (the mobile recording engine's tracks) so stems duck accordingly.
+  anySolo(){ return Object.values(this.stems).some(s=>s.solo) || !!(this.extraSoloProbe && this.extraSoloProbe()); }
   // DAW-standard routing:
   //  - Solo is "listen to ONLY soloed tracks" (cumulative across tracks).
   //  - A manual Mute ALWAYS wins (a muted track stays silent even if soloed).
@@ -239,11 +241,11 @@ class AudioEngine {
   applyGains(){ Object.values(this.stems).forEach(s=>{ if(s.gain) s.gain.gain.value=this.gainFor(s); }); }
 
   // Mute and Solo are independent toggles (a track may be both; mute wins).
-  setMute(name,v){ this.stems[name].muted=v; this.applyGains(); }
-  setSolo(name,v){ this.stems[name].solo=v; this.applyGains(); }
-  setVol(name,v){ const s=this.stems[name]; s.vol=v; if(s.gain) s.gain.gain.value=this.gainFor(s); }
+  setMute(name,v){ const s=this.stems[name]; if(!s) return; s.muted=v; this.applyGains(); }
+  setSolo(name,v){ const s=this.stems[name]; if(!s) return; s.solo=v; this.applyGains(); }
+  setVol(name,v){ const s=this.stems[name]; if(!s) return; s.vol=v; if(s.gain) s.gain.gain.value=this.gainFor(s); }
   // pan: -1 = full left, 0 = center, +1 = full right (StereoPannerNode)
-  setPan(name,v){ const s=this.stems[name]; s.pan=Math.max(-1,Math.min(1,v)); if(s.panNode) s.panNode.pan.value=s.pan; }
+  setPan(name,v){ const s=this.stems[name]; if(!s) return; s.pan=Math.max(-1,Math.min(1,v)); if(s.panNode) s.panNode.pan.value=s.pan; }
 
   // ── Tempo/pitch math (R2's hybrid method) ─────────────────────────────────
   // Given a tempo ratio (target/base) and pitch in semitones, compute the
@@ -329,10 +331,13 @@ class AudioEngine {
   }
 
   // ── Position (anchor-based, drift-free, tempo-aware) ──────────────────────
-  pos(){
+  // pos(atCtxTime): song position now, or at a given AudioContext time (lets
+  // callers schedule against a precise future audio instant without rAF jitter).
+  pos(atCtxTime){
     if(!this.playing) return this.staticPos;
     if(this._anchorTime === null) return this._anchorPos;
-    let p = this._anchorPos + (this.ctx.currentTime - this._anchorTime) * this._anchorRatio;
+    const t = (typeof atCtxTime === "number") ? atCtxTime : this.ctx.currentTime;
+    let p = this._anchorPos + (t - this._anchorTime) * this._anchorRatio;
     // When looping, the buffer wraps b→a natively; fold the linear anchor reading
     // back into the [a,b] window so reported position matches the audio.
     if(this.loopOn && this.loopB > this.loopA && p >= this.loopA){

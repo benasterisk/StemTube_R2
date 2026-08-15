@@ -671,3 +671,29 @@
     color: var(--text-secondary, #b3b3b3);
     padding: 2px 10px 4px;
 }
+
+/* ── Mobile metronome control (POC engine: metronome stem + baked count-in) ── */
+.mobile-metronome-container.metronome-on .metronome-dot { opacity: 0.55; }
+.metronome-dot.metronome-dot-beat { animation: metro-beat 180ms ease-out; }
+.metronome-dot.metronome-dot-down { animation: metro-down 220ms ease-out; }
+@keyframes metro-beat { 0% { opacity: 1; transform: scale(1.35); } 100% { opacity: 0.55; transform: scale(1); } }
+@keyframes metro-down { 0% { opacity: 1; transform: scale(1.6); background: #1db954; } 100% { opacity: 0.55; transform: scale(1); } }
+.mobile-metro-gear {
+    background: none; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px;
+    color: var(--text-secondary, #aaa); font-size: 16px; padding: 2px 8px; margin-left: 6px; cursor: pointer;
+}
+.mobile-metro-popover { min-width: 260px; max-width: 92vw; padding: 12px; }
+.mobile-metro-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+.mobile-metro-label { min-width: 64px; font-size: 12px; color: var(--text-secondary, #aaa); }
+.mobile-metro-select { flex: 1; min-width: 120px; padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,0.06); color: inherit; border: 1px solid rgba(255,255,255,0.15); font: inherit; }
+.mobile-metro-seg { display: inline-flex; gap: 4px; }
+.mobile-metro-seg-btn {
+    padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,0.06); color: inherit;
+    border: 1px solid rgba(255,255,255,0.15); font: inherit; font-size: 12px; cursor: pointer;
+}
+.mobile-metro-seg-btn.on { background: #1db954; color: #000; border-color: #1db954; font-weight: 700; }
+.mobile-metro-actions { gap: 6px; }
+.mobile-metro-action {
+    padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,0.06); color: inherit;
+    border: 1px solid rgba(255,255,255,0.15); font: inherit; font-size: 12px; cursor: pointer;
+}
