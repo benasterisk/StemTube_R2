@@ -571,6 +571,25 @@
     box-shadow: none !important;
     transform: none !important;
 }
+.stage-view-fs-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: auto;
+    margin-right: 0.6rem;
+    padding: 0.45rem 0.85rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--accent-color);
+    border-radius: var(--border-radius, 8px);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+.stage-view-fs-btn:hover { background: var(--accent-color); color: #000; }
+/* in full screen the dialog is the fullscreen root's child: fill it */
+:fullscreen .in-stage-view, :-webkit-full-screen .in-stage-view { width: 100vw !important; height: 100vh !important; }
+
 .stage-view-placeholder {
     color: var(--text-secondary);
     font-size: 1.05rem;

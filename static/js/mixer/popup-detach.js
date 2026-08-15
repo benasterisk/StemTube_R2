@@ -80,9 +80,12 @@
 
         let pip;
         try {
+            // Chrome caps a Document PiP window at roughly 80% of the screen
+            // in each dimension; ask for the whole screen and let it clamp,
+            // so the window opens as large as the browser allows.
             pip = await window.documentPictureInPicture.requestWindow({
-                width: opts.width || Math.round(Math.min(1400, screen.availWidth * 0.75)),
-                height: opts.height || Math.round(Math.min(900, screen.availHeight * 0.8)),
+                width: opts.width || screen.availWidth,
+                height: opts.height || screen.availHeight,
             });
         } catch (e) {
             console.warn('[StageView] window refused:', e.message);
@@ -113,8 +116,40 @@
         pip.addEventListener('focus', () => slog('pip focus'));
         pip.addEventListener('pagehide', (e) => slog('pip pagehide persisted=' + e.persisted));
         pip.addEventListener('unload', () => slog('pip unload'));
+        // Real full screen ON THE MONITOR THE WINDOW SITS ON (stage screen):
+        // F11 / F key, or double-click the dialog header. Chrome's own
+        // top-right button on a PiP window is 'Back to tab' (it closes the
+        // window by design), and PiP windows are capped at ~80% of the
+        // screen - the Fullscreen API is the way past both.
+        const goFullscreen = () => {
+            const el = pip.document.documentElement;
+            if (pip.document.fullscreenElement) { pip.document.exitFullscreen().catch(() => {}); return; }
+            (el.requestFullscreen ? el.requestFullscreen() : Promise.reject()).catch((err) => {
+                slog('fullscreen refused: ' + (err && err.message));
+            });
+        };
+        pip.__goFullscreen = goFullscreen;
+        const header = dialog.querySelector('.lyrics-popup-header, .chords-grid-popup-header');
+        if (header) {
+            header.title = 'Double-click: full screen on this monitor (F11 / F). Esc: back to the app.';
+            header.addEventListener('dblclick', (e) => { if (!e.target.closest('button')) goFullscreen(); });
+            // Visible affordance (removed with the dialog on re-attach)
+            if (!header.querySelector('.stage-view-fs-btn')) {
+                const fsBtn = sourceWin.document.createElement('button');
+                fsBtn.type = 'button';
+                fsBtn.className = 'stage-view-fs-btn';
+                fsBtn.title = 'Full screen on this monitor (F11). Esc leaves full screen.';
+                fsBtn.innerHTML = '&#x26F6; Full screen';
+                fsBtn.addEventListener('click', goFullscreen);
+                const closeBtn = header.querySelector('button');
+                header.insertBefore(fsBtn, closeBtn || null);
+            }
+        }
         pip.document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') pip.close();
+            if (e.key === 'F11' || (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey && !/INPUT|TEXTAREA/.test(e.target.tagName))) {
+                e.preventDefault(); goFullscreen(); return;
+            }
+            if (e.key === 'Escape') { if (pip.document.fullscreenElement) return; pip.close(); }
             else if (e.key === ' ' && !/INPUT|TEXTAREA|BUTTON/.test(e.target.tagName)) {
                 e.preventDefault();
                 const b = sourceWin.document.getElementById('playBtn'); if (b) b.click();
@@ -130,6 +165,7 @@
         if (!cur) return;
         const { pip, dialog, placeholder, sourceWin } = cur;
         dialog.classList.remove('in-stage-view');
+        const fsBtn = dialog.querySelector('.stage-view-fs-btn'); if (fsBtn) fsBtn.remove();
         if (placeholder && placeholder.parentNode) placeholder.parentNode.replaceChild(dialog, placeholder);
         delete owned[key];
         if (pip && !pip.closed) { try { pip.close(); } catch (e) { /* closing */ } }
