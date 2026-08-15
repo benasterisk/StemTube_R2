@@ -164,30 +164,20 @@ a{{color:#1DB954;text-decoration:none}}</style></head>
     extraction_id = jam.get('extraction_id') or extraction_data.get('extraction_id', '')
     logger.info(f"[Jam Guest Route] code={full_code}, has_extraction_data={bool(extraction_data)}, extraction_id={extraction_id}, title={extraction_data.get('title')}")
 
-    # Detect mobile
-    user_agent = request.headers.get('User-Agent', '')
-    if is_mobile_user_agent(user_agent):
-        # Mobile: use the real mobile-index.html with jam guest mode
-        return render_template('mobile-index.html',
-                               current_username=session['jam_guest_name'],
-                               current_user=None,
-                               cache_buster=int(time.time()),
-                               enable_youtube=False,
-                               jam_guest_mode=True,
-                               jam_code=full_code,
-                               jam_guest_name=session['jam_guest_name'],
-                               jam_host_name=jam.get('host_name', 'Host'),
-                               jam_extraction_data=json.dumps(extraction_data) if extraction_data else '{}')
-
-    # Desktop: render the real mixer with guest mode flags
-    cache_buster = int(time.time())
-    return render_template('mixer.html',
-                           extraction_id=extraction_id,
-                           extraction_info=extraction_data if extraction_data else None,
+    # ONE guest surface for every device: the mobile PWA in jam-guest mode. It
+    # runs the POC engine (host's server-rendered metronome + baked count-in
+    # via /api/jam/poc/*) and is responsive; the former desktop guest branch
+    # rendered mixer.html with a legacy-engine guest controller and is retired.
+    return render_template('mobile-index.html',
+                           current_username=session['jam_guest_name'],
+                           current_user=None,
+                           cache_buster=int(time.time()),
+                           enable_youtube=False,
                            jam_guest_mode=True,
                            jam_code=full_code,
                            jam_guest_name=session['jam_guest_name'],
-                           cache_buster=cache_buster)
+                           jam_host_name=jam.get('host_name', 'Host'),
+                           jam_extraction_data=json.dumps(extraction_data) if extraction_data else '{}')
 
 
 @jam_bp.route('/api/jam/stems/<code>/<stem_name>', methods=['GET', 'HEAD'])
