@@ -223,6 +223,11 @@
     flex-direction: column;
     justify-content: center;
     padding: 0.5rem 0.3rem;
+    /* Each cell is a size container: chord/lyric type scales with the CELL
+       width (cqw), not the viewport, so nothing overflows whatever the
+       window size or the number of bars per system. */
+    container-type: inline-size;
+    overflow: hidden;
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     border-radius: 8px;
@@ -249,22 +254,34 @@
 }
 
 .chord-grid-beat-name {
-    font-size: clamp(1.6rem, 2.6vw, 2.6rem);      /* stage-readable */
+    /* ~1/3 of the cell width per glyph budget: 'C#maj7' (6 chars) still fits */
+    font-size: clamp(0.9rem, 34cqw, 2.8rem);       /* stage-readable, never wider than the cell */
     font-weight: 800;
     line-height: 1.05;
     color: var(--text-primary);
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    max-width: 100%;
 }
+/* long names (maj7 / sus4 / aug / m7...) tighten instead of overflowing */
+.chord-grid-beat-name[data-len="4"] { font-size: clamp(0.85rem, 28cqw, 2.4rem); }
+.chord-grid-beat-name[data-len="5"] { font-size: clamp(0.8rem, 23cqw, 2.1rem); letter-spacing: -0.03em; }
+.chord-grid-beat-name[data-len="6"],
+.chord-grid-beat-name[data-len="7"] { font-size: clamp(0.6rem, 17cqw, 1.8rem); letter-spacing: -0.04em; }
 
 .chord-grid-beat-lyric {
     margin-top: 0.3rem;
     min-height: 1.3em;
-    font-size: clamp(0.85rem, 1.15vw, 1.15rem);
+    font-size: clamp(0.7rem, 12cqw, 1.2rem);
     line-height: 1.25;
     color: var(--text-secondary);
-    overflow-wrap: anywhere;
+    /* wrap between words only - never split 'raindrops' into 'raindrop|s';
+       a single word wider than the cell is clipped rather than broken */
+    overflow-wrap: normal;
+    word-break: keep-all;
     max-height: 2.6em;                             /* two short lines max, then clip */
     overflow: hidden;
+    text-overflow: ellipsis;
 }
 .chord-grid-beat.active .chord-grid-beat-lyric { color: var(--text-primary); }
 

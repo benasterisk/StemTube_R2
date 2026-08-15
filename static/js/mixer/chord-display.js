@@ -2433,7 +2433,7 @@ class ChordDisplay {
                     const transposedChord = this.transposeChord(beat.chord, this.currentPitchShift);
                     const slotWords = wordsByBeat.get(measureIndex * beatsPerBar + beatIndex) || [];
                     beatEl.innerHTML = `
-                        <div class="chord-grid-beat-name">${transposedChord}</div>
+                        <div class="chord-grid-beat-name" data-len="${Math.min(7, transposedChord.length)}">${transposedChord}</div>
                         <div class="chord-grid-beat-lyric">${slotWords.join(' ')}</div>
                         <div class="chord-grid-beat-time">${this.formatTime(beat.timestamp)}</div>
                     `;
