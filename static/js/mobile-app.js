@@ -32,11 +32,14 @@ function gainToSlider(gain) {
 class MobileApp {
     constructor() {
         console.log('[MobileApp] Initializing Android-first architecture...');
-        
-        this.audioContext = null;
-        this.masterGainNode = null;
-        this.stems = {};
+
+        // Audio primitives are delegated to the POC engine through the
+        // MobilePOC bridge (static/js/mixer/mobile-poc-engine.js):
+        // `audioContext` and `stems` are getters over the engine (see below).
+        this._noEngineStems = {};   // fallback stems map when the bridge is missing
+        this.masterGainNode = null; // = MobilePOC.engine.master once the engine is ready
         this.workletLoaded = false;
+        this._pocReady = false;
         
         this.isPlaying = false;
         this.currentTime = 0;
@@ -269,37 +272,62 @@ class MobileApp {
         });
     }
 
+    // ── POC engine bridge accessors ─────────────────────────────────────
+    // The AudioContext is owned by the POC engine (MobilePOC.engine.ctx). It is
+    // exposed read-only here so mobile-recording.js and the rest of this file
+    // keep using `app.audioContext`; assignments are ignored.
+    get audioContext() {
+        return (window.MobilePOC && MobilePOC.engine && MobilePOC.engine.ctx) || null;
+    }
+    set audioContext(_v) { /* owned by MobilePOC.engine — ignored */ }
+
+    // `stems` ALWAYS mirrors the engine's live map (POC record shape:
+    // {name, buffer, source, soundTouch, gain, panNode, muted, solo, vol, pan}).
+    // engine.unload()/setStems() replace that map, so a getter (rather than a
+    // cached reference) keeps this.stems in sync. Clearing = MobilePOC.unload().
+    get stems() {
+        return window.MobilePOC ? MobilePOC.stems : this._noEngineStems;
+    }
+    set stems(_v) { /* owned by MobilePOC.engine — ignored */ }
+
     async initAudioContext() {
-        // Check if AudioContext exists AND is not closed
-        if (this.audioContext && this.audioContext.state !== 'closed') {
+        if (typeof MobilePOC === 'undefined') {
+            console.error('[Audio] MobilePOC bridge not loaded (static/js/mixer/mobile-poc-engine.js)');
+            return;
+        }
+        if (this._pocReady && this.audioContext && this.audioContext.state !== 'closed') {
             console.log('[Audio] AudioContext already exists (state:', this.audioContext.state + ')');
             return;
         }
 
-        console.log('[Audio] Initializing NEW AudioContext...');
+        console.log('[Audio] Initializing POC engine AudioContext...');
 
         try {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            this.audioContext = new AudioContext();
-            this.masterGainNode = this.audioContext.createGain();
-            this.masterGainNode.connect(this.audioContext.destination);
-            console.log('[Audio] AudioContext created successfully (state:', this.audioContext.state + ')');
-            await this.loadSoundTouchWorklet();
+            const ctx = MobilePOC.audioContext;   // created lazily by the engine
+            console.log('[Audio] AudioContext ready (state:', ctx.state + ')');
+            // SoundTouch worklet (tempo/pitch) — loaded once by the engine
+            this.workletLoaded = !!(await MobilePOC.engine.loadWorklet());
+            if (!this.workletLoaded) console.warn('[SoundTouch] Worklet unavailable — tempo/pitch disabled');
+            // Master bus: recording tracks connect here (mobile-recording.js)
+            this.masterGainNode = MobilePOC.engine.master || null;
+            this._installEngineHooks();
+            this._pocReady = true;
         } catch (error) {
             console.error('[Audio] Failed:', error);
         }
     }
 
-    async loadSoundTouchWorklet() {
-        try {
-            if (!this.audioContext.audioWorklet) throw new Error('AudioWorklet not supported');
-            await this.audioContext.audioWorklet.addModule('/static/wasm/soundtouch-worklet.js');
-            this.workletLoaded = true;
-            console.log('[SoundTouch] Worklet loaded');
-        } catch (error) {
-            console.error('[SoundTouch] Failed:', error);
-            this.workletLoaded = false;
-        }
+    /**
+     * Wire mobile-specific hooks into the POC engine (once).
+     * Solo unification: a soloed RECORDING track must duck the stems too, so the
+     * engine's anySolo() also probes the recording engine's tracks.
+     */
+    _installEngineHooks() {
+        if (typeof MobilePOC === 'undefined' || !MobilePOC.engine) return;
+        MobilePOC.engine.extraSoloProbe = () => !!(
+            this.recordingEngine && this.recordingEngine.tracks &&
+            this.recordingEngine.tracks.some(t => t.solo)
+        );
     }
 
     setupNavigation() {
@@ -1962,13 +1990,16 @@ class MobileApp {
             title: filename
         };
 
-        // Collect stem states
+        // Collect stem states (POC record fields). `volume` is the EFFECTIVE gain
+        // (vol × mute/solo routing, like the old live gainNode value) so an export
+        // matches what is heard.
+        const engine = window.MobilePOC ? MobilePOC.engine : null;
         for (const [name, stem] of Object.entries(this.stems)) {
             if (stem.buffer) {
                 mixerState.stems[name] = {
                     buffer: stem.buffer,
-                    volume: stem.gainNode?.gain?.value ?? 1.0,
-                    pan: stem.panNode?.pan?.value ?? 0,
+                    volume: engine ? engine.gainFor(stem) : (stem.vol ?? 1.0),
+                    pan: stem.pan ?? 0,
                     muted: stem.muted || false
                 };
             }
@@ -2959,81 +2990,15 @@ class MobileApp {
         this.updatePlayPauseButtons();
         console.log('[Cleanup] Playback stopped');
 
-        // Clean up all stems thoroughly
+        // Release the engine's stems (stops sources, drops buffers, resets loop).
+        // The AudioContext is kept alive — closing and recreating it on iOS causes
+        // the new context to be permanently suspended (created outside user gesture).
         const stemNames = Object.keys(this.stems);
         console.log('[Cleanup] Cleaning up', stemNames.length, 'stems:', stemNames);
-
-        Object.keys(this.stems).forEach(name => {
-            const stem = this.stems[name];
-
-            // Stop and disconnect source
-            if (stem.source) {
-                try {
-                    stem.source.stop(0);
-                    stem.source.disconnect();
-                    console.log('[Cleanup] Stopped and disconnected source for:', name);
-                } catch (e) {
-                    console.warn('[Cleanup] Error stopping source:', name, e);
-                }
-                stem.source = null;
-            }
-
-            // Disconnect SoundTouch node
-            if (stem.soundTouchNode) {
-                try {
-                    stem.soundTouchNode.disconnect();
-                    console.log('[Cleanup] Disconnected SoundTouch node for:', name);
-                } catch (e) {
-                    console.warn('[Cleanup] Error disconnecting SoundTouch:', name, e);
-                }
-                stem.soundTouchNode = null;
-            }
-
-            // Disconnect gain node
-            if (stem.gainNode) {
-                try {
-                    stem.gainNode.disconnect();
-                    console.log('[Cleanup] Disconnected gain node for:', name);
-                } catch (e) {
-                    console.warn('[Cleanup] Error disconnecting gain:', name, e);
-                }
-                stem.gainNode = null;
-            }
-
-            // Disconnect pan node
-            if (stem.panNode) {
-                try {
-                    stem.panNode.disconnect();
-                    console.log('[Cleanup] Disconnected pan node for:', name);
-                } catch (e) {
-                    console.warn('[Cleanup] Error disconnecting pan:', name, e);
-                }
-                stem.panNode = null;
-            }
-
-            // Clear buffer reference (allow GC)
-            stem.buffer = null;
-        });
-
-        // Clear stems object completely
-        this.stems = {};
+        if (window.MobilePOC) MobilePOC.unload();
         this.masterAudioBuffer = null;
         this.masterAudioSource = null;
-        console.log('[Cleanup] All stems cleared');
-
-        // Keep AudioContext alive — closing and recreating it on iOS causes
-        // the new context to be permanently suspended (created outside user gesture).
-        // Just disconnect and reconnect masterGainNode to flush the audio graph.
-        if (this.audioContext && this.masterGainNode) {
-            try {
-                this.masterGainNode.disconnect();
-                this.masterGainNode.connect(this.audioContext.destination);
-                console.log('[Cleanup] Master gain reconnected (AudioContext preserved)');
-            } catch (e) {
-                console.warn('[Cleanup] Master gain reconnect failed:', e);
-            }
-        }
-        console.log('[Cleanup] AudioContext state:', this.audioContext?.state || 'null');
+        console.log('[Cleanup] All stems cleared (AudioContext preserved, state:', this.audioContext?.state || 'null', ')');
 
         // Reset playback state
         this.currentTime = 0;
@@ -3092,17 +3057,8 @@ class MobileApp {
         this.isPlaying = false;
         this.updatePlayPauseButtons();
 
-        // Disconnect and clear stems
-        Object.keys(this.stems).forEach(name => {
-            const stem = this.stems[name];
-            try {
-                if (stem.source) { stem.source.stop(0); stem.source.disconnect(); }
-                if (stem.soundTouchNode) { stem.soundTouchNode.disconnect(); }
-                if (stem.gainNode) { stem.gainNode.disconnect(); }
-                if (stem.panNode) { stem.panNode.disconnect(); }
-            } catch (e) { /* ignore */ }
-        });
-        this.stems = {};
+        // Release the engine's stems (AudioContext preserved)
+        if (window.MobilePOC) MobilePOC.unload();
         this.masterAudioBuffer = null;
         this.masterAudioSource = null;
 
@@ -3152,7 +3108,11 @@ class MobileApp {
             throw new Error('No stems');
         }
 
-        this.stems = {};
+        if (typeof MobilePOC === 'undefined') throw new Error('Audio engine bridge (MobilePOC) not loaded');
+        if (!this.audioContext) await this.initAudioContext();
+
+        // Drop the previous song's stems from the engine (this.stems mirrors it)
+        MobilePOC.unload();
         const container = document.getElementById('mobileTracksContainer');
         if (container) {
             container.innerHTML = '';
@@ -3161,23 +3121,39 @@ class MobileApp {
             console.error('[LoadMixer] Tracks container not found!');
         }
 
-        const stemNames = Object.keys(stemsPaths);
-        console.log('[LoadMixer] Loading', stemNames.length, 'stems:', stemNames);
+        console.log('[LoadMixer] Requested stems:', Object.keys(stemsPaths));
 
+        // POC engine: server prepares the per-user cache (stems + sample-locked
+        // metronome WAVs), then the bridge loads every stem incl. 'metronome'.
         const loadStart = performance.now();
-        await Promise.all(stemNames.map(name => this.loadStem(name, stemsPaths[name])));
+        const jobId = options.extractionId || this.currentExtractionId;
+        const meta = await MobilePOC.loadAll(jobId, (stage, pct) => {
+            const label = `Loading stems… ${stage ? stage + ' ' : ''}${Math.round(pct || 0)}%`;
+            if (showLoader) this.showLoading(label);
+            else console.log('[LoadMixer]', label);
+        });
+        this.pocMeta = meta;
         console.log(`[LoadMixer] All stems loaded in ${(performance.now() - loadStart).toFixed(0)}ms`);
 
+        // this.stems === MobilePOC.stems (engine map, POC order: metronome, drums, bass, ...)
         const loadedStems = Object.keys(this.stems);
         console.log('[LoadMixer] Loaded stems:', loadedStems);
+        loadedStems.forEach(name => this.createTrackControl(name));
 
-        const durations = Object.values(this.stems).map(s => s.buffer ? s.buffer.duration : 0).filter(d => d > 0);
-        if (durations.length) {
-            this.duration = Math.max(...durations);
+        this.duration = MobilePOC.duration;
+        if (!(this.duration > 0)) {
+            const durations = Object.values(this.stems).map(s => s.buffer ? s.buffer.duration : 0).filter(d => d > 0);
+            if (durations.length) this.duration = Math.max(...durations);
+        }
+        if (this.duration > 0) {
             console.log('[LoadMixer] Duration set to:', this.duration);
         } else {
             console.error('[LoadMixer] No valid durations found!');
         }
+
+        // The engine keeps its tempo/pitch across songs: align it with the
+        // mobile state for THIS song (BPM just set from data, current pitch).
+        this.applyTempoPitchTargets(this.calculateTempoPitchTargets());
 
         await this.ensureMasterAudioBuffer(data);
 
@@ -3245,7 +3221,8 @@ class MobileApp {
 
             this.updateTimeDisplay();
 
-            // Initialize metronome
+            // Metronome: now a server-rendered stem ('metronome') played by the
+            // engine — no client-side JamMetronome to initialise.
             this.initMetronome(data);
 
             // Load existing recordings from server
@@ -3261,189 +3238,16 @@ class MobileApp {
     }
 
     initMetronome(data) {
-        if (typeof JamMetronome === 'undefined') {
-            console.warn('[Metronome] JamMetronome class not available');
-            return;
-        }
-
-        // Destroy previous instance
-        if (this.metronome) {
-            this.metronome.destroy();
-            this.metronome = null;
-        }
-
-        // Gather all metronome containers (main + synced copies in tabs/popups)
-        const containers = document.querySelectorAll(
-            '#mobileMetronomeContainer, .mobile-metronome-sync'
-        );
-        if (!containers.length) {
-            console.warn('[Metronome] No containers found');
-            return;
-        }
-
-        const bpm = data?.detected_bpm || this.currentBPM || 120;
-        const beatOffset = data?.beat_offset || 0;
-        console.log(`[Metronome] Initializing: BPM=${bpm}, beatOffset=${beatOffset}, containers=${containers.length}`);
-
-        this.metronome = new JamMetronome(containers, {
-            bpm: bpm,
-            beatOffset: beatOffset,
-            beatsPerBar: 4,
-            getCurrentTime: (atAudioTime) => {
-                // If an audioContext time is provided, compute precise position
-                // at that exact instant (eliminates ~16ms rAF lag)
-                if (atAudioTime !== undefined && this.lastAudioTime !== null && this.isPlaying) {
-                    const delta = atAudioTime - this.lastAudioTime;
-                    const ratio = this.cachedSyncRatio || (this.currentBPM / this.originalBPM) || 1.0;
-                    return this.playbackPosition + delta * ratio;
-                }
-                return this.currentTime || 0;
-            },
-            audioContext: this.audioContext,
-            getPlaybackRate: () => {
-                return this.cachedSyncRatio || (this.currentBPM / this.originalBPM) || 1.0;
-            }
-        });
-
-        // Load beat positions for downbeat accent (must be set BEFORE beat times for extrapolation)
-        const beatPosRaw = data?.beat_positions;
-        if (beatPosRaw) {
-            const bp = typeof beatPosRaw === 'string' ? JSON.parse(beatPosRaw) : beatPosRaw;
-            if (Array.isArray(bp) && bp.length > 0) this.metronome.setBeatPositions(bp);
-        }
-
-        // Load beat map for variable-tempo metronome
-        const beatTimesRaw = data?.beat_times;
-        if (beatTimesRaw) {
-            const bt = typeof beatTimesRaw === 'string' ? JSON.parse(beatTimesRaw) : beatTimesRaw;
-            if (Array.isArray(bt) && bt.length > 0) this.metronome.setBeatTimes(bt);
-        }
-
-        // Restore the per-user manual grid-alignment offset (saved in ms).
-        const savedOffsetMs = parseFloat(data?.metronome_offset_ms || 0);
-        if (!isNaN(savedOffsetMs) && savedOffsetMs !== 0 &&
-            typeof this.metronome.setManualOffset === 'function') {
-            this.metronome.setManualOffset(savedOffsetMs / 1000);
-            console.log(`[Metronome] Restored manual offset ${savedOffsetMs.toFixed(1)}ms`);
-        }
-
-        // Persist offset changes per-user (debounced). initMetronome runs on
-        // every song load in this long-lived SPA, so drop the previous
-        // handler before adding one. Jam guests are unauthenticated: skip.
-        if (this._metronomeOffsetHandler) {
-            window.removeEventListener('metronomeOffsetChanged', this._metronomeOffsetHandler);
-            this._metronomeOffsetHandler = null;
-        }
-        const offsetVideoId = data?.video_id;
-        if (offsetVideoId && !window.JAM_GUEST_MODE) {
-            this._metronomeOffsetHandler = (e) => {
-                const offsetMs = (e.detail && typeof e.detail.offsetMs === 'number') ? e.detail.offsetMs : 0;
-                if (this._metronomeOffsetSaveTimer) clearTimeout(this._metronomeOffsetSaveTimer);
-                this._metronomeOffsetSaveTimer = setTimeout(() => {
-                    this._metronomeOffsetSaveTimer = null;
-                    fetch(`/api/media/${offsetVideoId}/metronome-offset`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ offset_ms: offsetMs })
-                    })
-                    .then(() => console.log(`[Metronome] Offset saved: ${offsetMs.toFixed(1)}ms`))
-                    .catch(err => console.warn('[Metronome] Could not save offset:', err.message));
-                }, 500);
-            };
-            window.addEventListener('metronomeOffsetChanged', this._metronomeOffsetHandler);
-        }
-
-        console.log(`[Metronome] Created with ${this.metronome.dotSets.length} container(s)`);
+        // The metronome is now a server-rendered stem ('metronome', served by
+        // /poc-mixer/audio) played by the POC engine like any other stem, and the
+        // count-in is the baked WAV handled by poc/precount.js. There is no
+        // client-side JamMetronome any more; the method is kept for callers.
+        this.metronome = null;
     }
 
-    async loadStem(name, path) {
-        console.log('[LoadStem] Starting:', name, 'path:', path);
-        try {
-            const url = '/api/extracted_stems/' + this.currentExtractionId + '/' + name;
-            const t0 = performance.now();
-
-            const res = await fetch(url);
-
-            if (!res.ok) {
-                if (res.status === 404) {
-                    console.warn('[LoadStem]', name, '404 Not Found - skipping');
-                    return;
-                }
-                throw new Error('HTTP ' + res.status);
-            }
-
-            const arrayBuffer = await res.arrayBuffer();
-            const t1 = performance.now();
-            console.log(`[LoadStem] ${name} fetched ${(arrayBuffer.byteLength / 1048576).toFixed(1)}MB in ${(t1 - t0).toFixed(0)}ms`);
-
-            const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-            const t2 = performance.now();
-            console.log(`[LoadStem] ${name} decoded in ${(t2 - t1).toFixed(0)}ms (duration: ${audioBuffer.duration.toFixed(1)}s)`);
-
-            console.log('[LoadStem]', name, 'creating audio nodes...');
-            await this.createAudioNodesForStem(name, audioBuffer);
-
-            console.log('[LoadStem]', name, 'creating track control...');
-            this.createTrackControl(name);
-
-            console.log('[LoadStem]', name, 'COMPLETE ✓');
-        } catch (error) {
-            console.error('[LoadStem]', name, 'FAILED:', error);
-            console.error('[LoadStem]', name, 'Error stack:', error.stack);
-        }
-    }
-
-    async createAudioNodesForStem(name, buffer) {
-        console.log('[CreateNodes]', name, 'creating audio nodes...');
-        console.log('[CreateNodes]', name, 'workletLoaded:', this.workletLoaded);
-        const playbackRate = this.cachedPlaybackRate || (this.currentBPM / this.originalBPM) || 1.0;
-
-        const gain = this.audioContext.createGain();
-        gain.gain.value = 1.0;
-        console.log('[CreateNodes]', name, 'created GainNode');
-
-        const pan = this.audioContext.createStereoPanner();
-        pan.pan.value = 0;
-        console.log('[CreateNodes]', name, 'created StereoPannerNode');
-
-        let soundTouch = null;
-        if (this.workletLoaded) {
-            try {
-                console.log('[CreateNodes]', name, 'creating SoundTouch AudioWorkletNode...');
-                soundTouch = new AudioWorkletNode(this.audioContext, 'soundtouch-processor');
-                const tempo = this.cachedTempoRatio || (this.currentBPM / this.originalBPM);
-                const pitch = this.cachedPitchRatio || Math.pow(2, this.currentPitchShift / 12);
-                soundTouch.parameters.get('tempo').value = tempo;
-                soundTouch.parameters.get('pitch').value = pitch;
-                soundTouch.parameters.get('rate').value = 1.0;
-                soundTouch.connect(gain);
-                console.log('[CreateNodes]', name, 'SoundTouch created and configured (tempo:', tempo, 'pitch:', pitch, ', playbackRate:', playbackRate, ')');
-            } catch (e) {
-                console.error('[CreateNodes]', name, 'SoundTouch creation failed:', e);
-                soundTouch = null;
-            }
-        } else {
-            console.warn('[CreateNodes]', name, 'SoundTouch worklet not loaded, using direct connection');
-        }
-
-        gain.connect(pan);
-        pan.connect(this.masterGainNode);
-        console.log('[CreateNodes]', name, 'connected audio graph');
-
-        this.stems[name] = {
-            name,
-            buffer,
-            source: null,
-            soundTouchNode: soundTouch,
-            gainNode: gain,
-            panNode: pan,
-            volume: 1,
-            pan: 0,
-            muted: false,
-            solo: false
-        };
-        console.log('[CreateNodes]', name, 'stem object created and stored');
-    }
+    // loadStem()/createAudioNodesForStem() were the inline engine's per-stem
+    // fetch/decode/graph builders. Loading is now MobilePOC.loadAll() (see
+    // loadMixerData) and the graph is built by the engine at play time.
 
     createTrackControl(name) {
         const container = document.getElementById('mobileTracksContainer');
@@ -3569,32 +3373,19 @@ class MobileApp {
             }
         };
 
-        // Direct seek without pause/play cycle — same approach as desktop
+        // Direct engine seek without pause/play cycle — synchronous inside the
+        // gesture (MobilePOC.seek is sync; the engine keeps playing if it was).
         // Avoids iOS AudioContext suspension issue from async play() outside gesture
         btns.forEach(btn => {
-            btn.addEventListener('click', async () => {
+            btn.addEventListener('click', () => {
                 if (!this._musicStartTime) return;
                 const target = this._musicStartTime;
                 console.log(`[SkipIntro] Seeking to ${target.toFixed(2)}s`);
 
-                if (this.isPlaying) {
-                    // Stop current sources, reposition, restart — all in one gesture
-                    Object.values(this.stems).forEach(s => {
-                        if (s.source) {
-                            try { s.source.stop(); } catch(e) {}
-                            s.source = null;
-                        }
-                    });
-                    if (this.recordingEngine) this.recordingEngine.stopAllTracks();
-
-                    this.setPlaybackPosition(target);
-                    this.lastAudioTime = this.audioContext.currentTime;
-                    Object.keys(this.stems).forEach(name => this.startStemSource(name));
-                    if (this.recordingEngine) this.recordingEngine.playAllTracks(target);
-                } else {
-                    // Not playing — just reposition
-                    this.setPlaybackPosition(target);
-                }
+                if (this.recordingEngine) this.recordingEngine.stopAllTracks();
+                if (window.MobilePOC) MobilePOC.seek(target);
+                this.setPlaybackPosition(target);
+                if (this.isPlaying && this.recordingEngine) this.recordingEngine.playAllTracks(target);
 
                 this.updateTimeDisplay();
                 this.updateProgressBar();
@@ -3850,7 +3641,12 @@ class MobileApp {
     }
 
     async play() {
-        if (this.isPlaying || this._precountActive) return;
+        if (this.isPlaying || this._playPending) return;
+
+        if (typeof MobilePOC === 'undefined') {
+            console.error('[Play] MobilePOC bridge not loaded');
+            return;
+        }
 
         // Ensure audio context is ready (critical for mobile)
         if (!this.audioContext) {
@@ -3879,80 +3675,59 @@ class MobileApp {
             return;
         }
 
-        // Determine precount beats
-        let precountBeats = 0;
-        if (this.metronome && this.metronome.getPrecountBeats() > 0) {
-            precountBeats = this.metronome.getPrecountBeats();
-        }
+        // Guard against a second tap while a count-in is being prepared
+        // (playWithPrecount may await a server-side bake before starting).
+        this._playPending = true;
+        try {
+            const startPos = Math.max(0, Math.min(this.currentTime || 0, this.duration || Infinity));
 
-        if (precountBeats > 0 && this.metronome.bpm > 0) {
-            // Snap to beat-aligned position for seamless precount→metronome transition
-            const currentPos = this.currentTime || 0;
-            const firstRealBeat = this.metronome.getFirstRealBeat();
-            const targetPos = (currentPos < firstRealBeat)
-                ? firstRealBeat
-                : this.metronome.findBarDownbeat(currentPos);
+            // Count-in = the baked precount WAV (poc/precount.js), sample-locked to
+            // the metronome stem and played by the same engine. Only used when
+            // starting from the top (at/near PreCount's Start marker); elsewhere
+            // playback simply starts at the current position.
+            const precountBeats = MobilePOC.precountBeats || 0;
+            const pcStart = (window.PreCount && typeof PreCount.startTime === 'number') ? PreCount.startTime : 0;
+            let usedPrecount = false;
+            if (precountBeats > 0 && startPos <= pcStart + 0.05) {
+                console.log(`[Play] Count-in: ${precountBeats} beats (baked metronome WAV)`);
+                await MobilePOC.playWithPrecount();
+                usedPrecount = MobilePOC.playing;
+                if (!usedPrecount) MobilePOC.startAll(startPos);   // no count-in available → plain start
+            } else {
+                MobilePOC.startAll(startPos);
+            }
+            this._precountBeatsUsed = usedPrecount ? precountBeats : 0;
 
-            // Use beat map duration for accurate timing (matches startPrecount's internal click spacing)
-            const precountDuration = this.metronome.getPrecountDuration(precountBeats);
-            const stemStartTime = this.audioContext.currentTime + precountDuration;
-
-            console.log(`[Play] Precount: ${precountBeats} beats (${precountDuration.toFixed(2)}s), snapped ${currentPos.toFixed(3)} → ${targetPos.toFixed(3)}, stems at ${stemStartTime.toFixed(3)}`);
-
-            // Create and schedule stems NOW at snapped position, starting at stemStartTime (sample-accurate)
-            this.setPlaybackPosition(Math.max(0, Math.min(targetPos, this.duration || Infinity)));
-            Object.keys(this.stems).forEach(name => this.startStemSource(name, stemStartTime));
-
-            // Track time from when stems actually start
-            this.lastAudioTime = stemStartTime;
-
-            this._precountActive = true;
-            this._precountBeatsUsed = precountBeats;
-
-            // Start precount (visual dots + audible clicks — all pre-scheduled on Web Audio clock)
-            this.metronome.startPrecount(precountBeats, () => {
-                // Stems already playing via Web Audio scheduling — just update UI state
-                this._precountActive = false;
-                this.isPlaying = true;
-                this.updatePlayPauseButtons();
-                this.syncPopupControlsState();
-                this.startPlaybackAnimation();
-
-                if (this.activeLyricIndex >= 0) {
-                    this.scrollLyricsToIndex(this.activeLyricIndex, true);
-                }
-                if (this.fullscreenLyricsOpen && this.activeLyricIndex >= 0) {
-                    this.scrollToFullscreenLyric(this.activeLyricIndex, true);
-                }
-                if (this.wakeLockSupported) {
-                    this.requestWakeLock().catch(error => {
-                        console.warn('[WakeLock] Unable to keep screen awake:', error);
-                    });
-                }
-
-                // Start normal metronome — precount ended on beat 3, so beat 0 (downbeat) should click
-                if (this.metronome) this.metronome.start();
-
-                const extra = { precount_beats: this._precountBeatsUsed };
-                this._jamBroadcastPlayback('play', this.currentTime || 0, extra);
-                this._jamStartSyncHeartbeat();
-            });
-        } else {
-            this._precountBeatsUsed = 0;
+            // Same post-start orchestration as a plain start
             this._startPlaybackInternal();
+        } finally {
+            this._playPending = false;
         }
     }
 
+    /**
+     * Post-start orchestration shared by play() and the jam guest path.
+     * Starts the engine at the current position if a caller has not already
+     * done so (count-in / jam precount), then wires UI, recording engine,
+     * wake lock and jam broadcast.
+     */
     _startPlaybackInternal() {
         console.log('[Play] Starting', Object.keys(this.stems).length, 'stems');
 
-        // Reset precise playback tracking (needed for hybrid tempo)
-        this.setPlaybackPosition(Math.max(0, Math.min(this.currentTime || 0, this.duration || Infinity)));
-        this.lastAudioTime = this.audioContext.currentTime;
+        // Audio core
+        if (window.MobilePOC && !MobilePOC.playing) {
+            MobilePOC.startAll(Math.max(0, Math.min(this.currentTime || 0, this.duration || Infinity)));
+        }
 
-        Object.keys(this.stems).forEach(name => this.startStemSource(name));
+        // Mirror the engine position. It can be NEGATIVE during a count-in
+        // lead-in (the song has not reached 0 yet): display max(0, pos), but
+        // hand the raw value to the recording tracks so they are delayed alike.
+        const enginePos = window.MobilePOC ? MobilePOC.pos() : (this.currentTime || 0);
+        this.playbackPosition = this.currentTime = Math.max(0, enginePos);
+        this.lastAudioTime = this.audioContext ? this.audioContext.currentTime : null;
+
         if (this.recordingEngine) {
-            this.recordingEngine.playAllTracks(this.currentTime || 0);
+            this.recordingEngine.playAllTracks(enginePos);
             // Resume paused recording when playback resumes
             if (this.recordingEngine.isPaused) {
                 this.recordingEngine.resumeRecording();
@@ -3980,78 +3755,31 @@ class MobileApp {
             });
         }
 
-        // Start metronome
-        if (this.metronome) this.metronome.start();
-
-        // Jam session: broadcast play command
-        const extra = this._precountBeatsUsed > 0 ? { precount_beats: this._precountBeatsUsed } : {};
-        this._jamBroadcastPlayback('play', this.currentTime || 0, extra);
+        // Jam session: broadcast play command. With a count-in, tell guests how
+        // many beats were used AND the wall-clock lead-in (seconds before song
+        // time 0 is reached) so they can delay their own start identically.
+        const extra = {};
+        if (this._precountBeatsUsed > 0) {
+            extra.precount_beats = this._precountBeatsUsed;
+            const syncRatio = (window.MobilePOC && MobilePOC.engine && MobilePOC.engine.syncRatio) || 1;
+            extra.precount_seconds = enginePos < 0 ? (-enginePos) / syncRatio : 0;
+        }
+        this._jamBroadcastPlayback('play', Math.max(0, enginePos), extra);
         this._jamStartSyncHeartbeat();
     }
 
-    /**
-     * Create and start a stem audio source.
-     * @param {string} name - Stem name
-     * @param {number} when - AudioContext time to start (0 = now)
-     */
-    startStemSource(name, when = 0) {
-        const stem = this.stems[name];
-        if (!stem || !stem.buffer) {
-            console.warn('[StartStem] Skipping', name, '- no buffer');
-            return;
-        }
-
-        if (stem.source) {
-            try { stem.source.stop(); } catch(e) {}
-        }
-
-        stem.source = this.audioContext.createBufferSource();
-        stem.source.buffer = stem.buffer;
-        const playbackRate = this.cachedPlaybackRate || 1.0;
-        stem.source.playbackRate.value = playbackRate;
-        console.log('[StartStem]', name, 'playbackRate set to', playbackRate.toFixed(3));
-
-        if (stem.soundTouchNode) {
-            stem.source.connect(stem.soundTouchNode);
-            console.log('[StartStem]', name, '→ SoundTouch → Gain → Pan → Master');
-        } else {
-            stem.source.connect(stem.gainNode);
-            console.log('[StartStem]', name, '→ Gain → Pan → Master (no SoundTouch)');
-        }
-
-        this.updateStemGain(name);
-        const startOffset = Math.min(this.currentTime, stem.buffer.duration);
-        stem.source.start(when, startOffset);
-        console.log('[StartStem]', name, 'started at offset', startOffset.toFixed(2) + 's',
-            when > 0 ? `(scheduled at ${when.toFixed(3)})` : '(immediate)');
-    }
-
     pause() {
-        // Cancel any active precount and stop pre-scheduled stems
-        if (this._precountActive) {
-            this._precountActive = false;
-            if (this.metronome) this.metronome.cancelPrecount();
-            // Stop stems that were pre-scheduled but haven't started yet
-            Object.values(this.stems).forEach(s => {
-                if (s.source) {
-                    try { s.source.stop(); } catch(e) {}
-                    s.source = null;
-                }
-            });
+        if (!this.isPlaying) {
             this.updatePlayPauseButtons();
             return;
         }
 
-        if (!this.isPlaying) return;
-
+        // Freeze the position from the engine before stopping it
         this.updatePlaybackClock();
 
-        Object.values(this.stems).forEach(s => {
-            if (s.source) {
-                try { s.source.stop(); } catch(e) {}
-                s.source = null;
-            }
-        });
+        // Audio core: pause the engine (position kept)
+        if (window.MobilePOC) MobilePOC.stopAll();
+
         if (this.recordingEngine) {
             this.recordingEngine.stopAllTracks();
             // Pause active recording when playback is paused
@@ -4067,9 +3795,6 @@ class MobileApp {
         this.stopPlaybackAnimation();
         this.releaseWakeLock();
 
-        // Stop metronome
-        if (this.metronome) this.metronome.stop();
-
         // Jam session: broadcast pause command
         this._jamBroadcastPlayback('pause', this.currentTime || 0);
         this._jamStopSyncHeartbeat();
@@ -4083,11 +3808,12 @@ class MobileApp {
         if (this.recordingEngine && this.recordingEngine.isRecording) {
             await this.recordingEngine.stop();
         }
-        // pause() handles precount cancellation + pre-scheduled stem cleanup
         this.pause();
-        // Ensure metronome stops even if pause() early-returned due to !isPlaying
-        if (this.metronome) this.metronome.stop();
-        this.seek(0);
+        // Rewind the engine to the top (plain seek: no restart, no count-in re-trigger)
+        if (window.MobilePOC) MobilePOC.seek(0);
+        this.setPlaybackPosition(0);
+        this.updateTimeDisplay();
+        this.updateProgressBar();
         // Jam session: broadcast stop command
         this._jamBroadcastPlayback('stop', 0);
         this._jamStopSyncHeartbeat();
@@ -4097,13 +3823,7 @@ class MobileApp {
 
     seek(time) {
         const newTime = Math.max(0, Math.min(time, this.duration));
-        const wasPlaying = this.isPlaying;
-
-        if (this.isPlaying) this.pause();
-        this.setPlaybackPosition(newTime);
-        this.updateTimeDisplay();
-        this.updateProgressBar();
-        if (wasPlaying) this.play();
+        this._engineSeek(newTime);
 
         // Jam session: broadcast seek command
         this._jamBroadcastPlayback('seek', newTime);
@@ -4115,13 +3835,23 @@ class MobileApp {
     seekToPosition(time) {
         // Seek without broadcasting — used by jam guests receiving commands
         const newTime = Math.max(0, Math.min(time, this.duration || Infinity));
-        const wasPlaying = this.isPlaying;
+        this._engineSeek(newTime);
+    }
 
-        if (this.isPlaying) this.pause();
+    /**
+     * Audio core of seek()/seekToPosition(): the engine keeps playing if it was
+     * (no stop/restart, so no count-in re-trigger); the recording tracks are
+     * re-aligned to the new position when playing.
+     */
+    _engineSeek(newTime) {
+        if (window.MobilePOC) MobilePOC.seek(newTime);
         this.setPlaybackPosition(newTime);
         this.updateTimeDisplay();
         this.updateProgressBar();
-        if (wasPlaying) this.play();
+        if (this.isPlaying && this.recordingEngine) {
+            this.recordingEngine.stopAllTracks();
+            this.recordingEngine.playAllTracks(newTime);
+        }
     }
 
     handleSeekTouch(e) {
@@ -4153,6 +3883,12 @@ class MobileApp {
 
         const animate = () => {
             if (this.isPlaying) {
+                // The mobile flag mirrors the engine: if the engine stopped
+                // underneath us (unload, external stop), treat it as a pause.
+                if (window.MobilePOC && !MobilePOC.playing) {
+                    this.pause();
+                    return;
+                }
                 this.updatePlaybackClock();
                 if (this.currentTime >= this.duration) {
                     this.stop();
@@ -4179,29 +3915,23 @@ class MobileApp {
     updatePlaybackClock() {
         if (!this.audioContext) return this.currentTime;
 
-        const now = this.audioContext.currentTime;
-        if (this.lastAudioTime === null) {
-            this.lastAudioTime = now;
-        }
-
-        if (this.isPlaying) {
-            const delta = now - this.lastAudioTime;
-            const ratio = this.cachedSyncRatio || (this.currentBPM / this.originalBPM) || 1.0;
-            this.playbackPosition += delta * ratio;
-            if (this.playbackPosition < 0) this.playbackPosition = 0;
-
+        if (this.isPlaying && window.MobilePOC) {
+            // Drift-free, tempo-aware engine position (anchor-based). It is
+            // negative during a count-in lead-in: display max(0, pos).
+            let pos = MobilePOC.pos();
+            if (!(pos >= 0)) pos = 0;   // also guards NaN
             const maxDuration = (typeof this.duration === 'number' && this.duration > 0) ? this.duration : null;
-            if (maxDuration !== null) {
-                this.playbackPosition = Math.min(this.playbackPosition, maxDuration);
-            }
-
-            this.currentTime = this.playbackPosition;
+            if (maxDuration !== null) pos = Math.min(pos, maxDuration);
+            this.playbackPosition = this.currentTime = pos;
         }
 
-        this.lastAudioTime = now;
+        this.lastAudioTime = this.audioContext.currentTime;
         return this.currentTime;
     }
 
+    // Plain state setter (currentTime / playbackPosition / lastAudioTime). It
+    // does NOT move the engine: callers that need an audio seek call
+    // MobilePOC.seek() explicitly (see _engineSeek / skip-intro).
     setPlaybackPosition(position) {
         const maxDuration = (typeof this.duration === 'number' && this.duration > 0) ? this.duration : null;
         const clamped = maxDuration !== null ? Math.min(position, maxDuration) : position;
@@ -4328,8 +4058,7 @@ class MobileApp {
         console.log('[Tempo] Targets → playbackRate:', targets.playbackRate.toFixed(3), 'SoundTouch tempo:', targets.soundTouchTempo.toFixed(3), 'SoundTouch pitch:', targets.soundTouchPitch.toFixed(3), 'mode:', targets.isAcceleration ? 'hybrid-accel' : 'stretch');
         this.applyTempoPitchTargets(targets);
 
-        // Update metronome BPM
-        if (this.metronome) this.metronome.setBPM(this.currentBPM);
+        // The metronome stem follows the tempo inside the engine (never pitched)
 
         // Jam session: broadcast tempo change
         this._jamBroadcastTempo(this.currentBPM, this.originalBPM, actualRatio);
@@ -4350,6 +4079,9 @@ class MobileApp {
         this._jamBroadcastPitch(this.currentPitchShift, keyEl?.textContent || 'C');
     }
 
+    // Kept only to feed the cached* fields (readers: lyrics/chords sync helpers,
+    // logs). The engine computes the same hybrid split itself
+    // (AudioEngine.computeParams) when applyTempoPitch() is called.
     calculateTempoPitchTargets() {
         const tempoRatio = this.currentBPM / this.originalBPM;
         const pitchRatio = Math.pow(2, this.currentPitchShift / 12);
@@ -4370,62 +4102,52 @@ class MobileApp {
         };
     }
 
+    // Audio core: the engine applies tempo/pitch to every stem (live nodes and
+    // future sources) and re-anchors its position so the playhead does not jump.
     applyTempoPitchTargets(targets) {
-        this.cachedPlaybackRate = targets.playbackRate;
-        this.cachedSyncRatio = targets.syncRatio;
-        this.cachedTempoRatio = targets.soundTouchTempo;
-        this.cachedPitchRatio = targets.soundTouchPitch;
+        if (window.MobilePOC) {
+            MobilePOC.applyTempoPitch(targets.tempoRatio, this.currentPitchShift);
+            const eng = MobilePOC.engine;
+            this.cachedPlaybackRate = eng.playbackRate;
+            this.cachedSyncRatio = eng.syncRatio;
+            this.cachedTempoRatio = eng.soundTouchTempo;
+            this.cachedPitchRatio = eng.soundTouchPitch;
+        } else {
+            this.cachedPlaybackRate = targets.playbackRate;
+            this.cachedSyncRatio = targets.syncRatio;
+            this.cachedTempoRatio = targets.soundTouchTempo;
+            this.cachedPitchRatio = targets.soundTouchPitch;
+        }
         this.playbackPosition = this.currentTime;
         this.lastAudioTime = this.audioContext ? this.audioContext.currentTime : null;
-
-        Object.values(this.stems).forEach(stem => {
-            if (stem.source && stem.source.playbackRate) {
-                try {
-                    const audioTime = this.audioContext ? this.audioContext.currentTime : 0;
-                    stem.source.playbackRate.setValueAtTime(targets.playbackRate, audioTime);
-                } catch (error) {
-                    console.warn('[Tempo] Failed to update playbackRate for', stem.name, error);
-                }
-            }
-
-            if (stem.soundTouchNode) {
-                const tempoParam = stem.soundTouchNode.parameters.get('tempo');
-                const pitchParam = stem.soundTouchNode.parameters.get('pitch');
-                const rateParam = stem.soundTouchNode.parameters.get('rate');
-
-                if (tempoParam) tempoParam.value = targets.soundTouchTempo;
-                if (pitchParam) pitchParam.value = targets.soundTouchPitch;
-                if (rateParam) rateParam.value = 1.0;
-            }
-        });
     }
 
     setVolume(name, vol) {
         const s = this.stems[name];
-        if (!s) return;
-        s.volume = Math.max(0, Math.min(VOLUME_MAX_GAIN, vol));
-        this.updateStemGain(name);
+        if (!s || !window.MobilePOC) return;
+        MobilePOC.setVol(name, Math.max(0, Math.min(VOLUME_MAX_GAIN, vol)));
     }
 
     setPan(name, pan) {
         const s = this.stems[name];
-        if (!s || !s.panNode) return;
-        s.pan = Math.max(-1, Math.min(1, pan));
-        s.panNode.pan.value = s.pan;
+        if (!s || !window.MobilePOC) return;
+        MobilePOC.setPan(name, Math.max(-1, Math.min(1, pan)));
     }
 
     toggleMute(name) {
         const s = this.stems[name];
-        if (!s) return;
-        s.muted = !s.muted;
-        this.updateStemGain(name);
+        if (!s || !window.MobilePOC) return;
+        MobilePOC.setMute(name, !s.muted);
     }
 
     toggleSolo(name) {
         const s = this.stems[name];
-        if (!s) return;
-        s.solo = !s.solo;
-        this.updateAllGains();
+        if (!s || !window.MobilePOC) return;
+        MobilePOC.setSolo(name, !s.solo);
+        // Recording tracks share the solo bus (engine.extraSoloProbe covers the reverse)
+        if (this.recordingEngine && this.recordingEngine.updateAllTrackGains) {
+            this.recordingEngine.updateAllTrackGains();
+        }
     }
 
     hasAnySolo() {
@@ -4434,18 +4156,14 @@ class MobileApp {
         return stemSolo || recSolo;
     }
 
+    // Gain routing (vol × mute/solo) lives in the engine (gainFor/applyGains).
+    // These two are kept for callers (recording engine solo/delete buttons).
     updateStemGain(name) {
-        const s = this.stems[name];
-        if (!s || !s.gainNode) return;
-
-        const hasSolo = this.hasAnySolo();
-        let gain = s.volume;
-        if (s.muted || (hasSolo && !s.solo)) gain = 0;
-        s.gainNode.gain.value = gain;
+        if (window.MobilePOC && this.stems[name]) MobilePOC.engine.applyGains();
     }
 
     updateAllGains() {
-        Object.keys(this.stems).forEach(n => this.updateStemGain(n));
+        if (window.MobilePOC) MobilePOC.engine.applyGains();
         if (this.recordingEngine) this.recordingEngine.updateAllTrackGains();
     }
 
@@ -6697,7 +6415,8 @@ class MobileApp {
         }
 
         if (!data || !data.length) {
-            const stemBuffers = Object.values(this.stems).map(s => s.buffer).filter(Boolean);
+            // (the metronome stem is a click track — leave it out of the mix waveform)
+            const stemBuffers = Object.values(this.stems).filter(s => s.name !== 'metronome').map(s => s.buffer).filter(Boolean);
             if (!stemBuffers.length) {
                 console.warn('[Waveform] No audio buffers available for waveform rendering');
                 return;
@@ -8030,7 +7749,8 @@ class MobileApp {
                 console.log('[Jam Guest] No lyrics in extraction data');
             }
 
-            // Initialize metronome for guest
+            // Metronome: guests have no client-side metronome any more (the host's
+            // metronome is a stem; the jam stems route has no metronome stem yet).
             this.initMetronome(extractionData);
 
             // Apply pending state if any (convert state to playback command)
@@ -8052,14 +7772,17 @@ class MobileApp {
     async loadStemsForJamGuest(stemPaths) {
         console.log('[Jam Guest] Loading stems...');
 
+        if (typeof MobilePOC === 'undefined') throw new Error('Audio engine bridge (MobilePOC) not loaded');
+
         // AudioContext should already be initialized via user gesture in initJamGuestMode
         if (!this.audioContext || this.audioContext.state === 'closed') {
             console.warn('[Jam Guest] AudioContext not ready — reinitializing');
             await this.initAudioContext();
         }
+        const ctx = this.audioContext;
 
-        // Clear existing stems and track container
-        this.stems = {};
+        // Clear existing stems (engine) and track container
+        MobilePOC.unload();
         const container = document.getElementById('mobileTracksContainer');
         if (container) container.innerHTML = '';
 
@@ -8069,7 +7792,10 @@ class MobileApp {
         // Cache-busting: use extraction ID so SW doesn't serve stale stems after track change
         const eid = this.currentExtractionId || Date.now();
 
-        // Load ALL stems in parallel (Promise.allSettled for resilience)
+        // Guest stems come from the jam route (no /poc-mixer job for a guest), so
+        // fetch + decode here and inject POC-shaped records straight into the
+        // engine's stems map; the engine builds the audio graph at play time.
+        const engine = MobilePOC.engine;
         const results = await Promise.allSettled(stemEntries.map(async ([stemName]) => {
             const url = `/api/jam/stems/${jamCode}/${stemName}?eid=${encodeURIComponent(eid)}`;
             const t0 = performance.now();
@@ -8083,11 +7809,15 @@ class MobileApp {
             const t1 = performance.now();
             console.log(`[Jam Guest] ${stemName} fetched ${(arrayBuffer.byteLength / 1048576).toFixed(1)}MB in ${(t1 - t0).toFixed(0)}ms`);
 
-            const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+            const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
             const t2 = performance.now();
             console.log(`[Jam Guest] ${stemName} decoded in ${(t2 - t1).toFixed(0)}ms`);
 
-            await this.createAudioNodesForStem(stemName, audioBuffer);
+            engine.stems[stemName] = {
+                name: stemName, buffer: audioBuffer,
+                source: null, soundTouch: null, gain: null, panNode: null,
+                muted: false, solo: false, vol: 1, pan: 0
+            };
             this.createTrackControl(stemName);
         }));
 
@@ -8102,10 +7832,11 @@ class MobileApp {
             throw new Error('No stems could be loaded');
         }
 
-        // Get duration from first loaded stem
-        const firstStem = Object.values(this.stems)[0];
-        if (firstStem && firstStem.buffer) {
-            this.duration = firstStem.buffer.duration;
+        // Duration = longest stem (this.stems mirrors engine.stems)
+        const durations = Object.values(this.stems).map(s => s.buffer ? s.buffer.duration : 0).filter(d => d > 0);
+        if (durations.length) {
+            this.duration = Math.max(...durations);
+            engine.duration = this.duration;
             this.updateTimeDisplay();
         }
 
@@ -8134,36 +7865,27 @@ class MobileApp {
         console.log(`[Jam Guest] Handling playback command: ${command} at ${position}s`);
 
         switch (command) {
-            case 'play':
+            case 'play': {
                 this.currentTime = position;
                 this.playbackPosition = position;
-                // Host sent precount — pre-schedule stems and run precount for seamless start
-                if (data.precount_beats > 0 && this.metronome && this.metronome.bpm > 0) {
-                    const precountDuration = this.metronome.getPrecountDuration(data.precount_beats);
-                    const stemStartTime = this.audioContext.currentTime + precountDuration;
-                    const guestPlaybackStart = position;
-
-                    console.log(`[Jam Guest] Precount: ${data.precount_beats} beats, stems at ${stemStartTime.toFixed(3)}`);
-
-                    // Pre-schedule stems on Web Audio clock
-                    this.setPlaybackPosition(Math.max(0, Math.min(guestPlaybackStart, this.duration || Infinity)));
-                    Object.keys(this.stems).forEach(name => this.startStemSource(name, stemStartTime));
-                    this.lastAudioTime = stemStartTime;
-
-                    this._precountActive = true;
-                    this.metronome.startPrecount(data.precount_beats, () => {
-                        // Stems already playing — just update UI
-                        this._precountActive = false;
-                        this.isPlaying = true;
-                        this.updatePlayPauseButtons();
-                        this.syncPopupControlsState();
-                        this.startPlaybackAnimation();
-                        if (this.metronome) this.metronome.start();
-                    });
-                } else {
-                    this._startPlaybackInternal();
+                if (this.isPlaying && window.MobilePOC) MobilePOC.stopAll();
+                this.isPlaying = false;
+                // Host used a count-in: delay ALL our sources uniformly by the
+                // host's lead-in so we start together (the count-in itself is
+                // the host's metronome stem; guests have no metronome stem).
+                if (data.precount_beats > 0 && window.MobilePOC) {
+                    const bpm = this.currentBPM || 120;
+                    const precountDuration = (typeof data.precount_seconds === 'number' && data.precount_seconds >= 0)
+                        ? data.precount_seconds
+                        : data.precount_beats * 60 / bpm;
+                    console.log(`[Jam Guest] Precount: ${data.precount_beats} beats, sources delayed ${precountDuration.toFixed(3)}s`);
+                    MobilePOC.engine.staticPos = Math.max(0, Math.min(position, this.duration || Infinity));
+                    MobilePOC.engine.play(precountDuration);
                 }
+                this._precountBeatsUsed = 0;
+                this._startPlaybackInternal();
                 break;
+            }
             case 'pause':
                 this.pause();
                 break;
