@@ -100,6 +100,14 @@
     text-shadow: 0 0 24px rgba(29, 185, 84, 0.25);
 }
 
+/* The size slider must scale the CHARACTERS. karaoke.css sizes words in
+   absolute rem (1.2rem / 1.4rem for the current word), which ignores the
+   scaled parent - so the slider only grew the line boxes (spacing), not the
+   text. In the stage popup, words inherit the scaled size instead. */
+.lyrics-popup-overlay .karaoke-text { font-size: inherit; }   /* karaoke.css: 1rem */
+.lyrics-popup-overlay .karaoke-word { font-size: inherit; }   /* karaoke.css: 1.2rem */
+.lyrics-popup-overlay .karaoke-word.word-current { font-size: 1.08em; }
+
 /* Stage view: no per-line timecodes (noise when performing) */
 .lyrics-popup-overlay .karaoke-time { display: none; }
 
