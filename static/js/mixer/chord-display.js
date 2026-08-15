@@ -706,7 +706,14 @@ class ChordDisplay {
             // chord placement, lyric placement AND the runtime highlight (otherwise each
             // uses a different clock and they drift apart from the audio).
             this._gridBeatDuration = beatDuration;
-            this._gridRealBeats = (window.EXTRACTION_INFO && window.EXTRACTION_INFO.beat_times) || [];
+            // R2 injects EXTRACTION_INFO.beat_times as a JSON STRING (Friend has
+            // an array): parse it, or String.length/char indexing silently turns
+            // the grid mapping into garbage and freezes the chord highlight.
+            let _grb = (window.EXTRACTION_INFO && window.EXTRACTION_INFO.beat_times) || [];
+            if (typeof _grb === 'string') {
+                try { _grb = JSON.parse(_grb); } catch (e) { _grb = []; }
+            }
+            this._gridRealBeats = Array.isArray(_grb) ? _grb : [];
 
             this.chordPxPerBeat = 100; // Fixed width per beat for grid
             this.chordBPM = bpm;
