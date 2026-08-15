@@ -488,6 +488,16 @@ def register_jam_socketio_events(sio):
             return
         from core.auth_db import get_user_jam_code, set_user_jam_code
 
+        # A socket that joined a session AS A GUEST must never turn into its
+        # host (defense in depth for the client-side guard: an authenticated
+        # user opening a guest link would otherwise reclaim their own session
+        # from the guest page and mute the real host).
+        for _c, _j in active_jam_sessions.items():
+            if request.sid in _j.get('participants', {}):
+                logger.warning(f"[Jam] jam_create ignored: sid {request.sid} is a guest of {_c}")
+                emit('jam_create_error', {'error': 'This page is a guest of a jam session'})
+                return
+
         # Check for existing persistent code in DB
         code = get_user_jam_code(current_user.id)
 

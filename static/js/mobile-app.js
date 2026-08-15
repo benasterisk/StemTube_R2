@@ -7364,8 +7364,12 @@ class MobileApp {
 
         console.log('[Jam] Mobile JamClient initialized');
 
-        // Auto-reclaim active session on page reload (e.g. pull-to-refresh)
-        this._autoReclaimJamSession();
+        // Auto-reclaim active session on page reload (e.g. pull-to-refresh).
+        // NEVER in guest mode: a guest page opened in a browser that also holds
+        // the host's login (same phone/PC, shared cookie) would otherwise
+        // 'reclaim' the host's session and steal the host role - the real
+        // host's play/pause would then be silently ignored by the server.
+        if (!window.JAM_GUEST_MODE) this._autoReclaimJamSession();
     }
 
     async _autoReclaimJamSession() {
