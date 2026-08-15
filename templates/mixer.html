@@ -499,8 +499,11 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/recording.css') }}?v={{ cache_buster }}">
 <!-- Font Awesome for the chord/lyrics icons used in friend's markup -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<!-- R2 web-edition extras: mobile layout + jam session styling (not in Friend). -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-style.css') }}?v={{ cache_buster }}">
+<!-- R2 web-edition extra: jam session styling (not in Friend). The mobile
+     PWA stylesheet (mobile-style.css) is deliberately NOT loaded here: the
+     desktop mixer has its own page; mobile/chords.css would override the
+     Lyrics Focus / Chords Grid dialogs with phone-sized layouts. The
+     .mobile-chord-* carousel styles the mixer needs live in mixer/chords.css. -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/jam.css') }}?v={{ cache_buster }}">
 <!-- JAM GUEST STYLE (kept verbatim from R2): the selectors below still target the
      LEGACY mixer IDs (#play-btn, #stop-btn, .bpm-control/.key-control button,

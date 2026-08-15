@@ -275,3 +275,17 @@
     border-top: 8px solid #ff6b6b;
 }
 
+/* Chord diagram label (was only defined in mobile/mixer.css, which the
+   desktop mixer no longer loads). Uses the desktop text token with a
+   fallback to the mobile one so both surfaces render it. */
+.mobile-chord-diagram-label {
+    text-align: center;
+    font-weight: 600;
+    margin-bottom: 2px;
+    color: var(--text-primary, var(--mobile-text));
+    line-height: 1.2;
+}
+.mobile-chord-diagram-current .mobile-chord-diagram-label {
+    font-size: 22px;
+    margin-bottom: 6px;
+}
