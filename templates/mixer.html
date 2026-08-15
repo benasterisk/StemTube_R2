@@ -459,7 +459,11 @@
   /* The transport bar, while relocated into a Focus popup, drops its bottom border
      and the mixer-only view controls (zoom/scroll/export) — only the practice-
      relevant controls (Play / From-Start / Stop / Rec / BPM / Key / count-in) stay. */
-  .popup-transport-slot { flex:1 1 auto; min-width:0; }
+  /* The transport slot must never compete with the popup body for height:
+     it sizes to its content (the moved transport bar), and stays 0px when
+     empty. The body takes ALL remaining space (stage chart / lyrics). */
+  .popup-transport-slot { flex:0 0 auto; min-width:0; }
+  .chords-grid-popup-body, .lyrics-popup-body { flex:1 1 0; min-height:0; }
   .transport.in-popup { border-bottom:none; padding:8px 12px; }
   .transport.in-popup #viewControls,
   .transport.in-popup #focusBtn,
@@ -787,8 +791,8 @@
     <div class="popup-controls-bar">
       <div class="popup-transport-slot" id="lyricsPopupTransportSlot"></div>
       <div class="popup-slider-group"><span class="popup-slider-label">Taille</span>
-        <input type="range" id="lyrics-popup-slider" min="0.8" max="1.6" step="0.05" value="1" class="popup-slider">
-        <span id="lyrics-popup-size-value" class="popup-slider-value">1.0x</span></div>
+        <input type="range" id="lyrics-popup-slider" min="0.8" max="3" step="0.05" value="1.25" class="popup-slider">
+        <span id="lyrics-popup-size-value" class="popup-slider-value">1.3x</span></div>
     </div>
     <div class="lyrics-popup-body">
       <div class="lyrics-popup-content" id="lyrics-popup-lyrics"></div>

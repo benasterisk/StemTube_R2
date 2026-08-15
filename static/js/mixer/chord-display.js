@@ -823,8 +823,7 @@ class ChordDisplay {
             }
 
             // Get lyrics if available
-            const lyrics = this.mixer?.lyricsDisplay?.lyrics || window.EXTRACTION_INFO?.lyrics_data;
-            const lyricsArray = lyrics ? (typeof lyrics === 'string' ? JSON.parse(lyrics) : lyrics) : [];
+            const lyricsArray = this._getLyricsArray();
 
             // Real-time -> synthetic-grid time mapper. The chord grid lays measures on a
             // uniform synthetic clock; real lyric timestamps drift from it, so we map each
@@ -837,23 +836,7 @@ class ChordDisplay {
             // whole line in the single bar its start falls in overflowed the cell and left
             // the bars it spans empty (the chaotic lyrics). Spreading individual words
             // across the bars they're sung in lines each word up under its chord.
-            const lyricWords = [];
-            (lyricsArray || []).forEach((seg) => {
-                if (seg && Array.isArray(seg.words) && seg.words.length) {
-                    seg.words.forEach((w) => {
-                        const txt = ((w.word != null ? w.word : w.text) || '').trim();
-                        if (txt) lyricWords.push({ text: txt, start: +w.start || 0 });
-                    });
-                } else {
-                    const txt = ((seg && (seg.text != null ? seg.text : seg.word)) || '').trim();
-                    if (!txt) return;
-                    const parts = txt.split(/\s+/).filter(Boolean);
-                    const st = +seg.start || 0;
-                    const en = (typeof seg.end === 'number' && seg.end > st) ? seg.end : st + parts.length * 0.3;
-                    const step = parts.length > 1 ? (en - st) / parts.length : 0;
-                    parts.forEach((pp, i) => lyricWords.push({ text: pp, start: st + i * step }));
-                }
-            });
+            const lyricWords = this._flattenLyricWords(lyricsArray);
 
             // Render the linear grid view
             container.innerHTML = '';
@@ -1025,6 +1008,44 @@ class ChordDisplay {
         // i*beatDuration, so interpolating between the surrounding real beats keeps
         // chords, lyrics and the highlight aligned with the audio under tempo drift.
         // Falls back to (time - offset) when no real beat map is available.
+        // Lyrics source, in priority order: the karaoke display (POC chassis loads
+        // lyrics there from /api/extractions), the legacy lyrics display, then
+        // EXTRACTION_INFO. Always returns an array.
+        _getLyricsArray() {
+            const raw = this.mixer?.karaokeDisplay?.lyricsData
+                || this.mixer?.lyricsDisplay?.lyrics
+                || window.EXTRACTION_INFO?.lyrics_data;
+            if (!raw) return [];
+            try {
+                const arr = (typeof raw === 'string') ? JSON.parse(raw) : raw;
+                return Array.isArray(arr) ? arr : [];
+            } catch (e) { return []; }
+        }
+
+        // Flatten line/segment-shaped lyrics to a WORD list with per-word timestamps
+        // (native word timing when present, else linear interpolation across the
+        // segment). Shared by the linear timeline and the grid popup.
+        _flattenLyricWords(lyricsArray) {
+            const lyricWords = [];
+            (lyricsArray || []).forEach((seg) => {
+                if (seg && Array.isArray(seg.words) && seg.words.length) {
+                    seg.words.forEach((w) => {
+                        const txt = ((w.word != null ? w.word : w.text) || '').trim();
+                        if (txt) lyricWords.push({ text: txt, start: +w.start || 0 });
+                    });
+                } else {
+                    const txt = ((seg && (seg.text != null ? seg.text : seg.word)) || '').trim();
+                    if (!txt) return;
+                    const parts = txt.split(/\s+/).filter(Boolean);
+                    const st = +seg.start || 0;
+                    const en = (typeof seg.end === 'number' && seg.end > st) ? seg.end : st + parts.length * 0.3;
+                    const step = parts.length > 1 ? (en - st) / parts.length : 0;
+                    parts.forEach((pp, i) => lyricWords.push({ text: pp, start: st + i * step }));
+                }
+            });
+            return lyricWords;
+        }
+
         _realToGridTime(t) {
             const beats = this._gridRealBeats || [];
             const bd = this._gridBeatDuration || (60 / (this.chordBPM || 120));
@@ -2355,6 +2376,19 @@ class ChordDisplay {
             measures.push(measure);
         }
 
+        // Lyrics per beat slot: map every word onto the synthetic grid once, then
+        // bucket by beat index so each cell shows the words sung ON that beat
+        // (stage chart: chord on top, lyric fragment underneath).
+        const lyricWords = this._flattenLyricWords(this._getLyricsArray());
+        const wordsByBeat = new Map();
+        lyricWords.forEach((w) => {
+            const g = this._realToGridTime(w.start || 0);
+            if (g < 0) return;
+            const slot = Math.floor(g / beatDuration);
+            if (!wordsByBeat.has(slot)) wordsByBeat.set(slot, []);
+            wordsByBeat.get(slot).push(w.text);
+        });
+
         // Render the grid
         container.innerHTML = '';
         measures.forEach((measure, measureIndex) => {
@@ -2385,8 +2419,10 @@ class ChordDisplay {
                     beatEl.classList.add('empty');
                     beatEl.dataset.currentChord = beat.currentChord || '';
                     const displayChord = beat.currentChord ? this.transposeChord(beat.currentChord, this.currentPitchShift) : '';
+                    const slotWordsE = wordsByBeat.get(measureIndex * beatsPerBar + beatIndex) || [];
                     beatEl.innerHTML = `
                         <div class="chord-grid-beat-name">—</div>
+                        <div class="chord-grid-beat-lyric">${slotWordsE.join(' ')}</div>
                         <div class="chord-grid-beat-time">${this.formatTime(beatTimestamp)}</div>
                     `;
                 } else {
@@ -2395,8 +2431,10 @@ class ChordDisplay {
                     beatEl.dataset.currentChord = beat.chord;
 
                     const transposedChord = this.transposeChord(beat.chord, this.currentPitchShift);
+                    const slotWords = wordsByBeat.get(measureIndex * beatsPerBar + beatIndex) || [];
                     beatEl.innerHTML = `
                         <div class="chord-grid-beat-name">${transposedChord}</div>
+                        <div class="chord-grid-beat-lyric">${slotWords.join(' ')}</div>
                         <div class="chord-grid-beat-time">${this.formatTime(beat.timestamp)}</div>
                     `;
                 }
@@ -2443,8 +2481,9 @@ class ChordDisplay {
             if (parentMeasure) {
                 const relativeTop = parentMeasure.offsetTop - popupBody.offsetTop;
 
-                // Position so the active measure appears at the top with a small margin
-                const topMargin = 10; // 10px from top
+                // Stage chart: park the active system ~28% from the top - one row of
+                // context above, maximum look-ahead below.
+                const topMargin = Math.round(popupBody.clientHeight * 0.28);
                 const targetScroll = Math.max(0, relativeTop - topMargin);
 
                 // Skip scroll if already at target position

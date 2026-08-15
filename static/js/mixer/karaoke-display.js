@@ -1198,8 +1198,10 @@ class KaraokeDisplay {
             return;
         }
 
-        // Popup: position at 15% from top, Main: position at 65% from top
-        const topMargin = isPopup ? (containerHeight * 0.15) : (containerHeight * 0.65);
+        // Popup (stage prompter): park the active line at 40% from the top so
+        // the eye rests mid-screen with the upcoming lines below it.
+        // Main: position at 65% from top.
+        const topMargin = isPopup ? (containerHeight * 0.40) : (containerHeight * 0.65);
 
         // Use getBoundingClientRect for accurate cross-container positioning
         const lineRect = line.getBoundingClientRect();

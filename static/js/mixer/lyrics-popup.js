@@ -39,6 +39,7 @@ class LyricsPopup {
                 const value = parseFloat(event.target.value);
                 this.applyScale(value);
                 this.updateSizeDisplay(value);
+                try { localStorage.setItem('lyrics_popup_scale', String(value)); } catch (e) { /* blocked storage */ }
             });
 
             this.slider.addEventListener('change', refocus);
@@ -90,10 +91,15 @@ class LyricsPopup {
         document.body.classList.add('lyrics-popup-open');
         this.isOpen = true;
 
-        // Reset slider to default if lyrics were scaled before
+        // Restore the musician's preferred stage size (persisted), else the
+        // slider's default from the template.
         if (this.slider) {
-            this.slider.value = this.slider.value || '1';
-            this.applyScale(parseFloat(this.slider.value));
+            let saved = null;
+            try { saved = localStorage.getItem('lyrics_popup_scale'); } catch (e) { /* blocked storage */ }
+            if (saved && !isNaN(parseFloat(saved))) this.slider.value = saved;
+            const v = parseFloat(this.slider.value) || 1.25;
+            this.applyScale(v);
+            this.updateSizeDisplay(v);
         }
 
         if (window.karaokeDisplayInstance) {
@@ -116,15 +122,12 @@ class LyricsPopup {
         document.body.classList.remove('lyrics-popup-open');
         this.isOpen = false;
 
-        // Reset transform when closing
+        // Drop the stage scale when returning to the practice tab (the CSS
+        // there sizes the lyrics itself); the slider keeps the user's choice.
         if (this.originalLyricsElement) {
+            this.originalLyricsElement.style.removeProperty('--lyrics-scale');
             this.originalLyricsElement.style.removeProperty('transform');
             this.originalLyricsElement.style.removeProperty('transform-origin');
-        }
-
-        if (this.slider) {
-            this.slider.value = '1';
-            this.updateSizeDisplay(1);
         }
 
         if (window.karaokeDisplayInstance) {
@@ -138,10 +141,13 @@ class LyricsPopup {
         if (!lyricsElement) {
             return;
         }
-        const clamped = Math.min(1.6, Math.max(0.8, scaleValue || 1));
-        // Use transform scale to affect all child elements uniformly
-        lyricsElement.style.setProperty('transform', `scale(${clamped})`, 'important');
-        lyricsElement.style.setProperty('transform-origin', 'top left', 'important');
+        const clamped = Math.min(3.0, Math.max(0.8, scaleValue || 1));
+        // Real font scaling (not transform: scale): the text reflows inside the
+        // popup width and stays centered, so a stage-size 3x setting is readable
+        // instead of overflowing off the right edge. The CSS reads --lyrics-scale.
+        lyricsElement.style.setProperty('--lyrics-scale', String(clamped));
+        lyricsElement.style.removeProperty('transform');
+        lyricsElement.style.removeProperty('transform-origin');
     }
 
     updateSizeDisplay(value) {

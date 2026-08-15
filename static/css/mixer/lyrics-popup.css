@@ -70,16 +70,41 @@
     overflow-y: auto;
 }
 
+/* Stage prompter: big centered lyrics that reflow with the size slider
+   (--lyrics-scale, 0.8x-3x, set by lyrics-popup.js). Base 2rem = twice the
+   old size; the active line is parked mid-screen by karaoke-display's
+   popup scroll so upcoming lines fill the lower half. */
 .lyrics-popup-overlay .karaoke-lyrics {
+    --lyrics-scale: 1.25;
     background: transparent;
-    padding: 0;
-    padding-top: 10%;
-    padding-bottom: 70%;
+    padding: 0 3vw;
+    padding-top: 40vh;
+    padding-bottom: 60vh;
     max-height: none;
-    font-size: 1.4rem;
-    line-height: 2rem;
+    font-size: calc(2rem * var(--lyrics-scale));
+    line-height: 1.5;
     height: auto;
     overflow-y: visible;
+    text-align: center;
+    font-weight: 600;
+    letter-spacing: 0.005em;
+}
+
+.lyrics-popup-overlay .karaoke-line {
+    margin: 0.55em 0;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.lyrics-popup-overlay .karaoke-line.past { opacity: 0.35; }
+.lyrics-popup-overlay .karaoke-line.active {
+    transform: scale(1.04);
+    text-shadow: 0 0 24px rgba(29, 185, 84, 0.25);
+}
+
+/* Stage view: no per-line timecodes (noise when performing) */
+.lyrics-popup-overlay .karaoke-time { display: none; }
+
+.lyrics-popup-content {
+    padding: 0 !important;                /* the lyrics block manages its own stage padding */
 }
 
 .lyrics-popup-overlay .karaoke-lyrics.section-hidden {

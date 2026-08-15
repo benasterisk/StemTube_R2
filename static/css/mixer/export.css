@@ -176,45 +176,59 @@
     text-align: right;
 }
 
+/* ── STAGE CHART: 4 bars per system, big chords, lyric fragment under each
+   beat, readable from meters away. Fills the 98vw x 98vh dialog instead
+   of one thin bar per line. ── */
 .chords-grid-container {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));   /* 4 bars per system */
+    gap: 0.6rem 0.75rem;
+    padding-bottom: 60vh;                                /* room for the last system to reach the focus line */
 }
 
 .chord-grid-measure {
+    position: relative;
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem;
+    align-items: stretch;
+    gap: 0.35rem;
+    padding: 0.55rem 0.55rem 0.55rem 1.7rem;
     background: var(--bg-secondary);
-    border-radius: 8px;
+    border-radius: 10px;
+    border-left: 4px solid var(--border-color);
+    min-height: 7.2rem;
 }
 
 .chord-grid-measure-label {
-    min-width: 40px;
-    text-align: center;
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--text-secondary);
+    position: absolute;
+    left: 0.35rem;
+    top: 0.35rem;
+    min-width: unset;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted, var(--text-secondary));
+    font-variant-numeric: tabular-nums;
 }
 
 .chord-grid-beats {
     display: flex;
     flex: 1;
-    gap: 0.5rem;
+    gap: 0.35rem;
+    min-width: 0;
 }
 
 .chord-grid-beat {
     flex: 1;
     min-width: 0;
-    padding: 1rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0.5rem 0.3rem;
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border-radius: 8px;
     text-align: center;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
 .chord-grid-beat:hover {
@@ -222,27 +236,49 @@
     border-color: var(--accent-color);
 }
 
+/* NOW: the whole bar lights its edge, the beat pops */
+.chord-grid-measure:has(.chord-grid-beat.active) {
+    border-left-color: #1db954;
+    background: rgba(29, 185, 84, 0.06);
+}
 .chord-grid-beat.active {
-    background: rgba(29, 185, 84, 0.2);
+    background: rgba(29, 185, 84, 0.22);
     border-color: #1db954;
-    box-shadow: 0 0 0 2px rgba(29, 185, 84, 0.1);
+    box-shadow: 0 0 0 2px rgba(29, 185, 84, 0.25), 0 0 22px rgba(29, 185, 84, 0.25);
+    transform: scale(1.03);
 }
 
 .chord-grid-beat-name {
-    font-size: 1.1rem;
-    font-weight: 600;
+    font-size: clamp(1.6rem, 2.6vw, 2.6rem);      /* stage-readable */
+    font-weight: 800;
+    line-height: 1.05;
     color: var(--text-primary);
-    margin-bottom: 0.25rem;
+    letter-spacing: -0.01em;
 }
 
-.chord-grid-beat-time {
-    font-size: 0.75rem;
+.chord-grid-beat-lyric {
+    margin-top: 0.3rem;
+    min-height: 1.3em;
+    font-size: clamp(0.85rem, 1.15vw, 1.15rem);
+    line-height: 1.25;
     color: var(--text-secondary);
+    overflow-wrap: anywhere;
+    max-height: 2.6em;                             /* two short lines max, then clip */
+    overflow: hidden;
+}
+.chord-grid-beat.active .chord-grid-beat-lyric { color: var(--text-primary); }
+
+.chord-grid-beat-time {
+    margin-top: 0.25rem;
+    font-size: 0.65rem;
+    color: var(--text-muted, var(--text-secondary));
+    opacity: 0.7;
 }
 
 .chord-grid-beat.empty .chord-grid-beat-name {
     color: var(--text-muted);
     font-weight: 400;
+    opacity: 0.35;
 }
 
 /* Mobile optimizations */
@@ -261,9 +297,13 @@
         padding: 1rem;
     }
 
+    .chords-grid-container {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .chord-grid-measure {
-        flex-direction: column;
-        align-items: stretch;
+        padding-left: 1.4rem;
+        min-height: 5.6rem;
     }
 
     .chord-grid-measure-label {
