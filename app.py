@@ -163,6 +163,26 @@ app.config['SECRET_KEY'] = SECRET_KEY
 logger.info("Flask SECRET_KEY loaded from environment [OK]")
 
 app.config['TEMPLATES_AUTO_RELOAD'] = True
+
+
+@app.after_request
+def _no_cache_for_html(response):
+    """Never let browsers cache rendered pages.
+
+    Static assets carry a cache_buster query string, but the HTML documents
+    themselves (/, /mixer, /mobile...) were served with no cache headers, so
+    browsers applied heuristic caching - notably Chrome kept the /mixer
+    document loaded in the app's iframe across deployments, and users kept
+    seeing an old mixer after a server update until a hard refresh.
+    """
+    ctype = response.headers.get('Content-Type', '')
+    if ctype.startswith('text/html'):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
+
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_PERMANENT'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400
