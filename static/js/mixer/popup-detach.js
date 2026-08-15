@@ -105,6 +105,7 @@
         dialog.classList.add('in-stage-view');
 
         owned[key] = { pip, dialog, placeholder, sourceWin };
+        try { if (sourceWin !== window) sourceWin.postMessage({ type: 'stage_view_opened', key }, '*'); } catch (e) { /* gone */ }
 
         slog('window opened for ' + key);
         pip.addEventListener('resize', () => slog('pip resize ' + pip.innerWidth + 'x' + pip.innerHeight));
@@ -239,7 +240,27 @@
                 detachedKeys.delete(data.key);
                 const cb = onClosedCbs[data.key]; delete onClosedCbs[data.key];
                 if (typeof cb === 'function') cb();
+                else closeLocalPopup(data.key);   // opened from the app header: no callback registered
             }
+        });
+    }
+
+    // When the window was opened by the top-level app (header buttons), the
+    // iframe registered no onClosed callback: close the matching in-page popup
+    // ourselves so the user lands back on the practice tab, not on the overlay.
+    function closeLocalPopup(key) {
+        try {
+            if (key === 'lyrics' && window.lyricsPopupInstance && window.lyricsPopupInstance.close) window.lyricsPopupInstance.close();
+            if (key === 'chords' && window.mixer && window.mixer.chordDisplay && window.mixer.chordDisplay.closeGridPopup) window.mixer.chordDisplay.closeGridPopup();
+        } catch (e) { /* ignore */ }
+    }
+
+    // The top-level owner marks keys detached in the iframe too (its lookup
+    // bridge keys on detachedKeys).
+    if (!isTop) {
+        window.addEventListener('message', (event) => {
+            const data = event.data;
+            if (data && data.type === 'stage_view_opened') detachedKeys.add(data.key);
         });
     }
 

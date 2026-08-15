@@ -9,3 +9,19 @@
 @import url('desktop/neumorphic.css'); /* Neumorphic theme overrides */
 @import url('desktop/glassmorphism.css'); /* Glassmorphism theme overrides */
 @import url('desktop/cyberpunk.css'); /* Cyberpunk Neon theme overrides */
+
+/* Stage View buttons in the mixer header (top-level page opens the PiP window) */
+.mixer-header-with-title { display: flex; align-items: center; gap: 12px; }
+.stage-view-buttons { display: inline-flex; }
+.stage-view-btn {
+    padding: 6px 12px;
+    background: var(--bg-tertiary, #2a2a2a);
+    border: 1px solid var(--accent-color, #1db954);
+    border-radius: 8px;
+    color: var(--text-primary, #eee);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.stage-view-btn:hover { background: var(--accent-color, #1db954); color: #000; }
