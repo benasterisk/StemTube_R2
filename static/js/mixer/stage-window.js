@@ -147,7 +147,32 @@
         }
     }
 
-    // 3) When the song is loaded, open the requested dialog full-window.
+    // 3) Permanent render loop. In the main mixer, main.js's tick() (which
+    //    pushes engine.pos() into chordDisplay/karaokeDisplay .sync() so the
+    //    grid highlight, karaoke word wipe and auto-scroll follow the music)
+    //    only runs while a LOCAL play is active. Here play is delegated to
+    //    the master, so tick() never starts: drive the same syncs ourselves,
+    //    from the ghost clock, at a fixed rate that survives background tabs
+    //    (setInterval; rAF is frozen when the window is not focused/visible).
+    let lastPlayGlyph = null;
+    function renderTick() {
+        let p = 0;
+        try { p = engine.pos(); } catch (e) { return; }
+        try { if (window.mixer && window.mixer.chordDisplay) window.mixer.chordDisplay.sync(p); } catch (e) { /* ignore */ }
+        try { if (window.mixer && window.mixer.karaokeDisplay) window.mixer.karaokeDisplay.sync(p); } catch (e) { /* ignore */ }
+        try { if (window.mixer && window.mixer.structureDisplay) window.mixer.structureDisplay.sync(p); } catch (e) { /* ignore */ }
+        try { if (window.UI && window.UI.updateTime) window.UI.updateTime(); } catch (e) { /* ignore */ }
+        // play/pause glyph mirrors the master's state
+        const playing = !!master.playing;
+        if (playing !== lastPlayGlyph) {
+            lastPlayGlyph = playing;
+            const b = document.getElementById('playBtn');
+            if (b) b.innerHTML = playing ? '<span class="ico">⏸</span>' : '<span class="ico">▶</span>';
+        }
+    }
+    setInterval(renderTick, 50);   // 20 Hz: smooth enough for a word wipe, cheap
+
+    // When the song is loaded, open the requested dialog full-window.
     function openStageDialog() {
         document.body.classList.add('stage-window');
         try {
