@@ -493,6 +493,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/mixer/structure.css') }}?v={{ cache_buster }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/mixer/lyrics-popup.css') }}?v={{ cache_buster }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/recording.css') }}?v={{ cache_buster }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mixer/prompter.css') }}?v={{ cache_buster }}">
 <!-- Font Awesome for the chord/lyrics icons used in friend's markup -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <!-- R2 web-edition extras: mobile layout + jam session styling (not in Friend). -->
@@ -834,6 +835,7 @@
 <script src="{{ url_for('static', filename='js/poc/loader.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/poc/main.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/poc/export.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/poc/prompter.js') }}?v={{ cache_buster }}"></script>
 
 <!-- Practice-tab display components (kept verbatim from friend) + the compat shim
      that lets them drive off the POC engine. Loaded AFTER main.js so `engine` and

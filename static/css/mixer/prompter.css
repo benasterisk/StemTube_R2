@@ -1,0 +1,248 @@
+/* Stage Prompter — phosphor-amber stage rig for live musicians.
+   Deliberately theme-independent: on stage you want maximum contrast,
+   whatever the app theme. Readable from meters away. */
+
+:root {
+  --pr-bg: #0b0d0a;            /* near-black, warm */
+  --pr-bg-deep: #060705;
+  --pr-amber: #ffb62e;         /* phosphor NOW */
+  --pr-amber-soft: #f5d38a;
+  --pr-future: #9aa08e;        /* sage grey — upcoming */
+  --pr-past: #3d4038;          /* sunk — done */
+  --pr-rail: rgba(255, 182, 46, 0.14);
+  --pr-hit: #ff5d3b;           /* downbeat flash */
+  --pr-font-chord: "Chivo Mono", ui-monospace, "Cascadia Mono", monospace;
+  --pr-font-lyric: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+}
+
+.prompter {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: grid;
+  grid-template-areas:
+    "head head"
+    "panel river"
+    "foot foot";
+  grid-template-columns: clamp(220px, 24vw, 360px) 1fr;
+  grid-template-rows: auto 1fr auto;
+  background:
+    radial-gradient(120% 90% at 18% 0%, rgba(255, 182, 46, 0.05), transparent 55%),
+    linear-gradient(180deg, var(--pr-bg) 0%, var(--pr-bg-deep) 100%);
+  color: var(--pr-future);
+  font-family: var(--pr-font-lyric);
+  animation: prompter-in 260ms cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+@keyframes prompter-in {
+  from { opacity: 0; transform: scale(1.015); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ── header ─────────────────────────────────────────────── */
+.prompter-head {
+  grid-area: head;
+  display: flex;
+  align-items: baseline;
+  gap: 1.2rem;
+  padding: 0.7rem 1.2rem 0.5rem;
+  border-bottom: 1px solid rgba(255, 182, 46, 0.12);
+}
+.prompter-title {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.85rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pr-past);
+}
+.prompter-clock {
+  font-family: var(--pr-font-chord);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--pr-amber-soft);
+  font-variant-numeric: tabular-nums;
+}
+.prompter-close {
+  background: none;
+  border: 1px solid rgba(255, 182, 46, 0.25);
+  border-radius: 6px;
+  color: var(--pr-amber-soft);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+}
+.prompter-close:hover { background: rgba(255, 182, 46, 0.12); }
+
+/* ── chord panel ────────────────────────────────────────── */
+.prompter-chordpanel {
+  grid-area: panel;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.4rem;
+  padding: 1rem;
+  border-right: 1px solid rgba(255, 182, 46, 0.1);
+}
+.prompter-chord-now {
+  font-family: var(--pr-font-chord);
+  font-weight: 700;
+  font-size: clamp(4.5rem, 11vw, 9.5rem);
+  line-height: 0.95;
+  color: var(--pr-amber);
+  text-shadow: 0 0 34px rgba(255, 182, 46, 0.35);
+  min-height: 1em;
+}
+.prompter-chord-hit { animation: chord-hit 340ms ease-out; }
+@keyframes chord-hit {
+  0%   { color: var(--pr-hit); transform: scale(1.05); }
+  100% { color: var(--pr-amber); transform: none; }
+}
+.prompter-chord-nextwrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+.prompter-chord-nextlabel {
+  font-size: 0.65rem;
+  letter-spacing: 0.35em;
+  color: var(--pr-past);
+}
+.prompter-chord-next {
+  font-family: var(--pr-font-chord);
+  font-weight: 500;
+  font-size: clamp(1.8rem, 3.6vw, 3rem);
+  color: var(--pr-future);
+}
+.prompter-beatdots { display: flex; gap: 0.55rem; }
+.prompter-dot {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: rgba(255, 182, 46, 0.12);
+  transition: background 120ms, box-shadow 120ms;
+}
+.prompter-dot-on {
+  background: var(--pr-amber);
+  box-shadow: 0 0 12px rgba(255, 182, 46, 0.6);
+}
+
+/* ── lyric river ────────────────────────────────────────── */
+.prompter-river {
+  grid-area: river;
+  position: relative;
+  overflow: hidden;
+  /* fade the flow away from the rail — focus stays on NOW */
+  -webkit-mask-image: linear-gradient(180deg,
+    transparent 0, #000 14%, #000 62%, transparent 96%);
+          mask-image: linear-gradient(180deg,
+    transparent 0, #000 14%, #000 62%, transparent 96%);
+}
+.prompter-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 32%;
+  height: 3.4em;
+  transform: translateY(-0.4em);
+  background: linear-gradient(90deg, var(--pr-rail), transparent 85%);
+  border-left: 4px solid var(--pr-amber);
+  pointer-events: none;
+}
+.prompter-flow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  padding: 1rem 2.2rem 40vh 2.2rem;
+  transition: transform 480ms cubic-bezier(0.25, 0.8, 0.3, 1);
+  will-change: transform;
+}
+.prompter-line {
+  margin: 1.15em 0;
+  font-size: clamp(1.6rem, 3.4vw, 2.9rem);
+  font-weight: 500;
+  line-height: 1.65;
+  transition: opacity 300ms, filter 300ms;
+}
+.prompter-line-past { opacity: 0.32; filter: saturate(0.4); }
+.prompter-line-now  { color: #e9ead9; font-weight: 700; }
+.prompter-line-instr { letter-spacing: 0.4em; }
+
+.prompter-word { position: relative; display: inline-block; white-space: nowrap; }
+.prompter-word-chord {
+  position: absolute;
+  top: -0.95em;
+  left: 0;
+  font-family: var(--pr-font-chord);
+  font-size: 0.52em;
+  font-weight: 700;
+  color: var(--pr-amber-soft);
+  letter-spacing: 0.02em;
+}
+.prompter-word-past .prompter-word-text { color: var(--pr-past); }
+.prompter-word-now .prompter-word-text {
+  color: var(--pr-amber);
+  text-shadow: 0 0 18px rgba(255, 182, 46, 0.45);
+}
+
+/* ── transport foot ─────────────────────────────────────── */
+.prompter-foot {
+  grid-area: foot;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1.6rem;
+  padding: 0.7rem 0 1rem;
+  border-top: 1px solid rgba(255, 182, 46, 0.1);
+}
+.prompter-btn {
+  background: rgba(255, 182, 46, 0.07);
+  border: 1px solid rgba(255, 182, 46, 0.25);
+  border-radius: 10px;
+  color: var(--pr-amber-soft);
+  font-family: var(--pr-font-chord);
+  font-size: 1.05rem;
+  padding: 0.7rem 1.4rem;
+  cursor: pointer;
+  transition: background 120ms;
+}
+.prompter-btn:hover { background: rgba(255, 182, 46, 0.16); }
+.prompter-play { font-size: 1.7rem; padding: 0.7rem 2.4rem; }
+
+/* keep the page behind from scrolling */
+body.prompter-open { overflow: hidden; }
+
+/* tab-bar entry point (lives outside the overlay, in #mixerTabs) */
+.prompter-tab-btn {
+  background: linear-gradient(180deg, rgba(255, 182, 46, 0.16), rgba(255, 182, 46, 0.05));
+  border: 1px solid rgba(255, 182, 46, 0.4);
+  border-radius: 8px;
+  color: #ffcf6e;
+  font: inherit;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+}
+.prompter-tab-btn:hover { background: rgba(255, 182, 46, 0.22); }
+
+/* narrow screens: chord panel folds above the river */
+@media (max-width: 760px) {
+  .prompter {
+    grid-template-areas: "head" "panel" "river" "foot";
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr auto;
+  }
+  .prompter-chordpanel {
+    flex-direction: row;
+    justify-content: space-around;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 182, 46, 0.1);
+    padding: 0.5rem;
+  }
+  .prompter-chord-now { font-size: clamp(3rem, 16vw, 5rem); }
+}
