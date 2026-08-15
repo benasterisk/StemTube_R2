@@ -83,9 +83,9 @@ const LoopSel = {
       btn.classList.toggle("on", this.enabled);
       btn.disabled = !this.hasRegion();
       btn.title = this.hasRegion()
-        ? (this.enabled ? `Loop ON: ${this.a.toFixed(2)}s → ${this.b.toFixed(2)}s (clic pour désactiver)`
-                        : `Loop défini: ${this.a.toFixed(2)}s → ${this.b.toFixed(2)}s (clic pour activer)`)
-        : "Loop — glisse sur une piste pour définir une zone à boucler";
+        ? (this.enabled ? `Loop ON: ${this.a.toFixed(2)}s → ${this.b.toFixed(2)}s (click to disable)`
+                        : `Loop set: ${this.a.toFixed(2)}s → ${this.b.toFixed(2)}s (click to enable)`)
+        : "Loop — drag on a track to define a loop region";
     }
   },
 

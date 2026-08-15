@@ -186,12 +186,12 @@
       lc.innerHTML =
         '<div class="name recording-title">' +
           '<span class="dot" style="background:#ff5d5d"></span>' +
-          '<span class="track-name" contenteditable="false" title="Double-clic pour renommer">' + recording.name + '</span>' +
-          '<button class="rec-expand-btn" title="Réglages d\'enregistrement"><i class="fas fa-chevron-down"></i></button>' +
+          '<span class="track-name" contenteditable="false" title="Double-click to rename">' + recording.name + '</span>' +
+          '<button class="rec-expand-btn" title="Recording settings"><i class="fas fa-chevron-down"></i></button>' +
         '</div>' +
         '<div class="ctl-row">' +
           '<span class="btns">' +
-            '<button class="rec-arm-btn' + (recording.armed ? ' on' : '') + '" title="Armer">R</button>' +
+            '<button class="rec-arm-btn' + (recording.armed ? ' on' : '') + '" title="Arm">R</button>' +
             '<button class="solo" title="Solo">S</button>' +
             '<button class="mute" title="Mute">M</button>' +
           '</span>' +
@@ -200,21 +200,21 @@
             '<input class="panrange pan-knob" type="range" min="-1" max="1" step="0.02" value="' + (recording.pan || 0) + '"><span class="panlab">R</span></span>' +
         '</div>' +
         '<div class="rec-expanded-controls">' +
-          '<div class="rec-popover-title">Réglages de piste</div>' +
-          '<select class="rec-device-select" title="Périphérique d\'entrée"><option value="">Select mic…</option></select>' +
+          '<div class="rec-popover-title">Track settings</div>' +
+          '<select class="rec-device-select" title="Input device"><option value="">Select mic…</option></select>' +
           '<div class="rec-input-row">' +
-            '<div class="input-level-meter" title="Niveau d\'entrée"><div class="input-level-fill"></div></div>' +
+            '<div class="input-level-meter" title="Input level"><div class="input-level-fill"></div></div>' +
             '<div class="monitor-control" title="Monitoring"><i class="fas fa-headphones"></i>' +
               '<input type="range" class="monitor-slider" min="0" max="1" step="0.01" value="0"></div>' +
           '</div>' +
-          '<div class="rec-debleed-row"><label class="rec-debleed-label" title="Retirer le repiquage (Demucs)"><i class="fas fa-magic"></i> De-bleed :</label>' +
+          '<div class="rec-debleed-row"><label class="rec-debleed-label" title="Remove bleed (Demucs)"><i class="fas fa-magic"></i> De-bleed :</label>' +
             '<select class="rec-debleed-select"><option value="off">Off</option><option value="vocals">Vocals</option>' +
               '<option value="bass">Bass</option><option value="drums">Drums</option><option value="other">Other (Guitar/Keys)</option></select></div>' +
-          '<div class="rec-fx-row"><label class="rec-fx-label" title="Preset d\'effets"><i class="fas fa-sliders-h"></i> FX :</label>' +
+          '<div class="rec-fx-row"><label class="rec-fx-label" title="Effects preset"><i class="fas fa-sliders-h"></i> FX :</label>' +
             '<select class="rec-fx-select"><option value="off">Off</option><option value="subtle">Subtle</option>' +
               '<option value="warm">Warm</option><option value="heavy">Heavy</option></select></div>' +
           '<span class="rec-fx-desc"></span>' +
-          '<div class="rec-action-buttons"><button class="rec-delete-btn" title="Supprimer"><i class="fas fa-trash"></i> Supprimer</button></div>' +
+          '<div class="rec-action-buttons"><button class="rec-delete-btn" title="Delete"><i class="fas fa-trash"></i> Delete</button></div>' +
         '</div>';
       left.appendChild(lc);
 

@@ -638,17 +638,17 @@
   <button id="playBtn" disabled title="Play / Pause"><span class="ico">▶</span></button>
   <button id="fromStartBtn" disabled title="Play from the Start marker (with count-in)"><span class="ico">⚑</span></button>
   <button id="stopBtn" disabled title="Stop and rewind to start"><span class="ico">■</span></button>
-  <button id="loopBtn" class="toggle" disabled title="Loop — glisse sur une piste pour définir une zone à boucler, puis active le bouclage"><span class="ico">🔁</span></button>
-  <button id="recordBtn" disabled title="Enregistrer (armer une piste d'abord)"><span class="dot"></span></button>
-  <button id="addTrackBtn" disabled title="Ajouter une piste d'enregistrement"><span class="ico">＋</span></button>
-  <span class="time" id="latency-value" title="Latence d'enregistrement compensée" style="min-width:auto"></span>
+  <button id="loopBtn" class="toggle" disabled title="Loop — drag on a track to define a loop region, then enable looping"><span class="ico">🔁</span></button>
+  <button id="recordBtn" disabled title="Record (arm a track first)"><span class="dot"></span></button>
+  <button id="addTrackBtn" disabled title="Add a recording track"><span class="ico">＋</span></button>
+  <span class="time" id="latency-value" title="Compensated recording latency" style="min-width:auto"></span>
 
   <span class="sep"></span>
 
   <!-- Intro detection + count-in -->
   <button id="detectIntroBtn" class="toggle" disabled title="Detect Intro — find the real song start, erase the pre-intro metronome, bake a count-in into the metronome track"><span class="ico">🔍</span></button>
   <button id="precountBtn" class="toggle" disabled title="Count-in beats to play: Off → 2 → 4 → 8"><span class="ico">⏱</span><span class="lbl">Off</span></button>
-  <button id="stopMetroBtn" class="toggle" disabled title="Fin du métronome — le clic s'arrête à cette position, les pistes continuent. Clic = poser/retirer à la tête de lecture (Ctrl-clic sur une piste pour la placer)."><span class="ico">⏹</span></button>
+  <button id="stopMetroBtn" class="toggle" disabled title="Metronome stop — the click stops at this position, the tracks keep playing. Click = set/remove at the playhead (Ctrl-click a track to place it)."><span class="ico">⏹</span></button>
 
   <span class="sep"></span>
 
@@ -706,7 +706,7 @@
     <span class="sep"></span>
 
     <!-- Export (placeholder, wired later) -->
-    <button id="exportBtn" disabled title="Exporter le mix (pistes + métronome avec count-in / début / fin)"><span class="ico">⤓</span></button>
+    <button id="exportBtn" disabled title="Export mix (tracks + metronome with count-in / start / stop)"><span class="ico">⤓</span></button>
   </div>
 </div>
 
@@ -733,7 +733,7 @@
     <!-- Chord Diagram carousel (prev / current / next) -->
     <div class="mobile-chord-diagram-panel">
       <div class="mobile-chord-diagram-header">
-        <span>Accords</span>
+        <span>Chords</span>
         <div class="mobile-chord-instrument-toggle">
           <button type="button" class="active" data-chord-instrument="guitar">Guitar</button>
           <button type="button" data-chord-instrument="piano">Piano</button>
@@ -754,8 +754,8 @@
 <div id="lyrics-view" class="tabview">
   <div class="practice-panel lyrics-panel">
     <div class="lyrics-toolbar">
-      <button class="chord-mode-toggle" id="karaoke-regenerate-btn" title="Regénérer les paroles (Musixmatch + faster-whisper)">
-        <i class="fas fa-sync-alt"></i> <span id="regenerate-btn-label">Regénérer les paroles</span>
+      <button class="chord-mode-toggle" id="karaoke-regenerate-btn" title="Regenerate lyrics (Musixmatch + faster-whisper)">
+        <i class="fas fa-sync-alt"></i> <span id="regenerate-btn-label">Regenerate Lyrics</span>
       </button>
     </div>
     <div id="karaoke-container-lyrics" class="karaoke-in-content">
@@ -771,7 +771,7 @@
   <div class="chords-grid-popup-dialog">
     <div class="chords-grid-popup-header">
       <h3>Chords Grid View</h3>
-      <button class="chords-grid-popup-close" id="chords-grid-popup-close"><i class="fas fa-times"></i><span>Fermer</span></button>
+      <button class="chords-grid-popup-close" id="chords-grid-popup-close"><i class="fas fa-times"></i><span>Close</span></button>
     </div>
     <!-- The real transport bar (Play / From-Start / Stop / Rec + BPM value + Key
          note) is MOVED into this slot while the popup is open, then restored on
@@ -787,13 +787,13 @@
   <div class="lyrics-popup-dialog">
     <div class="lyrics-popup-header">
       <h3>Lyrics Focus</h3>
-      <button class="lyrics-popup-close" id="lyrics-popup-close"><i class="fas fa-times"></i><span>Fermer</span></button>
+      <button class="lyrics-popup-close" id="lyrics-popup-close"><i class="fas fa-times"></i><span>Close</span></button>
     </div>
     <!-- Real transport bar moved here while open (Play / From-Start / Stop / Rec +
          BPM value + Key note) — plus a lyrics-only text "Taille" (size) slider. -->
     <div class="popup-controls-bar">
       <div class="popup-transport-slot" id="lyricsPopupTransportSlot"></div>
-      <div class="popup-slider-group"><span class="popup-slider-label">Taille</span>
+      <div class="popup-slider-group"><span class="popup-slider-label">Size</span>
         <input type="range" id="lyrics-popup-slider" min="0.8" max="3" step="0.05" value="1.25" class="popup-slider">
         <span id="lyrics-popup-size-value" class="popup-slider-value">1.3x</span></div>
     </div>
@@ -849,6 +849,7 @@
 <script src="{{ url_for('static', filename='js/mixer/structure-display.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/mixer/karaoke-display.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/mixer/lyrics-popup.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/mixer/popup-detach.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/poc/mixer-compat.js') }}?v={{ cache_buster }}"></script>
 <!-- Recording: friend's engine + effects (verbatim) + the POC UI bridge.
      Loaded after the shim so window.mixer exists. -->
@@ -900,7 +901,7 @@
             return;
           }
           var armed = recEngine.getArmedTracks();
-          if (!armed.length) { window.mixer.showToast("Armez une piste d'abord (bouton R sur une piste d'enregistrement)", "warning"); return; }
+          if (!armed.length) { window.mixer.showToast("Arm a track first (R button on a recording track)", "warning"); return; }
           // No mic selected = friend's behaviour: record on the system default mic.
           armed.forEach(function (t) { var el = document.getElementById("rec-track-" + t.id); if (el) el.classList.add("is-recording"); });
           recBtn.__busy = true; recBtn.disabled = true;
@@ -929,9 +930,9 @@
                 requestAnimationFrame(poll);
               })();
             });
-            if (!rolling) { abortStart("Lecture impossible — enregistrement annulé"); return; }
+            if (!rolling) { abortStart("Playback failed — recording cancelled"); return; }
             var ok = await recEngine.startRecording(engine.pos() || 0);
-            if (!ok) { abortStart("Enregistrement impossible — vérifiez l'autorisation micro"); return; }
+            if (!ok) { abortStart("Recording failed — check the microphone permission"); return; }
             recBtn.classList.add("recording");
             lockDevices(true);
             // show compensated latency
@@ -1030,6 +1031,62 @@
       watch("lyrics-popup", "lyricsPopupTransportSlot", function(p){ return p.classList.contains("active"); });
     })();
   })();
+</script>
+
+<script>
+// Detach buttons for the two focus popups (always-on-top system window via
+// Document Picture-in-Picture; hidden/disabled when unsupported).
+(function () {
+  if (!window.PopupDetach) return;
+  var PD = window.PopupDetach;
+
+  // Lyrics Focus: move the live lyrics block. The PiP scroller carries the
+  // .lyrics-popup-content class so karaoke-display's popup auto-scroll
+  // (closest('.lyrics-popup-content')) keeps targeting the right container.
+  PD.mountButton('.lyrics-popup-header', 'lyrics', {
+    contentSelector: '#lyrics-popup-lyrics .karaoke-lyrics',
+    shellClass: 'lyrics-popup-overlay active',
+    scrollerClass: 'lyrics-popup-content',
+    title: 'Lyrics — StemTube',
+    placeholderText: 'Lyrics are showing in the detached window (close it to bring them back)',
+    onDetached: function (pip) {
+      if (window.karaokeDisplayInstance) window.karaokeDisplayInstance.refocusCurrentLine(true);
+    }
+  });
+
+  // Chords Grid View: move the rendered grid. Scroller carries
+  // .chords-grid-popup-body so chord-display's highlightGridBeat auto-scroll
+  // (popup.querySelector('.chords-grid-popup-body')) is re-pointed below.
+  PD.mountButton('.chords-grid-popup-header', 'chords', {
+    contentSelector: '#chords-grid-container',
+    shellClass: 'chords-grid-popup-overlay',
+    scrollerClass: 'chords-grid-popup-body',
+    title: 'Chords — StemTube',
+    placeholderText: 'Chord grid is showing in the detached window (close it to bring it back)'
+  });
+
+  // chord-display scrolls the element it finds INSIDE #chords-grid-popup; while
+  // detached, redirect that lookup to the PiP scroller.
+  if (window.mixer && window.mixer.chordDisplay && !window.mixer.chordDisplay._detachPatched) {
+    var cd = window.mixer.chordDisplay;
+    var origHighlight = cd.highlightGridBeat.bind(cd);
+    cd.highlightGridBeat = function (beatIndex) {
+      if (!PD.isDetached('chords')) return origHighlight(beatIndex);
+      if (!this.gridBeatElements || !this.gridBeatElements.length) return;
+      var activeBeat = this.gridBeatElements[beatIndex];
+      if (!activeBeat) return;
+      this.gridBeatElements.forEach(function (el) { el.classList.remove('active'); });
+      activeBeat.classList.add('active');
+      var body = PD.scrollerFor('chords');
+      var measure = activeBeat.closest('.chord-grid-measure');
+      if (body && measure) {
+        var target = Math.max(0, measure.offsetTop - Math.round(body.clientHeight * 0.28));
+        if (Math.abs(body.scrollTop - target) >= 1) body.scrollTo({ top: target, behavior: 'auto' });
+      }
+    };
+    cd._detachPatched = true;
+  }
+})();
 </script>
 <!-- JAM WIRING: legacy API, rewritten in 14c -->
     {% if not jam_guest_mode %}

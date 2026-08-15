@@ -56,7 +56,7 @@ const MixExport = {
     if(!this._modal) this._build();
     if(!this.view.meta){
       // no song ready — show the modal but tell the user why nothing will export
-      this._setStatus("Aucun morceau chargé.");
+      this._setStatus("No song loaded.");
       this._modal.querySelector("#exp-go").disabled = true;
       this._modal.style.display="flex";
       return;
@@ -79,24 +79,24 @@ const MixExport = {
     el.innerHTML=`
       <div class="box">
         <div class="bhead">
-          <strong style="flex:1">Exporter le mix</strong>
-          <button id="exp-close" class="iconbtn" title="Fermer">✕</button>
+          <strong style="flex:1">Export mix</strong>
+          <button id="exp-close" class="iconbtn" title="Close">✕</button>
         </div>
         <div class="bbody">
           <label class="row"><span>Format</span>
             <select id="exp-format">
               <option value="mp3">MP3 (192 kbps)</option>
-              <option value="wav">WAV (sans perte)</option>
+              <option value="wav">WAV (lossless)</option>
             </select>
           </label>
-          <label class="row"><input type="checkbox" id="exp-include-metro"> <span>Inclure le métronome</span></label>
+          <label class="row"><input type="checkbox" id="exp-include-metro"> <span>Include metronome</span></label>
           <div class="exp-summary" id="exp-summary"></div>
-          <div class="exp-note">Le métronome est exporté tel qu'en lecture : décompte (si activé), clic entre le repère de début et de fin. Tempo/hauteur à l'origine.</div>
+          <div class="exp-note">The metronome is exported as heard in playback: count-in (if enabled), click between the start and stop markers. Original tempo/pitch.</div>
           <div class="exp-status" id="exp-status"></div>
         </div>
         <div class="bfoot">
-          <button id="exp-cancel">Annuler</button>
-          <button id="exp-go" class="primary">Exporter</button>
+          <button id="exp-cancel">Cancel</button>
+          <button id="exp-go" class="primary">Export</button>
         </div>
       </div>`;
     document.body.appendChild(el);
@@ -140,16 +140,16 @@ const MixExport = {
     const inc=this._modal.querySelector("#exp-include-metro").checked;
     const parts=[];
     const nStems=Object.keys(this._collectTracks()).length;
-    parts.push(`${nStems} piste${nStems>1?"s":""}`);
+    parts.push(`${nStems} track${nStems>1?"s":""}`);
     if(inc){
-      let m=`métronome (résolution ${this.engine.metroRes||"1"})`;
-      if(pc.beats>0) m+=` · décompte ${pc.beats}`;
+      let m=`metronome (resolution ${this.engine.metroRes||"1"})`;
+      if(pc.beats>0) m+=` · count-in ${pc.beats}`;
       const from = (typeof pc.startTime==="number" && pc.startTime>0.05) ? pc.startTime.toFixed(1)+"s" : "0s";
-      const to = (pc.stopTime!=null) ? pc.stopTime.toFixed(1)+"s" : "fin";
-      m+=` · clic ${from} → ${to}`;
+      const to = (pc.stopTime!=null) ? pc.stopTime.toFixed(1)+"s" : "end";
+      m+=` · click ${from} → ${to}`;
       parts.push(m);
     } else {
-      parts.push("sans métronome");
+      parts.push("no metronome");
     }
     this._modal.querySelector("#exp-summary").innerHTML=parts.join("<br>");
   },
@@ -159,21 +159,21 @@ const MixExport = {
   async run(){
     if(this._busy) return;
     const job=this.view.meta && this.view.meta.job;
-    if(!job){ this._setStatus("Aucun morceau chargé."); return; }
+    if(!job){ this._setStatus("No song loaded."); return; }
     const fmt=this._modal.querySelector("#exp-format").value;
     const inc=this._modal.querySelector("#exp-include-metro").checked;
     const goBtn=this._modal.querySelector("#exp-go");
-    this._busy=true; goBtn.disabled=true; this._setStatus("Rendu en cours… (cela peut prendre quelques secondes)");
+    this._busy=true; goBtn.disabled=true; this._setStatus("Rendering… (this may take a few seconds)");
     try{
       const res = await API.exportMix(job, this._buildBody(fmt, inc));
       this._download(res.download_url, res.filename);
       // The server also dropped a copy in Downloads — tell the user where it is.
-      if(res.saved_to){ this._setStatus("Enregistré dans Téléchargements : "+res.filename); }
-      else { this._setStatus("Téléchargement lancé : "+res.filename); }
+      if(res.saved_to){ this._setStatus("Saved to Downloads: "+res.filename); }
+      else { this._setStatus("Download started: "+res.filename); }
       setTimeout(()=>this.close(), 2200);
     }catch(e){
       console.error("[export] failed:", e);
-      this._setStatus("Échec : "+(e&&e.message?e.message:e));
+      this._setStatus("Failed: "+(e&&e.message?e.message:e));
     }finally{
       this._busy=false; goBtn.disabled=false;
     }

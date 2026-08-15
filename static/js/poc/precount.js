@@ -356,15 +356,15 @@ const PreCount = {
       const on=this.stopTime!==null;
       smBtn.classList.toggle("on", on);
       smBtn.title = on
-        ? `Fin du métronome à ${this.stopTime.toFixed(2)}s — clic pour la retirer. Le clic s'arrête là, les pistes continuent.`
-        : "Fin du métronome — clic pour la poser à la tête de lecture. Le clic s'arrêtera là, les pistes continuent. (Ctrl-clic sur une piste pour la placer.)";
+        ? `Metronome stop at ${this.stopTime.toFixed(2)}s — click to remove it. The click stops there, the tracks keep playing.`
+        : "Metronome stop — click to set it at the playhead. The click will stop there, the tracks keep playing. (Ctrl-click a track to place it.)";
     }
     const st=document.getElementById("startInfo");
     if(st){
       const stopTxt = this.stopTime!==null ? ` · ⏹ ${this.stopTime.toFixed(2)}s` : "";
       st.textContent = `⚑ ${this.startTime.toFixed(2)}s${stopTxt}`;   // ⚑ = same flag as the From-Start button + timeline marker
       st.title = this.plan
-        ? `Start ${this.startTime.toFixed(2)}s · precount ${this.bpm()} BPM`+(this.plan.lead_silence>0?` · +${this.plan.lead_silence}s lead silence`:"")+(this.stopTime!==null?` · métronome jusqu'à ${this.stopTime.toFixed(2)}s`:"")
+        ? `Start ${this.startTime.toFixed(2)}s · precount ${this.bpm()} BPM`+(this.plan.lead_silence>0?` · +${this.plan.lead_silence}s lead silence`:"")+(this.stopTime!==null?` · metronome until ${this.stopTime.toFixed(2)}s`:"")
         : `Start ${this.startTime.toFixed(2)}s — click Detect Intro to bake the count-in. Alt/Shift-click a lane to move it.`;
     }
     this.drawMarker();
