@@ -23,11 +23,13 @@ APP_AUTHOR = "StemTubes Team"
 # ============================================================================
 # Server Configuration - SINGLE SOURCE OF TRUTH
 # ============================================================================
-# Application server port - This is the ONLY place where port is defined
-PORT = 5011
+# Application server port - This is the ONLY place where port is defined.
+# Overridable via STEMTUBE_PORT for local/dev runs (e.g. when 5011 is taken by
+# a VM's NAT forwarding); production keeps the default.
+PORT = int(os.environ.get("STEMTUBE_PORT", "5011"))
 
-# Application host address
-HOST = "0.0.0.0"  # Bind to all interfaces
+# Application host address (STEMTUBE_HOST override, same rationale)
+HOST = os.environ.get("STEMTUBE_HOST", "0.0.0.0")  # Bind to all interfaces
 
 # WSGI server selection (infrastructure choice, set via environment).
 #   "werkzeug" (default) : Flask-SocketIO dev server. Simple, battle-tested for
