@@ -143,6 +143,9 @@
   .transport button.toggle.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:600; }
   /* precount/scroll-mode show a tiny value next to the icon */
   #precountBtn .lbl, #scrollModeBtn .lbl { display:inline; font-size:11px; font-weight:600; }
+  /* Stage View: the label IS the affordance (icon alone reads as "fullscreen") */
+  #focusBtn .lbl { display:inline; font-size:12px; font-weight:600; margin-left:6px; }
+  #focusBtn { border-color:var(--accent); }
 
   /* Play beat-pulse: a green glow that beats with the metronome/precount.
      .pulse triggers one flash; .pulse-strong (downbeats) is bigger. */

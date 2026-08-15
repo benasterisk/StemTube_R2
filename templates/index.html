@@ -770,6 +770,10 @@
     <script src="{{ url_for('static', filename='js/app-utils.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/app-admin.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/app-extensions.js') }}?v={{ cache_buster }}"></script>
+    <!-- Stage View owner: the mixer iframe cannot open Document Picture-in-
+         Picture windows itself (Chrome: top-level browsing context only), so
+         this top-level page opens them on the iframe's request. -->
+    <script src="{{ url_for('static', filename='js/mixer/popup-detach.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/jam-client.js') }}"></script>
     <script src="{{ url_for('static', filename='js/jam-tab.js') }}"></script>
 
