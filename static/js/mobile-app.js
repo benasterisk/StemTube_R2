@@ -7834,15 +7834,37 @@ class MobileApp {
                 this.playbackPosition = position;
                 if (this.isPlaying && window.MobilePOC) MobilePOC.stopAll();
                 this.isPlaying = false;
+                // Anchored start (no count-in): schedule so the same sample is
+                // heard at the same wall-clock instant as on the host.
+                if (!(data.precount_beats > 0) && Number.isFinite(data.anchor_server_time)) {
+                    const r = this._startAtAnchor(data);
+                    console.log(`[Jam Guest] anchored start (${r.scheduled ? 'scheduled in ' + r.delayMs.toFixed(0) + 'ms' : 'catch-up ' + r.delayMs.toFixed(0) + 'ms'})`);
+                    this._precountBeatsUsed = 0;
+                    this._startPlaybackInternal();
+                    break;
+                }
                 // Host used a count-in: play the SAME baked count-in WAV (the
                 // host's plan was loaded from its POC cache), so guests hear the
                 // identical clicks, sample-locked, and start together. Falls back
                 // to a uniform start delay if the plan is unavailable.
                 if (data.precount_beats > 0 && window.MobilePOC) {
                     if (window.PreCount && PreCount.plan && PreCount.plan.files) {
+                        // Same baked count-in as the host. The host's anchor is
+                        // the instant the SONG (post count-in) starts, so we
+                        // wait until it is our turn to begin the lead-in: the
+                        // count-in itself then lands in sync too.
                         PreCount.setBeats(data.precount_beats);
-                        MobilePOC.engine.staticPos = 0;
-                        MobilePOC.playWithPrecount().then(() => this._startPlaybackInternal());
+                        const leadSec = (typeof data.precount_seconds === 'number' && data.precount_seconds >= 0)
+                            ? data.precount_seconds : 0;
+                        const jc = this.jamClient;
+                        let waitMs = 0;
+                        if (jc && Number.isFinite(data.anchor_server_time) && typeof jc.serverNow === 'function') {
+                            // anchor = when the song starts on the host; our lead-in
+                            // must begin leadSec earlier.
+                            waitMs = Math.max(0, (data.anchor_server_time - leadSec * 1000) - jc.serverNow());
+                        }
+                        const startCountIn = () => MobilePOC.playWithPrecount().then(() => this._startPlaybackInternal());
+                        if (waitMs > 5) setTimeout(startCountIn, waitMs); else startCountIn();
                         this._precountBeatsUsed = 0;
                         break;
                     }
@@ -7903,6 +7925,91 @@ class MobileApp {
         }
     }
 
+    // ── Jam clock helpers ────────────────────────────────────────────
+    //
+    // The host stamps every play/heartbeat with a TIME ANCHOR: the song
+    // position `anchor_pos` and the SERVER-clock instant it is heard at
+    // (`anchor_server_time`). jam-client keeps a running NTP-style estimate of
+    // the server clock, so we can project where the host is RIGHT NOW on our
+    // own clock - and, more importantly, schedule our own start so the same
+    // sample is heard at the same wall-clock instant on every device.
+
+    /** Host song position projected to this instant (null if no anchor). */
+    _hostPosNow(data) {
+        const jc = this.jamClient;
+        if (!jc || typeof jc.elapsedSince !== 'function') return null;
+        const anchorTs = data.anchor_server_time;
+        const anchorPos = (typeof data.anchor_pos === 'number') ? data.anchor_pos : data.position;
+        if (!Number.isFinite(anchorTs) || !Number.isFinite(anchorPos)) return null;
+        const rate = Number.isFinite(data.rate) && data.rate > 0 ? data.rate : 1;
+        // Host position as HEARD now; our own reading (engine.pos()) is what we
+        // schedule, so compare like with like by adding our output latency.
+        const outLat = MobilePOC.outputLatency ? MobilePOC.outputLatency() : 0;
+        return anchorPos + jc.elapsedSince(anchorTs) * rate + outLat * rate;
+    }
+
+    /**
+     * Start playback so that song position `anchorPos` is heard exactly at the
+     * host's anchor instant. If that instant is already past (slow network),
+     * start now from where the host is by then. Uses the POC engine's
+     * play(whenDelay) - a sample-accurate scheduled start, not a "start now".
+     */
+    _startAtAnchor(data) {
+        const jc = this.jamClient;
+        const anchorTs = data.anchor_server_time;
+        const anchorPos = (typeof data.anchor_pos === 'number') ? data.anchor_pos : (data.position || 0);
+        const rate = Number.isFinite(data.rate) && data.rate > 0 ? data.rate : 1;
+        if (!jc || !Number.isFinite(anchorTs) || typeof jc.serverNow !== 'function') {
+            MobilePOC.engine.staticPos = Math.max(0, anchorPos);
+            MobilePOC.engine.play();
+            return { scheduled: false, delayMs: 0 };
+        }
+        // The anchor is when the host HEARS the sample. We must SCHEDULE ours
+        // that much earlier than our own output latency, so both speakers emit
+        // it at the same instant.
+        const outLatMs = (MobilePOC.outputLatency ? MobilePOC.outputLatency() : 0) * 1000;
+        const aheadMs = (anchorTs - outLatMs) - jc.serverNow();   // >0: still time to schedule
+        const SAFETY = 0.06;                            // engine's default scheduling margin
+        if (aheadMs > 5) {
+            MobilePOC.engine.staticPos = Math.max(0, anchorPos);
+            MobilePOC.engine.play(aheadMs / 1000 + SAFETY);
+            return { scheduled: true, delayMs: aheadMs };
+        }
+        // Anchor already passed: jump to where the host will be once we start.
+        const catchUp = (-aheadMs) / 1000 * rate + SAFETY * rate;
+        MobilePOC.engine.staticPos = Math.max(0, anchorPos + catchUp);
+        MobilePOC.engine.play(SAFETY);
+        return { scheduled: false, delayMs: aheadMs };
+    }
+
+    /**
+     * Continuous drift correction. Small errors are absorbed silently by
+     * nudging our anchor (no audible artefact); only a gross desync justifies
+     * a re-seek, which is audible.
+     */
+    _correctDrift(hostPos) {
+        const e = MobilePOC.engine;
+        // hostPos is what the host HEARS now; e.pos() is what we SCHEDULE now.
+        // Compare like with like: add our own output latency to our reading,
+        // otherwise every device sits its own latency behind the host.
+        const heardHere = e.pos() + (MobilePOC.outputLatency ? MobilePOC.outputLatency() : 0);
+        const drift = heardHere - hostPos;            // >0 = we are ahead
+        const abs = Math.abs(drift);
+        if (abs < 0.012) return { drift, action: 'none' };        // ~1 audio buffer: ignore
+        if (abs < 0.25) {
+            // Silent re-anchor: shift our clock reference by the error so the
+            // reported position matches the host without touching the audio
+            // graph. Playback keeps running; the tiny offset is inaudible.
+            if (typeof e._reanchor === 'function' && e.playing) {
+                e._reanchor(e.pos() - drift);   // shift our clock by the error
+                return { drift, action: 'reanchor' };
+            }
+        }
+        const outLat = MobilePOC.outputLatency ? MobilePOC.outputLatency() : 0;
+        MobilePOC.seek(Math.max(0, hostPos - outLat));   // audible but necessary
+        return { drift, action: 'seek' };
+    }
+
     _handleJamSync(data) {
         if (!this.stems || Object.keys(this.stems).length === 0) return;
 
@@ -7913,15 +8020,18 @@ class MobileApp {
             this._applyTempoChange(data.bpm);
         }
 
-        const hostPosition = data.position || 0;
+        // Where the host is RIGHT NOW (heartbeats travel: the raw position in
+        // the payload is already stale by the one-way delay).
+        const hostPosition = this._hostPosNow(data);
+        const hostRaw = data.position || 0;
         const hostIsPlaying = data.is_playing;
 
-        // If host is playing but guest is not, start playing at host's position
+        // If host is playing but guest is not, join at the projected position
         if (hostIsPlaying && !this.isPlaying) {
-            console.log(`[Jam Guest] Host is playing but guest is not — syncing to ${hostPosition}s`);
-            this.currentTime = hostPosition;
-            this.playbackPosition = hostPosition;
-            this.play();
+            const target = (hostPosition != null) ? hostPosition : hostRaw;
+            console.log(`[Jam Guest] Host playing, guest not - joining at ${target.toFixed(2)}s`);
+            this._startAtAnchor({ anchor_server_time: data.anchor_server_time, anchor_pos: data.position, rate: data.rate });
+            this._startPlaybackInternal();
             return;
         }
 
@@ -7932,12 +8042,11 @@ class MobileApp {
             return;
         }
 
-        // Drift correction when both are playing
-        if (hostIsPlaying && this.isPlaying) {
-            const drift = Math.abs(this.currentTime - hostPosition);
-            if (drift > 0.5) {
-                console.log(`[Jam Guest] Sync correction: drift=${drift.toFixed(2)}s, seeking to ${hostPosition}`);
-                this.seekToPosition(hostPosition);
+        // Continuous drift correction while both play
+        if (hostIsPlaying && this.isPlaying && hostPosition != null) {
+            const r = this._correctDrift(hostPosition);
+            if (r.action !== 'none') {
+                console.log(`[Jam Guest] drift ${(r.drift * 1000).toFixed(0)}ms -> ${r.action}`);
             }
         }
     }

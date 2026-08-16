@@ -1005,7 +1005,7 @@
 
 <!-- Host-side jam wiring (POC engine). Guests never load this page anymore:
      /jam/<code> serves the mobile PWA in jam-guest mode for every device. -->
-    <script src="/static/js/jam-bridge.js"></script>
+    <script src="{{ url_for('static', filename='js/jam-bridge.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/theme-generator.js') }}?v={{ cache_buster }}"></script>
     <script>
     // Theme initialization for mixer iframe

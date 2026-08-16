@@ -96,9 +96,27 @@
         const origPlay = e.play.bind(e);
         e.play = function(whenDelay, leadIn) {
             const startPos = currentPos();
-            const ret = origPlay(whenDelay, leadIn);
+            const ret = origPlay(whenDelay, leadIn);   // absolute ctx time playback starts
             if (isJamActive()) {
                 const opts = {};
+                // TIME ANCHOR: the exact SERVER-clock instant at which song
+                // position `anchor_pos` is heard here. Guests convert it to
+                // their own clock (jam-client clock sync) and start so the
+                // same sample lands at the same wall-clock instant - instead
+                // of starting "on arrival", which spread devices apart by
+                // their own network delay.
+                try {
+                    const ctxNow = e.ctx ? e.ctx.currentTime : 0;
+                    const startsInSec = (typeof ret === 'number') ? Math.max(0, ret - ctxNow) : 0;
+                    const leadSec = (leadIn && leadIn > 0) ? leadIn / (e.syncRatio || 1) : 0;
+                    // Anchor = when the sample is HEARD, not when it is scheduled:
+                    // add this device's output latency (buffer + OS + Bluetooth).
+                    const outLat = (e.ctx && (e.ctx.outputLatency || e.ctx.baseLatency)) || 0;
+                    opts.anchor_server_time = parentJamClient.serverNow() + startsInSec * 1000 + leadSec * 1000 + outLat * 1000;
+                    opts.anchor_pos = startPos;
+                    opts.rate = e.syncRatio || 1;
+                    opts.out_latency_ms = outLat * 1000;
+                } catch (err) { /* clock not ready: guests fall back to raw position */ }
                 if (leadIn && leadIn > 0) {
                     // Guests run the same POC engine and load the host's baked
                     // count-in plan from the host's cache: send the ARMED beat
@@ -237,11 +255,16 @@
             if (!isJamActive()) { stopSyncHeartbeat(); return; }
             const e = pocEngine();
             if (!e || !e.playing) { stopSyncHeartbeat(); return; }
+            // Heartbeat carries the SAME anchor idea: position + the server
+            // instant it was sampled at, so guests can measure their drift
+            // exactly (drift = theirPos - (anchorPos + elapsedOnServerClock)).
             parentJamClient.socket.emit('jam_sync', {
                 code: parentJamClient.getCode(),
                 position: currentPos(),
                 bpm: currentBpm(),
                 is_playing: true,
+                rate: (pocEngine() && pocEngine().syncRatio) || 1,
+                anchor_server_time: parentJamClient.serverNow() + (((pocEngine() && pocEngine().ctx && (pocEngine().ctx.outputLatency || pocEngine().ctx.baseLatency)) || 0) * 1000),
                 timestamp: Date.now()
             });
         }, 5000);

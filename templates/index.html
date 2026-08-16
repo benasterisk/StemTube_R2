@@ -758,7 +758,7 @@
     </script>
     <!-- Dynamic logging with admin-controlled config - timestamp forces cache refresh -->
     <script src="{{ url_for('static', filename='js/logging-dynamic.js') }}?t=1761906276"></script>
-    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/auth.js') }}?v={{ cache_buster }}"></script>
     <!-- app.js split into modular files -->
     <script src="{{ url_for('static', filename='js/theme-generator.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/spectrum-picker.js') }}?v={{ cache_buster }}"></script>
@@ -767,8 +767,8 @@
     <script src="{{ url_for('static', filename='js/app-utils.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/app-admin.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/app-extensions.js') }}?v={{ cache_buster }}"></script>
-    <script src="{{ url_for('static', filename='js/jam-client.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/jam-tab.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/jam-client.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/jam-tab.js') }}?v={{ cache_buster }}"></script>
 
     <!-- Script for handling mixer iframe loading -->
     <script>

@@ -11,6 +11,12 @@ class JamClient {
         this.participants = [];
         this.rtt = 0;
         this.rttSamples = [];
+        // Clock sync state (see the jam_ping/jam_rtt handlers below)
+        this._lastPing = null;
+        this._offsetSamples = [];
+        this.clockOffset = 0;     // serverNow() - Date.now()
+        this.oneWayDelay = 0;     // ms, best-sample rtt/2
+        this.clockReady = false;
         this.maxRttSamples = 5;
         this.resyncInterval = null;
         this.trackAccepted = false;
@@ -95,8 +101,23 @@ class JamClient {
             if (this._onHostStatus) this._onHostStatus(data);
         });
 
-        // RTT measurement
+        // ── Clock synchronisation (NTP-style, on the existing ping/pong) ──
+        //
+        // Every participant keeps a running estimate of `serverNow() - Date.now()`
+        // (clockOffset) and of the one-way delay. With it, a timestamp stamped by
+        // the server can be converted to LOCAL time on any device, so a play
+        // command is executed at the same instant everywhere instead of "as soon
+        // as it arrives" (which spread devices apart by their own latency).
+        //
+        // Each ping carries the server time T0. We answer immediately and the
+        // server replies with the RTT it measured. Assuming a symmetric path,
+        // the server clock at the moment we received the ping was
+        //   T0 + rtt/2, hence offset = (T0 + rtt/2) - localReceiveTime.
+        // We keep the sample with the SMALLEST rtt in the window (the least
+        // jittered one - standard NTP practice), which is far more stable than
+        // averaging: one slow packet no longer drags the whole estimate.
         this.socket.on('jam_ping', (data) => {
+            this._lastPing = { serverTime: data.server_time, localRecv: Date.now() };
             this.socket.emit('jam_pong', {
                 code: this.jamCode,
                 server_time: data.server_time
@@ -104,13 +125,35 @@ class JamClient {
         });
 
         this.socket.on('jam_rtt', (data) => {
-            this.rttSamples.push(data.rtt);
+            const rtt = data.rtt;
+            this.rttSamples.push(rtt);
             if (this.rttSamples.length > this.maxRttSamples) {
                 this.rttSamples.shift();
             }
             this.rtt = this.rttSamples.reduce((a, b) => a + b, 0) / this.rttSamples.length;
+
+            const p = this._lastPing;
+            if (p && Number.isFinite(rtt) && rtt >= 0) {
+                const offset = (p.serverTime + rtt / 2) - p.localRecv;
+                this._offsetSamples.push({ rtt, offset });
+                if (this._offsetSamples.length > this.maxRttSamples) this._offsetSamples.shift();
+                // best sample = lowest rtt (least queuing/jitter)
+                const best = this._offsetSamples.reduce((a, b) => (b.rtt < a.rtt ? b : a));
+                this.clockOffset = best.offset;
+                this.oneWayDelay = best.rtt / 2;
+                this.clockReady = this._offsetSamples.length >= 2;
+            }
         });
     }
+
+    /** Server clock estimated in the local time base (ms). */
+    serverNow() { return Date.now() + (this.clockOffset || 0); }
+
+    /** Convert a server timestamp (ms) to this device's local clock (ms). */
+    serverToLocal(serverTs) { return serverTs - (this.clockOffset || 0); }
+
+    /** Seconds elapsed since a server-stamped instant, on this device. */
+    elapsedSince(serverTs) { return (this.serverNow() - serverTs) / 1000; }
 
     // --- Host actions ---
 

@@ -133,6 +133,23 @@
             return meta;
         },
 
+        /**
+         * Output latency of this device's audio stack, in seconds: the delay
+         * between "the engine schedules a sample" and "the speaker emits it"
+         * (buffer + OS + Bluetooth). Phones and Bluetooth headsets add tens to
+         * hundreds of ms and it differs per device - which is exactly the
+         * constant offset that remains between two machines once the clocks
+         * and the anchors agree. Web Audio exposes it; fall back to the base
+         * (buffer) latency, then to 0.
+         */
+        outputLatency() {
+            const ctx = engine.ctx;
+            if (!ctx) return 0;
+            const o = (typeof ctx.outputLatency === 'number' && ctx.outputLatency > 0) ? ctx.outputLatency : 0;
+            const b = (typeof ctx.baseLatency === 'number' && ctx.baseLatency > 0) ? ctx.baseLatency : 0;
+            return o || b || 0;
+        },
+
         get stems() { return engine.stems; },
         get duration() { return engine.duration || 0; },
         get playing() { return !!engine.playing; },
