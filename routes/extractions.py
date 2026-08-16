@@ -449,44 +449,87 @@ def delete_extraction(extraction_id):
 @extractions_bp.route('/api/extractions/<extraction_id>/create-zip', methods=['POST'])
 @api_login_required
 def create_zip_for_extraction(extraction_id):
+    """Bundle a completed extraction's stems into a ZIP archive.
+
+    Resolution order matters: the in-memory extractor only knows about jobs
+    run by THIS process since its last restart, so resolving through it alone
+    returned 404 for every song extracted in an earlier session - even though
+    the stems were sitting on disk. The database row is the durable source of
+    truth (and its WHERE user_id=? IS the ownership check), so try it first
+    and keep the in-memory lookup as a fallback for jobs that are still
+    finishing.
+    """
+    import zipfile
+    from core.downloads_db import get_download_by_id, update_stems_zip_path
+
     try:
-        se = user_session_manager.get_stems_extractor()
-        extraction = se.get_extraction_status(extraction_id)
+        stem_paths = {}
+        row_id = None
+        db_row = None
 
-        if not extraction and extraction_id:
-            # Extraction not found in user records - filesystem scanning disabled for security
-            return jsonify({'error': 'Extraction not found in your records', 'success': False}), 404
-
-        if not extraction:
-            return jsonify({'error': 'Extraction not found', 'success': False}), 404
-
-        if extraction.status.value != 'completed':
-            return jsonify({'error': 'Extraction not completed', 'success': False}), 400
-
-        if not extraction.output_paths:
-            return jsonify({'error': 'No stem files found', 'success': False}), 404
-
-        # Create ZIP file
+        # 1) Durable path: the caller's own library row.
         try:
-            import zipfile
+            row_id = int(extraction_id)
+        except (TypeError, ValueError):
+            row_id = None
 
-            # Create ZIP file path
-            base_name = os.path.splitext(os.path.basename(extraction.audio_path))[0]
-            zip_path = os.path.join(extraction.output_dir, f"{base_name}_stems.zip")
+        if row_id is not None:
+            db_row = get_download_by_id(current_user.id, row_id)
+            if db_row and db_row.get('extracted') and db_row.get('stems_paths'):
+                try:
+                    stem_paths = json.loads(db_row['stems_paths']) or {}
+                except (ValueError, TypeError):
+                    stem_paths = {}
 
-            # Create ZIP file
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for stem_name, file_path in extraction.output_paths.items():
-                    if os.path.exists(file_path):
-                        zipf.write(file_path, os.path.basename(file_path))
+        # 2) Fallback: an extraction still tracked in this process.
+        if not stem_paths:
+            se = user_session_manager.get_stems_extractor()
+            extraction = se.get_extraction_status(extraction_id)
+            if not extraction:
+                return jsonify({'error': 'Extraction not found in your records',
+                                'success': False}), 404
+            if extraction.status.value != 'completed':
+                return jsonify({'error': 'Extraction not completed', 'success': False}), 400
+            stem_paths = extraction.output_paths or {}
 
-            # Update extraction with zip path
-            extraction.zip_path = zip_path
+        # Only bundle files that are actually there: a row can outlive its
+        # audio (manual cleanup, moved downloads dir).
+        present = {name: p for name, p in stem_paths.items() if p and os.path.exists(p)}
+        if not present:
+            return jsonify({'error': 'No stem files found on disk', 'success': False}), 404
 
-            return jsonify({'success': True, 'zip_path': zip_path})
+        first = next(iter(present.values()))
+        output_dir = os.path.dirname(first)
+        # Name the archive after the song, not after the containing folder
+        # (which is literally "stems" and yielded "stems_stems.zip").
+        base_name = 'stems'
+        title = (db_row or {}).get('title') or ''
+        safe = ''.join(ch for ch in title if ch.isalnum() or ch in ' ._-').strip()
+        if safe:
+            base_name = safe[:80]
+        zip_path = os.path.join(output_dir, f"{base_name}_stems.zip")
 
-        except Exception as zip_error:
-            return jsonify({'error': f'Error creating ZIP: {str(zip_error)}', 'success': False}), 500
+        # Write to a temp name then replace, so a concurrent download never
+        # sees a half-written archive.
+        tmp_path = zip_path + '.tmp'
+        with zipfile.ZipFile(tmp_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for _stem_name, file_path in present.items():
+                zipf.write(file_path, os.path.basename(file_path))
+        os.replace(tmp_path, zip_path)
+
+        # Persist it: stems_zip_path was previously only ever set in memory,
+        # so the archive was re-zipped on every request and lost on restart.
+        if row_id is not None:
+            try:
+                update_stems_zip_path(current_user.id, row_id, zip_path)
+            except Exception as db_error:
+                logger.warning(f"Could not persist zip path for row {row_id}: {db_error}")
+
+        logger.info(f"Created stems ZIP for extraction {extraction_id}: "
+                    f"{len(present)} stem(s)")
+        return jsonify({'success': True, 'zip_path': zip_path,
+                        'stem_count': len(present)})
 
     except Exception as e:
+        logger.error(f"Error creating ZIP for {extraction_id}: {e}", exc_info=True)
         return jsonify({'error': str(e), 'success': False}), 500

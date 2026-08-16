@@ -150,6 +150,21 @@ def update_beat_grid(video_id, beat_times, beat_positions):
               f"({cur.rowcount} global row(s))")
 
 
+def update_stems_zip_path(user_id, download_id, zip_path):
+    """Persist the path of the stems ZIP archive for one user's row.
+
+    Per-user on purpose: the archive lives under the extraction output dir
+    that the user's row points at, and users may hold different rows for the
+    same song. Touches nothing else (same targeted-write rationale as
+    update_beat_grid).
+    """
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE user_downloads SET stems_zip_path=? WHERE id=? AND user_id=?",
+            (zip_path, download_id, user_id))
+        conn.commit()
+
+
 def update_download_lyrics(video_id, lyrics_data):
     """Update lyrics data for a download."""
     with _conn() as conn:
