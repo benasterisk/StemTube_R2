@@ -467,9 +467,16 @@ def create_zip_for_extraction(extraction_id):
         row_id = None
         db_row = None
 
-        # 1) Durable path: the caller's own library row.
+        # 1) Durable path: the caller's own library row. The front sends the
+        #    extraction_id as "download_<id>" (see get_extractions), so strip
+        #    that prefix before int() — a bare int() on "download_16" raised
+        #    ValueError, fell through to the in-memory fallback, and 404'd every
+        #    song not extracted in the current process.
         try:
-            row_id = int(extraction_id)
+            _eid = extraction_id
+            if isinstance(_eid, str) and _eid.startswith("download_"):
+                _eid = _eid.replace("download_", "")
+            row_id = int(_eid)
         except (TypeError, ValueError):
             row_id = None
 
