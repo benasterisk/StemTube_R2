@@ -7774,8 +7774,9 @@ class MobileApp {
                 }, 500);
             }
         } catch (error) {
-            console.error('[Jam Guest] Failed to load stems:', error);
-            this.showToast('Failed to load stems', 'error');
+            console.error('[Jam Guest] Failed to load stems:', error && error.stack || error);
+            // Surface the REAL cause on the device: a phone has no console.
+            this.showToast('Load failed: ' + ((error && error.message) || error), 'error', 8000);
         }
 
         this.hideLoading();

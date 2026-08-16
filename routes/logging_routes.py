@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from flask import Blueprint, request, jsonify, send_from_directory
+from flask import Blueprint, request, jsonify, send_from_directory, session
 from flask_login import current_user
 
 from extensions import api_login_required
@@ -16,9 +16,20 @@ logging_bp = Blueprint('logging_routes', __name__)
 
 
 @logging_bp.route('/api/logs/browser', methods=['POST'])
-@api_login_required
 def collect_browser_logs():
-    """Collect browser console logs sent from frontend."""
+    """Collect browser console logs sent from frontend.
+
+    Jam GUESTS are not authenticated (they join with a session code), so
+    requiring a login here silently dropped every log line coming from a
+    phone in a jam - exactly the device hardest to debug. Accept anonymous
+    posts when the caller is a guest of an ACTIVE session; everyone else
+    still needs a login.
+    """
+    if not current_user.is_authenticated:
+        from extensions import active_jam_sessions
+        code = session.get('jam_code')
+        if not (session.get('jam_guest') and code and code in active_jam_sessions):
+            return jsonify({'error': 'Unauthorized'}), 401
     try:
         data = request.json or {}
         logs = data.get('logs', [])

@@ -88,11 +88,36 @@ class AudioEngine {
   async setStems(job, names, metroResolutions){
     this.unload();
     this.ensureCtx();
-    await Promise.all(names.map(async name=>{
-      const buf = await API.audioBuffer(job, name);
-      const audio = await this.ctx.decodeAudioData(buf);
-      this.stems[name] = { name, buffer:audio, source:null, soundTouch:null, gain:null, panNode:null, muted:false, solo:false, vol:1, pan:0 };
-    }));
+    // Fetch in parallel (network is the slow part) but DECODE with a small
+    // concurrency limit: decodeAudioData on N multi-minute stems at once is
+    // fine on desktop and a memory/OOM hazard on phones - iOS Safari in
+    // particular aborts the whole batch ("Failed to load stems"), which is why
+    // the same session worked on Android and not on an iPhone.
+    const CONCURRENCY = this._decodeConcurrency || 2;
+    const fetches = names.map(name => ({ name, p: API.audioBuffer(job, name) }));
+    for (let i = 0; i < fetches.length; i += CONCURRENCY) {
+      const slice = fetches.slice(i, i + CONCURRENCY);
+      await Promise.all(slice.map(async ({ name, p }) => {
+        try {
+          const buf = await p;
+          // Safari wants the callback form for some MP3s and rejects the
+          // promise form; try promise first, fall back to callbacks.
+          const audio = await new Promise((res, rej) => {
+            let settled = false;
+            try {
+              const maybe = this.ctx.decodeAudioData(buf, (b) => { settled = true; res(b); }, (e) => { settled = true; rej(e || new Error('decode failed')); });
+              if (maybe && typeof maybe.then === 'function') maybe.then((b) => { if (!settled) res(b); }, (e) => { if (!settled) rej(e); });
+            } catch (e) { rej(e); }
+          });
+          this.stems[name] = { name, buffer:audio, source:null, soundTouch:null, gain:null, panNode:null, muted:false, solo:false, vol:1, pan:0 };
+        } catch (e) {
+          // One unreadable stem must not sink the whole song: log and carry on
+          // (the mixer simply shows one track less).
+          console.warn('[audio] stem failed to load:', name, e && e.message || e);
+        }
+      }));
+    }
+    if (!Object.keys(this.stems).length) throw new Error('no stem could be decoded on this device');
     // Load the metronome's other resolution buffers (0.5 / 2); "1" == metronome.wav already loaded.
     if(metroResolutions && this.stems["metronome"]){
       const m=this.stems["metronome"]; m.buffers={ "1": m.buffer };
