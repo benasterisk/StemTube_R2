@@ -493,6 +493,11 @@ def register_jam_socketio_events(sio):
         # user opening a guest link would otherwise reclaim their own session
         # from the guest page and mute the real host).
         for _c, _j in active_jam_sessions.items():
+            # ...unless this user OWNS that session: a host whose socket
+            # reconnected must be able to reclaim it (otherwise the session
+            # dies 30 s later while the host is still playing).
+            if _j.get('host_user_id') == current_user.id:
+                continue
             if request.sid in _j.get('participants', {}):
                 logger.warning(f"[Jam] jam_create ignored: sid {request.sid} is a guest of {_c}")
                 emit('jam_create_error', {'error': 'This page is a guest of a jam session'})

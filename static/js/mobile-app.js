@@ -7993,6 +7993,9 @@ class MobileApp {
      * play(whenDelay) - a sample-accurate scheduled start, not a "start now".
      */
     _startAtAnchor(data) {
+        // A fresh start re-bases everything: drop the learned clock trim.
+        if (MobilePOC.engine.setRateTrim) MobilePOC.engine.setRateTrim(1);
+        this._trim = 1; this._trimBias = 1; this._lastDrift = null; this._lastDriftAt = null;
         const jc = this.jamClient;
         const anchorTs = data.anchor_server_time;
         const anchorPos = (typeof data.anchor_pos === 'number') ? data.anchor_pos : (data.position || 0);
@@ -8037,22 +8040,51 @@ class MobileApp {
         // hostPos is what the host HEARS now; e.pos() is what we SCHEDULE now.
         // Compare like with like: add our own output latency to our reading,
         // otherwise every device sits its own latency behind the host.
-        const heardHere = e.pos() + (MobilePOC.outputLatency ? MobilePOC.outputLatency() : 0);
+        const outLat = MobilePOC.outputLatency ? MobilePOC.outputLatency() : 0;
+        const heardHere = e.pos() + outLat;
         const drift = heardHere - hostPos;            // >0 = we are ahead
         const abs = Math.abs(drift);
-        if (abs < 0.012) return { drift, action: 'none' };        // ~1 audio buffer: ignore
-        if (abs < 0.25) {
-            // Silent re-anchor: shift our clock reference by the error so the
-            // reported position matches the host without touching the audio
-            // graph. Playback keeps running; the tiny offset is inaudible.
-            if (typeof e._reanchor === 'function' && e.playing) {
-                e._reanchor(e.pos() - drift);   // shift our clock by the error
-                return { drift, action: 'reanchor' };
-            }
+
+        // Gross desync (a real glitch, a suspend, a seek we missed): snap.
+        if (abs >= 0.35) {
+            MobilePOC.seek(Math.max(0, hostPos - outLat));
+            if (e.setRateTrim) e.setRateTrim(1);
+            this._trim = 1;
+            return { drift, action: 'seek' };
         }
-        const outLat = MobilePOC.outputLatency ? MobilePOC.outputLatency() : 0;
-        MobilePOC.seek(Math.max(0, hostPos - outLat));   // audible but necessary
-        return { drift, action: 'seek' };
+
+        // CLOCK SLAVING. Two sound cards never run at exactly the same speed
+        // (tens of ppm apart), so a guest that starts aligned still slides by
+        // tens of ms per minute - "in sync until the bridge". Nudging the
+        // reported position hides the error without fixing the audio; a seek
+        // is audible. Instead run imperceptibly faster/slower until the error
+        // is absorbed, and keep the residual speed correction afterwards.
+        //
+        // Proportional term brings the current error to zero over ~8 s;
+        // integral term learns the device's constant clock offset so the
+        // correction survives between heartbeats.
+        const CORRECTION_WINDOW = 8;                  // seconds to absorb the error
+        this._trimBias = this._trimBias || 1;         // learned clock ratio
+        if (abs > 0.02) {
+            // measured slope since the last correction = our clock error
+            const now = performance.now() / 1000;
+            if (this._lastDriftAt && this._lastDrift != null) {
+                const dt = now - this._lastDriftAt;
+                if (dt > 0.5 && dt < 30) {
+                    const slope = (drift - this._lastDrift) / dt;       // s per s
+                    this._trimBias = Math.max(0.99, Math.min(1.01, this._trimBias - slope));
+                }
+            }
+            this._lastDrift = drift; this._lastDriftAt = now;
+        } else {
+            this._lastDrift = drift; this._lastDriftAt = performance.now() / 1000;
+        }
+        const proportional = -drift / CORRECTION_WINDOW;                // catch up the offset
+        const trim = Math.max(0.985, Math.min(1.015, this._trimBias + proportional));
+        this._trim = trim;
+        if (e.setRateTrim) e.setRateTrim(trim);
+        if (abs < 0.012) return { drift, action: 'none' };
+        return { drift, action: 'trim ' + ((trim - 1) * 100).toFixed(3) + '%' };
     }
 
     _handleJamSync(data) {

@@ -100,6 +100,19 @@ function initializeSocketIO() {
         // Reload downloads and extractions on reconnection
         loadDownloads();
         loadExtractions();
+
+        // A socket reconnect gives us a NEW sid; the server still holds the
+        // jam session under the OLD host_sid, drops every command we send and
+        // ends the session 30 s later ("Host disconnected") even though the
+        // host never left. Reclaim it right away - jam_create is idempotent
+        // for the owner and simply refreshes host_sid.
+        try {
+            if (window.jamState && window.jamState.active && window.jamClient &&
+                !window.JAM_GUEST_MODE) {
+                console.log('[Jam] Socket reconnected - reclaiming host session');
+                window.jamClient.createSession();
+            }
+        } catch (e) { /* jam not in use */ }
     });
     
     socket.on('connect_error', (error) => {

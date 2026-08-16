@@ -14,6 +14,7 @@
 // at any tempo. See _stPitchFor().
 class AudioEngine {
   constructor(){
+    this.rateTrim = 1;            // fine clock-slaving multiplier (jam guests)
     this.ctx = null;
     this.stems = {};        // name -> { buffer, source, soundTouch, gain, muted, solo, vol }
     this.playing = false;
@@ -310,17 +311,52 @@ class AudioEngine {
     this.soundTouchPitch = p.soundTouchPitch;
     this.syncRatio       = p.syncRatio;
 
-    // Adopt the new ratio for subsequent position reads.
-    if(this.playing) this._anchorRatio = this.syncRatio;
+    // Adopt the new ratio for subsequent position reads (trim included).
+    if(this.playing) this._anchorRatio = this.syncRatio * (this.rateTrim || 1);
 
     // Update any live nodes immediately.
     Object.values(this.stems).forEach(s=>{
-      if(s.source){ try{ s.source.playbackRate.setValueAtTime(this.playbackRate, this.ctx.currentTime); }catch(e){} }
+      if(s.source){ try{ s.source.playbackRate.setValueAtTime(this.playbackRate * (this.rateTrim || 1), this.ctx.currentTime); }catch(e){} }
       if(s.soundTouch){
         try{
-          s.soundTouch.parameters.get("tempo").value = this.soundTouchTempo;
+          s.soundTouch.parameters.get("tempo").value = this.soundTouchTempo * (this.rateTrim || 1);
           s.soundTouch.parameters.get("pitch").value = this._stPitchFor(s.name);
           s.soundTouch.parameters.get("rate").value  = 1.0;
+        }catch(e){}
+      }
+    });
+  }
+
+  /**
+   * Fine playback-rate trim for clock slaving (jam guests).
+   *
+   * Two devices never render audio at exactly the same speed: their sound
+   * cards' sample clocks differ by tens of ppm, so a guest that starts
+   * perfectly aligned still slides by tens of milliseconds per minute -
+   * audible a few minutes in (the classic "in sync until the bridge").
+   * Re-seeking is audible; nudging the reported position is a lie (the
+   * speakers keep drifting). The fix is to run slightly faster/slower until
+   * the error is absorbed, like any clock-slaving loop.
+   *
+   * `trim` is a multiplier around 1 (clamped to +/-2%, inaudible: 2% is a
+   * third of a semitone and we typically use 0.05%). It multiplies the
+   * playback rate on top of the musical tempo, and the position clock uses
+   * the same effective ratio so reads stay honest.
+   */
+  setRateTrim(trim){
+    const t = Math.max(0.98, Math.min(1.02, Number(trim) || 1));
+    if(Math.abs(t - (this.rateTrim || 1)) < 1e-6) return;
+    if(this.playing) this._reanchor();       // close the books at the old rate
+    this.rateTrim = t;
+    if(this.playing) this._anchorRatio = this.syncRatio * t;
+    const rate = this.playbackRate * t;
+    Object.values(this.stems).forEach(s=>{
+      if(s.source){ try{ s.source.playbackRate.setValueAtTime(rate, this.ctx.currentTime); }catch(e){} }
+      if(s.soundTouch){
+        try{
+          // When SoundTouch handles the tempo (slow-down path) the trim goes
+          // into its tempo parameter instead, so pitch stays put.
+          s.soundTouch.parameters.get("tempo").value = this.soundTouchTempo * t;
         }catch(e){}
       }
     });
@@ -375,7 +411,7 @@ class AudioEngine {
     const now = this.ctx ? this.ctx.currentTime : 0;
     this._anchorPos  = (position !== null) ? position : this.pos();
     this._anchorTime = now;
-    this._anchorRatio = this.syncRatio;
+    this._anchorRatio = this.syncRatio * (this.rateTrim || 1);
   }
 
   // ── Transport ─────────────────────────────────────────────────────────────
@@ -394,7 +430,7 @@ class AudioEngine {
   //     makes the count-in begin immediately at `when`.
   _startOneSource(s, when, offset){
     const src=this.ctx.createBufferSource(); src.buffer=s.buffer;
-    src.playbackRate.value = this.playbackRate;
+    src.playbackRate.value = this.playbackRate * (this.rateTrim || 1);   // clock-slaving trim
     const g=this.ctx.createGain(); g.gain.value=this.gainFor(s);
     const pan=this.ctx.createStereoPanner(); pan.pan.value = s.pan||0;
     pan.connect(this._out());
@@ -402,7 +438,7 @@ class AudioEngine {
     if(this.workletLoaded){
       try{
         const st=new AudioWorkletNode(this.ctx, "soundtouch-processor");
-        st.parameters.get("tempo").value = this.soundTouchTempo;
+        st.parameters.get("tempo").value = this.soundTouchTempo * (this.rateTrim || 1);
         st.parameters.get("pitch").value = this._stPitchFor(s.name);
         st.parameters.get("rate").value  = 1.0;
         src.connect(st); st.connect(g); g.connect(pan);
