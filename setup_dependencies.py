@@ -313,7 +313,12 @@ def install_requirements(venv_python):
         # release that works with the numpy 1.26.4 pinned above.
         "librosa==0.11.0",      # Audio analysis
         "soundfile",            # Audio I/O
-        "scipy",                # Scientific computing
+        # PINNED: scipy 1.18+ ships scipy/sparse/_sputils.py referencing the
+        # removed np.long, which explodes ("module 'numpy' has no attribute
+        # 'long'") the first time madmom loads a wav (madmom -> scipy.io ->
+        # scipy.sparse) during beat/chord detection. 1.17.1 is the last release
+        # compatible with the numpy 1.26.4 pinned above.
+        "scipy==1.17.1",        # Scientific computing
         "scikit-learn",         # Machine learning
         "yt-dlp",               # YouTube downloader
         "yt-dlp-ejs",           # YouTube JS challenge solver (required since late 2025)
