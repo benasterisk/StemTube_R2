@@ -32,28 +32,47 @@
 # 1. Install system dependencies (Ubuntu/Debian)
 sudo apt-get update && sudo apt-get install -y \
   python3.12 python3.12-venv python3-dev build-essential \
-  ffmpeg libsndfile1 libatlas-base-dev liblapack-dev nodejs
+  ffmpeg libsndfile1 libatlas-base-dev liblapack-dev git
 
-# 2. Clone & setup
+# 2. Install a JavaScript runtime — required for YouTube downloads
+#    (YouTube ships a JS challenge that yt-dlp must solve).
+#    Deno is the simplest: one binary, no system packages.
+curl -fsSL https://deno.land/install.sh | sh
+#    Alternative: Node.js 22 or newer. The "nodejs" package shipped by most
+#    distros is 18/20 and is TOO OLD for the solver.
+
+# 3. Clone & setup
 git clone https://github.com/Benasterisk/StemTube_R2.git
 cd StemTube_R2
-python3.12 setup_dependencies.py  # Automatic: venv, PyTorch, dependencies, models
+python3.12 setup_dependencies.py  # venv, PyTorch, dependencies, models, .env
 
-# 3. Configure security (MANDATORY)
-cp .env.example .env
-python3 -c "import secrets; print('FLASK_SECRET_KEY=' + secrets.token_hex(32))" >> .env
-chmod 600 .env
-
-# 4. Start with HTTPS (ngrok)
-./start_service.sh
-
-# Access:
-# Local: http://localhost:5011
-# Remote: https://your-subdomain.ngrok-free.app
-# Mobile: https://your-subdomain.ngrok-free.app/mobile
+# 4. Start it
+./start_service.sh          # with HTTPS via ngrok
+# ...or, for a quick local run:
+python app.py               # http://localhost:5011
 ```
 
-**That's it!** 🎉 See [Installation Guide](docs/user-guides/01-INSTALLATION.md) for detailed setup.
+The setup script creates `.env` with a random `FLASK_SECRET_KEY` for you, and
+ends with a summary telling you what works and what does not:
+
+```
+SETUP SUMMARY
+  [OK]   Beat & chord analysis (madmom)
+  [OK]   YouTube downloads (JS runtime)
+  [OK]   Stem extraction, mixer, lyrics
+```
+
+If a line reports `[FAIL]` or `[WARN]`, fix it before extracting anything —
+the app still starts, but the affected feature silently produces nothing.
+
+**First login:** an `administrator` account is created on first boot and its
+password is printed in the server log. Change it right away.
+
+> **Note on pitch/tempo:** these need a *secure context*. `http://localhost`
+> qualifies, a plain `http://<lan-ip>` does not — use HTTPS to reach the app
+> from a phone (see [HTTPS Setup](docs/admin-guides/HTTPS-SETUP.md)).
+
+See [Installation Guide](docs/user-guides/01-INSTALLATION.md) for detailed setup.
 
 ---
 
@@ -94,10 +113,10 @@ chmod 600 .env
 
 **Minimum:**
 - Python 3.12+
-- Node.js 20+
+- Deno, *or* Node.js 22+ — only for YouTube downloads (everything else works without it)
 - 4 GB RAM
 - 2 GB disk space
-- FFmpeg (auto-installed)
+- FFmpeg (system package — install it before running the setup)
 - **HTTPS or localhost** (required for pitch/tempo features)
 
 **Recommended:**
@@ -209,6 +228,27 @@ Real-time collaborative playback — multiple musicians can listen and play alon
 - Multi-platform testing (iOS Safari, Windows, macOS) still needed
 - Large group sessions (3+ participants) not yet validated
 - Network conditions with high latency/jitter may affect sync quality
+
+---
+
+## 🛠️ Troubleshooting the install
+
+These three failures are **silent**: the app starts and looks healthy while one
+feature quietly produces nothing. Re-running `setup_dependencies.py` is safe and
+reports each of them.
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Chords/beats empty on every song; Chords tab blank | madmom is broken — it sits on a pinned stack (numpy 1.26.4, scipy 1.17.1, librosa 0.11.0) and any upgrade kills it | `python patch_madmom.py`, then re-run `setup_dependencies.py` and check the summary says `[OK] Beat & chord analysis` |
+| YouTube: "Requested format is not available" | No JS runtime, or Node older than 22 — yt-dlp cannot solve YouTube's challenge | Install Deno: `curl -fsSL https://deno.land/install.sh \| sh` |
+| Extraction fails immediately | FFmpeg missing (it is **not** installed by the setup script) | `sudo apt-get install -y ffmpeg` |
+| Pitch/tempo controls do nothing on a phone | The page is served over plain `http://<lan-ip>`, which is not a secure context | Use HTTPS — see [HTTPS Setup](docs/admin-guides/HTTPS-SETUP.md) |
+
+⚠️ **Do not upgrade numpy, scipy or librosa** past the pinned versions. madmom
+0.16.1 ships a wheel built against numpy 1.x; newer releases break beat and
+chord detection without any error at runtime.
+
+More: [Troubleshooting Guide](docs/user-guides/05-TROUBLESHOOTING.md)
 
 ---
 

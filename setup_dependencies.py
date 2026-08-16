@@ -6,6 +6,7 @@ Handles Windows, Linux, and macOS with CPU-only or GPU-accelerated PyTorch.
 """
 
 import os
+import re
 import sys
 import platform
 import subprocess
@@ -19,6 +20,10 @@ venv_dir_name = "venv"
 
 CHORD_LIBRARY_REPO = "https://github.com/szaza/guitar-chords-db-json.git"
 CHORD_LIBRARY_PATH = os.path.join("static", "js", "datas", "guitar-chords-db-json")
+
+# Minimum Node.js major version accepted by the yt-dlp-ejs YouTube challenge
+# solver. Deno is preferred (see check_js_runtime) and has no such floor.
+NODE_MIN_MAJOR = 22
 
 # Mapping for supported CUDA versions → PyTorch wheels + cuDNN packages
 CUDA_COMPATIBILITY_MATRIX = [
@@ -455,8 +460,12 @@ def apply_madmom_patch(venv_python):
     """Apply numpy compatibility patch for madmom library."""
     logger.info("\n[PATCHING] Applying madmom numpy compatibility patch...")
     try:
-        # Call patch_madmom.py using venv python
-        result = subprocess.run([venv_python, "patch_madmom.py"],
+        # Resolve patch_madmom.py next to THIS script: running the setup from
+        # another working directory would otherwise skip the patch silently
+        # and leave chord detection broken.
+        patch_script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                    "patch_madmom.py")
+        result = subprocess.run([venv_python, patch_script],
                               capture_output=True, text=True, timeout=120)
         if result.returncode == 0:
             logger.info("[SUCCESS] Madmom compatibility patch applied successfully")
@@ -628,37 +637,121 @@ def ensure_chord_library():
         return False
 
 
-def check_nodejs_runtime():
-    """
-    Check that Node.js is installed (required by yt-dlp for JavaScript challenge solving).
-    Node.js 20+ is needed. On Linux/macOS it is expected to be installed via system package manager.
-    """
-    logger.info("\n[CHECKING] Node.js runtime...")
-
+def _probe_runtime(executable):
+    """Return the version string of a JS runtime, or None if unusable."""
     try:
-        result = subprocess.run(
-            ["node", "--version"],
-            capture_output=True, text=True, timeout=10
-        )
+        result = subprocess.run([executable, "--version"],
+                                capture_output=True, text=True, timeout=10)
         if result.returncode == 0:
-            version = result.stdout.strip()
-            logger.info(f"[SUCCESS] Node.js found: {version}")
-            return True
-    except FileNotFoundError:
-        pass
+            return (result.stdout or "").strip().splitlines()[0].strip()
     except Exception:
         pass
+    return None
 
-    logger.info("[WARNING] Node.js is not installed.")
+
+def check_js_runtime():
+    """
+    Check the JavaScript runtime YouTube downloads depend on.
+
+    Since late 2025 YouTube requires solving a JS challenge (nsig/signature).
+    core/download_manager.py asks yt-dlp for {'deno': {}, 'node': {}}, i.e.
+    Deno first and Node as the fallback - and the yt-dlp-ejs solver needs
+    Node 22+. A distro's default "nodejs" package is usually 18 or 20, which
+    looks installed but cannot solve the challenge: downloads then fail with
+    "Requested format is not available". So check the VERSION, not just
+    the presence, and report the exact gap.
+
+    Returns True when at least one usable runtime is available.
+    """
+    logger.info("\n[CHECKING] JavaScript runtime for YouTube (yt-dlp)...")
     platform_name = get_platform()
-    if platform_name == "linux":
-        logger.info("[INFO] Install it with: sudo apt-get install -y nodejs")
-    elif platform_name == "macos":
-        logger.info("[INFO] Install it with: brew install node")
-    elif platform_name == "windows":
-        logger.info("[INFO] Install it from: https://nodejs.org/")
-    logger.info("[INFO] Node.js 20+ is required for full functionality.")
+
+    deno_version = _probe_runtime("deno")
+    if deno_version:
+        logger.info(f"[SUCCESS] Deno found: {deno_version} (preferred runtime)")
+        return True
+
+    node_version = _probe_runtime("node")
+    if node_version:
+        major = 0
+        m = re.match(r"v?(\d+)", node_version)
+        if m:
+            major = int(m.group(1))
+        if major >= NODE_MIN_MAJOR:
+            logger.info(f"[SUCCESS] Node.js found: {node_version}")
+            return True
+        logger.info(f"[WARNING] Node.js {node_version} is too old for the yt-dlp JS solver "
+                    f"(needs {NODE_MIN_MAJOR}+).")
+    else:
+        logger.info("[WARNING] No JavaScript runtime found (neither Deno nor Node.js).")
+
+    logger.info("[IMPACT] YouTube downloads will fail with "
+                "\"Requested format is not available\" until this is fixed.")
+    logger.info("[INFO] Deno is the simplest fix (single binary, no system packages):")
+    if platform_name == "windows":
+        logger.info("[INFO]   irm https://deno.land/install.ps1 | iex")
+        logger.info("[INFO]   ...or install Node 22+ from https://nodejs.org/")
+    else:
+        logger.info("[INFO]   curl -fsSL https://deno.land/install.sh | sh")
+        logger.info(f"[INFO]   ...or install Node {NODE_MIN_MAJOR}+ "
+                    "(https://github.com/nodesource/distributions)")
+    logger.info("[INFO] Everything else (stems, chords, mixer) works without it - "
+                "only YouTube downloading is affected.")
     return False
+
+
+def verify_audio_analysis(venv_python):
+    """
+    Prove the beat/chord pipeline actually RUNS - not merely that packages
+    are installed.
+
+    madmom 0.16.1 sits on a fragile stack (numpy 1.x wheel, patched sources,
+    scipy, Cython) and every incompatibility so far has failed SILENTLY: the
+    app starts, extraction works, and only the chords/beats come out empty -
+    discovered days later. This check imports madmom, decodes a real wav and
+    builds the downbeat processor, so a broken install is reported here
+    instead of in production.
+    """
+    logger.info("\n[VERIFICATION] Checking beat/chord analysis (madmom)...")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    sample = os.path.join(script_dir, "core", "poc", "samples", "click.wav")
+    test_code = (
+        "import sys\n"
+        "sys.path.insert(0, r'%s')\n"
+        "import core.numpy_compat  # restores np.int/np.float for madmom\n"
+        "import numpy, scipy, madmom\n"
+        "print('numpy ' + numpy.__version__ + ' | scipy ' + scipy.__version__)\n"
+        "sig = madmom.audio.signal.Signal(r'%s')\n"
+        "print('decoded wav: ' + str(sig.shape))\n"
+        "from madmom.features.downbeats import DBNDownBeatTrackingProcessor\n"
+        "DBNDownBeatTrackingProcessor(beats_per_bar=[3, 4], fps=100)\n"
+        "print('OK')\n"
+    ) % (script_dir, sample)
+
+    if not os.path.exists(sample):
+        logger.info("[WARNING] Sample wav missing - skipping the analysis check.")
+        return False
+
+    try:
+        result = subprocess.run([venv_python, "-c", test_code],
+                                capture_output=True, text=True, timeout=180)
+        if result.returncode == 0 and "OK" in result.stdout:
+            logger.info("[SUCCESS] Beat/chord analysis is working:")
+            for line in result.stdout.strip().splitlines():
+                if line != "OK":
+                    logger.info(f"   {line}")
+            return True
+
+        detail = (result.stderr or result.stdout or "").strip().splitlines()
+        logger.info("[ERROR] Beat/chord analysis is BROKEN - chords and beats "
+                    "would come out empty for every song.")
+        for line in detail[-4:]:
+            logger.info(f"   {line}")
+        logger.info("[INFO] Try: python patch_madmom.py, then re-run this script.")
+        return False
+    except Exception as e:
+        logger.info(f"[WARNING] Could not verify the analysis pipeline: {e}")
+        return False
 
 
 def preload_whisper_large(venv_python, use_gpu):
@@ -824,15 +917,15 @@ def main():
     # Apply madmom numpy compatibility patch (required for chord detection)
     apply_madmom_patch(venv_python)
 
-    # Check Node.js runtime (required for yt-dlp JS challenge solving)
-    check_nodejs_runtime()
+    # Check the JS runtime (Deno/Node) required for yt-dlp challenge solving
+    js_runtime_ok = check_js_runtime()
 
     # Ensure mobile chord diagrams + lyrics workflow assets are ready
     if not ensure_chord_library():
         logger.info("[WARNING] Mobile chord diagrams will be missing unless the library is cloned manually.")
     preload_whisper_large(venv_python, install_gpu_pytorch)
 
-    logger.info("\n[SUCCESS] Setup complete!")
+    logger.info("\n[DONE] Dependencies installed - verifying that they actually work...")
     logger.info("\n" + "="*60)
     logger.info("NEXT STEPS:")
     logger.info("="*60)
@@ -847,7 +940,6 @@ def main():
     logger.info("="*60)
     logger.info("\n✅ All dependencies have been installed.")
     logger.info("✅ PyTorch, cuDNN, and faster-whisper are configured for your system.")
-    logger.info("✅ Node.js runtime checked for JS challenge support.")
     if install_gpu_pytorch:
         logger.info("✅ GPU acceleration is AUTOMATIC (sitecustomize.py configured).")
         logger.info("   → No wrapper scripts needed!")
@@ -880,6 +972,10 @@ def main():
             logger.info(f"[OK] numpy {installed_numpy}")
     except Exception as e:
         logger.info(f"[WARNING] Could not verify the numpy pin: {e}")
+
+    # Run the analysis check AFTER the numpy guard above: if numpy had to be
+    # restored, madmom must be re-validated against the repaired stack.
+    analysis_ok = verify_audio_analysis(venv_python)
 
     # Final verification
     logger.info("\n[VERIFICATION] Checking installation...")
@@ -938,6 +1034,29 @@ except Exception as e:
 
     # Create .env file with FLASK_SECRET_KEY if it doesn't exist
     setup_env_file()
+
+    # ------------------------------------------------------------------
+    # Final verdict. Say plainly what works and what does not: a setup that
+    # prints "complete" while chord detection is dead is how empty chords
+    # reached production unnoticed.
+    # ------------------------------------------------------------------
+    logger.info("\n" + "=" * 60)
+    logger.info("SETUP SUMMARY")
+    logger.info("=" * 60)
+    logger.info(f"  {'[OK]  ' if analysis_ok else '[FAIL]'} Beat & chord analysis (madmom)")
+    logger.info(f"  {'[OK]  ' if js_runtime_ok else '[WARN]'} YouTube downloads (JS runtime)")
+    logger.info("  [OK]   Stem extraction, mixer, lyrics")
+
+    if analysis_ok and js_runtime_ok:
+        logger.info("\n[SUCCESS] Setup complete - everything is working.")
+    elif analysis_ok:
+        logger.info("\n[PARTIAL] Setup complete, but YouTube downloading is unavailable.")
+        logger.info("          Install Deno (see above) to enable it. File upload works meanwhile.")
+    else:
+        logger.info("\n[PARTIAL] Setup finished with a BROKEN analysis pipeline.")
+        logger.info("          Chords and beats would be empty for every song.")
+        logger.info("          Fix that before extracting anything (see the error above).")
+    logger.info("=" * 60)
 
     return True
 
