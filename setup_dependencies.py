@@ -199,7 +199,15 @@ def check_existing_pytorch():
         return {'installed': False}
 
 def is_package_installed(venv_python, package_name, version=None):
-    """Check if a package is already installed in the venv."""
+    """Check if a package is already installed in the venv.
+
+    Accepts a plain name ("librosa") or a pinned spec ("librosa==0.11.0"):
+    `pip show` only understands the name, so the pin is split off and the
+    version becomes the equality check - otherwise a pinned package would
+    look missing on every run and be reinstalled each time.
+    """
+    if version is None and "==" in package_name:
+        package_name, version = package_name.split("==", 1)
     try:
         cmd = [venv_python, "-m", "pip", "show", package_name]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
@@ -299,7 +307,11 @@ def install_requirements(venv_python):
         "requests",             # HTTP library
         "python-dotenv",        # Environment variables
         "Pillow",               # Image processing
-        "librosa",              # Audio analysis
+        # PINNED: librosa 1.0 requires numpy>=2, which breaks the madmom 0.16.1
+        # wheel compiled against numpy 1.x (the whole beat/chord pipeline dies
+        # with "numpy.core.multiarray failed to import"). 0.11.0 is the last
+        # release that works with the numpy 1.26.4 pinned above.
+        "librosa==0.11.0",      # Audio analysis
         "soundfile",            # Audio I/O
         "scipy",                # Scientific computing
         "scikit-learn",         # Machine learning
@@ -838,6 +850,31 @@ def main():
     else:
         logger.info("ℹ️  CPU-only mode (no NVIDIA GPU detected).")
     logger.info("\nNote: If chord detection seems slow or unavailable, madmom may have compilation issues.")
+
+    # ------------------------------------------------------------------
+    # numpy guard: madmom 0.16.1 ships a wheel built against numpy 1.x and
+    # dies with "numpy.core.multiarray failed to import" under numpy 2.x.
+    # numpy is pinned to 1.26.4 early on, but any package installed later can
+    # silently pull it back up (librosa 1.0 did exactly that). Verify at the
+    # end and repair, rather than leave a broken beat/chord pipeline behind.
+    # ------------------------------------------------------------------
+    logger.info("\n[VERIFICATION] Checking numpy pin (madmom compatibility)...")
+    try:
+        r = subprocess.run([venv_python, "-c", "import numpy; print(numpy.__version__)"],
+                           capture_output=True, text=True, timeout=60)
+        installed_numpy = (r.stdout or "").strip()
+        if installed_numpy and not installed_numpy.startswith("1."):
+            logger.info(f"[FIX] numpy {installed_numpy} was pulled in by another package; "
+                        f"restoring 1.26.4 for madmom")
+            subprocess.run([venv_python, "-m", "pip", "install", "numpy==1.26.4"],
+                           check=False, timeout=600)
+            r2 = subprocess.run([venv_python, "-c", "import numpy; print(numpy.__version__)"],
+                                capture_output=True, text=True, timeout=60)
+            logger.info(f"[FIX] numpy is now {(r2.stdout or '').strip()}")
+        else:
+            logger.info(f"[OK] numpy {installed_numpy}")
+    except Exception as e:
+        logger.info(f"[WARNING] Could not verify the numpy pin: {e}")
 
     # Final verification
     logger.info("\n[VERIFICATION] Checking installation...")
