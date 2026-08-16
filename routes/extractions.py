@@ -460,28 +460,54 @@ def create_zip_for_extraction(extraction_id):
     finishing.
     """
     import zipfile
-    from core.downloads_db import get_download_by_id, update_stems_zip_path
-
     try:
         stem_paths = {}
         row_id = None
         db_row = None
 
-        # 1) Durable path: the caller's own library row. The front sends the
-        #    extraction_id as "download_<id>" (see get_extractions), so strip
-        #    that prefix before int() — a bare int() on "download_16" raised
-        #    ValueError, fell through to the in-memory fallback, and 404'd every
-        #    song not extracted in the current process.
-        try:
-            _eid = extraction_id
-            if isinstance(_eid, str) and _eid.startswith("download_"):
-                _eid = _eid.replace("download_", "")
-            row_id = int(_eid)
-        except (TypeError, ValueError):
-            row_id = None
+        # 1) Durable path: the caller's own library row (the DB is the source
+        #    of truth; WHERE user_id=? IS the ownership check). The front may
+        #    send the id as a user_downloads.id, a global_download_id, or the
+        #    "download_<id>" string used elsewhere — resolve all three, because
+        #    the create-zip button in the download list sends the GLOBAL id
+        #    (e.g. 16) while that song's user row is a different id (e.g. 24),
+        #    so a plain get_download_by_id(user, 16) missed and 404'd.
+        from core.downloads_db import (
+            get_download_by_id, update_stems_zip_path,
+            get_user_download_id_by_video_id,
+        )
+        from core.db.connection import _conn as _get_conn
 
-        if row_id is not None:
-            db_row = get_download_by_id(current_user.id, row_id)
+        _eid = extraction_id
+        if isinstance(_eid, str) and _eid.startswith("download_"):
+            _eid = _eid.replace("download_", "")
+        try:
+            num_id = int(_eid)
+        except (TypeError, ValueError):
+            num_id = None
+
+        if num_id is not None:
+            # a) treat it as a user_downloads.id
+            db_row = get_download_by_id(current_user.id, num_id)
+            # b) if that missed, treat it as a global_download_id: look up its
+            #    video_id, then find THIS user's row for that video.
+            if not db_row:
+                try:
+                    with _get_conn() as _c:
+                        _r = _c.execute(
+                            "SELECT video_id FROM global_downloads WHERE id=?",
+                            (num_id,)).fetchone()
+                    _vid = _r[0] if _r else None
+                except Exception:
+                    _vid = None
+                if _vid:
+                    _udid = get_user_download_id_by_video_id(current_user.id, _vid)
+                    if _udid:
+                        row_id = _udid
+                        db_row = get_download_by_id(current_user.id, _udid)
+            else:
+                row_id = num_id
+
             if db_row and db_row.get('extracted') and db_row.get('stems_paths'):
                 try:
                     stem_paths = json.loads(db_row['stems_paths']) or {}
