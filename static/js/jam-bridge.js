@@ -251,6 +251,9 @@
 
     function startSyncHeartbeat() {
         stopSyncHeartbeat();
+        // 2 s (was 5): a guest that drifts - iOS after a suspend, a slow
+        // network burst - is pulled back sooner, and every beat carries a
+        // fresh anchor so the correction is exact rather than reactive.
         syncInterval = setInterval(() => {
             if (!isJamActive()) { stopSyncHeartbeat(); return; }
             const e = pocEngine();
@@ -267,7 +270,27 @@
                 anchor_server_time: parentJamClient.serverNow() + (((pocEngine() && pocEngine().ctx && (pocEngine().ctx.outputLatency || pocEngine().ctx.baseLatency)) || 0) * 1000),
                 timestamp: Date.now()
             });
-        }, 5000);
+        }, 2000);
+    }
+
+    /** A guest asked for a fresh anchor (iOS resume): answer immediately. */
+    function installResyncResponder() {
+        if (!parentJamClient || !parentJamClient.socket || installResyncResponder._done) return;
+        installResyncResponder._done = true;
+        parentJamClient.socket.on('jam_resync_request', () => {
+            const e = pocEngine();
+            if (!isJamActive() || !e || !e.playing) return;
+            const outLat = (e.ctx && (e.ctx.outputLatency || e.ctx.baseLatency)) || 0;
+            parentJamClient.socket.emit('jam_sync', {
+                code: parentJamClient.getCode(),
+                position: currentPos(),
+                bpm: currentBpm(),
+                is_playing: true,
+                rate: e.syncRatio || 1,
+                anchor_server_time: parentJamClient.serverNow() + outLat * 1000,
+                timestamp: Date.now()
+            });
+        });
     }
 
     function stopSyncHeartbeat() {
@@ -309,6 +332,7 @@
                 if (engineReady()) {
                     patchTransport();
                     patchTempoPitch();
+                    installResyncResponder();
                     broadcastCurrentTrack();
                 }
             }

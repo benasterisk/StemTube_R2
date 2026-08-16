@@ -653,6 +653,17 @@ def register_jam_socketio_events(sio):
         data['server_timestamp'] = time.time() * 1000
         sio.emit('jam_playback', data, room=f'jam_{code}', include_self=False)
 
+    @sio.on('jam_resync_request')
+    def handle_jam_resync_request(data):
+        """A guest asks for a fresh time anchor (e.g. iOS resumed its audio
+        context after backgrounding). Forward to the host, which answers with
+        an immediate jam_sync carrying a new anchor."""
+        code = data.get('code')
+        jam = active_jam_sessions.get(code)
+        if not jam or not jam.get('host_sid'):
+            return
+        sio.emit('jam_resync_request', {'code': code}, room=jam['host_sid'])
+
     @sio.on('jam_tempo')
     def handle_jam_tempo(data):
         code = data.get('code')

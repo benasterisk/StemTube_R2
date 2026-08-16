@@ -146,9 +146,56 @@
             const ctx = engine.ctx;
             if (!ctx) return 0;
             const o = (typeof ctx.outputLatency === 'number' && ctx.outputLatency > 0) ? ctx.outputLatency : 0;
+            if (o) return o;
             const b = (typeof ctx.baseLatency === 'number' && ctx.baseLatency > 0) ? ctx.baseLatency : 0;
-            return o || b || 0;
+            // SAFARI/iOS: outputLatency is not implemented and baseLatency is
+            // ~0, so the real output delay (CoreAudio buffer + route; far more
+            // over Bluetooth) would be counted as ZERO and every anchor would
+            // land early - the "chaotic" iOS sync. Use the measured value when
+            // available (see measureOutputLatency), else a conservative
+            // platform estimate.
+            if (this._measuredOutLat != null) return this._measuredOutLat;
+            const ua = navigator.userAgent || '';
+            const isIOS = /iPad|iPhone|iPod/.test(ua) ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            if (isIOS) return b || 0.12;     // ~120 ms: typical iOS wired/speaker route
+            return b || 0;
         },
+
+        /**
+         * Measure this device's true output latency ONCE, by comparing the
+         * AudioContext clock with the wall clock across a short silent
+         * playback: ctx.currentTime advances only as audio is actually
+         * rendered, so (wallElapsed - ctxElapsed) exposes the pipeline delay
+         * Safari refuses to report. Cheap (200 ms, silent) and far better than
+         * a hardcoded guess. Result is cached and used by outputLatency().
+         */
+        async measureOutputLatency() {
+            const ctx = this.audioContext;
+            if (!ctx || ctx.state !== 'running') return null;
+            try {
+                const c0 = ctx.currentTime, w0 = performance.now();
+                // A silent source keeps the graph rendering during the window.
+                const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 0.25), ctx.sampleRate);
+                const src = ctx.createBufferSource();
+                src.buffer = buf;
+                const g = ctx.createGain(); g.gain.value = 0;
+                src.connect(g); g.connect(ctx.destination);
+                src.start();
+                await new Promise(r => setTimeout(r, 200));
+                src.stop(); src.disconnect(); g.disconnect();
+                const ctxElapsed = ctx.currentTime - c0;
+                const wallElapsed = (performance.now() - w0) / 1000;
+                const lat = wallElapsed - ctxElapsed;          // pipeline delay
+                if (Number.isFinite(lat) && lat >= 0 && lat < 0.5) {
+                    this._measuredOutLat = lat;
+                    console.log('[MobilePOC] measured output latency:', Math.round(lat * 1000), 'ms');
+                    return lat;
+                }
+            } catch (e) { /* measurement is best-effort */ }
+            return null;
+        },
+        _measuredOutLat: null,
 
         get stems() { return engine.stems; },
         get duration() { return engine.duration || 0; },

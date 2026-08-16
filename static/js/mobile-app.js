@@ -3134,6 +3134,7 @@ class MobileApp {
         });
         this.pocMeta = meta;
         this._adoptPocBase(meta);
+        if (MobilePOC.measureOutputLatency) MobilePOC.measureOutputLatency();
         console.log(`[LoadMixer] All stems loaded in ${(performance.now() - loadStart).toFixed(0)}ms`);
 
         // this.stems === MobilePOC.stems (engine map, POC order: metronome, drums, bass, ...)
@@ -7459,6 +7460,7 @@ class MobileApp {
 
         // Join the jam session using jamClient
         console.log('[Jam Guest] Joining session:', window.JAM_CODE);
+        this._installAudioResumeWatch();
         this.jamClient.joinSession(window.JAM_CODE);
 
         // If extraction data is provided, load it immediately
@@ -7801,6 +7803,9 @@ class MobileApp {
         });
         this.pocMeta = meta;
         this._adoptPocBase(meta);
+        // Measure this device's real output latency (Safari reports none) so
+        // jam anchors land right on iOS too. Best-effort, silent, 200 ms.
+        if (MobilePOC.measureOutputLatency) MobilePOC.measureOutputLatency();
         Object.keys(this.stems).forEach((name) => this.createTrackControl(name));
         this.duration = MobilePOC.duration;
         console.log('[Jam Guest] Loaded', Object.keys(this.stems).length, 'stems (metronome incl.), duration', this.duration);
@@ -7925,6 +7930,38 @@ class MobileApp {
         }
     }
 
+    /**
+     * iOS/Safari suspends the AudioContext whenever the page is backgrounded
+     * (or the screen locks) and resumes it out of step with the wall clock:
+     * playback keeps its own drifted timeline while the host moved on. Watch
+     * visibility and the context state, resume, and force an immediate resync
+     * on the next heartbeat instead of waiting up to 5 s.
+     */
+    _installAudioResumeWatch() {
+        if (this._audioResumeWatchInstalled) return;
+        this._audioResumeWatchInstalled = true;
+        const resync = async (why) => {
+            try {
+                const ctx = MobilePOC.audioContext;
+                if (ctx && ctx.state === 'suspended') {
+                    await ctx.resume();
+                    console.log('[Jam Guest] AudioContext resumed after', why);
+                }
+                if (MobilePOC.measureOutputLatency) MobilePOC.measureOutputLatency();
+                // Ask the host for a fresh anchor right away.
+                if (this.jamClient && this.jamClient.socket && this.jamClient.isActive()) {
+                    this.jamClient.socket.emit('jam_resync_request', { code: this.jamClient.getCode() });
+                }
+                this._forceHardResync = true;   // next heartbeat: seek, don't nudge
+            } catch (e) { /* best effort */ }
+        };
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) resync('visibility'); });
+        window.addEventListener('focus', () => resync('focus'));
+        window.addEventListener('pageshow', () => resync('pageshow'));
+        const ctx = MobilePOC.audioContext;
+        if (ctx && ctx.addEventListener) ctx.addEventListener('statechange', () => { if (ctx.state === 'running') resync('statechange'); });
+    }
+
     // ── Jam clock helpers ────────────────────────────────────────────
     //
     // The host stamps every play/heartbeat with a TIME ANCHOR: the song
@@ -7989,6 +8026,13 @@ class MobileApp {
      */
     _correctDrift(hostPos) {
         const e = MobilePOC.engine;
+        // After an iOS suspend/resume the timeline can be seconds off: snap.
+        if (this._forceHardResync) {
+            this._forceHardResync = false;
+            const outLat0 = MobilePOC.outputLatency ? MobilePOC.outputLatency() : 0;
+            MobilePOC.seek(Math.max(0, hostPos - outLat0));
+            return { drift: e.pos() + outLat0 - hostPos, action: 'hard-resync' };
+        }
         // hostPos is what the host HEARS now; e.pos() is what we SCHEDULE now.
         // Compare like with like: add our own output latency to our reading,
         // otherwise every device sits its own latency behind the host.
