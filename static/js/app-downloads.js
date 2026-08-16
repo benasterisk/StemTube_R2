@@ -1063,7 +1063,11 @@ function populateDownloadDropdownWithStems(downloadElement, extractionStatus) {
 
     // Add ZIP download handler
     stemsDownloadBtn.style.cursor = 'pointer';
-    stemsDownloadBtn.addEventListener('click', () => {
+    // Use onclick (not addEventListener): this populate function is re-run on
+    // every status update for the same element, so addEventListener stacked a
+    // new handler each time — one click then fired N times, spraying N
+    // "Creating ZIP archive..." toasts and N downloads. onclick replaces.
+    stemsDownloadBtn.onclick = () => {
         if (extractionStatus.zip_path) {
             window.location.href = `/api/download-file?file_path=${encodeURIComponent(extractionStatus.zip_path)}`;
         } else if (extractionStatus.extraction_id) {
@@ -1071,7 +1075,7 @@ function populateDownloadDropdownWithStems(downloadElement, extractionStatus) {
             showToast('Creating ZIP archive...', 'info');
             createZipForExtraction(extractionStatus.extraction_id);
         }
-    });
+    };
 
     // Populate individual stems
     if (extractionStatus.stems_paths && typeof extractionStatus.stems_paths === 'object') {
@@ -1516,20 +1520,23 @@ function createExtractionElement(item) {
         
         const downloadZipButton = extractionElement.querySelector('.download-zip-button');
         if (downloadZipButton) {
-            downloadZipButton.addEventListener('click', () => {
+            // onclick, not addEventListener: this setup runs again on every
+            // re-render of the item, so addEventListener piled up handlers and
+            // one click fired the ZIP request several times.
+            downloadZipButton.onclick = () => {
                 const filePath = downloadZipButton.dataset.filePath;
                 const extractionId = downloadZipButton.dataset.extractionId;
-                
+
                 if (!filePath) {
                     // Try to create a ZIP on the fly
                     showToast('Creating ZIP archive...', 'info');
                     createZipForExtraction(extractionId);
                     return;
                 }
-                
+
                 // Check if file exists by trying to download it
                 window.location.href = `/api/download-file?file_path=${encodeURIComponent(filePath)}`;
-            });
+            };
         }
         
         const cancelButton = extractionElement.querySelector('.cancel-extraction-button');
