@@ -2,6 +2,9 @@
 
 > Professional-grade stem extraction, chord detection, and karaoke system
 
+**🌐 Website: [benasterisk.github.io/StemTube_R2](https://benasterisk.github.io/StemTube_R2/)**
+
+[![Website](https://img.shields.io/badge/website-online-brightgreen.svg)](https://benasterisk.github.io/StemTube_R2/)
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
 [![Python](https://img.shields.io/badge/python-3.12+-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)]()

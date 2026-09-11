@@ -71,30 +71,29 @@ fi
 VENV_SITE_PACKAGES="$PROJECT_ROOT/venv/lib/python3.12/site-packages"
 NVIDIA_BASE="$VENV_SITE_PACKAGES/nvidia"
 
-# Find and add all NVIDIA CUDA library paths
+# Find and add all NVIDIA CUDA library paths (batched I/O for faster boot)
+NOW="$(date)"
 if [ -d "$NVIDIA_BASE" ]; then
     CUDA_LIB_PATHS=""
+    CUDA_PACKAGES=""
     for package_dir in "$NVIDIA_BASE"/*; do
         if [ -d "$package_dir/lib" ]; then
             CUDA_LIB_PATHS="$package_dir/lib:$CUDA_LIB_PATHS"
+            CUDA_PACKAGES="$CUDA_PACKAGES  - $(basename "$package_dir")"$'\n'
         fi
     done
 
     if [ -n "$CUDA_LIB_PATHS" ]; then
         export LD_LIBRARY_PATH="$CUDA_LIB_PATHS:$LD_LIBRARY_PATH"
-        echo "[$(date)] Configured CUDA library paths from nvidia packages" | tee -a "$APP_LOG"
-        # List the configured paths for debugging
-        echo "$CUDA_LIB_PATHS" | tr ':' '\n' | grep -v '^$' | while read path; do
-            package_name=$(basename $(dirname "$path"))
-            echo "[$(date)]   - $package_name" | tee -a "$APP_LOG"
-        done
+        {
+            echo "[$NOW] Configured CUDA library paths from nvidia packages"
+            printf '%s' "$CUDA_PACKAGES" | sed "s|^|[$NOW] |"
+        } | tee -a "$APP_LOG"
     else
-        echo "[$(date)] Warning: No NVIDIA CUDA libraries found in venv" | tee -a "$APP_LOG"
-        echo "[$(date)] faster-whisper will run in CPU mode" | tee -a "$APP_LOG"
+        printf '[%s] Warning: No NVIDIA CUDA libraries found in venv\n[%s] faster-whisper will run in CPU mode\n' "$NOW" "$NOW" | tee -a "$APP_LOG"
     fi
 else
-    echo "[$(date)] Warning: NVIDIA packages not found at $NVIDIA_BASE" | tee -a "$APP_LOG"
-    echo "[$(date)] faster-whisper will run in CPU mode" | tee -a "$APP_LOG"
+    printf '[%s] Warning: NVIDIA packages not found at %s\n[%s] faster-whisper will run in CPU mode\n' "$NOW" "$NVIDIA_BASE" "$NOW" | tee -a "$APP_LOG"
 fi
 
 # Check Node.js availability (required for JS challenge solving)
@@ -113,6 +112,12 @@ if [ -d "$HOME/.nvm/versions/node" ]; then
     fi
 fi
 
+# yt-dlp tries Deno first for JS challenge solving; systemd's PATH does not include it
+if [ -x "$HOME/.deno/bin/deno" ]; then
+    export PATH="$HOME/.deno/bin:$PATH"
+    echo "[$(date)] Added Deno to PATH: $HOME/.deno/bin" | tee -a "$APP_LOG"
+fi
+
 # Activate virtual environment
 if [ -f "./venv/bin/activate" ]; then
     source ./venv/bin/activate
@@ -122,8 +127,13 @@ else
     exit 1
 fi
 
-# Get port from centralized configuration (single source of truth)
-PORT=$(python -c "from core.config import PORT; print(PORT)")
+# Get port without importing the module (avoids slow Python boot): STEMTUBE_PORT wins, as in
+# core/config.py; otherwise take the first number on the PORT line (literal or env default)
+PORT="${STEMTUBE_PORT:-$(grep -oP '^PORT\s*=\D*\K\d+' core/config.py | head -1)}"
+if [ -z "$PORT" ]; then
+    # Fallback to Python import if the simple parse fails
+    PORT=$(python -c "from core.config import PORT; print(PORT)")
+fi
 echo "[$(date)] Using port $PORT from core/config.py" | tee -a "$APP_LOG"
 
 # Start ngrok in background (if NGROK_URL is configured)
@@ -139,10 +149,7 @@ else
     echo "[$(date)] ngrok started with PID: $NGROK_PID (random URL mode)" | tee -a "$NGROK_LOG"
 fi
 
-# Wait a moment for ngrok to initialize
-sleep 2
-
-# Start Flask application
+# Start Flask immediately - ngrok will reach the local port once Flask binds
 echo "[$(date)] Starting Flask application..." | tee -a "$APP_LOG"
 python app.py >> "$APP_LOG" 2>&1 &
 APP_PID=$!
