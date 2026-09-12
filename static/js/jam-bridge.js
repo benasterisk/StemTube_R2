@@ -139,6 +139,9 @@
         // there and send the real 'stop' after.
         const origStop = e.stop.bind(e);
         e.stop = function() {
+            // Scrubbing pauses/restarts constantly by design: stay silent until the
+            // drag ends, otherwise guests get a pause+seek storm (one per mouse move).
+            if (e._scrubbing) return origStop();
             const pos = currentPos();
             const ret = origStop();
             if (isJamActive() && !suppressPauseBroadcast) {
@@ -167,6 +170,7 @@
         const origSeek = e.seek.bind(e);
         e.seek = function(t) {
             const ret = origSeek(t);
+            if (e._scrubbing) return ret;   // one broadcast at drop, not one per move
             if (isJamActive()) {
                 parentJamClient.sendPlayback('seek', Math.max(0, t || 0));
             }

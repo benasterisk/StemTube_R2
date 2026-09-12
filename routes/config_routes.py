@@ -24,7 +24,8 @@ def get_config():
         'default_stem_model': get_setting('default_stem_model', 'htdemucs'),
         'ffmpeg_path': get_ffmpeg_path(),
         'ffprobe_path': get_ffprobe_path(),
-        'using_gpu': se.using_gpu
+        'using_gpu': se.using_gpu,
+        'mega_available': se.is_model_available('mvsep_mega_fine')
     })
 
 

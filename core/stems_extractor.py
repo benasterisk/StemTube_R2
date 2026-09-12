@@ -25,6 +25,17 @@ import numpy as np
 
 from .config import get_setting, STEM_MODELS, MODELS_DIR, get_ffmpeg_path, ensure_valid_downloads_directory, get_compatible_models, get_fallback_model
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# MSST fine-stem jobs load a ~1.4 GB checkpoint and peak around 4 GB of VRAM. Every user
+# has their own StemsExtractor worker, so these jobs are serialized across all users.
+_MSST_GPU_LOCK = threading.Lock()
+
+
+def model_engine(model_name: str) -> str:
+    """Separation backend for a model: "demucs" (default) or "msst"."""
+    return STEM_MODELS.get(model_name, {}).get("engine", "demucs")
+
 
 class ExtractionStatus(Enum):
     """Enum for extraction status."""
@@ -377,6 +388,29 @@ class StemsExtractor:
             # Pass video_id and title directly so callback doesn't need to look up the item
             self.on_extraction_progress(extraction_id, progress, status, item.video_id, item.title)
     
+    def is_model_available(self, model_name: str) -> bool:
+        """Whether this extractor can run ``model_name`` (MSST models need a CUDA GPU)."""
+        info = STEM_MODELS.get(model_name)
+        if not info or not info.get("compatible", True):
+            return False
+        if not info.get("requires_gpu"):
+            return True
+        if not self.using_gpu:
+            return False
+        total_gb = torch.cuda.get_device_properties(0).total_memory / 2**30
+        return total_gb >= info.get("min_vram_gb", 0)
+
+    def _acquire_msst_slot(self, item: ExtractionItem) -> bool:
+        """Wait for the shared MSST GPU slot. Returns False if cancelled while waiting."""
+        if _MSST_GPU_LOCK.acquire(blocking=False):
+            return True
+        self._on_extraction_progress(item.extraction_id, item.progress,
+                                     "Waiting for GPU (another fine extraction is running)...")
+        while not _MSST_GPU_LOCK.acquire(timeout=1):
+            if item.status == ExtractionStatus.CANCELLED:
+                return False
+        return True
+
     def _extraction_thread(self, item: ExtractionItem):
         """Thread for extracting stems.
         
@@ -388,6 +422,8 @@ class StemsExtractor:
             # Use system temp directory to avoid Flask auto-reload issues
             system_temp_dir = tempfile.gettempdir()
             temp_dir = tempfile.mkdtemp(prefix="demucs_extraction_", dir=system_temp_dir)
+            engine = model_engine(item.model_name)
+            msst_locked = False
 
             try:
                 # Get FFmpeg path for setting environment variables
@@ -438,28 +474,43 @@ class StemsExtractor:
                 else:
                     print(f"FFmpeg directory not found: {ffmpeg_dir}")
                 
-                # Instead of running demucs directly, use our wrapper script
-                # to ensure environment variables are correctly set
-                cmd = [
-                    sys.executable,
-                    os.path.join(os.path.dirname(os.path.abspath(__file__)), "wrap_demucs.py"),
-                    ffmpeg_path,  # First arg to wrapper is FFmpeg path
-                    '--mp3',                  # Output as MP3
-                    '--mp3-bitrate', '320',   # High quality MP3
-                    '-v',                     # Verbose output for progress tracking
-                    '-n', item.model_name,    # Model name
-                    '-o', temp_dir            # Output to temp directory
-                ]
-                
-                # Add device (GPU or CPU)
-                if self.device.type == 'cuda':
-                    cmd.extend(['-d', 'cuda'])
+                if engine == "msst":
+                    if self.device.type != 'cuda':
+                        raise RuntimeError(f"{item.model_name} requires a CUDA GPU "
+                                           "(enable GPU extraction in settings)")
+                    # Same <temp>/<model>/<track>/<stem>.mp3 layout as Demucs so the copy
+                    # step below is shared. "other" is always produced (it is the residual).
+                    requested = [s for s in (item.selected_stems or []) if s != "other"]
+                    cmd = [
+                        sys.executable, '-m', 'core.msst.separate',
+                        '-o', os.path.join(temp_dir, item.model_name, 'input'),
+                        '--ffmpeg', ffmpeg_path,
+                        '-d', 'cuda',
+                        '--stems', ','.join(requested),
+                    ]
                 else:
-                    cmd.extend(['-d', 'cpu'])
-                
-                # Add two stem mode if needed
-                if item.two_stem_mode and item.primary_stem:
-                    cmd.extend(['--two-stems', item.primary_stem])
+                    # Instead of running demucs directly, use our wrapper script
+                    # to ensure environment variables are correctly set
+                    cmd = [
+                        sys.executable,
+                        os.path.join(os.path.dirname(os.path.abspath(__file__)), "wrap_demucs.py"),
+                        ffmpeg_path,  # First arg to wrapper is FFmpeg path
+                        '--mp3',                  # Output as MP3
+                        '--mp3-bitrate', '320',   # High quality MP3
+                        '-v',                     # Verbose output for progress tracking
+                        '-n', item.model_name,    # Model name
+                        '-o', temp_dir            # Output to temp directory
+                    ]
+
+                    # Add device (GPU or CPU)
+                    if self.device.type == 'cuda':
+                        cmd.extend(['-d', 'cuda'])
+                    else:
+                        cmd.extend(['-d', 'cpu'])
+
+                    # Add two stem mode if needed
+                    if item.two_stem_mode and item.primary_stem:
+                        cmd.extend(['--two-stems', item.primary_stem])
                 
                 # Add audio file at the end (use the temporary file if available)
                 temp_audio_path = None
@@ -496,7 +547,12 @@ class StemsExtractor:
                 # Print the command for debugging
                 print(f"Running command: {' '.join(cmd)}")
                 
-                # Run demucs.separate as a subprocess
+                if engine == "msst":
+                    if not self._acquire_msst_slot(item):
+                        raise RuntimeError("Extraction cancelled by user")
+                    msst_locked = True
+
+                # Run the separation as a subprocess
                 process = subprocess.Popen(
                     cmd,
                     stdout=subprocess.PIPE,
@@ -504,7 +560,8 @@ class StemsExtractor:
                     text=True,
                     bufsize=1,
                     universal_newlines=True,
-                    env=env  # Use the environment with FFmpeg configured
+                    env=env,  # Use the environment with FFmpeg configured
+                    cwd=PROJECT_ROOT if engine == "msst" else None  # needed for `-m core.msst...`
                 )
                 
                 # Store the process reference for cancellation
@@ -523,7 +580,11 @@ class StemsExtractor:
                 base_extraction_timeout = get_setting("extraction_timeout_minutes", 30)
 
                 # Adjust timeouts based on model complexity
-                if item.model_name == "htdemucs_6s":
+                if engine == "msst":
+                    # Model load (and first-use weight download) prints no percentage
+                    progress_timeout = base_progress_timeout * 3 * 60
+                    max_extraction_time = base_extraction_timeout * 1.5 * 60
+                elif item.model_name == "htdemucs_6s":
                     # 6-stem model takes longer
                     progress_timeout = base_progress_timeout * 2 * 60  # Double timeout for 6-stem
                     max_extraction_time = base_extraction_timeout * 1.5 * 60  # 50% more time
@@ -636,6 +697,9 @@ class StemsExtractor:
                 
                 # Wait for process to complete
                 return_code = process.wait()
+                if msst_locked:
+                    _MSST_GPU_LOCK.release()
+                    msst_locked = False
 
                 # Update progress to completion if successful
                 if return_code == 0 and item.status != ExtractionStatus.CANCELLED:
@@ -687,10 +751,8 @@ class StemsExtractor:
                 stem_files = {}
 
                 # Determine expected stems based on model
-                if item.model_name == "htdemucs_6s":
-                    default_stems = ["vocals", "drums", "bass", "guitar", "piano", "other"]
-                else:
-                    default_stems = ["vocals", "drums", "bass", "other"]
+                default_stems = (STEM_MODELS.get(item.model_name, {}).get("stems")
+                                 or ["vocals", "drums", "bass", "other"])
 
                 stems_to_process = item.selected_stems if item.selected_stems else default_stems
                 total_stems = len(stems_to_process)
@@ -748,6 +810,12 @@ class StemsExtractor:
                                 # Keep the file on disk for debugging but don't include in mixer
                                 print(f"✗ Stem '{stem}' excluded from mixer (mostly silent/empty)")
                 
+                # Split drum kits also ship the full kit: the mixer's beat detection needs
+                # it, but it is not a mixer track so it stays out of stem_files.
+                drums_full = os.path.join(track_dir, "drums_full.mp3")
+                if os.path.exists(drums_full):
+                    shutil.copy2(drums_full, os.path.join(item.output_dir, "drums_full.mp3"))
+
                 # Stems copied — lyrics + beat detection happen in extensions.py (48-97%)
                 item.progress = 48.0
                 self._on_extraction_progress(item.extraction_id, 48.0, "Finalizing...")
@@ -777,6 +845,8 @@ class StemsExtractor:
                     self.on_extraction_complete(item.extraction_id, item.title, item.video_id, item)
             
             finally:
+                if msst_locked:
+                    _MSST_GPU_LOCK.release()
                 # Clean up temporary directory
                 try:
                     shutil.rmtree(temp_dir, ignore_errors=True)

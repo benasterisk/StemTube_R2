@@ -347,7 +347,8 @@ function getExpectedStemCount(modelName) {
         'htdemucs_ft': 4,
         'htdemucs_6s': 6,
         'mdx_extra': 4,
-        'mdx_extra_q': 4
+        'mdx_extra_q': 4,
+        'mvsep_mega_fine': 17
     };
 
     // Handle variations in model names - normalize to lowercase and remove special chars
@@ -359,6 +360,9 @@ function getExpectedStemCount(modelName) {
     }
 
     // Check for partial matches (e.g., "HTDemucs 6-stem" -> 6)
+    if (normalizedModel.includes('mvsep')) {
+        return 17;
+    }
     if (normalizedModel.includes('6s') || normalizedModel.includes('6_stem')) {
         return 6;
     }

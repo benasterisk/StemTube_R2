@@ -175,7 +175,11 @@ const PreCount = {
     this.startTime=Math.max(0, Math.min(t, this.view.meta?this.view.meta.duration:t));
     this.updateUI(); this._updateLeadPad();   // start moved → pad may change; redraws markers
   },
+  // Delegates to the shared Snap module so the Start/Stop markers obey the same
+  // toggle as loop bounds — one setting for every surface. Falls back to the
+  // old inline search if snap.js somehow did not load.
   _snapToBeat(t){
+    if(window.Snap) return Snap.toBeat(t, this.view);
     const b=this.view.meta && this.view.meta.beats;
     let snapped=t;
     if(b && b.length){ let d=Infinity; for(const bt of b){ const dd=Math.abs(bt-t); if(dd<d){d=dd;snapped=bt;} } }

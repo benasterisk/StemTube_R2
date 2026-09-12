@@ -515,6 +515,29 @@ STEM_MODELS = {
         "description": "Optimized MDX model for superior quality (requires diffq package)",
         "requires_diffq": True,
         "compatible": check_diffq_available()
+    },
+    # Hybrid: htdemucs_6s coarse split, DrumSep (inagoy, MIT) on the drums stem, then
+    # ZFTurbo MSST "MVSep Mega 53 stems" (BS-Roformer, MIT) heads split the remaining Demucs
+    # stems; run by core/msst/separate.py.
+    # Stem list must match FINE_STEMS there, plus the "other" residual.
+    "mvsep_mega_fine": {
+        "name": "MVSep Mega (fine stems)",
+        "stems": ["vocals", "backing_vocals", "drums", "kick", "snare", "toms", "cymbals",
+                  "bass", "electric_guitar", "acoustic_guitar", "piano", "organ", "synth",
+                  "brass", "winds", "strings", "other"],
+        "path": os.path.join(MODELS_DIR, "msst"),
+        "url": "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/download/"
+               "v1.0.21/mvsep_mega_model_bs_roformer_53_stems_v1.ckpt",
+        "description": "Fine separation (Demucs 6-stem + DrumSep + MVSep Mega): lead/backing "
+                       "vocals, drums split into kick/snare/toms/cymbals, electric/acoustic "
+                       "guitar, piano, organ, "
+                       "synth, brass, winds, strings (CUDA GPU required)",
+        "requires_diffq": False,
+        "compatible": True,
+        "engine": "msst",
+        "requires_gpu": True,
+        # Measured peak is ~3 GB (Demucs, then Mega); keep headroom for lyrics/whisper.
+        "min_vram_gb": 6
     }
 }
 

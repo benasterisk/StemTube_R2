@@ -150,8 +150,11 @@ $("#fromStartBtn").onclick=()=>{ if(engine.playing){ engine.stop(); if(rafId) ca
 // Scroll-mode tri-toggle: Manual → Page → Center → (cycle).
 const SCROLL_MODES = ["manual", "page", "center"];
 const SCROLL_LABELS = { manual:'<span class="ico">✕</span><span class="lbl">Manual</span>', page:'<span class="ico">⏭</span><span class="lbl">Page</span>', center:'<span class="ico">⊕</span><span class="lbl">Center</span>' };
-function setScrollMode(mode){
+function setScrollMode(mode, remember){
   view.scrollMode = mode;
+  // Only a click on the button records a preference; an auto-switch to "manual"
+  // (triggered by scrolling the pane by hand) must not survive the reload.
+  if(remember) view.scrollModePref = mode;
   const btn = $("#scrollModeBtn");
   btn.innerHTML = SCROLL_LABELS[mode];
   btn.classList.toggle("on", mode!=="manual");   // highlight when an auto mode is on
@@ -159,7 +162,7 @@ function setScrollMode(mode){
 }
 $("#scrollModeBtn").onclick=()=>{
   const i = SCROLL_MODES.indexOf(view.scrollMode);
-  setScrollMode(SCROLL_MODES[(i+1)%SCROLL_MODES.length]);
+  setScrollMode(SCROLL_MODES[(i+1)%SCROLL_MODES.length], true);   // user choice → remembered
 };
 
 // zoom — stepped −/+ buttons (StemTube format), keeping the selected scroll mode.
@@ -203,7 +206,7 @@ document.getElementById("rightpane").addEventListener("scroll", ()=>{
   view.redrawVisible();   // re-render the now-visible portion (always)
   if(view._suppressScrollHandler){ view._suppressScrollHandler=false; return; }
   if(view._zooming) return;          // scroll caused by a zoom resize → keep the mode
-  if(view.scrollMode!=="manual") setScrollMode("manual");
+  if(view.scrollMode!=="manual") setScrollMode("manual", false);   // transient, not saved
 });
 
 window.addEventListener("resize", ()=> view.redrawAll());
@@ -247,7 +250,12 @@ TempoPitch.init(engine, view);
 // Count-in / Start-marker controller.
 PreCount.init(engine, view);
 // A/B loop selection controller.
+// Snap first: LoopSel._snap and the timeline both read Snap.enabled.
+if(window.Snap) Snap.init();
+if(window.Scrub) Scrub.init(engine, view);
 if(window.LoopSel) LoopSel.init(engine, view);
+// Ruler drags (scrub / Shift+loop). Safe to call again: wireRuler self-guards.
+if(view.wireRuler) view.wireRuler();
 // Load the SoundTouch worklet up front so stems get their node on first play.
 // (Needs a secure context: localhost is fine; remote needs HTTPS.)
 engine.loadWorklet().then(ok=>{ if(!ok) UI.status("Tempo/pitch disabled (insecure context — use localhost or HTTPS)."); });

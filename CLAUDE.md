@@ -41,7 +41,7 @@ User Request → Check global_downloads → Use existing OR Process → Add user
 
 1. **Download** — yt-dlp downloads from YouTube, converts to MP3. File upload also supported (MP3, WAV, FLAC, M4A, AAC, OGG, WMA, MP4, AVI, MKV, MOV, WEBM).
 2. **Audio Analysis** (auto after download) — BPM/key detection (librosa/scipy), chord detection (BTC → madmom → hybrid fallback), structure analysis (MSAF), lyrics lookup (Musixmatch API only).
-3. **Stem Extraction** (user-triggered) — Demucs separation: `htdemucs` (4 stems), `htdemucs_6s` (6 stems), `mdx_extra` (4 stems). Auto GPU detection with CPU fallback.
+3. **Stem Extraction** (user-triggered) — Demucs separation: `htdemucs` (4 stems), `htdemucs_6s` (6 stems), `mdx_extra` (4 stems). Auto GPU detection with CPU fallback. Plus `mvsep_mega_fine` (engine `msst`, CUDA only), a 3-stage hybrid run by `core/msst/separate.py`: `htdemucs_6s` coarse split → DrumSep (inagoy, HDemucs, MIT) on the drums stem → ZFTurbo's MVSep Mega 53-stem BS-Roformer heads split the remaining Demucs stems via Wiener masks. 17 fine stems (lead/backing vocals, drums (rest)/kick/snare/toms/cymbals, electric/acoustic guitar, piano, organ, synth, brass, winds, strings, other). Measured on real songs: Mega alone misses much of the kit, and its kit heads isolate 9-44 % of the drums where DrumSep reaches 76-94 %; stems always sum to the mix. Also writes `drums_full.mp3` (the Demucs drums, not a mixer track) for metronome beat detection. Re-extracting with another model replaces the stems (`remove_replaced_stems` in `extensions.py`).
 4. **Post-Extraction** (auto) — Lyrics re-detection using vocals stem (Musixmatch → faster-whisper fallback). Replaces download-phase lyrics with better source.
 
 ### Startup Sequence (`app.py`)
@@ -79,7 +79,8 @@ Central anti-circular-dependency hub — all blueprints import from here. Contai
 |--------|---------|
 | `downloads_db.py` | Backwards-compatible re-export shim → actual code in `core/db/` |
 | `download_manager.py` | Queue-based download processing, BPM/key detection, analysis orchestration |
-| `stems_extractor.py` | Demucs integration, GPU auto-detection, silent stem detection |
+| `stems_extractor.py` | Demucs/MSST subprocess runner, GPU auto-detection, silent stem detection, MSST GPU lock |
+| `msst/` | Vendored MSST BS-Roformer (MIT) + `separate.py` CLI; weights in `core/models/msst/` (downloaded on first use); spike: `utils/testing/test_mvsep_mega.py` |
 | `chord_detector.py` | BTC chord detector (170 chord vocabulary, GPU-optimized) |
 | `madmom_chord_detector.py` | madmom CRF chord detector (24 chord types, CPU-friendly) |
 | `hybrid_chord_detector.py` | Combines multiple backends as fallback |

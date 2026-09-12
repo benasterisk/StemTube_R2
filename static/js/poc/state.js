@@ -19,9 +19,13 @@ const SessionState = {
       label: prev.label || (window.Loader && Loader._label) || job,
       pxPerSec: view.pxPerSec,
       zoomV: view.zoomV,
-      scrollMode: view.scrollMode || "page",
+      scrollMode: view.scrollModePref || view.scrollMode || "center",   // the button choice, not a stray manual scroll
+      snapEnabled: window.Snap ? Snap.enabled : undefined,   // shared snap-to-beat toggle
       pos: engine.pos(),            // playhead position (seconds)
-      // tempo/pitch (BPM time-stretch + Key pitch-shift)
+      // tempo/pitch (BPM time-stretch + Key pitch-shift). bpmBase identifies WHICH song
+      // the target belongs to: without it a target saved before TempoPitch.load() ran
+      // (module default 120) would stretch another song to 120 BPM on the next open.
+      bpmBase: window.TempoPitch ? TempoPitch.bpmBase : undefined,
       bpmTarget: window.TempoPitch ? TempoPitch.bpmTarget : undefined,
       pitchSemitones: window.TempoPitch ? TempoPitch.pitchSemitones : undefined,
       metroRes: engine.metroRes || "1",      // metronome click resolution
@@ -50,7 +54,9 @@ const SessionState = {
     if(!st) return false;
     if(typeof st.pxPerSec === "number") view.pxPerSec = st.pxPerSec;
     if(typeof st.zoomV === "number") view.zoomV = st.zoomV;
-    view.scrollMode = st.scrollMode || "page";
+    view.scrollMode = view.scrollModePref = st.scrollMode || "center";
+    // snapEnabled may legitimately be false, so test for undefined
+    if(window.Snap && st.snapEnabled !== undefined) Snap.set(st.snapEnabled);
     // per-track controls
     if(st.tracks){
       Object.entries(st.tracks).forEach(([name, t])=>{
@@ -66,6 +72,7 @@ const SessionState = {
     // tempo/pitch — stash as pending; TempoPitch.load() consumes these after base BPM is known
     if(window.TempoPitch){
       if(typeof st.bpmTarget === "number") TempoPitch._pendingTarget = st.bpmTarget;
+      TempoPitch._pendingBase = (typeof st.bpmBase === "number") ? st.bpmBase : undefined;
       if(typeof st.pitchSemitones === "number") TempoPitch._pendingPitch = st.pitchSemitones;
     }
     // metronome resolution (buffers already loaded by setStems → switch live-safe)
@@ -93,7 +100,7 @@ const SessionState = {
     // scroll-mode button label + highlight
     const sb = document.getElementById("scrollModeBtn");
     if(sb){ const L={manual:"✕ Manual",page:"⏭ Page",center:"⊕ Center"};
-      sb.textContent=L[view.scrollMode]||L.page; sb.classList.toggle("on", view.scrollMode!=="manual"); }
+      sb.textContent=L[view.scrollMode]||L.center; sb.classList.toggle("on", view.scrollMode!=="manual"); }
     // track buttons + volume sliders
     document.querySelectorAll("#left-tracks .lctrl").forEach(lc=>{
       const volEl = lc.querySelector("input.vol"); const n = volEl && volEl.dataset.n; if(!n) return;

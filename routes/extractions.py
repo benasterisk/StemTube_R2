@@ -219,6 +219,8 @@ def add_extraction():
             video_id = data.get('video_id')
             model_name = data.get('model_name', 'htdemucs')  # Default model
             grant_access_only = data.get('grant_access_only', False)
+            # Explicit "re-extract": run again even if this model already produced stems
+            force_reextract = bool(data.get('force_reextract', False))
 
             print(f"=== EXTRACTION DEBUG START (Attempt {attempt + 1}/{max_retries + 1}) ===")
             print(f"User: {current_user.username} (ID: {current_user.id})")
@@ -248,7 +250,8 @@ def add_extraction():
             # Use atomic check/reserve operation to prevent race conditions
             if video_id:
                 print(f"Checking/reserving extraction for video_id='{video_id}', model='{model_name}'")
-                existing_extraction, reserved = db_find_or_reserve_extraction(video_id, model_name)
+                existing_extraction, reserved = db_find_or_reserve_extraction(
+                    video_id, model_name, force=force_reextract)
 
                 if existing_extraction:
                     print(f"Found existing global extraction! Granting access to user {current_user.id}")

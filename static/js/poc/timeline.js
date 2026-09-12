@@ -10,6 +10,20 @@ const STEM_COLORS = {
   other:     "#c9a227",  // gold
   guitar:    "#9b6dff",  // purple
   piano:     "#2dd4bf",  // teal
+  // MVSep Mega fine stems: shades of the parent family colour
+  kick:            "#ff5a36",
+  snare:           "#ff8f6b",
+  toms:            "#e8743b",
+  hihat:           "#ffb38a",
+  cymbals:         "#ffc9a8",
+  backing_vocals:  "#f08cbf",
+  electric_guitar: "#9b6dff",
+  acoustic_guitar: "#b99aff",
+  organ:           "#14b8a6",
+  synth:           "#5eead4",
+  brass:           "#f59e0b",
+  winds:           "#a3e635",
+  strings:         "#60a5fa",
 };
 function stemColor(name){ return STEM_COLORS[name] || "#8a93a0"; }
 
@@ -20,7 +34,11 @@ const View = {
   meta: null,
   engine: null,         // AudioEngine
   canvases: {},         // name -> canvas
-  scrollMode: "page", // "manual" | "page" | "center" — default is page
+  scrollMode: "center", // "manual" | "page" | "center" — the mode in effect right now
+  // The mode the USER picked with the toolbar button. A manual scroll drops
+  // scrollMode to "manual" for convenience, but that is a transient reaction, not a
+  // choice: only this one is saved, so a reload comes back to what was chosen.
+  scrollModePref: "center",
   _suppressScrollHandler: false, // guard so our own auto-scrolls aren't mistaken for manual ones
   // Lead-in pad (seconds): when a count-in is armed and the intro is too short to
   // fit it, this much SILENCE is inserted in front of the whole song. Everything —
@@ -93,9 +111,41 @@ const View = {
     }
   },
 
+  // Draw one stem's visible slice from the server-side min/max peaks (meta.waveforms).
+  // Used while the stem is still downloading, so the lanes are not empty for minutes.
+  drawWaveFromPeaks(name, peaks, c){
+    const w=this.visW(), h=this.laneH(name); this.sizeCanvas(c, w, h);
+    const sx=this.scrollX();
+    c.style.left = sx + "px";
+    const g=c.getContext("2d"); g.clearRect(0,0,w,h);
+    const mid=h/2, amp=h*0.46;
+    const pad=this.leadPad||0, padPx=pad*this.pxPerSec;
+    const n=peaks.min.length, dur=this.meta.duration||1;
+    g.strokeStyle="rgba(255,255,255,.06)"; g.lineWidth=1;
+    g.beginPath(); g.moveTo(0,mid); g.lineTo(w,mid); g.stroke();
+    g.strokeStyle=stemColor(name); g.globalAlpha=0.55;   // dimmed: not the final drawing
+    g.lineWidth=1; g.beginPath();
+    for(let px=0; px<w; px++){
+      const songT=((sx+px) - padPx)/this.pxPerSec;
+      if(songT<0 || songT>dur) continue;
+      const a=Math.min(n-1, Math.floor(songT/dur*n));
+      const b=Math.min(n, Math.max(a+1, Math.floor((songT + 1/this.pxPerSec)/dur*n)));
+      let mn=1.0, mx=-1.0;
+      for(let j=a;j<b;j++){ if(peaks.min[j]<mn) mn=peaks.min[j]; if(peaks.max[j]>mx) mx=peaks.max[j]; }
+      let top=mid-mx*amp, bot=mid-mn*amp; if(bot-top<1) bot=top+1;
+      g.moveTo(px+0.5, top); g.lineTo(px+0.5, bot);
+    }
+    g.stroke(); g.globalAlpha=1;
+  },
+
   // Draw one stem's visible slice straight from the audio buffer (crisp, no cache).
   drawWave(name){
-    const s=this.engine.stems[name]; const c=this.canvases[name]; if(!s||!s.buffer||!c) return;
+    const s=this.engine.stems[name]; const c=this.canvases[name]; if(!s||!c) return;
+    if(!s.buffer){
+      const peaks=this.meta && this.meta.waveforms && this.meta.waveforms[name];
+      if(peaks && peaks.min && peaks.min.length) this.drawWaveFromPeaks(name, peaks, c);
+      return;
+    }
     const w=this.visW(), h=this.laneH(name); this.sizeCanvas(c, w, h);
     const sx=this.scrollX();
     c.style.left = sx + "px";    // pin the viewport-sized canvas to the visible edge
@@ -215,4 +265,70 @@ const View = {
   },
   // px (within a lane canvas) → song time (subtract the lead pad; clamp to [0,dur])
   xToTime(x){ return Math.max(0, Math.min(this.meta.duration, x/this.pxPerSec - (this.leadPad||0))); },
-};
+
+  // ── ruler interaction ────────────────────────────────────────────────────
+  // The timeline ruler used to be decorative. Now:
+  //   drag              → scrub: the playhead follows the pointer and you HEAR
+  //                       the mix at each position (Scrub plays short slices).
+  //   Shift + drag      → define the A/B loop, same as dragging a waveform.
+  //   click (no motion) → plain seek.
+  // Waveform drags are untouched: they still define the loop, so both gestures
+  // remain available. Loop bounds obey the shared Snap toggle either way; hold
+  // Alt to ignore the grid for one drag.
+  wireRuler(){
+    const cv = document.getElementById("timeline-canvas");
+    if(!cv || cv._wired) return;      // guard: redrawAll must not stack handlers
+    cv._wired = true;
+    const self = this;
+    const DRAG_PX = 4;                // same threshold as the lanes
+
+    // pointer x → song time, accounting for horizontal scroll like the lanes do
+    const rulerTime = (clientX)=>{
+      const rect = cv.getBoundingClientRect();
+      return self.xToTime(self.scrollX() + (clientX - rect.left));
+    };
+
+    cv.style.cursor = "ew-resize";
+
+    cv.addEventListener("mousedown", e=>{
+      if(e.button !== 0) return;
+      cv._downX = e.clientX;
+      cv._downT = rulerTime(e.clientX);
+      cv._loopMode = e.shiftKey;      // Shift held at press = define a loop
+      cv._dragging = true;
+      cv._moved = false;
+      e.preventDefault();
+    });
+
+    cv.addEventListener("mousemove", e=>{
+      if(!cv._dragging) return;
+      if(!cv._moved && Math.abs(e.clientX - cv._downX) <= DRAG_PX) return;
+      cv._moved = true;
+      const t = rulerTime(e.clientX);
+      if(cv._loopMode){
+        if(window.LoopSel) LoopSel.setRegion(cv._downT, t, e.altKey);
+      } else if(window.Scrub){
+        Scrub.at(t);                  // moves the playhead AND plays a slice
+      } else {
+        self.engine.seek(t); self.drawPlayheads();
+      }
+    });
+
+    const endDrag = e=>{
+      if(!cv._dragging) return;
+      cv._dragging = false;
+      if(window.Scrub) Scrub.stop();  // cut any slice still ringing
+      const t = rulerTime(e.clientX);
+      if(!cv._moved){
+        self.engine.seek(cv._downT);  // click without motion → plain seek
+        self.drawPlayheads();
+      } else if(cv._loopMode && window.LoopSel){
+        LoopSel.setRegion(cv._downT, t, e.altKey);
+      }
+      if(window.Loader) Loader.persist();
+    };
+
+    cv.addEventListener("mouseup", endDrag);
+    // a mouseup outside the ruler must still end the drag
+    window.addEventListener("mouseup", e=>{ if(cv._dragging) endDrag(e); });
+  },};

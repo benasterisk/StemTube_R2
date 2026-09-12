@@ -1,6 +1,16 @@
 // mixer.js — build track rows: fixed controls on the LEFT, waveform lanes RIGHT.
 const Mixer = {
-  STEM_ORDER: ["metronome","drums","bass","guitar","piano","vocals","other"], // drums+metronome on top; guitar/piano appear in 6-stem demucs models
+  // drums+metronome on top; guitar/piano come from htdemucs_6s, the split names from MVSep Mega
+  STEM_ORDER: ["metronome","drums","kick","snare","toms","hihat","cymbals","bass",
+               "guitar","electric_guitar","acoustic_guitar","piano","organ","synth",
+               "brass","winds","strings","vocals","backing_vocals","other"],
+
+  // Known stems in STEM_ORDER first, then any other stem the server sent — never drop one.
+  orderedNames(stems){
+    const present = Object.keys(stems || {}).filter(n => stems[n]);
+    const known = this.STEM_ORDER.filter(n => present.includes(n));
+    return known.concat(present.filter(n => !this.STEM_ORDER.includes(n)).sort());
+  },
 
   // ── value formatting ──
   // volume gain → dB. 1.0 = 0 dB (unity), 0 = -∞.
@@ -30,7 +40,7 @@ const Mixer = {
   _hideBubble(){ const b=document.getElementById("ctrl-bubble"); if(b) b.style.display="none"; },
 
   build(engine, view){
-    const names = this.STEM_ORDER.filter(n => engine.stems[n]);
+    const names = this.orderedNames(engine.stems);
     const left = document.getElementById("left-tracks"); left.innerHTML="";
     const lanes = document.getElementById("lanes"); lanes.innerHTML="";
     view.clearCanvases();
@@ -172,11 +182,16 @@ const Mixer = {
     lanes.querySelectorAll("canvas").forEach(cv=>{
       cv.addEventListener("mousedown", e=>{
         if(e.button!==0) return;                       // left button only
-        // a modifier means "place a marker on click" → don't start a loop drag
-        if(e.altKey||e.shiftKey||e.ctrlKey||e.metaKey){ cv._mods=true; cv._downX=e.clientX; cv._downT=laneTime(cv,e.clientX); return; }
-        cv._mods=false; cv._downX=e.clientX; cv._downT=laneTime(cv,e.clientX);
-        cv._loopDragging=true; cv._moved=false;
-        e.preventDefault();
+        cv._downX=e.clientX; cv._downT=laneTime(cv,e.clientX);
+        // Alt/Ctrl/Cmd still place the Start/Stop markers on click.
+        if(e.altKey||e.ctrlKey||e.metaKey){ cv._mods=true; return; }
+        cv._mods=false;
+        // Shift+drag defines the loop — the SAME gesture as on the ruler, so
+        // there is one rule everywhere. A plain drag no longer creates a loop
+        // by accident; without Shift a click is just a seek.
+        cv._loopDragging = e.shiftKey;
+        cv._moved=false;
+        if(cv._loopDragging) e.preventDefault();
       });
       cv.addEventListener("mousemove", e=>{
         if(!cv._loopDragging) return;
@@ -189,11 +204,20 @@ const Mixer = {
         // modifier-click (no drag) → markers
         if(cv._mods && Math.abs(e.clientX-cv._downX)<=DRAG_PX){
           const t=cv._downT;
-          if((e.altKey||e.shiftKey) && window.PreCount){ Promise.resolve(PreCount.setStartFromTime(t)).catch(swallowBake); }
+          // Alt = Start marker, Ctrl/Cmd = Stop marker. Shift is reserved for
+          // the loop now, so it no longer places a marker.
+          if(e.altKey && window.PreCount){ Promise.resolve(PreCount.setStartFromTime(t)).catch(swallowBake); }
           else if((e.ctrlKey||e.metaKey) && window.PreCount){ Promise.resolve(PreCount.setStopFromTime(t)).catch(swallowBake); }
           cv._mods=false; return;
         }
-        if(!cv._loopDragging) return;
+        if(!cv._loopDragging){
+          // no loop drag armed → a plain click is a seek
+          if(!cv._mods && Math.abs(e.clientX-cv._downX)<=DRAG_PX){
+            engine.seek(cv._downT); view.drawPlayheads();
+            if(window.Loader) Loader.persist();
+          }
+          return;
+        }
         cv._loopDragging=false;
         if(cv._moved){
           // finalize the loop region (already drawn during move); persist

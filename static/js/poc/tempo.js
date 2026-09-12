@@ -49,8 +49,14 @@ const TempoPitch = {
     // detected key from chords (drives the pitch-shift base / display)
     this.originalTonic = (meta && meta.key_tonic) ? meta.key_tonic : "";
     this.keyMode = (meta && meta.key_mode) ? meta.key_mode : "";
-    // restored state may override (applied by SessionState before this)
-    if(typeof this._pendingTarget==="number"){ this.bpmTarget=this._pendingTarget; this._pendingTarget=undefined; }
+    // Restored state may override (applied by SessionState before this), but ONLY when it
+    // was saved for a song with this same base BPM. A target saved without a base (older
+    // entries) or against another song's base is dropped: it would silently time-stretch
+    // this song to that other tempo.
+    if(typeof this._pendingTarget==="number" && this._pendingBase===this.bpmBase){
+      this.bpmTarget=this._pendingTarget;
+    }
+    this._pendingTarget=undefined; this._pendingBase=undefined;
     if(typeof this._pendingPitch==="number"){ this.pitchSemitones=this._pendingPitch; this._pendingPitch=undefined; }
     this.apply();           // push to engine
     this.updateDisplay(true);

@@ -608,6 +608,23 @@ def install_build_dependencies(venv_python):
             logger.info(f"[WARNING] Failed to install demucs: {e}")
             logger.info("[WARNING] Stem extraction may not work")
 
+    # Inference-only deps of the vendored MSST BS-Roformer (core/msst, MVSep Mega model).
+    # The full MSST requirements.txt is deliberately not installed: it would pull
+    # wxpython/pyaudio and re-pin demucs/numpy. Weights download on first extraction.
+    msst_packages = ["beartype", "rotary_embedding_torch==0.3.5"]
+    try:
+        subprocess.run(
+            [venv_python, "-m", "pip", "install"] + msst_packages,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
+        logger.info("✓ Installed: " + ", ".join(msst_packages))
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        logger.info(f"[WARNING] Failed to install MSST dependencies: {e}")
+        logger.info("[WARNING] MVSep Mega fine-stem extraction will not be available")
+
     logger.info("[SUCCESS] Build dependencies ready")
     return True
 

@@ -38,6 +38,10 @@ core/youtube_cookies.txt
 # Large data assets
 static/js/datas/
 
+# MSST (MVSep Mega) weights, downloaded on first use, and spike listening output
+core/models/msst/
+utils/testing/mvsep_mega_out/
+
 # OS files
 .DS_Store
 Thumbs.db
@@ -51,3 +55,11 @@ Thumbs.db
 # Temporary files
 temp/
 temp_files/
+
+# Rotated logs, SQLite side files and local backups
+logs/*.log.*
+*.db-shm
+*.db-wal
+*.db.bak
+*.bak
+*.bak.*

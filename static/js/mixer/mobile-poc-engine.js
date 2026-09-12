@@ -55,7 +55,15 @@
     if (!window.Loader) window.Loader = { persist() {} };
     if (!window.UI) window.UI = { status(msg) { console.log('[POC]', msg); } };
 
-    const STEM_ORDER = ['metronome', 'drums', 'bass', 'vocals', 'other', 'guitar', 'piano'];
+    const STEM_ORDER = ['metronome', 'drums', 'kick', 'snare', 'toms', 'hihat', 'cymbals',
+        'bass', 'vocals', 'backing_vocals', 'other', 'guitar', 'electric_guitar',
+        'acoustic_guitar', 'piano', 'organ', 'synth', 'brass', 'winds', 'strings'];
+    // Known stems first, then any other stem the server sent — never drop one.
+    const orderedNames = (stems) => {
+        const present = Object.keys(stems || {}).filter(n => stems[n]);
+        return STEM_ORDER.filter(n => present.includes(n))
+            .concat(present.filter(n => !STEM_ORDER.includes(n)).sort());
+    };
 
     // PreCount / LoopSel are POC singletons that bind to `engine`+`view` and,
     // in _wire(), to desktop button ids that do not exist on mobile (no-op).
@@ -92,8 +100,12 @@
             this.meta = meta;
             view.meta = meta;
             if (engine.loadWorklet) await engine.loadWorklet();
-            const names = STEM_ORDER.filter(n => meta.stems && meta.stems[n]);
-            await engine.setStems(job, names, meta.metronome_resolutions);
+            const names = orderedNames(meta.stems);
+            await engine.setStems(job, names, meta.metronome_resolutions,
+                (loaded, total) => {
+                    if (onProgress) onProgress(`Loading stems ${loaded}/${total}…`,
+                        40 + Math.round(50 * loaded / total));
+                });
             engine.duration = meta.duration;
             if (window.PreCount && PreCount.load) { PreCount._job = job; PreCount.load(meta); }
             if (window.LoopSel && LoopSel.load) LoopSel.load(meta);
@@ -122,8 +134,12 @@
             this.meta = meta;
             view.meta = meta;
             if (engine.loadWorklet) await engine.loadWorklet();
-            const names = STEM_ORDER.filter(n => meta.stems && meta.stems[n]);
-            await engine.setStems(job, names, meta.metronome_resolutions);
+            const names = orderedNames(meta.stems);
+            await engine.setStems(job, names, meta.metronome_resolutions,
+                (loaded, total) => {
+                    if (onProgress) onProgress(`Loading stems ${loaded}/${total}…`,
+                        40 + Math.round(50 * loaded / total));
+                });
             engine.duration = meta.duration;
             // Guests never bake: PreCount only LOADS the host's plan (files served
             // by the jam audio route through the redirected API above).

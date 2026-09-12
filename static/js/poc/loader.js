@@ -38,14 +38,23 @@ const Loader = {
   },
 
   async finish(job, label){
+    this._loading = true;      // block state saves until tempo/precount/loop are loaded
+    try {
     const meta = await API.meta(job);
     if(meta.error){ this.fail(meta.error); return; }
     // Make sure the SoundTouch worklet is ready before stems can play.
     if(this.engine.loadWorklet) await this.engine.loadWorklet();
-    const names = Mixer.STEM_ORDER.filter(n => meta.stems[n]);
-    await this.engine.setStems(job, names, meta.metronome_resolutions);
+    const names = Mixer.orderedNames(meta.stems);
     this.engine.duration = meta.duration;
     this.view.meta = meta; this.view.engine = this.engine;
+    // Show the tracks and the server-side waveforms right away, then fill them in as each
+    // stem finishes downloading (17 stems over a tunnel take minutes).
+    await this.engine.setStems(job, names, meta.metronome_resolutions,
+      (loaded, total) => {
+        this.progress(`Loading stems ${loaded}/${total}…`, Math.round(100 * loaded / total));
+        this.view.redrawVisible();
+      },
+      () => { Mixer.build(this.engine, this.view); this.view.redrawAll(); });
     Mixer.build(this.engine, this.view);
     this._label = label || (window.EXTRACTION_INFO && window.EXTRACTION_INFO.title) || job;
     // Re-apply any saved per-track controls / zoom / playhead for THIS job (keyed by
@@ -57,12 +66,16 @@ const Loader = {
     if(window.LoopSel) LoopSel.load(meta);
     this.view.redrawAll();
     this.hide();
+    this._loading = false;
     SessionState.save(job, this.view, this.engine);
     if(this.onLoaded) this.onLoaded(meta, this._label);
+    } finally { this._loading = false; }
   },
 
   // Persist current state (called on any control/zoom/playhead change).
-  persist(){ if(this.view && this.view.meta) SessionState.save(this.view.meta.job, this.view, this.engine); },
+  // Never while a song is loading: the tracks exist before TempoPitch.load() has read the
+  // song's BPM, so a save at that moment would store the module's default tempo (120).
+  persist(){ if(!this._loading && this.view && this.view.meta) SessionState.save(this.view.meta.job, this.view, this.engine); },
 
   progress(stage, pct){
     const box = document.getElementById("progress"); if(box) box.style.display = "flex";

@@ -57,16 +57,18 @@ Key facts that shape this bridge (inherited from Friend, verified against R2):
 import os
 import json
 import shutil
+import subprocess
 import threading
+from concurrent.futures import ThreadPoolExecutor
 import time
 import traceback
 import uuid
 
-from flask import Blueprint, request, jsonify, send_from_directory, send_file
+from flask import Blueprint, request, jsonify, send_from_directory, send_file, Response
 from flask_login import current_user
 
 from extensions import api_login_required
-from core.config import ensure_valid_downloads_directory
+from core.config import ensure_valid_downloads_directory, get_ffmpeg_path
 from core.logging_config import get_logger
 
 # Deliberately reused from routes.files rather than copied: _is_path_allowed is
@@ -128,10 +130,34 @@ def _gc_exports():
             if e:
                 shutil.rmtree(os.path.dirname(e["path"]), ignore_errors=True)
 
-# Stem display order the POC engine expects (metronome first). guitar/piano appear in
-# some demucs models; they're tolerated as extra stems.
-STEM_ORDER = ["metronome", "drums", "bass", "vocals", "other", "guitar", "piano"]
-_REAL_STEMS = ["drums", "bass", "vocals", "other", "guitar", "piano"]
+# Stem display order the POC engine expects (metronome first). guitar/piano come from
+# htdemucs_6s, the split names (kick, electric_guitar, ...) from MVSep Mega.
+STEM_ORDER = ["metronome", "drums", "kick", "snare", "toms", "hihat", "cymbals", "bass",
+              "vocals", "backing_vocals", "other", "guitar", "electric_guitar",
+              "acoustic_guitar", "piano", "organ", "synth", "brass", "winds", "strings"]
+_REAL_STEMS = STEM_ORDER[1:]
+
+
+def _real_stem_names(stems_map):
+    """Stems to serve: known names in display order, then any other name (never dropped)."""
+    extra = sorted(n for n in stems_map if n not in _REAL_STEMS and n != "metronome")
+    return [n for n in _REAL_STEMS if n in stems_map] + extra
+
+
+def _drums_ref(stems_map):
+    """Full drum kit used for beat detection / metronome rendering.
+
+    Models that split the kit (MVSep Mega) keep only the non-isolated part in "drums"
+    (or drop it as silent) and write the whole kit to drums_full.mp3 next to the stems,
+    which is preferred when present.
+    """
+    # Any stem's folder will do: the kit stems themselves may all have been dropped as
+    # silent, while drums_full.mp3 is always written by the fine-stem model.
+    for path in stems_map.values():
+        full = os.path.join(os.path.dirname(path), "drums_full.mp3")
+        if os.path.exists(full):
+            return full
+    return stems_map.get("drums")
 
 
 def _set_prep(user_id, row_id, stage, pct, done=False, error=None):
@@ -217,7 +243,7 @@ def _stems_context_from_row(row):
         raise ValueError("no resolvable stem paths")
     # all stems share a directory; derive it from the first real stem we can find
     ref = None
-    for n in _REAL_STEMS:
+    for n in _real_stem_names(stems_map):
         if n in stems_map and os.path.exists(stems_map[n]):
             ref = stems_map[n]
             break
@@ -496,7 +522,7 @@ def _build_meta(user_id, row_id, extraction_id, row, stems_map, stems_dir, cache
     step("Reading beats…", 10)
     beats, positions = _db_beats(row)
 
-    drums = stems_map.get("drums")
+    drums = _drums_ref(stems_map)
     metro_map = _existing_metronomes(stems_dir)
 
     if not metro_map:
@@ -539,7 +565,7 @@ def _build_meta(user_id, row_id, extraction_id, row, stems_map, stems_dir, cache
 
     # ── duration / median bpm / start ──
     step("Measuring…", 80)
-    ref = drums or next((stems_map[n] for n in _REAL_STEMS if n in stems_map), None)
+    ref = drums or next((stems_map[n] for n in _real_stem_names(stems_map)), None)
     dur = round(sf.info(ref).duration, 3) if ref else 0.0
 
     median_bpm = row.get('detected_bpm') or 0
@@ -573,18 +599,33 @@ def _build_meta(user_id, row_id, extraction_id, row, stems_map, stems_dir, cache
 
     # ── waveforms for every served stem + the 1x metronome ──
     step("Building waveforms…", 88)
-    served = {n: stems_map[n] for n in _REAL_STEMS if n in stems_map and os.path.exists(stems_map[n])}
-    waveforms = {}
-    for name, p in served.items():
+    served = {n: stems_map[n] for n in _real_stem_names(stems_map) if os.path.exists(stems_map[n])}
+    todo = dict(served)
+    if "1" in metro_map and os.path.exists(metro_map["1"]):
+        todo["metronome"] = metro_map["1"]
+    # "mix" peaks let the mobile UI draw the master waveform without downloading and
+    # decoding the whole original track just for that.
+    try:
+        from core.downloads_db import resolve_file_path
+        mix_path = resolve_file_path(row.get('file_path') or '')
+        if mix_path and os.path.exists(mix_path):
+            todo["mix"] = mix_path
+    except Exception as e:
+        logger.warning(f"[poc-mixer] no mix waveform: {e}")
+
+    # One decode per stem; the fine model produces up to 17 of them, so run a few at a
+    # time (the decode itself releases the GIL) instead of one after another.
+    def _peaks(item):
+        name, path = item
         try:
-            waveforms[name] = M_wave.peaks(p)
+            return name, M_wave.peaks(path)
         except Exception as e:
             logger.warning(f"[poc-mixer] waveform failed for {name}: {e}")
-    if "1" in metro_map and os.path.exists(metro_map["1"]):
-        try:
-            waveforms["metronome"] = M_wave.peaks(metro_map["1"])
-        except Exception as e:
-            logger.warning(f"[poc-mixer] waveform failed for metronome: {e}")
+            return name, None
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        waveforms = {name: peak for name, peak in pool.map(_peaks, todo.items())
+                     if peak is not None}
 
     # stems map the engine reads (names → relative-ish marker; the engine only checks truthiness)
     stems_meta = {name: f"stems/{name}" for name in served}
@@ -663,6 +704,24 @@ def _prepare_worker(user_id, row, extraction_id):
 # ─────────────────────────────────────────────────────────────────────────────
 # Routes
 # ─────────────────────────────────────────────────────────────────────────────
+def warm_prepare(user_id, extraction_id):
+    """Build the POC artifacts (metronome, waveforms, meta.json) right after an extraction.
+
+    Called from the extraction callback so the first mixer open is a cache hit instead of
+    a ~1 min wait. Runs synchronously in the caller's thread and never raises: a failure
+    here only means the mixer prepares on demand, as before.
+    """
+    try:
+        row = _resolve_download_row(user_id, extraction_id)
+        if not row:
+            return False
+        _prepare_worker(user_id, row, extraction_id)
+        return True
+    except Exception as e:
+        logger.warning(f"[poc-mixer] warm prepare failed for {extraction_id}: {e}")
+        return False
+
+
 @poc_mixer_bp.route('/poc-mixer/prepare/<path:extraction_id>', methods=['POST'])
 @api_login_required
 def prepare(extraction_id):
@@ -728,7 +787,41 @@ def meta(extraction_id):
         return jsonify({"error": "not prepared"}), 404
     # Writers always os.replace a complete file, so a plain read is safe.
     with open(meta_path, encoding="utf-8") as f:
-        return jsonify(json.load(f))
+        payload = f.read()
+    # meta.json is ~1.3 MB of waveform peaks in plain text; gzip takes it to ~150 kB.
+    if 'gzip' in (request.headers.get('Accept-Encoding') or ''):
+        import gzip as _gzip
+        resp = Response(_gzip.compress(payload.encode('utf-8'), 6),
+                        mimetype='application/json')
+        resp.headers['Content-Encoding'] = 'gzip'
+        resp.headers['Vary'] = 'Accept-Encoding'
+        return resp
+    return Response(payload, mimetype='application/json')
+
+
+def _servable_metro(path):
+    """Return an MP3 twin of a metronome WAV, creating it once next to the original.
+
+    A 4-minute click track is ~27 MB as 44.1k WAV and ~3.7 MB at 96 kbps mono, and the
+    mixer fetches three of them (0.5x / 1x / 2x) on every open: that was ~82 MB of mostly
+    silence per song, now ~11 MB. The source is mono and carries only clicks, so 96 kbps
+    is transparent here. The WAV stays on disk because the bake/export paths read it with
+    soundfile; only what goes over the wire changes.
+    """
+    if not path or not path.lower().endswith('.wav'):
+        return path
+    mp3 = path[:-4] + '.mp3'
+    try:
+        if not os.path.exists(mp3) or os.path.getmtime(mp3) < os.path.getmtime(path):
+            tmp = f"{mp3}.{uuid.uuid4().hex}.tmp.mp3"
+            subprocess.run([get_ffmpeg_path(), '-v', 'error', '-y', '-i', path,
+                            '-codec:a', 'libmp3lame', '-ac', '1', '-b:a', '96k', tmp],
+                           check=True, capture_output=True)
+            os.replace(tmp, mp3)   # atomic: concurrent GETs never read a partial file
+        return mp3
+    except Exception as e:
+        logger.warning(f"[poc-mixer] could not compress {os.path.basename(path)}: {e}")
+        return path
 
 
 def _resolve_stem_file(user_id, extraction_id, stem):
@@ -756,7 +849,7 @@ def _resolve_stem_file(user_id, extraction_id, stem):
         if instrument != "click":
             try:
                 with _song_lock(user_id, row['id']):
-                    paths = _ensure_instrument_metros(meta, stems_map.get("drums"),
+                    paths = _ensure_instrument_metros(meta, _drums_ref(stems_map),
                                                       cache, instrument)
                 p = paths.get(res)
                 if p and os.path.exists(p):
@@ -792,15 +885,19 @@ def audio(extraction_id, stem):
         return jsonify({"error": f"not found: {stem}"}), 404
     if request.method == 'HEAD':
         return '', 200
+    if stem == "metronome" or stem.startswith("metronome_"):
+        path = _servable_metro(path)
     directory = os.path.dirname(os.path.abspath(path))
     filename = os.path.basename(path)
     mt, _ = mimetypes.guess_type(filename)
     resp = send_from_directory(directory, filename, mimetype=mt or 'audio/wav', conditional=True)
-    # real stems are immutable; metronome may be regenerated → don't hard-cache
-    if stem == "metronome" or stem.startswith("metronome_"):
-        resp.headers['Cache-Control'] = 'no-store'
-    else:
-        resp.headers['Cache-Control'] = 'public, max-age=604800, immutable'
+    # Revalidate instead of hard-caching or re-downloading:
+    #  - stems change under the same URL when a song is re-extracted with another model
+    #    ("immutable" made the browser replay the OLD stems);
+    #  - metronome WAVs are big (~20 MB each) and were "no-store", so every mixer open
+    #    pulled ~60 MB of mostly silence through the tunnel again.
+    # conditional=True already sends ETag/Last-Modified, so unchanged files cost one 304.
+    resp.headers['Cache-Control'] = 'no-cache'
     return resp
 
 
@@ -839,7 +936,7 @@ def detect_intro(extraction_id):
         except (TypeError, ValueError):
             stop_time = None
 
-    drums = stems_map.get("drums")
+    drums = _drums_ref(stems_map)
     if not (drums and os.path.exists(drums)):
         return jsonify({"error": "no drums stem for precount"}), 400
 
@@ -903,7 +1000,7 @@ def set_metro_instrument(extraction_id):
 
     body = request.get_json(silent=True) or {}
     instrument = click_kit.normalize(body.get("instrument"))
-    drums = stems_map.get("drums")
+    drums = _drums_ref(stems_map)
 
     try:
         with _song_lock(current_user.id, row['id']):
@@ -1018,9 +1115,9 @@ def export(extraction_id):
     start_time = _opt_float(body.get("start_time"))
     fmt = "wav" if str(body.get("format")).lower() == "wav" else "mp3"
 
-    # sanitize tracks: keep only known real stems with numeric controls
+    # sanitize tracks: keep only this song's real stems with numeric controls
     tracks = {}
-    for name in _REAL_STEMS:
+    for name in _real_stem_names(stems_map):
         t = raw_tracks.get(name)
         if not isinstance(t, dict):
             continue
@@ -1050,11 +1147,11 @@ def export(extraction_id):
     lead_silence = 0.0
     first_offset = 0.0
     lead_pad = 0.0
-    can_bake = include_metro and stems_map.get("drums") \
-        and os.path.exists(stems_map["drums"]) and meta.get("beats")
+    drums_ref = _drums_ref(stems_map)
+    can_bake = include_metro and drums_ref and os.path.exists(drums_ref) and meta.get("beats")
     try:
         if include_metro and can_bake:
-            drums = stems_map["drums"]
+            drums = drums_ref
             bake_dir = os.path.join(out_dir, "metro")
             os.makedirs(bake_dir, exist_ok=True)
             heard = precount_beats if precount_beats > 0 else 0

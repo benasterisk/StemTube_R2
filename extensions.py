@@ -60,6 +60,44 @@ def get_model_display_name(model_key):
     return model_key
 
 
+def remove_replaced_stems(item):
+    """Delete files of a previous extraction that a re-extraction replaces.
+
+    Every model writes into the same stems/ folder, so same-named stems were already
+    overwritten; this removes the leftovers (e.g. guitar.mp3 once the guitar is split into
+    electric/acoustic) and the stale ZIP, so the folder only holds the active extraction.
+    Also runs for a forced re-extraction with the same model.
+    """
+    import json
+    from core.downloads_db import find_any_global_extraction, resolve_file_path
+    from core.config import STEM_MODELS
+    from core.stems_extractor import model_engine
+
+    previous = find_any_global_extraction(item.video_id)
+    if not previous:
+        return
+    try:
+        old_paths = json.loads(previous.get('stems_paths') or '{}')
+    except (TypeError, ValueError):
+        old_paths = {}
+
+    new_stems = set(STEM_MODELS.get(item.model_name, {}).get('stems') or [])
+    stale = [p for name, p in old_paths.items() if p and name not in new_stems]
+    if previous.get('stems_zip_path'):
+        stale.append(previous['stems_zip_path'])
+    if model_engine(item.model_name) != 'msst' and item.output_dir:
+        stale.append(os.path.join(item.output_dir, 'drums_full.mp3'))
+
+    for path in stale:
+        resolved = resolve_file_path(path) or path
+        try:
+            if os.path.isfile(resolved):
+                os.remove(resolved)
+                logger.info(f"Removed stem replaced by {item.model_name}: {resolved}")
+        except OSError as e:
+            logger.warning(f"Could not remove replaced stem {resolved}: {e}")
+
+
 def is_valid_youtube_video_id(video_id):
     """Validate a YouTube video ID."""
     if not video_id or not isinstance(video_id, str):
@@ -439,6 +477,10 @@ class UserSessionManager:
             if item and item.video_id:
                 print(f"[CALLBACK DEBUG] Persisting extraction to database...")
                 try:
+                    remove_replaced_stems(item)
+                except Exception as cleanup_error:
+                    logger.warning(f"Replaced-stems cleanup failed (non-fatal): {cleanup_error}")
+                try:
                     db_mark_extraction_complete(item.video_id, {
                         "model_name": item.model_name,
                         "stems_paths": item.output_paths or {},
@@ -640,6 +682,24 @@ class UserSessionManager:
                         'extraction_id': item_id, 'progress': 97,
                         'message': 'Beat detection skipped', 'video_id': video_id
                     }, room=_room)
+
+                # PRE-BUILD THE MIXER ARTIFACTS (metronome WAVs, waveform peaks, meta.json)
+                # so the first mixer open is a cache hit instead of a ~1 min wait. Runs last
+                # on purpose: it reuses the beats detected just above instead of re-running
+                # madmom, and a failure here only means the mixer prepares on demand.
+                try:
+                    socketio.emit('extraction_progress', {
+                        'extraction_id': item_id, 'progress': 98,
+                        'message': 'Preparing mixer...', 'video_id': video_id
+                    }, room=_room)
+                    row_id = next((str(r['id']) for r in db_list_extractions(user_id)
+                                   if r.get('video_id') == video_id), None)
+                    if row_id:
+                        from routes.poc_mixer import warm_prepare
+                        if warm_prepare(user_id, f"download_{row_id}"):
+                            logger.info(f"[MIXER] Pre-built mixer artifacts for download_{row_id}")
+                except Exception as prep_error:
+                    logger.warning(f"[MIXER] Mixer pre-build skipped (non-fatal): {prep_error}")
         else:
             print(f"[CALLBACK DEBUG] Missing user_id, video_id, or item data")
 

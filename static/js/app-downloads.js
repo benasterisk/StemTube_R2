@@ -594,8 +594,18 @@ function openExtractionModal(downloadId, title, filePath, videoId) {
     document.getElementById('extractionTitle').textContent = title;
     document.getElementById('extractionPath').textContent = filePath;
 
+    // MVSep Mega needs a CUDA GPU: hide it when the server cannot run it
+    const modelSelect = document.getElementById('stemModel');
+    const megaOption = modelSelect.querySelector('option[value="mvsep_mega_fine"]');
+    if (megaOption) {
+        megaOption.hidden = megaOption.disabled = !appConfig.mega_available;
+    }
+
     // Set default values from settings
-    document.getElementById('stemModel').value = appConfig.default_stem_model || 'htdemucs';
+    modelSelect.value = appConfig.default_stem_model || 'htdemucs';
+    if (!modelSelect.value || modelSelect.selectedOptions[0]?.disabled) {
+        modelSelect.value = 'htdemucs';
+    }
 
     // Update available stems based on the model
     updateStemOptions();
@@ -624,11 +634,18 @@ function updateModelDescription() {
         'htdemucs_ft': 'Fine-tuned HTDemucs model with enhanced quality for 4-stem separation',
         'htdemucs_6s': 'Advanced 6-stem separation (vocals, drums, bass, guitar, piano, other)',
         'mdx_extra': 'MDX model with enhanced vocal separation capabilities',
-        'mdx_extra_q': 'Optimized MDX model requiring diffq package (currently unavailable on Windows)'
+        'mdx_extra_q': 'Optimized MDX model requiring diffq package (currently unavailable on Windows)',
+        'mvsep_mega_fine': 'Fine separation (Demucs 6-stem, then MVSep Mega splits each stem): lead/backing vocals, drums split by DrumSep into kick/snare/toms/cymbals (hi-hat included in cymbals), electric/acoustic guitar, piano, organ, synth, brass, winds, strings. Unchecked stems go into "Other". CUDA GPU required, ~1-2 min per song.'
     };
 
     // Update the description
     modelDescriptionElement.textContent = modelDescriptions[selectedModel] || '';
+}
+
+// "electric_guitar" -> "Electric guitar"
+function formatStemLabel(stem) {
+    const text = String(stem).replace(/_/g, ' ');
+    return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 // Function to update stem options based on the selected model
@@ -659,7 +676,7 @@ function updateStemOptions() {
         
         const label = document.createElement('label');
         label.htmlFor = stemId;
-        label.textContent = stem.charAt(0).toUpperCase() + stem.slice(1); // Capitalize first letter
+        label.textContent = formatStemLabel(stem);
         
         checkboxDiv.appendChild(checkbox);
         checkboxDiv.appendChild(label);
@@ -673,7 +690,7 @@ function updateStemOptions() {
     availableStems.forEach(stem => {
         const option = document.createElement('option');
         option.value = stem;
-        option.textContent = stem.charAt(0).toUpperCase() + stem.slice(1);
+        option.textContent = formatStemLabel(stem);
         primaryStemSelect.appendChild(option);
     });
 
@@ -726,7 +743,8 @@ function startExtraction() {
         two_stem_mode: twoStemMode,
         primary_stem: primaryStem,
         video_id: video_id,  // Add video_id for deduplication
-        title: currentExtractionItem.title  // Add title for database storage
+        title: currentExtractionItem.title,  // Add title for database storage
+        force_reextract: Boolean(currentExtractionItem.force_reextract)
     };
 
     console.log('[START EXTRACTION] Sending POST to /api/extractions with:', extractionItem);
@@ -975,6 +993,28 @@ async function grantExtractionAccess(videoId, button) {
     }
 }
 
+// Small button next to "Open Mixer": re-extract with another model. The new extraction
+// replaces the current stems once it completes.
+function addReextractButton(mixerButton) {
+    const parent = mixerButton.parentNode;
+    if (!parent || parent.querySelector('.reextract-button')) return;
+    const btn = document.createElement('button');
+    btn.className = 'item-button reextract-button';
+    btn.title = 'Re-extract with another model (replaces the current stems)';
+    btn.innerHTML = '<i class="fas fa-redo"></i>';
+    btn.addEventListener('click', () => {
+        openExtractionModal(
+            mixerButton.dataset.downloadId,
+            mixerButton.dataset.title,
+            mixerButton.dataset.filePath,
+            mixerButton.dataset.videoId
+        );
+        // Lets the server run again even if the chosen model already produced the stems
+        if (currentExtractionItem) currentExtractionItem.force_reextract = true;
+    });
+    mixerButton.insertAdjacentElement('afterend', btn);
+}
+
 // Update extract button based on extraction status
 async function updateExtractButton(button, extractionStatus, downloadElement) {
     console.log('[EXTRACT BUTTON] Updating button state:', {
@@ -1029,6 +1069,8 @@ async function updateExtractButton(button, extractionStatus, downloadElement) {
             loadExtractionInMixer(`download_${newButton.dataset.downloadId}`);
         });
 
+        addReextractButton(newButton);
+
         // Populate download dropdown with stems if available
         if (downloadElement && extractionStatus.stems_available) {
             populateDownloadDropdownWithStems(downloadElement, extractionStatus);
@@ -1082,7 +1124,9 @@ function populateDownloadDropdownWithStems(downloadElement, extractionStatus) {
         stemsList.innerHTML = '';
 
         // Sort stems in logical order
-        const stemOrder = ['vocals', 'drums', 'bass', 'guitar', 'piano', 'other'];
+        const stemOrder = ['vocals', 'backing_vocals', 'drums', 'kick', 'snare', 'toms', 'hihat', 'cymbals',
+            'bass', 'guitar', 'electric_guitar', 'acoustic_guitar', 'piano', 'organ',
+            'synth', 'brass', 'winds', 'strings', 'other'];
         const sortedStems = Object.keys(extractionStatus.stems_paths).sort((a, b) => {
             const indexA = stemOrder.indexOf(a.toLowerCase());
             const indexB = stemOrder.indexOf(b.toLowerCase());
@@ -1094,7 +1138,7 @@ function populateDownloadDropdownWithStems(downloadElement, extractionStatus) {
             const stemLink = document.createElement('a');
             stemLink.href = `/api/download-file?file_path=${encodeURIComponent(stemPath)}`;
             stemLink.className = 'dropdown-item stem-item';
-            stemLink.innerHTML = `<i class="fas fa-file-audio"></i> ${capitalizeFirstLetter(stemName)}`;
+            stemLink.innerHTML = `<i class="fas fa-file-audio"></i> ${formatStemLabel(stemName)}`;
             stemsList.appendChild(stemLink);
         });
     }

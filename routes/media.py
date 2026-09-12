@@ -395,8 +395,19 @@ def regenerate_extraction_lyrics(extraction_id):
 
         # Use vocals stem if available for better quality
         audio_path = file_path
-        if file_path:
+        stems_paths = download.get('stems_paths') or {}
+        if isinstance(stems_paths, str):
+            try:
+                stems_paths = json.loads(stems_paths)
+            except ValueError:
+                stems_paths = {}
+        vocals_stem_path = stems_paths.get('vocals')
+        if vocals_stem_path:
+            from core.downloads_db import resolve_file_path
+            vocals_stem_path = resolve_file_path(vocals_stem_path) or vocals_stem_path
+        elif file_path:
             vocals_stem_path = os.path.join(os.path.dirname(file_path), "stems", "vocals.mp3")
+        if vocals_stem_path:
             if os.path.exists(vocals_stem_path):
                 audio_path = vocals_stem_path
                 logger.info(f"[LYRICS] Using vocals stem: {vocals_stem_path}")

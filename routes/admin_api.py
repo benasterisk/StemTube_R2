@@ -826,7 +826,8 @@ def update_system_settings():
                 logger.info(f"[SystemSettings] Lyrics model size set to: {data['lyrics_model_size']}")
 
         if 'default_stem_model' in data:
-            valid_stem_models = ['htdemucs', 'htdemucs_ft', 'htdemucs_6s', 'mdx_extra', 'mdx_extra_q']
+            valid_stem_models = ['htdemucs', 'htdemucs_ft', 'htdemucs_6s', 'mdx_extra', 'mdx_extra_q',
+                                 'mvsep_mega_fine']
             if data['default_stem_model'] in valid_stem_models:
                 update_setting('default_stem_model', data['default_stem_model'])
                 applied_changes.append('default_stem_model')

@@ -896,6 +896,7 @@ class MobileApp {
             const res = await fetch('/api/config');
             if (res.ok) {
                 const data = await res.json();
+                this.megaAvailable = Boolean(data.mega_available);
                 this.applyTheme(data.theme || 'dark', data.custom_theme_color || null, data.custom_theme_bg_color || null, data.custom_theme_text_color || null);
             }
         } catch (err) {
@@ -1240,12 +1241,6 @@ class MobileApp {
             return false;
         }
 
-        // Build stem URLs from the extraction API
-        const stemNames = ['vocals', 'bass', 'drums', 'guitar', 'piano', 'other'];
-        const stemUrls = stemNames.map(stem => `/api/extracted_stems/${songId}/${stem}`);
-
-        console.log('[Cache] Stem URLs:', stemUrls);
-
         this.showToast(`Caching "${title}"...`, 'info');
 
         try {
@@ -1260,6 +1255,18 @@ class MobileApp {
             } catch (e) {
                 console.warn('[Cache] Could not fetch extraction data:', e);
             }
+
+            // Build stem URLs from this song's actual stems (models differ in stem names)
+            let stemNames = ['vocals', 'bass', 'drums', 'guitar', 'piano', 'other'];
+            let stemsPaths = fullExtractionData && fullExtractionData.stems_paths;
+            if (typeof stemsPaths === 'string') {
+                try { stemsPaths = JSON.parse(stemsPaths); } catch (e) { stemsPaths = null; }
+            }
+            if (stemsPaths && Object.keys(stemsPaths).length) {
+                stemNames = Object.keys(stemsPaths);
+            }
+            const stemUrls = stemNames.map(stem => `/api/extracted_stems/${songId}/${stem}`);
+            console.log('[Cache] Stem URLs:', stemUrls);
 
             const result = await window.StemCache.cacheSong(songId, stemUrls);
             console.log('[Cache] Result:', result);
@@ -1430,7 +1437,8 @@ class MobileApp {
             htdemucs_ft: 'Fine-tuned variant with smoother vocals.',
             htdemucs_6s: '6-stem separation (vocals, drums, bass, guitar, piano, other).',
             mdx_extra: 'Enhanced vocal focus (slower but cleaner vocals).',
-            mdx_extra_q: 'High quality MDX (requires diffq).'
+            mdx_extra_q: 'High quality MDX (requires diffq).',
+            mvsep_mega_fine: 'Fine stems (Demucs + DrumSep + MVSep Mega): lead/backing vocals, drum kit split into kick/snare/toms/cymbals, electric/acoustic guitar, piano, organ, synth, brass, winds, strings. Unchecked stems go into "Other". GPU required, ~1-2 min.'
         };
 
         if (this.extractionModelSelect) {
@@ -1482,12 +1490,18 @@ class MobileApp {
             checkbox.checked = selectedSet.has(normalized);
 
             const span = document.createElement('span');
-            span.textContent = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+            span.textContent = this.formatStemLabel(normalized);
 
             wrapper.appendChild(checkbox);
             wrapper.appendChild(span);
             this.extractionStemsContainer.appendChild(wrapper);
         });
+    }
+
+    // "electric_guitar" -> "Electric guitar"
+    formatStemLabel(stem) {
+        const text = String(stem).replace(/_/g, ' ');
+        return text.charAt(0).toUpperCase() + text.slice(1);
     }
 
     populatePrimaryStemOptions(stems) {
@@ -1496,7 +1510,7 @@ class MobileApp {
         stems.forEach(stem => {
             const opt = document.createElement('option');
             opt.value = stem;
-            opt.textContent = stem.charAt(0).toUpperCase() + stem.slice(1);
+            opt.textContent = this.formatStemLabel(stem);
             this.primaryStemSelect.appendChild(opt);
         });
         if (stems.includes('vocals')) {
@@ -1535,8 +1549,12 @@ class MobileApp {
         }
 
         if (this.extractionModelSelect) {
+            // MVSep Mega needs a CUDA GPU: hide it when the server cannot run it
+            const megaOption = this.extractionModelSelect.querySelector('option[value="mvsep_mega_fine"]');
+            if (megaOption) megaOption.hidden = megaOption.disabled = !this.megaAvailable;
+
             const desiredModel = item.extraction_model || 'htdemucs';
-            if (Array.from(this.extractionModelSelect.options).some(opt => opt.value === desiredModel)) {
+            if (Array.from(this.extractionModelSelect.options).some(opt => opt.value === desiredModel && !opt.disabled)) {
                 this.extractionModelSelect.value = desiredModel;
             } else {
                 this.extractionModelSelect.value = 'htdemucs';
@@ -1615,7 +1633,13 @@ class MobileApp {
                 bass: 'fa-guitar',
                 guitar: 'fa-guitar',
                 piano: 'fa-piano',
-                other: 'fa-music'
+                other: 'fa-music',
+                backing_vocals: 'fa-microphone-alt',
+                kick: 'fa-drum', snare: 'fa-drum', toms: 'fa-drum', hihat: 'fa-drum',
+                cymbals: 'fa-drum',
+                electric_guitar: 'fa-guitar', acoustic_guitar: 'fa-guitar',
+                organ: 'fa-music', synth: 'fa-wave-square',
+                brass: 'fa-music', winds: 'fa-wind', strings: 'fa-music'
             };
 
             const stemLabels = {
@@ -1634,7 +1658,7 @@ class MobileApp {
                 btn.dataset.path = stemPath;
 
                 const icon = stemIcons[stemName] || 'fa-music';
-                const label = stemLabels[stemName] || stemName.charAt(0).toUpperCase() + stemName.slice(1);
+                const label = stemLabels[stemName] || this.formatStemLabel(stemName);
 
                 btn.innerHTML = `<i class="fas ${icon}"></i><span>${label}</span>`;
                 btn.addEventListener('click', () => this.downloadStem(stemName, stemPath));
@@ -2480,8 +2504,19 @@ class MobileApp {
             this.openMixer(record);
         });
 
+        // Re-extract with another model (replaces the current stems when done)
+        const reextractBtn = document.createElement('button');
+        reextractBtn.className = 'mobile-btn mobile-btn-small reextract-btn';
+        reextractBtn.title = 'Re-extract with another model';
+        reextractBtn.innerHTML = '<i class="fas fa-redo"></i>';
+        reextractBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            this.openExtractionModal({ ...record, extraction_model: null, force_reextract: true });
+        });
+
         actions.appendChild(readyLabel);
         actions.appendChild(mixBtn);
+        actions.appendChild(reextractBtn);
 
         if (status?.extraction_id) element.dataset.extractionId = status.extraction_id;
         if (record) {
@@ -2847,7 +2882,8 @@ class MobileApp {
             selected_stems: Array.isArray(config.selected_stems) && config.selected_stems.length ? config.selected_stems : fallbackStems,
             two_stem_mode: Boolean(config.two_stem_mode || (item.two_stem_mode && item.two_stem_mode !== 'false')),
             primary_stem: config.primary_stem || item.primary_stem || 'vocals',
-            title: item.title || ''
+            title: item.title || '',
+            force_reextract: Boolean(item.force_reextract)
         };
 
         try {
@@ -3157,13 +3193,18 @@ class MobileApp {
         // mobile state for THIS song (BPM just set from data, current pitch).
         this.applyTempoPitchTargets(this.calculateTempoPitchTargets());
 
-        await this.ensureMasterAudioBuffer(data);
+        // The prepared meta already carries server-side peaks for the mix, so skip
+        // downloading and decoding the whole original track (~9 MB) just to draw one
+        // waveform. Older prepared songs have no "mix" peaks → keep the old path.
+        if (!(this.pocMeta && this.pocMeta.waveforms && this.pocMeta.waveforms.mix)) {
+            await this.ensureMasterAudioBuffer(data);
+        }
 
         // Render waveform and re-render on resize/orientation change
         console.log('[LoadMixer] Rendering waveform...');
         this.renderWaveform();
         if (!this._waveformResizeHandler) {
-            this._waveformResizeHandler = () => { if (this.masterAudioBuffer || Object.values(this.stems).some(s => s.buffer)) this.renderWaveform(); };
+            this._waveformResizeHandler = () => { if ((this.pocMeta && this.pocMeta.waveforms && this.pocMeta.waveforms.mix) || this.masterAudioBuffer || Object.values(this.stems).some(s => s.buffer)) this.renderWaveform(); };
             window.addEventListener('resize', this._waveformResizeHandler);
         }
 
@@ -3272,9 +3313,18 @@ class MobileApp {
             this.setPan(name, p / 100);
         });
         
-        div.querySelector('.mute-btn').addEventListener('click', function() {
-            window.mobileApp.toggleMute(name);
-            this.classList.toggle('active');
+        // Reflect the engine's real state instead of blind-toggling the class: the
+        // metronome starts muted, so a blind toggle would light the button up while
+        // actually UNmuting the track.
+        const muteBtn = div.querySelector('.mute-btn');
+        const syncMute = () => {
+            const s = this.stems[name];
+            muteBtn.classList.toggle('active', !!(s && s.muted));
+        };
+        syncMute();
+        muteBtn.addEventListener('click', () => {
+            this.toggleMute(name);
+            syncMute();
         });
         
         div.querySelector('.solo-btn').addEventListener('click', () => {
@@ -6412,7 +6462,12 @@ class MobileApp {
         const pointCount = Math.max(500, width);
         let data = null;
 
-        if (this.masterAudioBuffer) {
+        const mixPeaks = this.pocMeta && this.pocMeta.waveforms && this.pocMeta.waveforms.mix;
+        if (mixPeaks && mixPeaks.min && mixPeaks.min.length) {
+            data = this.buildWaveformDataFromPeaks(mixPeaks, pointCount);
+        }
+
+        if (!data && this.masterAudioBuffer) {
             data = this.buildWaveformDataFromBuffer(this.masterAudioBuffer, pointCount);
         }
 
@@ -6510,6 +6565,22 @@ class MobileApp {
         }
 
         return Array.from(data);
+    }
+
+    // Server-side min/max peaks (meta.waveforms.mix) → a signal-like array the renderer
+    // can scan: two points per bucket (max then min) preserve the envelope.
+    buildWaveformDataFromPeaks(peaks, pointCount = 1000) {
+        const n = Math.min(peaks.min.length, peaks.max.length);
+        if (!n) return null;
+        const points = Math.max(pointCount, n * 2);
+        const out = new Float32Array(points);
+        const buckets = points / 2;
+        for (let i = 0; i < buckets; i++) {
+            const b = Math.min(n - 1, Math.floor(i * n / buckets));
+            out[i * 2] = peaks.max[b];
+            out[i * 2 + 1] = peaks.min[b];
+        }
+        return Array.from(out);
     }
 
     buildMasterWaveformData(buffers, pointCount = 1000) {
