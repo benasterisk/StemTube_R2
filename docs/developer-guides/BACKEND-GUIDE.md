@@ -35,7 +35,7 @@ Complete guide to the Python backend architecture and modules.
 - BTC-ISMIR19 transformer (chord detection)
 - madmom (beat/downbeat detection only)
 - faster-whisper + Musixmatch (lyrics, run in parallel and merged)
-- MSAF (installed but fails to import - structure analysis is non-functional)
+- MSAF (structure analysis: sections labelled A, B, C... by similarity)
 - SQLite3 (database)
 - aiotube + yt-dlp (YouTube download)
 
@@ -75,8 +75,8 @@ core/
 ├── lyrics_aligner.py           # DEAD
 ├── vocal_onset_detector.py     # DEAD
 │
-├── msaf_structure_detector.py  # MSAF structure detector - NON-FUNCTIONAL (always None)
-├── structure_detector.py       # DEAD (app never calls it; imports msaf)
+├── msaf_structure_detector.py  # MSAF structure detector (A/B/C similarity sections)
+├── structure_detector.py       # DEAD (no importers)
 ├── llm_structure_analyzer.py   # DEAD (no importers)
 │
 ├── downloads_db.py             # Downloads database
@@ -186,7 +186,7 @@ def get_video_info(video_id):
 - Download queue management
 - BPM detection
 - Musical key detection
-- Download-phase analysis: BTC chords, MSAF structure (currently always None), synced lyrics
+- Download-phase analysis: BTC chords, MSAF structure, synced lyrics
 - Download progress via WebSocket
 
 **Download Pipeline**:
@@ -502,7 +502,7 @@ def run_demucs(audio_path, model, output_dir, device='cpu'):
 **Size**: ~530 lines
 
 **Backend**: BTC Transformer (170 chord vocabulary). There is no backend selection; the
-`chords_use_madmom` and `chords_use_hybrid` config keys are read but inert.
+`chords_use_madmom` and `chords_use_hybrid` config keys are no longer read.
 
 **Detection**:
 ```python
@@ -630,8 +630,8 @@ deprecated shims that redirect to `/lyrics/regenerate`.
 
 #### 12. structure_detector.py
 
-**Status**: DEAD - the app never calls it (only `utils/analysis/reanalyze_all_structure.py`
-imports it, and it fails because it imports `msaf`).
+**Status**: DEAD - no importers (`utils/analysis/reanalyze_all_structure.py` now uses
+`msaf_structure_detector.py`).
 
 **File**: core/structure_detector.py
 
@@ -639,21 +639,31 @@ imports it, and it fails because it imports `msaf`).
 
 #### 13. msaf_structure_detector.py
 
-**Purpose**: MSAF structure detection - **NON-FUNCTIONAL**
+**Purpose**: MSAF structure detection (Foote boundaries + FMC2D labels)
 
-**Size**: ~63 lines
+**Size**: ~125 lines
 
-**Status**: `msaf` is installed but fails to import (`from scipy import inf`, removed in modern
-SciPy). The module catches the ImportError, logs the misleading "msaf library is not installed",
-and returns None. `structure_data` is therefore NULL in every database row.
+**How it works**:
+- msaf 0.1.80 uses `scipy.inf` and `scipy.signal.gaussian`, both removed from modern SciPy;
+  `_patch_scipy_for_msaf()` restores them (`numpy.inf`, `scipy.signal.windows.gaussian`) before
+  `import msaf`. An import failure is logged with the real error.
+- Each run points msaf's `features_tmp_file` at its own temp dir (removed afterwards), so no
+  `.features_msaf_tmp.json` lands in the working directory and concurrent runs don't collide.
+- Sections shorter than 0.5 s (msaf repeats the final boundary) are dropped.
+- FMC2D cluster ids become letters in order of first appearance (`A B C D E D E D`): sections
+  that sound alike share a letter. MSAF does not name verses/choruses. `confidence` is a fixed
+  1.0 placeholder. Returns None on failure or when no sections are found.
+- ~30 s per song on first analysis.
 
-**Only caller**: `core/download_manager.py` (download phase)
+**Callers**: `core/download_manager.py` (download phase), `POST /api/extractions/<id>/analyze-structure`
+(`routes/media.py`), `utils/analysis/reanalyze_all_structure.py [--force] [--limit N]` (backfill)
 
 **Usage**:
 ```python
 from core.msaf_structure_detector import detect_song_structure_msaf
 
-structure = detect_song_structure_msaf('audio.mp3')   # currently always None
+structure = detect_song_structure_msaf('audio.mp3')
+# [{'start': 0.0, 'end': 18.2, 'label': 'A', 'confidence': 1.0}, ...] or None
 ```
 
 **File**: core/msaf_structure_detector.py
@@ -662,8 +672,8 @@ structure = detect_song_structure_msaf('audio.mp3')   # currently always None
 
 #### 14. llm_structure_analyzer.py
 
-**Status**: DEAD - no importers. The frontend's `/api/extractions/<id>/analyze-structure` call
-has no matching route.
+**Status**: DEAD - no importers. `/api/extractions/<id>/analyze-structure` uses
+`msaf_structure_detector.py`, not this module.
 
 **File**: core/llm_structure_analyzer.py
 
@@ -1068,7 +1078,7 @@ User Input (YouTube URL or File Upload)
     ↓
 5. Chord detection (BTC only)
     ↓
-6. Structure detection (MSAF - currently always returns None)
+6. Structure detection (MSAF - A/B/C similarity sections)
     ↓
 7. Synced lyrics lookup (syncedlyrics_client)
     ↓

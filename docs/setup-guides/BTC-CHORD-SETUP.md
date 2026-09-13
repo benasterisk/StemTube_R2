@@ -137,10 +137,6 @@ ls -lh external/BTC-ISMIR19/test/*.pt
 ### NumPy compatibility error
 The BTC wrapper includes fixes for NumPy compatibility. If you see `np.float` errors, the fix may not have been applied.
 
-### Skip Intro / beat offset reset after regenerating chords
-Known issue: regenerating chords or beats resets Skip Intro (`music_start_time`) and the beat
-offset to 0. Re-apply them after regenerating.
-
 ## Credits
 
 BTC (Bi-directional Transformer for Chord Recognition) is based on:

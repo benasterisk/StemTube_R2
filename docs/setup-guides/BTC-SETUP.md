@@ -266,16 +266,6 @@ extraction and Whisper
 
 ---
 
-### Skip Intro / Beat Offset Reset
-
-**Symptom**: After regenerating chords or beats, Skip Intro and the beat offset are back to 0
-
-**Cause**: Known issue in the regenerate routes
-
-**Workaround**: Re-apply Skip Intro and re-align the metronome afterwards
-
----
-
 ## Uninstallation
 
 Removing `external/BTC-ISMIR19` disables chord detection entirely - StemTube does **not** fall

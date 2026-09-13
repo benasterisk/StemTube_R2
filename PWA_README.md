@@ -44,39 +44,45 @@ Already done in `templates/mobile-index.html` (manifest and theme-color in the `
 
 ### Offline Mode
 
-> **⚠️ Known limitation: offline playback is currently broken.** Caching a song still works
-> from the UI (the stems are downloaded into the `stemtube-stems-v1` cache), but the cached audio
-> is never played back offline:
->
-> - **Wrong URL pattern:** the mobile mixer streams stems through `/poc-mixer/audio/...`, while
->   `static/sw.js` only serves cached audio for `/api/extracted_stems/`, `/api/jam/stems/` and
->   `/stems/`. Mixer requests never hit the stem cache.
-> - **Hard-coded stem names:** `sw.js` only knows six stems (`vocals`, `bass`, `drums`, `guitar`,
->   `piano`, `other`), so the 17 fine stems of `mvsep_mega_fine` (kick, snare, backing_vocals, ...)
->   are not recognised.
-> - **Stale precache list:** `PRECACHE_FILES` in `sw.js` does not match what `/mobile` loads today
->   (split CSS files, mixer modules, jam scripts...), so a cold offline load of `/mobile` fails.
->
-> Fixing it means routing `/poc-mixer/audio/` through the stem cache, deriving stem names from
-> the extraction instead of a fixed list, and regenerating the precache list.
+Saving a song for offline (library button) stores exactly what the mobile mixer requests,
+so it plays back without a connection:
 
-What does work today:
-- CSS/JS files under `/static/` are cached as they are fetched (cache-first)
-- Songs can be cached from the library, and cache stats / clearing work
-- "You are offline" banner when disconnected
+- **What is saved** (`StemCache.cacheSong()` in `static/js/pwa-init.js`, cache
+  `stemtube-songs-v2`): the song is prepared on the server (`/poc-mixer/prepare` + `progress`),
+  then `/poc-mixer/meta/<job>` and every `/poc-mixer/audio/<job>/<stem>` listed in the meta
+  (all stems, whatever the model, plus the metronome, its other resolutions and the baked
+  count-in files). A manifest (`/poc-mixer/__offline__/<job>`) is written last; a save without
+  it is incomplete and is never served. If a required file fails, the partial save is deleted.
+- **How it is served** (`static/sw.js`): `/poc-mixer/*` is always network-first. Only when the
+  network fails (or answers 502/503/504) does the service worker answer from the saved copy:
+  `prepare`/`progress` report the song as ready, `meta`/`audio` come from the cache (query string
+  ignored), and `detect_intro` / `set_metro_instrument` return a JSON error, so a count-in
+  degrades to a plain start.
+- **App shell**: the precache list mirrors the tags of `templates/mobile-index.html` (plus the
+  CSS `@import` files, the SoundTouch worklet and the socket.io / Font Awesome CDN files), fetched
+  one by one so a single failure does not abort the install. Static files are network-first with
+  the cached copy (stored without `?v=`) as offline fallback; `/` and `/mobile` likewise.
+
+Limits:
+- Songs saved before the service worker v2.40 must be saved again (old copies are removed).
+- A save is a snapshot: re-extracting, moving the count-in Start or changing the metronome sound
+  afterwards needs the song to be removed and saved again; the last two also need the server.
+- A server that is down while the phone is online (e.g. tunnel page with another status) is not
+  treated as offline.
+- Recordings are not saved for offline; iOS may evict the storage.
 
 ### JavaScript API
 
 ```javascript
-// Cache all stems of a song (from the main thread, so auth cookies are sent)
-await StemCache.cacheSong(songId, stemUrls);
+// Save a song for offline (prepare, meta, every stem and metronome file, then manifest)
+await StemCache.cacheSong(songId, { title, onProgress });
 
 // List cached songs and total size
 const songs = await StemCache.getCachedSongs();
 const stats = await StemCache.getStats();
 console.log(StemCache.formatSize(stats.totalSize)); // "45.2 MB"
 
-// Clear the stems cache
+// Remove every saved song
 await StemCache.clearAll();
 
 // Force installation

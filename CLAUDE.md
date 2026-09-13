@@ -40,7 +40,7 @@ User Request → Check global_downloads → Use existing OR Process → Add user
 ### Processing Pipeline (4 phases)
 
 1. **Download** — yt-dlp downloads from YouTube, converts to MP3. File upload also supported (MP3, WAV, FLAC, M4A, AAC, OGG, WMA, MP4, AVI, MKV, MOV, WEBM).
-2. **Audio Analysis** (auto after download) — BPM/key detection (librosa/scipy), chord detection (BTC transformer only), synced lyrics lookup (`syncedlyrics_client.py`). Structure analysis (MSAF) is still called but **non-functional**: msaf fails to import on the pinned SciPy (`from scipy import inf`), the detector logs a misleading "not installed", and `structure_data` is always NULL.
+2. **Audio Analysis** (auto after download) — BPM/key detection (librosa/scipy), chord detection (BTC transformer only), synced lyrics lookup (`syncedlyrics_client.py`). Structure analysis (MSAF Foote boundaries + FMC2D labels) fills `structure_data`: sections are similarity clusters labelled with letters in order of first appearance (`A B C D E D E D`) — MSAF does not name verses/choruses. msaf 0.1.80 needs `scipy.inf` / `scipy.signal.gaussian`, which the detector restores before importing it; each run uses its own temporary feature cache. `POST /api/extractions/<id>/analyze-structure` re-runs it; `utils/analysis/reanalyze_all_structure.py [--force] [--limit N]` backfills existing songs (~30 s per song).
 3. **Stem Extraction** (user-triggered) — Demucs separation: `htdemucs` (4 stems), `htdemucs_ft` (4 stems), `htdemucs_6s` (6 stems), `mdx_extra` (4 stems); `mdx_extra_q` is listed but unreachable (disabled in the UI, `diffq` not installed). Auto GPU detection with CPU fallback. Plus `mvsep_mega_fine` (engine `msst`, CUDA only), a 3-stage hybrid run by `core/msst/separate.py`: `htdemucs_6s` coarse split → DrumSep (inagoy, HDemucs, MIT) on the drums stem → ZFTurbo's MVSep Mega 53-stem BS-Roformer heads split the remaining Demucs stems via Wiener masks. 17 fine stems (lead/backing vocals, drums (rest)/kick/snare/toms/cymbals, electric/acoustic guitar, piano, organ, synth, brass, winds, strings, other). Measured on real songs: Mega alone misses much of the kit, and its kit heads isolate 9-44 % of the drums where DrumSep reaches 76-94 %; stems always sum to the mix. Also writes `drums_full.mp3` (the Demucs drums, not a mixer track) for metronome beat detection. Re-extracting with another model replaces the stems (`remove_replaced_stems` in `extensions.py`).
 4. **Post-Extraction** (auto) — Lyrics re-detection on the vocals stem: faster-whisper and Musixmatch run **in parallel** and are merged (Musixmatch text + Whisper timings, `core/lyrics_merger.py`). Then the madmom beat/downbeat grid, then the mixer artifacts are pre-built (`warm_prepare` in `routes/poc_mixer.py`) so the first mixer open is a cache hit.
 
@@ -88,7 +88,7 @@ Central anti-circular-dependency hub — all blueprints import from here. Contai
 | `lyrics_aligner.py` | Dead code — no importers (the LrcLib path is gone; `lrclib_client.py` is dead too) |
 | `syncedlyrics_client.py` | Synced lyrics lookup (Musixmatch) — at download time, and inside `detect_lyrics_unified()` after extraction |
 | `vocal_onset_detector.py` | Dead code — no importers |
-| `msaf_structure_detector.py` | MSAF structure analysis — **non-functional** (msaf import fails on the pinned SciPy) |
+| `msaf_structure_detector.py` | MSAF structure analysis — sections labelled A, B, C… by similarity cluster; patches the two SciPy names msaf needs before import (`structure_detector.py` and `llm_structure_analyzer.py` are dead code) |
 | `config.py` | Configuration management, `get_setting()` / `update_setting()` |
 | `auth_db.py` | User authentication, `create_user()`, `authenticate_user()` |
 
@@ -149,14 +149,14 @@ Central anti-circular-dependency hub — all blueprints import from here. Contai
 
 Gestures: ruler drag = scrub, click = seek, Shift+drag (ruler or waveform) = loop, Alt = no snap, Alt+click = count-in Start marker, Ctrl/Cmd+click = metronome Stop marker.
 
-Still loaded from the older `static/js/mixer/`: `stage-window.js`, `chord-display.js`, `structure-display.js` (starves: no structure data), `karaoke-display.js`, `lyrics-popup.js`, `recording-effects.js`, `recording-engine.js`. The other ~20 files there (`core.js`, `audio-engine.js`, `waveform.js`, `timeline.js`, `track-controls.js`, `soundtouch-engine.js`, the `mobile-*-fix.js` series…) are **orphaned** — loaded by no template.
+Still loaded from the older `static/js/mixer/`: `stage-window.js`, `chord-display.js`, `structure-display.js` (shows the sections from `EXTRACTION_INFO.structure_data`), `karaoke-display.js`, `lyrics-popup.js`, `recording-effects.js`, `recording-engine.js`. The other ~20 files there (`core.js`, `audio-engine.js`, `waveform.js`, `timeline.js`, `track-controls.js`, `soundtouch-engine.js`, the `mobile-*-fix.js` series…) are **orphaned** — loaded by no template.
 
 **Jam session:** `jam-bridge.js` (host transport wrapper on the POC engine), `jam-client.js` (shared WebSocket client), `jam-tab.js` (desktop UI). `jam-metronome.js` is orphaned (loaded by no template): guests use the POC engine instead.
 
 ## Configuration
 
 - **Secrets** (`.env`): `FLASK_SECRET_KEY` (required), `NGROK_URL` (optional). Never commit.
-- **App settings** (`core/config.json`): Managed via Admin Panel. Key settings: `use_gpu_for_extraction`, `default_stem_model`, `lyrics_model_size`, `downloads_directory`. (`chords_use_madmom` / `chords_use_hybrid` are still read but ignored.)
+- **App settings** (`core/config.json`): Managed via Admin Panel. Key settings: `use_gpu_for_extraction`, `default_stem_model`, `lyrics_model_size`, `downloads_directory`. (`chords_use_madmom` / `chords_use_hybrid` remain as defaults in `core/config.py` but nothing reads them.)
 
 ## Desktop/Mobile Parity
 

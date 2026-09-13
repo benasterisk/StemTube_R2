@@ -70,15 +70,21 @@ python utils/analysis/reanalyze_all_chords.py
 python utils/analysis/regenerate_beat_times.py
 ```
 
-**⚠️ Chord reanalysis side effect:** `reanalyze_all_chords.py` (and `reanalyze_with_madmom.py`) write
-`beat_offset = 0` and reset Skip Intro (`music_start_time`) to 0. Despite its name,
-`reanalyze_with_madmom.py` runs BTC too - chords are BTC-only and the `use_madmom` flag is ignored.
+**Chord reanalysis** stores only `chords_data`: `reanalyze_all_chords.py` (and
+`reanalyze_with_madmom.py`) leave the beat grid, beat offset and Skip Intro (`music_start_time`)
+untouched, since BTC detects no beats. Despite its name, `reanalyze_with_madmom.py` runs BTC too -
+chords are BTC-only.
 
-**❌ Structure reanalysis is non-functional:**
-- `utils/analysis/reanalyze_all_structure.py` imports `core/structure_detector.py`, which needs
-  `msaf`; msaf cannot be imported with modern SciPy (`from scipy import inf`), so the script fails.
-- `utils/analysis/reanalyze_all_structure_advanced.py` imports `core.advanced_structure_detector`,
-  a module that no longer exists.
+**Structure reanalysis:**
+```bash
+# Detect MSAF sections for songs with no structure_data (--force: every song)
+python utils/analysis/reanalyze_all_structure.py [--force] [--limit N]
+```
+- Uses `core/msaf_structure_detector.py`; sections are similarity clusters labelled A, B, C...
+  (MSAF does not name verses or choruses). Allow ~30 s per song on first analysis.
+- Only `structure_data` is written; every other analysis field is preserved.
+- `utils/analysis/reanalyze_all_structure_advanced.py` is still broken: it imports
+  `core.advanced_structure_detector`, a module that no longer exists.
 
 See [STRUCTURE_ANALYSIS_IMPLEMENTATION.md](../docs/feature-guides/STRUCTURE_ANALYSIS_IMPLEMENTATION.md).
 

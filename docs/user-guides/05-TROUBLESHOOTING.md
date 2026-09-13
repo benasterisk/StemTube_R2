@@ -453,13 +453,22 @@ ls downloads/global/VIDEO_ID/stems/htdemucs/
 
 ### Structure Bar Stays Empty
 
-**Symptom**: No intro/verse/chorus sections in the mixer
+**Symptom**: No sections in the desktop mixer's structure bar
 
-**Cause**: Known limitation - structure analysis is not functional. The MSAF library fails to
-import with current SciPy (the log misleadingly says `[MSAF] msaf library is not installed`), and
-the endpoint the mixer calls (`/api/extractions/<id>/analyze-structure`) does not exist.
+**Note**: Sections are similarity clusters labelled A, B, C... (sections that sound alike share a
+letter) - MSAF does not label intro/verse/chorus. The mobile PWA has no structure view.
 
-**Solution**: None yet. See `docs/feature-guides/STRUCTURE_ANALYSIS_IMPLEMENTATION.md`.
+**Cause**: The song has no `structure_data` yet (never analyzed or not backfilled), or MSAF failed
+on it.
+
+**Solution**:
+```bash
+grep "\[MSAF\]" app.log                                   # real import/detection error, if any
+python utils/analysis/reanalyze_all_structure.py           # fill songs with no sections (~30 s/song)
+python utils/analysis/reanalyze_all_structure.py --force   # re-analyze every song
+```
+Or `POST /api/extractions/<id>/analyze-structure` for a single song, then reload the mixer. See
+`docs/feature-guides/STRUCTURE_ANALYSIS_IMPLEMENTATION.md`.
 
 ### No Chords in Mixer
 
@@ -473,15 +482,6 @@ grep -E "\[CHORDS\]|\[BTC\]" app.log
 python -c "from core.btc_chord_detector import is_available; print(is_available())"
 ```
 Then regenerate chords from the mixer. See [BTC Setup](../setup-guides/BTC-SETUP.md).
-
-### Skip Intro or Metronome Offset Lost
-
-**Symptom**: After regenerating chords or beats, Skip Intro is back at the start and the metronome
-offset is 0
-
-**Cause**: Known issue - the regenerate actions reset `music_start_time` and the beat offset.
-
-**Solution**: Re-apply Skip Intro / Detect Intro and re-align the metronome after regenerating.
 
 ### No Metronome Click
 
@@ -914,18 +914,25 @@ sudo ufw allow 5011
 **Symptom**: A song cached from the library will not play without a connection, or `/mobile` does
 not open offline
 
-**Cause**: Known limitation - offline playback is broken. The mixer streams through
-`/poc-mixer/audio/...`, which the service worker does not serve from cache; the service worker
-only knows six stem names (not the 17 fine stems); and its precache list is stale.
+**Causes**:
+- The song was saved before service worker v2.40: those copies are removed and must be saved again
+- The save did not finish (a required file failed): incomplete saves are never served
+- The server is unreachable while the phone is still online (e.g. the tunnel returns an error
+  page): only network errors and 502/503/504 are treated as offline
+- `/mobile` was never opened online since the new service worker installed
 
-**Solution**: None yet - stay online. See `PWA_README.md`.
+**Solution**: Open `/mobile` online once, save the song again from the library and wait for the
+"saved for offline" toast. See `PWA_README.md`.
 
 ### Mobile Recording Fails to Decode
 
-**Cause**: When the browser cannot decode a take, the fallback posts to `/api/recordings/convert`,
-which does not exist on the server (404).
+**Cause**: When the browser cannot decode a take (mostly iOS), the fallback posts it to
+`/api/recordings/convert`, which converts it to WAV with ffmpeg. That conversion can fail: `413`
+(take over 64 MB, or WAV result over 512 MB), `415` (non-audio upload type), `422` (ffmpeg could not
+decode it / no audio track), `504` (ffmpeg timed out), `500` (ffmpeg unavailable).
 
-**Solution**: Record from the desktop mixer.
+**Solution**: Check `app.log` for `[RECORDINGS]` lines and that FFmpeg is available (see
+[FFmpeg Not Found](#ffmpeg-not-found)). Keep takes shorter, or record from the desktop mixer.
 
 ---
 

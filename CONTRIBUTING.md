@@ -236,12 +236,12 @@ chore: update dependencies to latest versions
 **Always test:**
 1. Download workflow (YouTube + file upload)
 2. Extraction with different models (`mvsep_mega_fine` needs a CUDA GPU)
-3. Chord detection (BTC), beat detection (madmom) and lyrics (Whisper + Musixmatch)
+3. Chord detection (BTC), beat detection (madmom), structure analysis (MSAF) and lyrics (Whisper + Musixmatch)
 4. Mixer functionality (play/pause, stems, pitch/tempo, loop/scrub, recording)
 5. Mobile interface (if UI changes)
 
-Structure analysis (MSAF) is currently non-functional - see
-`docs/feature-guides/STRUCTURE_ANALYSIS_IMPLEMENTATION.md` - so there is nothing to test there.
+For structure analysis, check that sections (labelled A, B, C... by similarity) appear in the
+desktop mixer's structure bar - see `docs/feature-guides/STRUCTURE_ANALYSIS_IMPLEMENTATION.md`.
 
 **Test on:**
 - Linux (primary platform)
@@ -270,7 +270,7 @@ python utils/testing/test_mvsep_mega.py <audio_file>
 
 **Features:**
 - New Demucs models support
-- Additional audio analysis features (e.g. reviving structure analysis)
+- Additional audio analysis features (e.g. naming structure sections)
 - Performance optimizations
 - Mobile interface improvements
 
@@ -278,7 +278,7 @@ python utils/testing/test_mvsep_mega.py <audio_file>
 - GPU compatibility issues
 - Database race conditions
 - WebSocket stability
-- Mobile audio playback and PWA offline playback (currently broken)
+- Mobile audio playback and PWA offline playback (save a song, then airplane mode)
 
 **Documentation:**
 - Tutorial videos

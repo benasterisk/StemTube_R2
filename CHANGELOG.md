@@ -30,6 +30,13 @@ the commits that carry the change.
   (`static/js/poc/snap.js`).
 - **Explicit re-extraction** — re-run a song with another model (or the same one);
   the previous stems and their stale ZIP are removed.
+- **`POST /api/extractions/<id>/analyze-structure`** — runs MSAF on one song and
+  stores its sections; `utils/analysis/reanalyze_all_structure.py [--force] [--limit N]`
+  was rewritten to backfill `structure_data` for the whole library (~30 s per song).
+- **`POST /api/recordings/convert`** — converts a take the browser cannot decode
+  (mostly iOS; WebM/Opus, MP4/AAC, Ogg) to 16-bit PCM WAV with ffmpeg, the fallback
+  `recording-utils.js` already called. Errors: 400, 413 (64 MB upload / 512 MB WAV),
+  415, 422, 504.
 
 ### Changed
 - Mixer artifacts (metronome, waveform peaks, `meta.json`) are now built at the end
@@ -55,6 +62,41 @@ the commits that carry the change.
 - Lyrics regeneration reads `stems_paths['vocals']` instead of a hard-coded path.
 - A failed or cancelled re-extraction no longer relabels the existing stems with the
   new model name.
+- **Structure analysis works again**: msaf 0.1.80 failed to import on modern SciPy
+  (`scipy.inf`, `scipy.signal.gaussian`), so `structure_data` was NULL for every song.
+  `core/msaf_structure_detector.py` restores both names before importing msaf, logs
+  the real import error instead of "not installed", gives each run its own temporary
+  feature cache (no more `.features_msaf_tmp.json` in the working directory) and drops
+  zero-length sections. Sections are similarity clusters labelled A, B, C… in order of
+  first appearance — MSAF does not name verses or choruses.
+- **Structure data reaches the mixer**: `routes/pages.py` now passes `structure_data`
+  in `EXTRACTION_INFO`, so the desktop mixer's structure bar shows the sections.
+  `static/js/poc/main.js` handed the stored JSON text straight to `loadStructure()`, which
+  cleared the bar and threw; both loaders now go through `StructureDisplay.parseSections()`,
+  and sections are colored by their MSAF cluster label (the chord-based grouping never parsed
+  the chords and gave every section its own color).
+- **Mixer opened right after an extraction lost its analysis**: for an extraction still held
+  in memory, `/mixer` read BPM, key, chords, beat grid, Skip Intro and structure from the
+  in-memory item, which has none of them. The page now always takes them from the database
+  record (matched by `video_id`).
+- **Regenerating chords or beats no longer resets Skip Intro or the beat offset**:
+  `update_download_analysis()` defaulted `beat_offset` and `music_start_time` to 0.0,
+  which `COALESCE` could not protect. `/chords/regenerate` no longer writes the beat
+  grid (BTC detects none) and returns the stored grid, so the metronome stays aligned;
+  `/beats/regenerate` stores the new grid and keeps Skip Intro.
+  The chord reanalysis scripts in `utils/analysis/` store chords only, for the same reason.
+- **Offline playback on mobile works**: songs are saved with the URLs the POC mixer
+  actually requests (`/poc-mixer/meta` and every `/poc-mixer/audio` stem, metronome and
+  count-in file from the meta, then a completion manifest); `static/sw.js` (v2.40) serves
+  them network-first with the saved copy as fallback, answers `prepare`/`progress` offline,
+  precaches the current mobile shell (socket.io included) one file at a time, and serves
+  static files network-first so unversioned ES-module and CSS `@import` files no longer stay
+  stale after a deploy. Old stem caches are removed; songs must be saved again. Removing
+  `download_1` no longer also removes `download_12`.
+- De-bleed leftovers (recording UI dropdown, CSS, socket call) are gone.
+- **One application version**: `APP_VERSION` in `core/config.py` is `3.0.2` and is
+  injected into every template (`app_version`); the mobile page shows it instead of a
+  hard-coded "1.3.0 PWA".
 
 ---
 

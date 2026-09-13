@@ -56,7 +56,7 @@ global_downloads:
   - detected_bpm (FLOAT) - Audio analysis result
   - detected_key (TEXT) - Musical key (e.g. "F major")
   - chords_data (JSON) - Chord progression with timestamps
-  - structure_data (JSON) - Song sections; always NULL (structure detection is non-functional)
+  - structure_data (JSON) - Song sections (MSAF, labelled A, B, C... by similarity)
   - lyrics_data (JSON) - Transcribed lyrics with word timestamps
 ```
 
@@ -160,12 +160,17 @@ core/downloads/
 - **Backend Selection:** None. The `chords_use_madmom` and `chords_use_hybrid` keys in
   `core/config.json` are inert
 
-**Structure Analysis (NON-FUNCTIONAL):**
-- `msaf` is installed but fails to import (`from scipy import inf`, removed in modern SciPy)
-- `core/msaf_structure_detector.py` catches the ImportError, logs the misleading
-  "msaf library is not installed", and returns None
-- Only caller: `core/download_manager.py` (download phase)
-- `structure_data` is NULL in every database row
+**Structure Analysis (MSAF):**
+- `core/msaf_structure_detector.py` restores `scipy.inf` / `scipy.signal.gaussian` (removed from
+  modern SciPy, still used by msaf 0.1.80) before importing msaf, and logs the real error if the
+  import still fails
+- Foote boundaries + FMC2D labels; sections are similarity clusters labelled with letters in order
+  of first appearance (`A B C D E D E D`) - MSAF does not name verses/choruses. Zero-length
+  sections are dropped; each run uses its own temporary feature cache
+- Callers: `core/download_manager.py` (download phase), `POST /api/extractions/<id>/analyze-structure`
+  (`routes/media.py`), `utils/analysis/reanalyze_all_structure.py` (backfill)
+- `routes/pages.py` passes `structure_data` to the mixer page (`EXTRACTION_INFO`), where
+  `structure-display.js` renders it
 - Dead modules: `core/structure_detector.py`, `core/llm_structure_analyzer.py` (no importers)
 
 ### 4. Lyrics System
@@ -316,8 +321,9 @@ class ModuleName {
 - `GET /api/extractions/<id>/lyrics` - Get cached lyrics
 - `POST /api/extractions/<id>/lyrics/regenerate` - Whisper + Musixmatch in parallel, merged
 - `POST /api/extractions/<id>/lyrics/generate`, `POST /api/extractions/<id>/lyrics/lrclib` - Deprecated shims redirecting to `/lyrics/regenerate`
-- `POST /api/extractions/<id>/chords/regenerate` - BTC chords
-- `POST /api/extractions/<id>/beats/regenerate` - madmom beats/downbeats
+- `POST /api/extractions/<id>/chords/regenerate` - BTC chords (beat grid and Skip Intro untouched)
+- `POST /api/extractions/<id>/beats/regenerate` - madmom beats/downbeats (keeps Skip Intro)
+- `POST /api/extractions/<id>/analyze-structure` - MSAF sections → `structure_data`
 
 **POC Mixer:** (routes/poc_mixer.py)
 - `POST /poc-mixer/prepare/<id>`, `GET /poc-mixer/progress/<id>` - Build/poll mixer artifacts
@@ -327,10 +333,9 @@ class ModuleName {
 **Recordings:** (routes/recordings.py)
 - `POST /api/recordings`, `GET /api/recordings/<download_id>`, `GET /api/recordings/<id>/file`
 - `PUT /api/recordings/<id>` (rename), `DELETE /api/recordings/<id>`
+- `POST /api/recordings/convert` - ffmpeg fallback: browser take (field `audio`) → 16-bit PCM WAV
 
 **Known gaps:**
-- Called by JS but missing server-side: `/api/extractions/<id>/analyze-structure`
-  (`structure-display.js`), `/api/recordings/convert`
 - Unused: `POST /api/mobile/toggle`, `GET /admin/mobile-settings` (unlinked)
 
 **Admin:** (15)
@@ -470,7 +475,7 @@ python reset_admin_password.py  # Reset administrator password
 **Re-analysis:**
 ```bash
 python utils/analysis/reanalyze_all_chords.py     # Re-run chord detection
-python utils/analysis/reanalyze_all_structure.py  # Re-run structure analysis (fails: imports msaf)
+python utils/analysis/reanalyze_all_structure.py  # Fill missing structure_data ([--force] [--limit N])
 ```
 
 ---
@@ -564,7 +569,7 @@ def admin_route():
 - Flask 3.x, Flask-SocketIO, Flask-Login
 - PyTorch 2.x, Demucs 4.x, madmom 0.16.1
 - faster-whisper 1.2.0, BTC-ISMIR19, MSST BS-Roformer (vendored), librosa, scipy
-- MSAF (installed but fails to import; structure detection non-functional)
+- MSAF 0.1.80 (structure analysis, SciPy aliases patched at import)
 - SQLite3, aiotube, yt-dlp
 
 **Frontend:**
@@ -608,10 +613,10 @@ def admin_route():
 
 **Previous:**
 - Professional chord detection with madmom CRF (since replaced by BTC-only chords; madmom now does beats only)
-- Music structure analysis via MSAF (now non-functional: msaf fails to import under modern SciPy)
+- Music structure analysis via MSAF (broken by a SciPy upgrade, restored September 2026)
 - Lyrics/karaoke system with faster-whisper
 - Chord transposition in mixer
-- Structure timeline visualization (frontend only; no structure data is produced)
+- Structure timeline visualization
 - File upload system
 - Silent stem detection
 - Admin interface integration

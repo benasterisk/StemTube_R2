@@ -87,7 +87,7 @@ To fill in songs that have no beat grid yet:
 python utils/analysis/regenerate_beat_times.py
 ```
 
-⚠️ Known issue: regenerating beats (or chords) resets **Skip Intro** (`music_start_time`) and the beat offset to 0. Re-apply them afterwards.
+Regenerating beats stores the freshly detected grid (beat times, bar positions, offset) and keeps **Skip Intro** (`music_start_time`). Regenerating chords does not touch the beat grid.
 
 ## Detection Pipeline
 

@@ -72,7 +72,7 @@ static/js/
     ├── stage-window.js         # Chords grid / lyrics focus in a real browser window
     ├── chord-display.js        # Chord timeline
     ├── karaoke-display.js      # Lyrics display
-    ├── structure-display.js    # Structure sections (backend non-functional)
+    ├── structure-display.js    # Structure sections (MSAF, A/B/C labels)
     ├── lyrics-popup.js         # Lyrics modal
     ├── recording-effects.js    # Per-recording-track effects chain
     ├── recording-engine.js     # Multi-track recording & playback
@@ -532,17 +532,19 @@ function updateKaraoke(currentTime) {
 
 **Purpose**: Song structure visualization
 
-> **Non-functional.** `structure_data` is NULL in every database row: `msaf` fails to
-> import (`from scipy import inf`, removed in modern SciPy) and
-> `core/msaf_structure_detector.py` returns None. The component's `analyzeStructure()` calls
-> `POST /api/extractions/<id>/analyze-structure`, a route that does not exist.
+> **Data source:** `routes/pages.py` passes `structure_data` to the mixer page in
+> `EXTRACTION_INFO`; `loadStructureFromExtractionInfo()` renders it on init. The component's
+> `analyzeStructure()` calls `POST /api/extractions/<id>/analyze-structure` (`routes/media.py`),
+> but no UI control invokes it. Sections come from `core/msaf_structure_detector.py`: similarity
+> clusters labelled `A`, `B`, `C`... in order of first appearance - never verse/chorus names.
+> Desktop mixer only (the mobile PWA has no structure view).
 
-**Size**: ~530 lines
+**Size**: ~620 lines
 
 **Structure Sections**:
-- Intro, Verse, Chorus, Bridge, Outro
-- Color-coded sections
-- Click to jump to section
+- Numbered blocks; the tooltip shows the MSAF letter label (`Section 3 (B)`) and timing
+- Color-coded by chord similarity between sections (label-based grouping without chords)
+- Click to jump to section, double-click to loop it
 
 **Rendering**:
 ```javascript

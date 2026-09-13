@@ -36,7 +36,7 @@ Complete documentation of the SQLite database structure.
 **Key Features**:
 - Global file deduplication (saves disk space)
 - Per-user access control
-- Extraction metadata (stems, chords, lyrics; the structure column exists but is always NULL)
+- Extraction metadata (stems, chords, lyrics, song structure sections)
 - Audio analysis results (BPM, key, confidence, beats)
 - User recording takes (`recordings`)
 
@@ -205,7 +205,7 @@ auto-migration `_add_extraction_fields_if_missing()` in `core/db/schema.py`.)
 | `analysis_confidence` | REAL | YES | NULL | BPM/key detection confidence (0.0-1.0) |
 | `chords_data` | TEXT | YES | NULL | JSON: [{"timestamp": 0.0, "chord": "C:maj"}, ...] (BTC) |
 | `beat_offset` | REAL | NO | 0.0 | Time offset to first downbeat (seconds) |
-| `structure_data` | TEXT | YES | NULL | JSON: [{"start": 0.0, "end": 30.0, "label": "intro"}, ...] - **always NULL** (structure detection non-functional) |
+| `structure_data` | TEXT | YES | NULL | JSON: [{"start": 0.0, "end": 18.2, "label": "A", "confidence": 1.0}, ...] (MSAF, similarity-labelled sections) |
 | `lyrics_data` | TEXT | YES | NULL | JSON: [{"start": 0.0, "end": 2.5, "text": "...", "words": [...]}, ...] |
 | `beat_times` | TEXT | YES | NULL | JSON array of beat timestamps (madmom) |
 | `beat_positions` | TEXT | YES | NULL | JSON array of beat-in-bar positions (1,2,3,4) |
@@ -244,14 +244,16 @@ not a mixer track. Re-extracting with another model replaces the stored stems.
 ]
 ```
 
-**structure_data** (array) - intended format only. The column is NULL in every row: `msaf`
-fails to import under modern SciPy (`from scipy import inf`), so
-`core/msaf_structure_detector.py` returns None.
+**structure_data** (array) - written by `core/msaf_structure_detector.py` at download time,
+by `POST /api/extractions/<id>/analyze-structure`, and by
+`utils/analysis/reanalyze_all_structure.py` (backfill). Labels are MSAF similarity clusters as
+letters in order of first appearance - sections that sound alike share a letter; MSAF does not
+name verses or choruses. `confidence` is a fixed 1.0 placeholder.
 ```json
 [
-  {"start": 0.0, "end": 8.0, "label": "intro"},
-  {"start": 8.0, "end": 32.0, "label": "verse"},
-  {"start": 32.0, "end": 56.0, "label": "chorus"}
+  {"start": 0.0, "end": 18.2, "label": "A", "confidence": 1.0},
+  {"start": 18.2, "end": 45.6, "label": "B", "confidence": 1.0},
+  {"start": 45.6, "end": 71.3, "label": "A", "confidence": 1.0}
 ]
 ```
 
@@ -289,13 +291,15 @@ if download['stems_paths']:
     print(f"Vocals: {stems['vocals']}")
 ```
 
-**Known Issues**:
-- `update_download_analysis()` (`core/db/downloads.py`) uses `COALESCE(?, column)`, which only
-  protects against NULL. `POST /api/extractions/<id>/chords/regenerate` and
-  `POST /api/extractions/<id>/beats/regenerate` (`routes/media.py`) do not pass
-  `music_start_time`, so it is overwritten with the 0.0 default; `/chords/regenerate` also writes
-  `beat_offset = 0.0` because BTC returns no beats. A non-NULL 0.0 replaces the stored value.
-- `structure_data` is always NULL (see above).
+**Partial updates**:
+- `update_download_analysis()` (`core/db/downloads.py`) uses `COALESCE(?, column)`: every field
+  defaults to `None`, including `beat_offset` and `music_start_time`, so a caller that omits a
+  field preserves the stored value. `/chords/regenerate` stores only `chords_data` (beat grid and
+  Skip Intro untouched); `/beats/regenerate` stores the new beat grid and keeps
+  `music_start_time`; `/analyze-structure` stores only `structure_data`.
+- `COALESCE` only protects against NULL: an explicit non-NULL value still replaces the stored
+  value, so callers must pass `None` for anything they did not compute (the chord reanalysis
+  scripts in `utils/analysis/` pass chords only).
 
 **File**: core/downloads_db.py
 
@@ -844,7 +848,7 @@ if record['chords_data']:
 **Current state** (September 2026):
 - Four tables: `users`, `global_downloads`, `user_downloads`, `recordings` (recordings are live)
 - Beat columns in use: `beat_times`, `beat_positions`, `music_start_time`, `metronome_offset_ms`
-- `structure_data` still exists but is always NULL (structure detection non-functional)
+- `structure_data` is filled again (MSAF sections, backfilled for existing songs in September 2026)
 
 ### Future Considerations
 

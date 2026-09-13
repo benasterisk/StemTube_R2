@@ -41,10 +41,11 @@ This document describes the complete flow from download to extraction, including
 - **Input:** Full audio
 - **Output:** `chords_data` (beats are detected later, in Phase 4)
 
-### 2.3 Structure Detection (NOT functional)
-- **Library:** MSAF (Music Structure Analysis Framework)
-- **Status:** ❌ Broken. `msaf` cannot be imported with modern SciPy (`from scipy import inf`), so `core/msaf_structure_detector.py` logs "msaf library is not installed" and returns `None`.
-- **Output:** `structure_data` is always `NULL`. See [STRUCTURE_ANALYSIS_IMPLEMENTATION.md](feature-guides/STRUCTURE_ANALYSIS_IMPLEMENTATION.md).
+### 2.3 Structure Detection
+- **Library:** MSAF (Music Structure Analysis Framework) - Foote boundaries + FMC2D labels, via `core/msaf_structure_detector.py` (restores the `scipy.inf` / `scipy.signal.gaussian` aliases msaf 0.1.80 needs before importing it)
+- **Input:** Full audio
+- **Output:** `structure_data` - sections labelled by similarity cluster with letters in order of first appearance (e.g. `A B C D E D E D`); MSAF does not name verses or choruses. Zero-length sections are dropped. See [STRUCTURE_ANALYSIS_IMPLEMENTATION.md](feature-guides/STRUCTURE_ANALYSIS_IMPLEMENTATION.md).
+- **Re-run:** `POST /api/extractions/<id>/analyze-structure`, or `python utils/analysis/reanalyze_all_structure.py [--force] [--limit N]` for the whole library
 
 ### 2.4 Lyrics Detection (Musixmatch Only)
 - **Library:** syncedlyrics API (Musixmatch), via `core/syncedlyrics_client.py`
@@ -133,7 +134,7 @@ With `mvsep_mega_fine` the stems are `vocals` (lead), `backing_vocals`, `drums` 
 LRCLIB is not a lyrics source. `core/lrclib_client.py`, `core/lyrics_aligner.py` and `core/vocal_onset_detector.py` are dead code.
 
 ### Structure Analysis
-Not functional (MSAF import fails with modern SciPy) - no fallback.
+MSAF only - no fallback. If detection fails, `structure_data` is left unchanged.
 
 ---
 
@@ -144,7 +145,7 @@ Not functional (MSAF import fails with modern SciPy) - no fallback.
 | BPM/Key | librosa, scipy | Spectral analysis, template matching |
 | Chords | BTC-ISMIR19 | Chord recognition |
 | Beats | madmom | Beat/downbeat grid for the metronome |
-| Structure | MSAF | Section segmentation (❌ broken) |
+| Structure | MSAF | Section segmentation (A/B/C similarity labels) |
 | Lyrics (sync) | syncedlyrics / Musixmatch | Musixmatch API |
 | Lyrics (ASR) | faster-whisper | Speech-to-text, word timings |
 | Stem Separation | Demucs, MSST (BS-Roformer), DrumSep | Source separation |
@@ -160,7 +161,7 @@ Not functional (MSAF import fails with modern SciPy) - no fallback.
 | Chord Detection | `core/chord_detector.py`, `core/btc_chord_detector.py` |
 | Beat Detection | `core/madmom_chord_detector.py` (beats only), called from `extensions.py` |
 | Lyrics Detection | `core/lyrics_detector.py`, `core/lyrics_merger.py`, `core/syncedlyrics_client.py`, `core/musixmatch_client.py` |
-| Structure Analysis | `core/msaf_structure_detector.py` (❌ broken) |
+| Structure Analysis | `core/msaf_structure_detector.py` |
 | Database | `core/downloads_db.py` → `core/db/` |
 | Main Routes | `routes/` blueprints, post-extraction chain in `extensions.py` |
 
@@ -176,7 +177,7 @@ Not functional (MSAF import fails with modern SciPy) - no fallback.
 2. **Chord Detection:**
    - Currently uses full audio
    - Could potentially use instrumental stem for better accuracy (future optimization)
-   - Known issue: regenerating chords or beats resets Skip Intro (`music_start_time`) and the beat offset to 0
+   - Regenerating chords leaves the stored beat grid and Skip Intro untouched; regenerating beats stores the new grid and keeps Skip Intro
 
 3. **Structure Analysis:**
-   - Currently non-functional (see Phase 2.3)
+   - Runs on the full mix at download time (~30 s per song on first analysis, see Phase 2.3)

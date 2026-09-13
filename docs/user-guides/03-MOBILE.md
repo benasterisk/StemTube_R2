@@ -77,7 +77,7 @@ StemTube can be installed as a Progressive Web App (PWA) for a native app-like e
 
 - **Standalone Mode**: No browser URL bar, full-screen experience
 - **Home Screen Icon**: Launch like a native app
-- **Offline Support**: Songs can be cached, but offline playback is currently broken (see [Offline Mode](#offline-mode))
+- **Offline Support**: Songs saved from the library play without a connection (see [Offline Mode](#offline-mode))
 - **Faster Loading**: Core files cached locally
 - **Splash Screen**: Branded loading screen on startup
 
@@ -85,22 +85,16 @@ StemTube can be installed as a Progressive Web App (PWA) for a native app-like e
 
 ## Offline Mode
 
-> **⚠️ Known limitation: offline playback does not work today.** You can still cache a song from
-> the library, and the stems are stored on the device, but the mixer cannot play them back without
-> a connection:
-> - The mobile mixer streams stems through `/poc-mixer/audio/...`, a URL the service worker
->   (`static/sw.js`) does not intercept, so cached audio is never served.
-> - The service worker only knows six stem names (vocals, bass, drums, guitar, piano, other), so
->   the 17 fine stems of the MVSep Mega model are not recognised.
-> - Its precache list is out of date, so opening `/mobile` from a cold start while offline fails.
->
-> Treat the cache as a download of the stems for later, not as a working offline mode.
+Songs saved for offline play in the mobile mixer without a connection. Saving stores exactly
+what the mixer requests: the song's meta, every stem (any model, including the 17 fine stems),
+the metronome and the count-in files. The service worker (`static/sw.js`) always tries the
+network first and only falls back to the saved copy when the server cannot be reached.
 
 ### How Offline Caching Works
 
 1. **Manual Caching**: Tap the cache (download) button on a song in the library
 2. **No Automatic Caching**: Playing a track does not cache its stems
-3. **Offline Playback**: ❌ Currently broken (see above)
+3. **Offline Playback**: Saved songs open in the mixer offline; a count-in falls back to a plain start and the metronome sound cannot be changed until you reconnect
 4. **Offline Banner**: A "You are offline" banner appears when disconnected
 
 ### Mobile Settings Tab
@@ -504,17 +498,22 @@ The mobile interface (`/mobile` route) provides:
 
 #### Cached Song Won't Play Offline
 
-**Cause**: Known limitation - offline playback is broken (see [Offline Mode](#offline-mode)).
+**Cause**: The song was saved before the offline fix (old copies are removed), the save did not
+finish, or the server is unreachable while the phone still reports being online.
 
-**Solution**: Reconnect to the network; there is no workaround yet.
+**Solution**: Open `/mobile` online, save the song again and wait for the "saved for offline"
+toast (see [Offline Mode](#offline-mode)).
 
 #### Recording Fails to Decode (iOS)
 
-**Cause**: When the browser cannot decode a recorded take directly, `recording-utils.js` falls
-back to a server-side conversion at `/api/recordings/convert`. That endpoint does not exist on
-the server (404), so the fallback always fails.
+**How it works**: When the browser cannot decode a recorded take directly, `recording-utils.js`
+falls back to a server-side conversion at `/api/recordings/convert` (ffmpeg converts the take to WAV).
 
-**Solution**: Known limitation - record from the desktop mixer instead.
+**Cause of a failure**: the take is too large (over 64 MB), ffmpeg cannot decode it, or the
+conversion times out - the server answers with a `413`, `422` or `504` error.
+
+**Solution**: Record shorter takes, check the server log for `[RECORDINGS]` lines, or record from
+the desktop mixer instead.
 
 ---
 

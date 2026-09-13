@@ -193,8 +193,9 @@ export_chords_to_txt(json.loads(chords_json), 'chords.txt')
 python utils/analysis/reanalyze_all_chords.py
 ```
 
-⚠️ This resets the beat offset and Skip Intro to 0 for every song it touches (see
-[Troubleshooting](#skip-intro-and-beat-offset-reset-after-regeneration)).
+⚠️ Skip Intro is preserved, but the script still passes BTC's placeholder beat offset (`0.0`) to
+`update_download_analysis()`, so the stored `beat_offset` becomes 0 for every song it touches
+(BTC detects no beats). The mixer's chord regenerate route does not have this side effect.
 
 ---
 
@@ -253,20 +254,6 @@ curl -X POST http://localhost:5011/api/extractions/<id>/chords/regenerate
 - Download best quality from YouTube
 - Use lossless formats for uploads
 - Avoid heavily compressed audio (< 128kbps)
-
----
-
-### Skip Intro and Beat Offset Reset After Regeneration
-
-**Symptom**: After regenerating chords or beats, the Skip Intro position and the metronome beat
-offset are back to 0
-
-**Cause**: Known issue - the chord/beat regenerate routes in `routes/media.py` (and
-`reanalyze_all_chords.py`) call `update_download_analysis()` without passing the existing
-`music_start_time`, so its default of 0 overwrites Skip Intro; the stored beat offset is
-overwritten as well instead of being preserved
-
-**Workaround**: Re-apply Skip Intro / Detect Intro and re-align the metronome after regenerating
 
 ---
 
@@ -639,7 +626,7 @@ preventManualHorizontalScroll(scrollContainer) {
 ## Next Steps
 
 - [Usage Guide](../user-guides/02-USAGE.md) - Stem extraction models, lyrics, mixer
-- [Structure Analysis](STRUCTURE_ANALYSIS_IMPLEMENTATION.md) - MSAF (currently not functional)
+- [Structure Analysis](STRUCTURE_ANALYSIS_IMPLEMENTATION.md) - MSAF sections (A/B/C similarity labels)
 - [BTC Setup Guide](../setup-guides/BTC-SETUP.md) - BTC detector setup
 
 ---

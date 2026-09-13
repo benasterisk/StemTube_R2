@@ -34,7 +34,7 @@ Documentation of the StemTube HTTP API endpoints and WebSocket events.
   registers them via `register_all_blueprints()`)
 - Plus SocketIO events (core progress events + jam session events in `routes/jam.py`)
 - Not every route is documented below; see [Known Gaps](#known-gaps) for routes that are
-  called but missing, or present but unused
+  present but unused, and deprecated shims
 
 **Note on `File:` references**: the `app.py:<line>` references below predate the split of
 `app.py` into blueprints. The handlers now live in the matching `routes/*.py` module.
@@ -221,9 +221,11 @@ Interactive mixer interface (POC engine, fed by the `/poc-mixer/*` routes).
 - `extraction_id`: Extraction to load (e.g. `download_42`)
 - `stage` (optional): `lyrics` or `chords` - opens the page as a display-only stage window
 
-**Response**: HTML template (mixer.html)
+**Response**: HTML template (mixer.html). The page receives an `EXTRACTION_INFO` object (chords,
+beat grid, `music_start_time`, `structure_data`, ...); `structure-display.js` renders its
+`structure_data` in the structure bar.
 
-**File**: app.py:863
+**File**: routes/pages.py
 
 ---
 
@@ -631,8 +633,8 @@ Start stem extraction.
 (`remove_replaced_stems()` in `extensions.py`). After extraction, `warm_prepare()` pre-builds the
 mixer artifacts.
 
-**Note**: `structure_data` is never populated (structure detection is non-functional), so any
-structure fields in responses are empty.
+**Note**: `structure_data` is filled at download time (MSAF sections labelled A, B, C... by
+similarity), not by extraction; see `POST /api/extractions/<extraction_id>/analyze-structure`.
 
 **Response** (200 OK):
 ```json
@@ -756,7 +758,7 @@ Regenerate chord detection.
 **Auth**: Required
 
 **Request**: No body. There is no backend selection: chord detection is BTC Transformer only
-(170 vocab). The `chords_use_madmom` / `chords_use_hybrid` config keys are passed along but inert.
+(170 vocab). The `chords_use_madmom` / `chords_use_hybrid` config keys are not read.
 
 **Response** (200 OK):
 ```json
@@ -764,15 +766,16 @@ Regenerate chord detection.
   "success": true,
   "chords": [...],
   "detected_bpm": 120.0,
-  "beat_offset": 0.0,
-  "beat_times": [],
-  "beat_positions": []
+  "beat_offset": 0.52,
+  "beat_times": [0.52, 1.02, ...],
+  "beat_positions": [1, 2, 3, 4, ...]
 }
 ```
 
-**Known issue**: BTC returns no beats, so this route writes `beat_offset = 0.0`, and it does not
-pass `music_start_time`, which resets to 0.0. `COALESCE` in `update_download_analysis()` cannot
-protect a non-NULL 0.0, so previously detected values are overwritten.
+**Beat grid**: BTC detects no beats, so this route stores only `chords_data` and leaves the beat
+grid and Skip Intro (`music_start_time`) untouched. `beat_offset`, `beat_times` and
+`beat_positions` in the response are the **stored** values, so clients keep their metronome
+alignment.
 
 **File**: routes/media.py
 
@@ -795,8 +798,42 @@ Regenerate beat and downbeat timestamps with madmom.
 }
 ```
 
-**Known issue**: does not pass `music_start_time`, which resets to 0.0 (same `COALESCE`
-limitation as `/chords/regenerate`).
+Stores the freshly detected beat grid (`beat_times`, `beat_positions`, `beat_offset`) and keeps
+Skip Intro (`music_start_time` is not passed, so `COALESCE` preserves it).
+
+**File**: routes/media.py
+
+---
+
+### POST /api/extractions/<extraction_id>/analyze-structure
+
+Detect song sections with MSAF (Foote boundaries + FMC2D labels) and store them as
+`structure_data`. Takes ~30 s on a song analyzed for the first time.
+
+**Auth**: Required
+
+**Request**: No body. `extraction_id` may be `download_<id>`, a video ID or a filename prefix.
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "structure": {
+    "sections": [
+      {"start": 0.0, "end": 18.2, "label": "A", "confidence": 1.0},
+      {"start": 18.2, "end": 45.6, "label": "B", "confidence": 1.0},
+      {"start": 45.6, "end": 71.3, "label": "A", "confidence": 1.0}
+    ]
+  },
+  "sections_count": 3
+}
+```
+
+Labels are similarity clusters as letters in order of first appearance - sections that sound
+alike share a letter. MSAF does not name verses or choruses. `confidence` is a fixed placeholder.
+Only `structure_data` is written; all other analysis fields are preserved.
+
+**Errors**: `404` extraction or audio file not found, `400` no video ID, `500` detection failed.
 
 **File**: routes/media.py
 
@@ -1665,6 +1702,35 @@ Upload a WAV recording with metadata.
 
 ---
 
+### POST /api/recordings/convert
+
+Convert a browser recording take that the browser cannot decode into WAV. Fallback used by
+`RecordingUtils.decodeAudioBlob()` (`static/js/recording-utils.js`), mostly on iOS. Nothing is
+stored.
+
+**Auth**: Required
+
+**Content-Type**: `multipart/form-data`
+
+**Form Data**:
+- `audio` (required): the recorded take in any browser recording container (WebM/Opus, MP4/AAC,
+  Ogg). The format is detected by ffmpeg from the content, not the filename.
+
+**Response** (200): raw 16-bit PCM WAV bytes, `Content-Type: audio/wav`, `Cache-Control: no-store`
+
+**Errors** (JSON `{"error": "..."}`):
+- `400`: no `audio` field, or empty file
+- `413`: upload over 64 MB, or WAV result over 512 MB
+- `415`: non-audio MIME type (accepted: `audio/*`, `video/webm`, `video/mp4`, `video/quicktime`,
+  `video/ogg`, `application/ogg`, `application/octet-stream`, empty)
+- `422`: ffmpeg could not decode the file, or it has no audio track
+- `500`: ffmpeg could not be run
+- `504`: ffmpeg timed out (120 s)
+
+**File**: routes/recordings.py
+
+---
+
 ### GET /api/recordings/:download_id
 
 List all recordings for the current user and download.
@@ -1890,11 +1956,6 @@ GET /api/logs/download/app.log
 ---
 
 ## Known Gaps
-
-**Called by JavaScript but missing server-side** (the request fails):
-- `POST /api/extractions/<id>/analyze-structure` - called by `static/js/mixer/structure-display.js`.
-  Structure detection is non-functional anyway (`structure_data` is always NULL).
-- `POST /api/recordings/convert` - called by `static/js/recording-utils.js`
 
 **Present but unused**:
 - `POST /api/mobile/toggle` (`mobile_routes.py`)

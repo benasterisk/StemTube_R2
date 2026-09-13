@@ -12,7 +12,7 @@ Learn how to use all features of StemTube.
 - [Using the Mixer](#using-the-mixer)
 - [Chord Detection](#chord-detection)
 - [Lyrics & Karaoke](#lyrics--karaoke)
-- [Structure Analysis](#structure-analysis) (currently unavailable)
+- [Structure Analysis](#structure-analysis)
 - [Pitch & Tempo Control](#pitch--tempo-control)
 - [File Management](#file-management)
 - [Admin Features](#admin-features)
@@ -329,7 +329,7 @@ Record yourself playing along with stems. Recordings are positioned on the timel
 - See [Chord Detection](#chord-detection)
 
 **Structure Sections**:
-- ❌ Currently unavailable - the structure bar stays empty
+- Desktop mixer: the structure bar shows the song's sections, synced to playback
 - See [Structure Analysis](#structure-analysis)
 
 ### State Persistence
@@ -414,8 +414,7 @@ python utils/analysis/reanalyze_all_chords.py
 - Incorrect chords: Regenerate chords from the mixer (there is no alternative backend to switch to)
 - No chords detected: Check the logs for `[CHORDS] BTC not available` or `BTC error`
 - BTC unavailable: Check the model weights (see [BTC Setup](../setup-guides/BTC-SETUP.md))
-- **Known issue**: regenerating chords or beats resets **Skip Intro** and the beat offset to 0 -
-  re-apply them afterwards
+- Regenerating chords or beats keeps **Skip Intro** and the metronome alignment
 
 ---
 
@@ -501,14 +500,19 @@ Compact for easier reading on small screens
 
 ## Structure Analysis
 
-> **❌ Currently unavailable.** Automatic song structure detection (intro / verse / chorus
-> sections) does not work in this version, and the structure bar in the mixer stays empty.
-> The MSAF library it relies on no longer loads with current SciPy releases, so no song gets
-> sections, and the reanalysis script (`utils/analysis/reanalyze_all_structure.py`) fails too.
-> Use the A/B loop and markers to navigate song sections manually in the meantime.
->
-> Technical details and what it would take to revive the feature:
-> [Structure Analysis Implementation](../feature-guides/STRUCTURE_ANALYSIS_IMPLEMENTATION.md).
+**Automatic song sections** detected with MSAF when a song is downloaded.
+
+- Sections are grouped **by similarity**: parts that sound alike share a letter, assigned in order
+  of first appearance (e.g. `A B C D E D E D`)
+- MSAF does **not** name sections intro / verse / chorus / bridge - a repeated letter is a hint
+  (a returning chorus often shows up as the same letter), not a label
+- Shown in the **desktop mixer's** structure bar, synced to playback (hover a section for its
+  letter and timing); the mobile interface has no structure view
+- Songs added before structure analysis was restored can be filled in by an admin with
+  `python utils/analysis/reanalyze_all_structure.py` (~30 s per song)
+
+Technical details:
+[Structure Analysis Implementation](../feature-guides/STRUCTURE_ANALYSIS_IMPLEMENTATION.md).
 
 ---
 

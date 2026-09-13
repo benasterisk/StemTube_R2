@@ -1,40 +1,47 @@
 # Music Structure Analysis - Simplified MSAF Implementation
 
 **Date:** 2025-10-27  
-**Status:** ❌ NOT functional (broken since the SciPy upgrade) - kept as historical reference  
-**Version:** 2.0
+**Status:** ✅ Working (restored 2026-09-13 after being broken by the SciPy upgrade)  
+**Version:** 2.1
 
 ---
 
-> ## ⚠️ Current Status: Structure Analysis Does Not Work
+> ## ✅ Current Status: Structure Analysis Works
 >
-> **Verse/chorus section detection is dead in the current codebase.** Nothing below describes
-> working behavior; it is kept only as design notes for a future revival.
+> Sections are computed for new downloads and have been backfilled for existing songs. The
+> desktop mixer's structure bar shows them.
 >
-> **What happens today:**
-> - `msaf` is installed in the venv but **cannot be imported**: it does `from scipy import inf`,
->   which was removed in modern SciPy releases.
-> - `core/msaf_structure_detector.py` catches the resulting `ImportError`, logs the misleading
->   message `[MSAF] msaf library is not installed`, and returns `None`.
-> - `structure_data` is therefore `NULL` for **every** song in `global_downloads`.
-> - The desktop mixer's `static/js/mixer/structure-display.js` calls
->   `/api/extractions/<id>/analyze-structure`, an endpoint that **does not exist** on the server.
->   The mixer's structure bar never fills.
-> - The reanalysis scripts are broken too: `utils/analysis/reanalyze_all_structure.py` depends on
->   the same unimportable `msaf`, and `utils/analysis/reanalyze_all_structure_advanced.py` imports
->   `core.advanced_structure_detector`, a module that no longer exists.
+> **What the sections are:** MSAF similarity clusters (Foote boundaries + FMC2D labels), labelled
+> with **letters in order of first appearance** - e.g. `A B C D E D E D`. Sections that sound alike
+> share a letter. MSAF does **not** name sections intro / verse / chorus / bridge.
 >
-> **What reviving it would take:**
-> 1. Make MSAF importable again: patch `from scipy import inf` to `from numpy import inf` in the
->    installed package (similar to `utils/setup/patch_madmom.py`), pin an older SciPy, or replace
->    MSAF with a maintained segmenter (e.g. a librosa-based Foote/checkerboard implementation).
-> 2. Fix the log message in `core/msaf_structure_detector.py` so an import failure is reported as
->    such instead of "not installed".
-> 3. Add the missing `POST /api/extractions/<id>/analyze-structure` route (e.g. in
->    `routes/media.py`) that runs detection and persists `structure_data`, or change
->    `structure-display.js` to read `structure_data` from the extraction payload.
-> 4. Repair or delete the two `reanalyze_all_structure*.py` scripts, then backfill existing songs.
-> 5. Verify on both desktop (`/`) and mobile (`/mobile`).
+> **How it was restored (`core/msaf_structure_detector.py`):**
+> - msaf 0.1.80 uses two names that modern SciPy removed: `scipy.inf` (imported by
+>   `msaf/pymf/sivm_search.py`) and `scipy.signal.gaussian` (used by the Foote segmenter). The
+>   detector restores both aliases (`numpy.inf`, `scipy.signal.windows.gaussian`) right before
+>   `import msaf`.
+> - An import failure is now logged with the real error (`[MSAF] msaf could not be imported: ...`)
+>   instead of the misleading "msaf library is not installed".
+> - Each analysis gets its own temporary feature cache (msaf's `features_tmp_file` points into a
+>   per-run temp dir that is deleted afterwards), so no `.features_msaf_tmp.json` is written to the
+>   server's working directory and concurrent analyses no longer share one file.
+> - Zero-length sections (msaf repeats the final boundary) are dropped (< 0.5 s).
+> - FMC2D's numeric cluster ids are mapped to letters (`A` for the first cluster heard).
+>
+> **Where it runs:**
+> - **New downloads**: `core/download_manager.py` calls `detect_song_structure_msaf()` during the
+>   audio-analysis phase and stores `structure_data`.
+> - **On demand**: `POST /api/extractions/<id>/analyze-structure` (`routes/media.py`) runs detection
+>   and stores the result, returning `{success, structure: {sections: [...]}, sections_count}`.
+> - **Backfill**: `python utils/analysis/reanalyze_all_structure.py [--force] [--limit N]` fills songs
+>   with no `structure_data` (`--force` re-analyzes all). Allow ~30 s per song on first analysis.
+> - **Display**: `routes/pages.py` passes `structure_data` to the mixer page (`EXTRACTION_INFO`), where
+>   `static/js/mixer/structure-display.js` renders it (desktop mixer only; the mobile PWA has no
+>   structure view).
+>
+> **Still dead code:** `core/structure_detector.py`, `core/llm_structure_analyzer.py`, and
+> `utils/analysis/reanalyze_all_structure_advanced.py` (imports `core.advanced_structure_detector`,
+> which no longer exists).
 
 ---
 
@@ -67,7 +74,8 @@ sections = detect_song_structure_msaf(
 
 - Uses `msaf.process` to get boundaries + labels directly.
 - Generates sections `{start, end, label, confidence}` (confidence fixed to `1.0`).
-- Keeps MSAF labels when available, fallback `Section N` otherwise.
+- Maps MSAF's cluster ids to letters (`A`, `B`, `C`... in order of first appearance); fallback `Section N` when a labeler returns no label.
+- Drops sections shorter than 0.5 s and restores the SciPy aliases msaf needs before importing it.
 
 ### 3. Pipeline integration
 
@@ -75,10 +83,7 @@ In `core/download_manager.py`: the *structure* block calls only `detect_song_str
 
 ### 4. Dependencies
 
-`requirements.txt`:
-```text
-msaf>=0.1.90
-```
+`setup_dependencies.py` installs `msaf` (unpinned; the current venv has 0.1.80, which needs the SciPy aliases described above).
 MSAF manages its dependencies automatically (librosa, scikit-learn, joblib, etc.).
 
 ---
@@ -94,7 +99,9 @@ print(sections)
 PY
 ```
 
-If `msaf` cannot be imported, a log message is emitted (`pip install msaf`) - note that today this message also appears when msaf *is* installed but fails to import (SciPy incompatibility, see the status banner). If MSAF fails (invalid file, unusual format), `structure_data` remains `NULL`.
+If `msaf` cannot be imported, the real import error is logged (`[MSAF] msaf could not be imported: ...`). If MSAF fails (invalid file, unusual format) or finds no sections, the function returns `None` and `structure_data` is left unchanged (`NULL` for a song never analyzed).
+
+To backfill the library: `python utils/analysis/reanalyze_all_structure.py [--force] [--limit N]`.
 
 ---
 
@@ -103,12 +110,13 @@ If `msaf` cannot be imported, a log message is emitted (`pip install msaf`) - no
 `structure_data` column (table `global_downloads`):
 ```json
 [
-  {"start": 0.0, "end": 18.2, "label": "Intro", "confidence": 1.0},
-  {"start": 18.2, "end": 45.6, "label": "A", "confidence": 1.0}
+  {"start": 0.0, "end": 18.2, "label": "A", "confidence": 1.0},
+  {"start": 18.2, "end": 45.6, "label": "B", "confidence": 1.0},
+  {"start": 45.6, "end": 71.3, "label": "A", "confidence": 1.0}
 ]
 ```
 
-Exact labels come from the chosen `labels_id` algorithm.
+Labels are letters derived from the `labels_id` algorithm's cluster ids; `confidence` is a fixed placeholder (MSAF provides none).
 
 ---
 
@@ -141,4 +149,4 @@ Useful variants:
 
 ---
 
-🎵 **Conclusion (historical)**: This design made StemTube structure detection rely solely on MSAF. Because MSAF no longer imports with modern SciPy, structure detection currently produces no results - see the status banner at the top of this document.
+🎵 **Conclusion**: StemTube structure detection relies solely on MSAF. With the SciPy aliases restored it works again and produces similarity-labelled sections (A, B, C...) - see the status banner at the top of this document.

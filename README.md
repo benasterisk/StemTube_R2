@@ -168,8 +168,8 @@ Two engines, each with one job:
 > The older hybrid detector and the `chords_use_madmom` / `chords_use_hybrid`
 > settings are no longer wired: madmom no longer produces chords.
 
-> Song structure detection (intro/verse/chorus) is **not functional**: MSAF no longer
-> imports with the pinned SciPy, so no sections are ever computed.
+> Song structure detection (MSAF) splits each song into sections labelled by similarity
+> (`A B C B A…`, sections that sound alike share a letter); it does not name verses or choruses.
 
 See [Chord Detection Guide](docs/feature-guides/CHORD-DETECTION.md) for details.
 
@@ -180,8 +180,8 @@ See [Chord Detection Guide](docs/feature-guides/CHORD-DETECTION.md) for details.
 Full-featured mobile interface at `/mobile`:
 
 - **Progressive Web App (PWA)** - Install as native app on iOS/Android home screen
-- **Offline caching** - Songs can be cached from the Settings tab, but *offline playback is
-  currently broken*: the mixer streams through routes the service worker does not intercept
+- **Offline playback** - Songs saved from the library play in the mobile mixer without a
+  connection (stems, metronome and count-in are cached with the mixer's own URLs)
 - **Mobile Settings Tab** - Manage cached audio and storage
 - **Responsive Touch Controls** - Optimized for iOS and Android
 - **iOS Audio Unlock** - Automatic handling of iOS audio restrictions
