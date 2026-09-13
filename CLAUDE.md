@@ -40,9 +40,9 @@ User Request → Check global_downloads → Use existing OR Process → Add user
 ### Processing Pipeline (4 phases)
 
 1. **Download** — yt-dlp downloads from YouTube, converts to MP3. File upload also supported (MP3, WAV, FLAC, M4A, AAC, OGG, WMA, MP4, AVI, MKV, MOV, WEBM).
-2. **Audio Analysis** (auto after download) — BPM/key detection (librosa/scipy), chord detection (BTC → madmom → hybrid fallback), structure analysis (MSAF), lyrics lookup (Musixmatch API only).
-3. **Stem Extraction** (user-triggered) — Demucs separation: `htdemucs` (4 stems), `htdemucs_6s` (6 stems), `mdx_extra` (4 stems). Auto GPU detection with CPU fallback. Plus `mvsep_mega_fine` (engine `msst`, CUDA only), a 3-stage hybrid run by `core/msst/separate.py`: `htdemucs_6s` coarse split → DrumSep (inagoy, HDemucs, MIT) on the drums stem → ZFTurbo's MVSep Mega 53-stem BS-Roformer heads split the remaining Demucs stems via Wiener masks. 17 fine stems (lead/backing vocals, drums (rest)/kick/snare/toms/cymbals, electric/acoustic guitar, piano, organ, synth, brass, winds, strings, other). Measured on real songs: Mega alone misses much of the kit, and its kit heads isolate 9-44 % of the drums where DrumSep reaches 76-94 %; stems always sum to the mix. Also writes `drums_full.mp3` (the Demucs drums, not a mixer track) for metronome beat detection. Re-extracting with another model replaces the stems (`remove_replaced_stems` in `extensions.py`).
-4. **Post-Extraction** (auto) — Lyrics re-detection using vocals stem (Musixmatch → faster-whisper fallback). Replaces download-phase lyrics with better source.
+2. **Audio Analysis** (auto after download) — BPM/key detection (librosa/scipy), chord detection (BTC transformer only), synced lyrics lookup (`syncedlyrics_client.py`). Structure analysis (MSAF) is still called but **non-functional**: msaf fails to import on the pinned SciPy (`from scipy import inf`), the detector logs a misleading "not installed", and `structure_data` is always NULL.
+3. **Stem Extraction** (user-triggered) — Demucs separation: `htdemucs` (4 stems), `htdemucs_ft` (4 stems), `htdemucs_6s` (6 stems), `mdx_extra` (4 stems); `mdx_extra_q` is listed but unreachable (disabled in the UI, `diffq` not installed). Auto GPU detection with CPU fallback. Plus `mvsep_mega_fine` (engine `msst`, CUDA only), a 3-stage hybrid run by `core/msst/separate.py`: `htdemucs_6s` coarse split → DrumSep (inagoy, HDemucs, MIT) on the drums stem → ZFTurbo's MVSep Mega 53-stem BS-Roformer heads split the remaining Demucs stems via Wiener masks. 17 fine stems (lead/backing vocals, drums (rest)/kick/snare/toms/cymbals, electric/acoustic guitar, piano, organ, synth, brass, winds, strings, other). Measured on real songs: Mega alone misses much of the kit, and its kit heads isolate 9-44 % of the drums where DrumSep reaches 76-94 %; stems always sum to the mix. Also writes `drums_full.mp3` (the Demucs drums, not a mixer track) for metronome beat detection. Re-extracting with another model replaces the stems (`remove_replaced_stems` in `extensions.py`).
+4. **Post-Extraction** (auto) — Lyrics re-detection on the vocals stem: faster-whisper and Musixmatch run **in parallel** and are merged (Musixmatch text + Whisper timings, `core/lyrics_merger.py`). Then the madmom beat/downbeat grid, then the mixer artifacts are pre-built (`warm_prepare` in `routes/poc_mixer.py`) so the first mixer open is a cache hit.
 
 ### Startup Sequence (`app.py`)
 
@@ -81,14 +81,14 @@ Central anti-circular-dependency hub — all blueprints import from here. Contai
 | `download_manager.py` | Queue-based download processing, BPM/key detection, analysis orchestration |
 | `stems_extractor.py` | Demucs/MSST subprocess runner, GPU auto-detection, silent stem detection, MSST GPU lock |
 | `msst/` | Vendored MSST BS-Roformer (MIT) + `separate.py` CLI; weights in `core/models/msst/` (downloaded on first use); spike: `utils/testing/test_mvsep_mega.py` |
-| `chord_detector.py` | BTC chord detector (170 chord vocabulary, GPU-optimized) |
-| `madmom_chord_detector.py` | madmom CRF chord detector (24 chord types, CPU-friendly) |
-| `hybrid_chord_detector.py` | Combines multiple backends as fallback |
-| `lyrics_detector.py` | faster-whisper transcription with word-level timestamps |
-| `lyrics_aligner.py` | LrcLib + Whisper word alignment |
-| `syncedlyrics_client.py` | Musixmatch synced lyrics API |
-| `vocal_onset_detector.py` | Vocal onset alignment for lyrics timing |
-| `msaf_structure_detector.py` | MSAF structure analysis (Foote boundaries) |
+| `chord_detector.py` | BTC chord detector (170 chord vocabulary) — the only chord engine; returns no beats |
+| `madmom_chord_detector.py` | madmom **beat/downbeat** detection only (its chord path is unused) |
+| `hybrid_chord_detector.py` | Dead code — no importers |
+| `lyrics_detector.py` | `detect_lyrics_unified()`: faster-whisper + Musixmatch in parallel, merged by `lyrics_merger.py` |
+| `lyrics_aligner.py` | Dead code — no importers (the LrcLib path is gone; `lrclib_client.py` is dead too) |
+| `syncedlyrics_client.py` | Synced lyrics lookup (Musixmatch) — at download time, and inside `detect_lyrics_unified()` after extraction |
+| `vocal_onset_detector.py` | Dead code — no importers |
+| `msaf_structure_detector.py` | MSAF structure analysis — **non-functional** (msaf import fails on the pinned SciPy) |
 | `config.py` | Configuration management, `get_setting()` / `update_setting()` |
 | `auth_db.py` | User authentication, `create_user()`, `authenticate_user()` |
 
@@ -143,16 +143,20 @@ Central anti-circular-dependency hub — all blueprints import from here. Contai
 **CSS** (split into subdirectories via `@import`):
 - `style.css` → 7 files in `css/desktop/`
 - `mobile-style.css` → 7 files in `css/mobile/`
-- `mixer/mixer.css` → 7 files in `css/mixer/`
+- `mixer/mixer.css` → 7 files in `css/mixer/` — but this aggregator is loaded by **no template**: `mixer.html` loads `css/mixer/{chords,karaoke,export,structure,lyrics-popup}.css` directly and themes itself with inline CSS
 
-**Mixer modules** (`static/js/mixer/`): Each module follows the pattern `class ModuleName { constructor(mixer) { ... } sync(currentTime) { ... } }`. Key modules: `core.js` (coordinator), `audio-engine.js` (desktop Web Audio), `mobile-audio-engine.js` (iOS-optimized), `chord-display.js`, `karaoke-display.js`, `simple-pitch-tempo.js` (SoundTouch), `structure-display.js`, `waveform.js`, `timeline.js`, `track-controls.js`, `recording-engine.js` (multi-track recording), `soundtouch-engine.js` (WASM).
+**Mixer = POC engine** (`static/js/poc/`), used by the desktop `/mixer` and, through `static/js/mixer/mobile-poc-engine.js`, by the mobile PWA and jam guests. Modules: `audio.js` (Web Audio engine, SoundTouch worklet, native A/B looping), `timeline.js` (ruler, waveforms, playhead), `mixer.js` (track rows and lane gestures), `loader.js` (prepare → meta → progressive stem loading), `state.js` (per-song session persistence), `tempo.js`, `precount.js`, `loop.js`, `snap.js` (snap-to-beat), `scrub.js` (audible scrubbing), `export.js` (mix export), `main.js`, `mixer-compat.js`, `recording-ui.js`. Server side: `routes/poc_mixer.py` builds a per-user `meta.json` (beats, metronome, waveform peaks) and serves audio.
 
-**Jam session:** `jam-bridge.js` (host transport wrapper), `jam-client.js` (shared WebSocket client), `jam-metronome.js` (beat scheduling), `jam-tab.js` (desktop UI).
+Gestures: ruler drag = scrub, click = seek, Shift+drag (ruler or waveform) = loop, Alt = no snap, Alt+click = count-in Start marker, Ctrl/Cmd+click = metronome Stop marker.
+
+Still loaded from the older `static/js/mixer/`: `stage-window.js`, `chord-display.js`, `structure-display.js` (starves: no structure data), `karaoke-display.js`, `lyrics-popup.js`, `recording-effects.js`, `recording-engine.js`. The other ~20 files there (`core.js`, `audio-engine.js`, `waveform.js`, `timeline.js`, `track-controls.js`, `soundtouch-engine.js`, the `mobile-*-fix.js` series…) are **orphaned** — loaded by no template.
+
+**Jam session:** `jam-bridge.js` (host transport wrapper on the POC engine), `jam-client.js` (shared WebSocket client), `jam-tab.js` (desktop UI). `jam-metronome.js` is orphaned (loaded by no template): guests use the POC engine instead.
 
 ## Configuration
 
 - **Secrets** (`.env`): `FLASK_SECRET_KEY` (required), `NGROK_URL` (optional). Never commit.
-- **App settings** (`core/config.json`): Managed via Admin Panel. Key settings: `use_gpu_for_extraction`, `default_stem_model`, `lyrics_model_size`, `chords_use_madmom`, `chords_use_hybrid`, `downloads_directory`.
+- **App settings** (`core/config.json`): Managed via Admin Panel. Key settings: `use_gpu_for_extraction`, `default_stem_model`, `lyrics_model_size`, `downloads_directory`. (`chords_use_madmom` / `chords_use_hybrid` are still read but ignored.)
 
 ## Desktop/Mobile Parity
 
@@ -175,13 +179,13 @@ Real-time collaborative playback — host shares transport control, no audio str
 Host creates session (`jam_create`) → gets 6-char code → guests join via `/jam/CODE` (no login required, auto-generated names). Host controls play/pause/seek; `jam-bridge.js` intercepts mixer transport to broadcast commands. Periodic sync heartbeats (5s) with drift correction (threshold: 0.5s). RTT measurement for latency compensation. 30-second grace period for host reconnection.
 
 ### Precount & Metronome
-Host-only control: off, 2, 4, or 8 beats (long-press metronome dot). Host broadcasts `play` with `precount_beats` before starting local precount, so both sides count down simultaneously. `jam-metronome.js` uses Web Audio look-ahead scheduling (100ms ahead) for sample-accurate clicks. Beat map extrapolation prepends virtual beats backward to time 0. Guest mode (`window.JAM_GUEST_MODE`) blocks transport controls and settings popover.
+Host-only control: off, 2, 4, or 8 beats (long-press metronome dot). Host broadcasts `play` with `precount_beats` before starting local precount, so both sides count down simultaneously. Guests run the POC engine on the host's metronome and baked count-in (`precount.js`, served through the `/api/jam/poc/*` routes); sync uses a shared clock, time anchors and measured output-latency compensation. Guest mode (`window.JAM_GUEST_MODE`) blocks transport controls and settings popover.
 
 ### Stale Session Handling
 Flask session flags (`jam_guest`, `jam_code`, `jam_guest_name`) auto-cleared on disconnect, on stale detection in `handle_connect()`, and on route entry. `jam_create` clears leftover guest flags.
 
 ### Key Files
-`routes/jam.py` (HTTP routes + SocketIO events via `register_jam_socketio_events()`), `jam-bridge.js`, `jam-client.js`, `jam-metronome.js`, `jam-tab.js`, `jam-guest.html`, `jam-guest-mobile.html`, `static/css/jam.css`.
+`routes/jam.py` (HTTP routes + SocketIO events via `register_jam_socketio_events()`; `/jam/<code>` renders `mobile-index.html` — the mobile PWA is the single guest surface), `jam-bridge.js`, `jam-client.js`, `jam-tab.js`, `static/css/jam.css`. `templates/jam-guest-mobile.html` and `static/js/jam-metronome.js` are leftovers, no longer used.
 
 ## Code Style
 

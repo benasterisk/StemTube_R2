@@ -24,9 +24,10 @@ Complete guide to GPU acceleration for StemTube (4-10x faster processing).
 
 **Supported**:
 - ✅ Stem extraction (Demucs) - 4-8x faster
+- ✅ Fine stem extraction (`mvsep_mega_fine`, 17 stems) - **CUDA GPU required** (~6 GB VRAM), ~1-2 min per song
 - ✅ Lyrics transcription (faster-whisper) - 3-5x faster
-- ❌ Chord detection (madmom - CPU optimized)
-- ⚠️ Chord detection (BTC - GPU optional)
+- ❌ Chord detection (BTC - runs on CPU)
+- ❌ Beat detection (madmom - CPU only)
 
 **Requirements**:
 - NVIDIA GPU with CUDA Compute Capability 3.5+
@@ -44,9 +45,10 @@ Complete guide to GPU acceleration for StemTube (4-10x faster processing).
 |-----------|-----|------------|---------|
 | **Stem extraction** (4 stems, 4-min song) | 3-8 min | 20-60s | **4-8x** |
 | **Stem extraction** (6 stems, 4-min song) | 5-12 min | 30-90s | **4-8x** |
+| **Stem extraction** (`mvsep_mega_fine`, 17 stems) | not supported | ~1-2 min | GPU only |
 | **Lyrics transcription** | 30-120s | 10-30s | **3-5x** |
-| **Chord detection** (madmom) | 20-40s | 20-40s | **1x** (no GPU) |
-| **Chord detection** (BTC) | 30-60s | 15-30s | **2x** |
+| **Chord detection** (BTC) | 30-60s | 30-60s | **1x** (CPU) |
+| **Beat detection** (madmom) | 10-30s | 10-30s | **1x** (no GPU) |
 
 ### Example Workflow
 
@@ -730,7 +732,7 @@ sudo nvidia-smi -pl 350  # Max power limit (watts)
 
 - [Installation Guide](../user-guides/01-INSTALLATION.md) - StemTube setup
 - [Troubleshooting Guide](../user-guides/05-TROUBLESHOOTING.md) - Common issues
-- [Stem Extraction Guide](../feature-guides/STEM-EXTRACTION.md) - Demucs models
+- [Processing Flow](../PROCESSING_FLOW.md) - Extraction models and pipeline
 
 ---
 

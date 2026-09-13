@@ -234,7 +234,8 @@ python3.12 setup_dependencies.py
 4. Downloads Demucs models:
    - `htdemucs` (4-stem: vocals, drums, bass, other) - ~340 MB
    - `htdemucs_6s` (6-stem: adds guitar, piano) - ~340 MB
-5. Patches madmom for numpy 2.x compatibility
+   - (MVSep Mega / DrumSep weights for `mvsep_mega_fine` are downloaded to `core/models/msst/` on first use - CUDA GPU only)
+5. Patches madmom for numpy 1.20+ / Python 3.10+ compatibility (madmom is used for beat detection)
 6. Configures GPU libraries if CUDA detected
 
 **Time**: 5-15 minutes depending on internet speed.
@@ -524,7 +525,7 @@ choco install ffmpeg
 **Solution**:
 ```bash
 source venv/bin/activate
-python utils/setup/patch_madmom_numpy.py
+python patch_madmom.py
 ```
 
 #### "torch not compiled with CUDA"
@@ -625,7 +626,7 @@ python utils/database/clear_database.py
 
 **For Administrators**:
 - [Security Setup](../admin-guides/SECURITY_SETUP.md) - Production security best practices
-- [Deployment Guide](../admin-guides/DEPLOYMENT.md) - Deploy to production server
+- [Service Management](../admin-guides/SERVICE_COMMANDS.md) - systemd service and production start
 - [HTTPS Setup](../admin-guides/HTTPS-SETUP.md) - Configure SSL certificates
 - [Service Management](../admin-guides/SERVICE_COMMANDS.md) - systemd service setup
 

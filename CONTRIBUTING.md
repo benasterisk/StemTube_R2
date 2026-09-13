@@ -235,10 +235,13 @@ chore: update dependencies to latest versions
 
 **Always test:**
 1. Download workflow (YouTube + file upload)
-2. Extraction with different models
-3. Chord detection and structure analysis
-4. Mixer functionality (play/pause, stems, pitch/tempo)
+2. Extraction with different models (`mvsep_mega_fine` needs a CUDA GPU)
+3. Chord detection (BTC), beat detection (madmom) and lyrics (Whisper + Musixmatch)
+4. Mixer functionality (play/pause, stems, pitch/tempo, loop/scrub, recording)
 5. Mobile interface (if UI changes)
+
+Structure analysis (MSAF) is currently non-functional - see
+`docs/feature-guides/STRUCTURE_ANALYSIS_IMPLEMENTATION.md` - so there is nothing to test there.
 
 **Test on:**
 - Linux (primary platform)
@@ -252,11 +255,11 @@ chore: update dependencies to latest versions
 python utils/database/debug_db.py
 
 # Audio analysis
-python utils/testing/test_madmom_tempo_key.py <audio_file>
+python utils/testing/test_madmom_tempo_key.py <audio_file>   # madmom tempo/beats (not chords)
 python utils/testing/test_lyrics_cpu.py <audio_file>
 
-# Extraction
-python utils/testing/test_extraction.py
+# Extraction (fine stems, CUDA GPU required)
+python utils/testing/test_mvsep_mega.py <audio_file>
 ```
 
 ---
@@ -267,7 +270,7 @@ python utils/testing/test_extraction.py
 
 **Features:**
 - New Demucs models support
-- Additional audio analysis features
+- Additional audio analysis features (e.g. reviving structure analysis)
 - Performance optimizations
 - Mobile interface improvements
 
@@ -275,7 +278,7 @@ python utils/testing/test_extraction.py
 - GPU compatibility issues
 - Database race conditions
 - WebSocket stability
-- Mobile audio playback
+- Mobile audio playback and PWA offline playback (currently broken)
 
 **Documentation:**
 - Tutorial videos

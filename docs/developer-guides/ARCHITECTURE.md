@@ -44,6 +44,7 @@ User Request → Check Global Existence → Grant Access OR Process → Update D
 - `users` - Authentication (Flask-Login + bcrypt)
 - `global_downloads` - Master file records with deduplication
 - `user_downloads` - User access to files
+- `recordings` - User recording takes (timeline offset + WAV path)
 
 **Critical Fields:**
 ```python
@@ -55,7 +56,7 @@ global_downloads:
   - detected_bpm (FLOAT) - Audio analysis result
   - detected_key (TEXT) - Musical key (e.g. "F major")
   - chords_data (JSON) - Chord progression with timestamps
-  - structure_data (JSON) - Song sections (intro, verse, chorus)
+  - structure_data (JSON) - Song sections; always NULL (structure detection is non-functional)
   - lyrics_data (JSON) - Transcribed lyrics with word timestamps
 ```
 
@@ -107,10 +108,22 @@ core/downloads/
 3. If not: Run Demucs → mark_extraction_complete() → add_user_extraction_access()
 ```
 
-**Models:**
+**Models** (`STEM_MODELS` in `core/config.py`):
 - `htdemucs` (4 stems: vocals, drums, bass, other) - Default
+- `htdemucs_ft` (4 stems: fine-tuned HTDemucs)
 - `htdemucs_6s` (6 stems: adds piano, guitar)
 - `mdx_extra` (4 stems: alternative)
+- `mdx_extra_q` (4 stems) - Unreachable: disabled in both templates and `diffq` is not installed
+- `mvsep_mega_fine` (17 stems, engine `msst`, CUDA only, min 6 GB VRAM) - 3-stage hybrid in
+  `core/msst/separate.py`: `htdemucs_6s` coarse split → DrumSep (inagoy, HDemucs, MIT) on the
+  drums stem → MVSep Mega 53-stem BS-Roformer heads (ZFTurbo, MIT) split the remaining stems with
+  Wiener masks. Run as a subprocess by `core/stems_extractor.py` behind a global GPU lock; weights
+  auto-downloaded to `core/models/msst/`. Also writes `drums_full.mp3` (not a mixer track) for
+  metronome beat detection.
+
+**Re-extraction:** `force_reextract` with another model replaces the previous stems
+(`remove_replaced_stems()` in `extensions.py`). After any extraction, `warm_prepare()` in
+`routes/poc_mixer.py` pre-builds the mixer artifacts.
 
 **GPU Acceleration:**
 - Automatic CUDA detection and configuration in `app.py`
@@ -118,7 +131,7 @@ core/downloads/
 - 4-8x faster than CPU (20-60s vs 3-8 min for 4 stems)
 
 ### 3. Audio Analysis
-**Files:** `core/download_manager.py`, `core/madmom_chord_detector.py`, `core/msaf_structure_detector.py`
+**Files:** `core/download_manager.py`, `core/chord_detector.py`, `core/btc_chord_detector.py`, `core/madmom_chord_detector.py` (beats only)
 
 **BPM Detection:**
 - Custom autocorrelation algorithm using scipy
@@ -129,35 +142,36 @@ core/downloads/
 - Pitch class histogram via chroma features
 - Determines musical key (e.g., "C major", "D minor")
 
-**Chord Detection (3 Backends):**
+**Chord Detection (BTC only):**
 
-1. **BTC Transformer** (170 chord vocabulary) - Most accurate
-   - External dependency: `../essentiatest/BTC-ISMIR19`
-   - GPU-optimized, supports complex jazz/advanced harmonies
-   - Default backend when available
+- **BTC Transformer** (170 chord vocabulary) - the only chord backend
+  - `core/chord_detector.py` `analyze_audio_file()` runs BTC-ISMIR19 only and returns
+    `(chords, 0.0, [], [])` - no beats
+  - Weights: `external/BTC-ISMIR19/test/btc_model_large_voca.pt`
+  - GPU-optimized, supports complex jazz/advanced harmonies
 
-2. **madmom CRF** (24 chord types) - Professional-grade
-   - CNN-based chroma extraction + CRF recognition
-   - Built-in, trained on 1000+ songs
-   - Chordify/Moises accuracy level
-   - Works on all genres including distorted/rock
-
-3. **Hybrid Detector** - Fallback combination
-   - Automatic fallback when BTC unavailable
-   - Combines multiple backends for robustness
+**Beat/Downbeat Detection (madmom):**
+- `core/madmom_chord_detector.py` is live only for beat/downbeat detection
+  (post-extraction in `extensions.py`, and `/beats/regenerate` in `routes/media.py`)
+- `core/hybrid_chord_detector.py` has no importers (dead code)
 
 **Features:**
 - **Chord Transposition:** Automatically transposes when user changes pitch in mixer
-- **Backend Selection:** Configurable via `core/config.json` (`chord_backend` setting)
+- **Backend Selection:** None. The `chords_use_madmom` and `chords_use_hybrid` keys in
+  `core/config.json` are inert
 
-**Structure Analysis (MSAF):**
-- Boundary detection: `boundaries_id="foote"` (kernel checkerboard)
-- Label assignment: `labels_id="fmc2d"` (generic clustering)
-- Returns sections with start/end/label/confidence
-- Stored as JSON array in `structure_data`
+**Structure Analysis (NON-FUNCTIONAL):**
+- `msaf` is installed but fails to import (`from scipy import inf`, removed in modern SciPy)
+- `core/msaf_structure_detector.py` catches the ImportError, logs the misleading
+  "msaf library is not installed", and returns None
+- Only caller: `core/download_manager.py` (download phase)
+- `structure_data` is NULL in every database row
+- Dead modules: `core/structure_detector.py`, `core/llm_structure_analyzer.py` (no importers)
 
 ### 4. Lyrics System
-**Files:** `core/lyrics_detector.py`
+**Files:** `core/lyrics_detector.py` (`detect_lyrics_unified`), `core/lyrics_merger.py`, `core/musixmatch_client.py`, `core/syncedlyrics_client.py` (download phase only)
+
+**Dead modules:** `core/lrclib_client.py`, `core/lyrics_aligner.py`, `core/vocal_onset_detector.py`
 
 **faster-whisper Integration:**
 - GPU-accelerated speech recognition (3-5x faster than CPU)
@@ -169,8 +183,9 @@ core/downloads/
 **Process:**
 ```python
 1. Prefer vocals stem if available
-2. Load Whisper model (tiny/base/small/medium/large/large-v3)
-3. Transcribe with word timestamps
+2. Run faster-whisper transcription AND Musixmatch fetch in parallel threads
+3. Merge: Musixmatch text + Whisper word timestamps (core/lyrics_merger.py)
+   (Whisper-only if Musixmatch has nothing, Musixmatch-only if Whisper fails)
 4. Save to lyrics_data JSON
 5. Display in mixer karaoke interface
 ```
@@ -224,26 +239,45 @@ StemsExtractor.on_extraction_complete
 - `app-extensions.js` - Utility functions
 - `auth.js` - Authentication flow
 
-**Mixer Interface (8,257 lines across 11 modules):**
+**Mixer Interface (POC engine):**
 
-1. **core.js** - Main coordinator, platform detection, analysis data loading
-2. **audio-engine.js** - Desktop Web Audio API processing
-3. **mobile-audio-engine.js** - iOS-optimized audio processing
-4. **chord-display.js** (489 lines) - Real-time chord display with transposition
-5. **structure-display.js** (567 lines) - Visual song section timeline
-6. **karaoke-display.js** - Scrolling lyrics with word highlighting
-7. **simple-pitch-tempo.js** - SoundTouch integration, pitch/tempo controls
-8. **waveform.js** - Canvas waveform visualization
-9. **timeline.js** - Playhead and time management
-10. **track-controls.js** - Per-stem volume/pan/mute + recording tracks
-11. **recording-engine.js** - Multi-track recording, latency calibration, server-side de-bleed via Demucs
-12. **soundtouch-engine.js** - WASM processor loading
+`templates/mixer.html` runs the POC engine from `static/js/poc/`, fed by the
+`/poc-mixer/*` bridge (`routes/poc_mixer.py`):
 
-**Modular Pattern:**
+1. **api.js** - All `/poc-mixer/*` server calls (prepare, progress, meta, audio)
+2. **audio.js** - Sample-accurate multi-stem Web Audio engine with SoundTouch time-stretch/pitch-shift
+3. **state.js** - Per-song UI session persistence (localStorage)
+4. **timeline.js** - Ruler, waveforms, beat grid, playhead, zoom (one shared time→px mapping)
+5. **mixer.js** - Track rows (controls left, waveform lanes right)
+6. **tempo.js** - BPM (time-stretch) and pitch controls
+7. **precount.js** - Detect Intro + count-in baked into server-rendered metronome WAVs
+8. **snap.js** - Shared snap-to-beat toggle
+9. **scrub.js** - Playhead scrubbing with audible slices
+10. **loop.js** - A/B loop with draggable bounds and numeric fields (timecode or bar)
+11. **loader.js** - Prepare/poll/load flow for the selected extraction
+12. **main.js** - Transport, zoom, render loop (glue)
+13. **export.js** - Server-side mix export UI
+14. **mixer-compat.js** - `window.mixer` shim so the legacy display components drive off the POC engine
+15. **recording-ui.js** - UI bridge for `RecordingEngine` on the POC lanes
+
+Only 7 files from `static/js/mixer/` are loaded: `stage-window.js`, `chord-display.js`,
+`structure-display.js`, `karaoke-display.js`, `lyrics-popup.js`, `recording-effects.js`,
+`recording-engine.js`. Styles come from `css/mixer/{chords,karaoke,export,structure,lyrics-popup}.css`
+linked directly; themes are inline CSS in `mixer.html` (`static/css/mixer/mixer.css` is loaded by
+no template). The mobile PWA runs the same POC engine through `static/js/mixer/mobile-poc-engine.js`.
+
+**Orphaned (loaded by no template, pre-POC design):** `advanced-controls.js`, `audio-engine.js`,
+`core.js`, `export-handler.js`, `mixer-persistence.js`, `mobile-audio-engine.js`,
+`mobile-audio-fixes.js`, `mobile-audio-patch.js`, `mobile-debug-fix.js`, `mobile-direct-fix.js`,
+`mobile-playhead-fix.js`, `mobile-simple-fixes.js`, `mobile-touch-fix.js`, `simple-pitch-tempo.js`,
+`soundtouch-engine.js`, `stem-worklet.js`, `tab-manager.js`, `timeline.js`, `track-controls.js`,
+`waveform.js` (all in `static/js/mixer/`).
+
+**Display Component Pattern** (karaoke/structure displays; they reach the engine through the
+`window.mixer` shim from `mixer-compat.js`):
 ```javascript
 class ModuleName {
-    constructor(mixer) {
-        this.mixer = mixer;
+    constructor(containerSelector, extractionId) {
         this.init();
     }
     sync(currentTime) { }  // Called during playback
@@ -278,9 +312,26 @@ class ModuleName {
 - `GET /api/extracted_stems/<id>/<stem>` - Serve stem file
 - `HEAD /api/extracted_stems/<id>/<stem>` - Check exists
 
-**Lyrics:** (2)
+**Lyrics / Analysis:** (routes/media.py)
 - `GET /api/extractions/<id>/lyrics` - Get cached lyrics
-- `POST /api/extractions/<id>/lyrics/generate` - Generate transcription
+- `POST /api/extractions/<id>/lyrics/regenerate` - Whisper + Musixmatch in parallel, merged
+- `POST /api/extractions/<id>/lyrics/generate`, `POST /api/extractions/<id>/lyrics/lrclib` - Deprecated shims redirecting to `/lyrics/regenerate`
+- `POST /api/extractions/<id>/chords/regenerate` - BTC chords
+- `POST /api/extractions/<id>/beats/regenerate` - madmom beats/downbeats
+
+**POC Mixer:** (routes/poc_mixer.py)
+- `POST /poc-mixer/prepare/<id>`, `GET /poc-mixer/progress/<id>` - Build/poll mixer artifacts
+- `GET /poc-mixer/meta/<id>` - Mixer metadata (gzipped when the client accepts it)
+- `GET/HEAD /poc-mixer/audio/<id>/<stem>` - Stems; metronome WAVs are served as cached MP3 twins
+
+**Recordings:** (routes/recordings.py)
+- `POST /api/recordings`, `GET /api/recordings/<download_id>`, `GET /api/recordings/<id>/file`
+- `PUT /api/recordings/<id>` (rename), `DELETE /api/recordings/<id>`
+
+**Known gaps:**
+- Called by JS but missing server-side: `/api/extractions/<id>/analyze-structure`
+  (`structure-display.js`), `/api/recordings/convert`
+- Unused: `POST /api/mobile/toggle`, `GET /admin/mobile-settings` (unlinked)
 
 **Admin:** (15)
 - `GET /admin`, `GET /admin/embedded` - Admin interfaces
@@ -408,7 +459,7 @@ python utils/database/clear_database.py     # Reset (DESTRUCTIVE)
 **Analysis:**
 ```bash
 python utils/testing/test_lyrics_cpu.py <audio>       # Test transcription
-python utils/testing/test_madmom_tempo_key.py <audio> # Test chord detection
+python utils/testing/test_madmom_tempo_key.py <audio> # Test madmom tempo/key
 ```
 
 **Admin:**
@@ -419,7 +470,7 @@ python reset_admin_password.py  # Reset administrator password
 **Re-analysis:**
 ```bash
 python utils/analysis/reanalyze_all_chords.py     # Re-run chord detection
-python utils/analysis/reanalyze_all_structure.py  # Re-run structure analysis
+python utils/analysis/reanalyze_all_structure.py  # Re-run structure analysis (fails: imports msaf)
 ```
 
 ---
@@ -512,7 +563,8 @@ def admin_route():
 **Backend:**
 - Flask 3.x, Flask-SocketIO, Flask-Login
 - PyTorch 2.x, Demucs 4.x, madmom 0.16.1
-- faster-whisper 1.2.0, MSAF, librosa, scipy
+- faster-whisper 1.2.0, BTC-ISMIR19, MSST BS-Roformer (vendored), librosa, scipy
+- MSAF (installed but fails to import; structure detection non-functional)
 - SQLite3, aiotube, yt-dlp
 
 **Frontend:**
@@ -532,7 +584,7 @@ def admin_route():
 **Total Lines:** ~20,000+
 - Backend Python: ~9,000 lines
 - Frontend JavaScript: ~10,000 lines
-- API Endpoints: 69 endpoints (67 routes + 2 WebSocket events)
+- API Endpoints: ~115 route decorators across `routes/*.py`, `mobile_routes.py`, `app.py` (plus SocketIO events)
 - Frontend Modules: 25+
 - Backend Modules: 20+
 
@@ -541,7 +593,7 @@ def admin_route():
 - `downloads_db.py`: 1,138 lines (Database ops)
 - `download_manager.py`: 997 lines (Queue management)
 - `stems_extractor.py`: 1,111 lines (Demucs integration)
-- Mixer modules: 8,257 lines total
+- Mixer: POC engine in `static/js/poc/` + 7 live files in `static/js/mixer/`
 
 ---
 
@@ -555,11 +607,11 @@ def admin_route():
 - ✅ **Codebase cleanup** - 16 obsolete files removed
 
 **Previous:**
-- Professional chord detection with madmom CRF
-- Music structure analysis via MSAF
+- Professional chord detection with madmom CRF (since replaced by BTC-only chords; madmom now does beats only)
+- Music structure analysis via MSAF (now non-functional: msaf fails to import under modern SciPy)
 - Lyrics/karaoke system with faster-whisper
 - Chord transposition in mixer
-- Structure timeline visualization
+- Structure timeline visualization (frontend only; no structure data is produced)
 - File upload system
 - Silent stem detection
 - Admin interface integration
@@ -671,7 +723,7 @@ Flask session flags (`jam_guest`, `jam_code`, `jam_guest_name`) caused SocketIO 
 
 | File | Role |
 |------|------|
-| `app.py` (lines ~830-950, ~5040-5240) | Backend: SocketIO handlers + HTTP routes |
+| `routes/jam.py` | Backend: SocketIO handlers + HTTP routes |
 | `static/js/jam-bridge.js` | Host mixer iframe: wraps transport to broadcast |
 | `static/js/jam-client.js` | Shared WebSocket client, RTT, event handlers |
 | `static/js/jam-metronome.js` | Metronome: precount, beat map, scheduling |

@@ -11,138 +11,87 @@ Complete installation guide for the BTC Transformer chord detector (170 chord vo
 - [Installation](#installation)
 - [Verification](#verification)
 - [Configuration](#configuration)
-- [Fallback Behavior](#fallback-behavior)
+- [No Fallback](#no-fallback)
 - [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Overview
 
-**BTC**: Beat and Chord Tracker (ISMIR 2019)
+**BTC**: Bi-directional Transformer for Chord recognition (ISMIR 2019)
 
-**Repository**: https://github.com/jayg996/BTC-ISMIR19
+**Upstream Repository**: https://github.com/jayg996/BTC-ISMIR19
 
 **Vocabulary**: 170 chord types (major, minor, 7th, 9th, 11th, 13th, sus, dim, aug, etc.)
 
 **Model**: Deep learning Transformer architecture
 
-**Status**: Optional external dependency
+**Status**: **Required** for chords - it is StemTube's only chord detector
 
-**Fallback**: If BTC unavailable, StemTube automatically uses madmom CRF (24 types)
+**Fallback**: **None.** If BTC is unavailable, songs get no chords. madmom is used only for
+beat/downbeat detection, and the old madmom CRF / hybrid chord chain has been removed.
 
 ---
 
 ## Prerequisites
 
-**Python**: 3.7+ (StemTube uses 3.12+)
+**Python**: 3.12+ (StemTube venv)
 
 **PyTorch**: Already installed by `setup_dependencies.py`
 
-**Dependencies**:
-- numpy
-- scipy
+**Dependencies** (installed by `setup_dependencies.py`):
+- torch
 - librosa
-- essentia (for BTC)
+- mir_eval, pretty_midi
+- pyyaml, pandas, scipy
 
-**Disk Space**: ~500 MB (model + dependencies)
+**Disk Space**: ~25 MB of model weights
 
-**External Dependency**: Must be installed outside StemTube directory
+**Location**: Bundled inside the project at `external/BTC-ISMIR19/` (tracked in git) - no separate install
 
 ---
 
 ## Installation
 
-### Step 1: Clone BTC Repository
+### Step 1: Check the Bundled Model
 
-**Recommended Location**: `../essentiatest/` (parallel to StemTube_R2)
-
-```bash
-# Navigate to parent directory
-cd /home/michael/Documents/Dev/
-
-# Create essentiatest directory
-mkdir -p essentiatest
-cd essentiatest
-
-# Clone BTC repository
-git clone https://github.com/jayg996/BTC-ISMIR19.git
-
-# Your directory structure should be:
-# /home/michael/Documents/Dev/
-# ├── StemTube_R2/
-# └── essentiatest/
-#     └── BTC-ISMIR19/
-```
-
-**Alternative Location**: Anywhere accessible, update `core/btc_chord_detector.py` accordingly
-
-### Step 2: Install BTC Dependencies
+BTC ships with StemTube. Nothing needs to be cloned:
 
 ```bash
-cd BTC-ISMIR19
+cd stemtube_dev_1.4
 
-# Create virtual environment (optional but recommended)
-python3 -m venv btc_venv
-source btc_venv/bin/activate
+ls external/BTC-ISMIR19/
+# btc_model.py  btc_wrapper.py  run_config.yaml  test/  utils/ ...
 
-# Install dependencies
-pip install numpy scipy librosa essentia-tensorflow
-
-# Or if requirements.txt exists:
-pip install -r requirements.txt
+ls -lh external/BTC-ISMIR19/test/*.pt
+# btc_model.pt              (24-chord model, unused)
+# btc_model_large_voca.pt   (170-chord model, used by StemTube)
 ```
 
-**Note**: BTC uses its own environment. StemTube will call BTC via subprocess.
-
-### Step 3: Download Pretrained Model
-
-**BTC provides pretrained models**:
-
-```bash
-cd BTC-ISMIR19
-
-# Download pretrained model (if available in repo)
-# Check repository for model download instructions
-
-# Model should be in:
-# BTC-ISMIR19/models/pretrained_model.h5
-# Or similar path
-```
-
-**Check Repository**: Model download instructions may vary. Consult BTC repository README.
-
-### Step 4: Verify BTC Standalone
-
-```bash
-cd /home/michael/Documents/Dev/essentiatest/BTC-ISMIR19
-
-# Test BTC directly
-python predict.py --audio test_audio.mp3 --output chords.txt
-
-# If successful, BTC is working
-```
-
-### Step 5: Configure StemTube
-
-**Edit**: `core/btc_chord_detector.py`
-
-**Update BTC Path** (if different from default):
+The path is resolved automatically in `core/btc_chord_detector.py`:
 
 ```python
-# core/btc_chord_detector.py
-import os
-from pathlib import Path
-
-# Default path (relative to StemTube_R2)
-BTC_PATH = Path(__file__).parent.parent.parent / 'essentiatest' / 'BTC-ISMIR19'
-
-# If you installed BTC elsewhere, update this path:
-# BTC_PATH = Path('/custom/path/to/BTC-ISMIR19')
-
-# Verify path exists
-if not BTC_PATH.exists():
-    raise FileNotFoundError(f"BTC not found at {BTC_PATH}")
+# BTC is located at external/BTC-ISMIR19 relative to project root
+BTC_PATH = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                        'external', 'BTC-ISMIR19'))
 ```
+
+### Step 2: Install Dependencies
+
+```bash
+python3.12 setup_dependencies.py
+```
+
+BTC runs **in-process** in the StemTube venv (no separate environment, no subprocess).
+
+### Step 3: Verify BTC Standalone (Optional)
+
+```bash
+cd external/BTC-ISMIR19
+python3 test.py --audio_dir ./test --save_dir ./test_output --voca True
+```
+
+See [BTC-CHORD-SETUP.md](BTC-CHORD-SETUP.md) for the expected output.
 
 ---
 
@@ -151,149 +100,89 @@ if not BTC_PATH.exists():
 ### Test BTC from StemTube
 
 ```bash
-cd /home/michael/Documents/Dev/stemtube_dev_v1.2
-
 source venv/bin/activate
 
-# Test BTC chord detector
-python -c "from core.btc_chord_detector import BTCChordDetector; print('BTC available')"
+python -c "from core.btc_chord_detector import is_available; print('BTC available:', is_available())"
 ```
 
 **Expected Output**:
 ```
-BTC available
+[BTC] BTC wrapper imported successfully
+BTC available: True
 ```
 
-**If Error**:
+**If Unavailable**:
 ```
-FileNotFoundError: BTC not found at /path/to/BTC-ISMIR19
+[BTC] Warning: BTC path not found at /path/to/external/BTC-ISMIR19
+```
+or
+```
+[BTC] Warning: Could not import BTC wrapper: ...
 ```
 
-→ BTC not installed or path incorrect (see [Troubleshooting](#troubleshooting))
+→ See [Troubleshooting](#troubleshooting)
 
 ### Test Detection
 
 ```python
-from core.btc_chord_detector import BTCChordDetector
+from core.chord_detector import analyze_audio_file
+import json
 
-detector = BTCChordDetector()
-
-# Test on sample audio
-chords = detector.detect('downloads/global/VIDEO_ID/audio.m4a')
+chords_json, _, _, _ = analyze_audio_file('path/to/song.mp3')
+chords = json.loads(chords_json) if chords_json else []
 
 print(f"Detected {len(chords)} chords")
-print(f"First chord: {chords[0]}")
+print(f"First chord: {chords[0] if chords else None}")
 
 # Expected output:
+# [CHORDS] Using BTC Transformer (170 chord vocabulary)...
+# [CHORDS] [OK] BTC detection successful
 # Detected 150 chords
-# First chord: {'timestamp': 0.0, 'chord': 'C:maj7'}
+# First chord: {'timestamp': 0.0, 'chord': 'Cmaj7'}
 ```
 
-### Check Backend Selection
-
+Or directly:
 ```bash
-# Check which chord backend is default
-python -c "from core.config import load_config; config = load_config(); print(config.get('chord_backend', 'madmom'))"
+python core/btc_chord_detector.py /path/to/audio.mp3
 ```
-
-**Expected**: `btc` (if BTC installed and configured)
-
-**Fallback**: `madmom` (if BTC unavailable)
 
 ---
 
 ## Configuration
 
-### Set BTC as Default
-
-**File**: `core/config.json`
-
-```json
-{
-    "chord_backend": "btc",
-    "chord_detection": {
-        "default_backend": "btc",
-        "fallback_enabled": true
-    }
-}
-```
-
-**Restart App**:
-```bash
-python app.py
-```
-
-### Force BTC for Specific Detection
-
-```python
-from core.chord_detector import detect_chords
-
-# Use BTC explicitly
-chords = detect_chords('audio.mp3', backend='btc')
-```
-
-### Disable BTC (Use madmom)
-
-```json
-{
-    "chord_backend": "madmom"
-}
-```
-
-Or via Python:
-```python
-chords = detect_chords('audio.mp3', backend='madmom')
-```
+There is nothing to configure:
+- BTC is always used when available
+- The 170-chord vocabulary is hard-wired (`use_large_vocab=True`)
+- `chords_use_madmom` and `chords_use_hybrid` in `core/config.json` are **inert** leftovers
+- There is no `chord_backend` setting and no way to select another backend
 
 ---
 
-## Fallback Behavior
+## No Fallback
 
-### Automatic Fallback
+### When BTC Is Unavailable
 
-**When BTC Unavailable**:
-1. StemTube checks if BTC is installed
-2. If not found, automatically uses madmom
-3. No error - seamless fallback
+1. `core/chord_detector.py` checks `is_available()`
+2. If BTC is missing, it logs `[CHORDS] BTC not available`
+3. `chords_data` stays empty - **no other detector is tried**
 
-**Detection**:
-```python
-def is_btc_available():
-    """Check if BTC is available."""
-    try:
-        from core.btc_chord_detector import BTCChordDetector
-        detector = BTCChordDetector()
-        return True
-    except (FileNotFoundError, ImportError):
-        return False
+If BTC raises during detection, the log shows `[CHORDS] BTC error: ...` and the result is also empty.
+
+### Logging
+
+**Success**:
+```
+[CHORDS] Using BTC Transformer (170 chord vocabulary)...
+[CHORDS] [OK] BTC detection successful
 ```
 
-### Fallback Logging
-
-**App Startup**:
+**Failure**:
 ```
-[INFO] Chord detection: BTC Transformer available
-[INFO] Default chord backend: btc
+[CHORDS] BTC not available
 ```
 
-Or if unavailable:
-```
-[WARNING] BTC chord detector not found, using madmom fallback
-[INFO] Default chord backend: madmom
-```
-
-### Check Current Backend
-
-```python
-from core.chord_detector import get_available_backends
-
-backends = get_available_backends()
-print(f"Available: {backends}")
-
-# Output:
-# Available: ['btc', 'madmom', 'hybrid']
-# Or: ['madmom', 'hybrid']  # If BTC unavailable
-```
+After fixing BTC, regenerate chords for affected songs from the mixer or with
+`python utils/analysis/reanalyze_all_chords.py`.
 
 ---
 
@@ -303,30 +192,19 @@ print(f"Available: {backends}")
 
 **Symptom**:
 ```
-FileNotFoundError: BTC not found at /path/to/BTC-ISMIR19
+[BTC] Warning: BTC path not found at /path/to/external/BTC-ISMIR19
 ```
 
 **Solutions**:
 
-**1. Verify Installation**:
+**1. Verify the Directory**:
 ```bash
-ls -la /home/michael/Documents/Dev/essentiatest/BTC-ISMIR19
+ls -la external/BTC-ISMIR19
 ```
 
-Should show BTC repository files.
-
-**2. Check Path Configuration**:
-```python
-# core/btc_chord_detector.py
-BTC_PATH = Path(__file__).parent.parent.parent / 'essentiatest' / 'BTC-ISMIR19'
-print(f"Looking for BTC at: {BTC_PATH}")
-print(f"Exists: {BTC_PATH.exists()}")
-```
-
-**3. Update Path if Needed**:
-```python
-# core/btc_chord_detector.py
-BTC_PATH = Path('/custom/path/to/BTC-ISMIR19')  # Update this
+**2. Restore It from Git** (if deleted):
+```bash
+git checkout -- external/BTC-ISMIR19
 ```
 
 ---
@@ -335,45 +213,29 @@ BTC_PATH = Path('/custom/path/to/BTC-ISMIR19')  # Update this
 
 **Symptom**:
 ```
-ModuleNotFoundError: No module named 'essentia'
+[BTC] Warning: Could not import BTC wrapper: No module named 'mir_eval'
 ```
 
-**Cause**: BTC dependencies not installed
+**Cause**: BTC dependencies not installed in the StemTube venv
 
 **Solution**:
 ```bash
-cd /home/michael/Documents/Dev/essentiatest/BTC-ISMIR19
-
-# Activate BTC environment (if using separate env)
-source btc_venv/bin/activate
-
-# Install essentia
-pip install essentia-tensorflow
-
-# Or all dependencies
-pip install numpy scipy librosa essentia-tensorflow
+source venv/bin/activate
+pip install torch librosa mir_eval pretty_midi pyyaml pandas
 ```
 
 ---
 
 ### Model Not Found
 
-**Symptom**:
-```
-FileNotFoundError: Pretrained model not found
-```
+**Symptom**: BTC fails to load its weights
 
-**Cause**: BTC model files missing
+**Cause**: `.pt` files missing
 
 **Solution**:
 ```bash
-cd /home/michael/Documents/Dev/essentiatest/BTC-ISMIR19
-
-# Check for model files
-ls -la models/
-
-# Download pretrained model (consult BTC repo README)
-# Model location depends on BTC repository structure
+ls -la external/BTC-ISMIR19/test/btc_model_large_voca.pt
+git checkout -- external/BTC-ISMIR19/test/
 ```
 
 ---
@@ -382,33 +244,12 @@ ls -la models/
 
 **Symptom**: BTC takes > 60 seconds per song
 
-**Cause**: CPU processing (BTC is GPU-optimized)
+**Cause**: BTC runs on CPU (`btc_wrapper.py` defaults to `torch.device("cpu")`), sharing it with
+extraction and Whisper
 
 **Solutions**:
-
-**1. Use GPU** (if available):
-```bash
-# Verify CUDA
-nvidia-smi
-
-# BTC will automatically use GPU if PyTorch detects CUDA
-```
-
-**2. Use madmom for Speed**:
-```python
-# madmom faster on CPU (20-40s vs 30-60s for BTC)
-chords = detect_chords('audio.mp3', backend='madmom')
-```
-
-**3. Reduce Song Length**:
-```python
-# Analyze shorter excerpt
-import librosa
-y, sr = librosa.load('audio.mp3', duration=120)  # First 2 minutes
-librosa.output.write_wav('excerpt.wav', y, sr)
-
-chords = detect_chords('excerpt.wav', backend='btc')
-```
+- Let concurrent extractions finish
+- Expect roughly 5x real-time on a typical CPU
 
 ---
 
@@ -419,98 +260,50 @@ chords = detect_chords('excerpt.wav', backend='btc')
 **Cause**: BTC may overfit for simple music
 
 **Solutions**:
+- Regenerate chords from the mixer
+- Use higher-quality source audio
+- There is no alternative backend to compare against
 
-**1. Try madmom for Simple Music**:
-```python
-# Pop/rock songs often use simple major/minor
-# madmom may be more accurate
-chords = detect_chords('audio.mp3', backend='madmom')
-```
+---
 
-**2. Compare Backends**:
-```python
-btc_chords = detect_chords('audio.mp3', backend='btc')
-madmom_chords = detect_chords('audio.mp3', backend='madmom')
+### Skip Intro / Beat Offset Reset
 
-# Compare results
-for i in range(min(5, len(btc_chords))):
-    print(f"{btc_chords[i]['timestamp']:.2f}s:")
-    print(f"  BTC:    {btc_chords[i]['chord']}")
-    print(f"  madmom: {madmom_chords[i]['chord']}")
-```
+**Symptom**: After regenerating chords or beats, Skip Intro and the beat offset are back to 0
 
-**3. Use Hybrid**:
-```python
-# Hybrid combines both backends with confidence weighting
-chords = detect_chords('audio.mp3', backend='hybrid')
-```
+**Cause**: Known issue in the regenerate routes
+
+**Workaround**: Re-apply Skip Intro and re-align the metronome afterwards
 
 ---
 
 ## Uninstallation
 
-### Remove BTC
-
-```bash
-# Remove BTC repository
-rm -rf /home/michael/Documents/Dev/essentiatest/BTC-ISMIR19
-
-# StemTube will automatically fallback to madmom
-```
-
-### Revert to madmom
-
-**Edit**: `core/config.json`
-
-```json
-{
-    "chord_backend": "madmom"
-}
-```
-
-**Restart**: `python app.py`
+Removing `external/BTC-ISMIR19` disables chord detection entirely - StemTube does **not** fall
+back to madmom. There is no supported way to swap in another chord backend.
 
 ---
 
-## Performance Comparison
+## Performance
 
-### BTC vs madmom
-
-| Metric | BTC Transformer | madmom CRF |
-|--------|----------------|------------|
-| Vocabulary | 170 types | 24 types |
-| Accuracy (Jazz) | 89% | 65% |
-| Accuracy (Pop) | 82% | 83% |
-| Speed (CPU) | 30-60s | 20-40s |
-| Speed (GPU) | 15-30s | 20-40s (no GPU) |
-| Dependencies | External | Built-in |
-| Best For | Jazz, Classical | Pop, Rock |
-
-### When to Use BTC
-
-**Use BTC if**:
-- Analyzing jazz/classical music
-- Need extended chord recognition (7th, 9th, etc.)
-- Have GPU available
-- Willing to install external dependency
-
-**Use madmom if**:
-- Analyzing pop/rock music
-- Need fast processing on CPU
-- Want simple major/minor chords
-- Prefer built-in solution
+| Metric | BTC Transformer |
+|--------|----------------|
+| Vocabulary | 170 types |
+| Device | CPU |
+| Speed | ~5x real-time (4-min song → ~50 s) |
+| Memory | ~500 MB peak |
+| Dependencies | Bundled in `external/` |
 
 ---
 
 ## Next Steps
 
 - [Chord Detection Guide](../feature-guides/CHORD-DETECTION.md) - Full chord detection documentation
-- [madmom Setup](MADMOM-SETUP.md) - madmom installation (built-in alternative)
-- [GPU Setup](GPU-SETUP.md) - GPU acceleration for faster detection
+- [BTC Chord Setup](BTC-CHORD-SETUP.md) - Directory layout, standalone test, output format
+- [madmom Setup](MADMOM-SETUP.md) - Beat/downbeat detection (not chords)
 
 ---
 
 **BTC Version**: ISMIR 2019
-**Last Updated**: December 2025
-**Status**: Optional external dependency
-**Fallback**: madmom CRF (24 types)
+**Last Updated**: September 2026
+**Status**: Required for chord detection (bundled)
+**Fallback**: None

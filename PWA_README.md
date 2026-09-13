@@ -12,9 +12,9 @@ static/
     └── icon-512.png        # High resolution icon
 ```
 
-## Integration (3 lines to add)
+## Integration
 
-In `templates/mobile-index.html`, add to the `<head>`:
+Already done in `templates/mobile-index.html` (manifest and theme-color in the `<head>`, `pwa-init.js` loaded near the end of the body). For reference:
 
 ```html
 <!-- PWA Support -->
@@ -43,22 +43,41 @@ In `templates/mobile-index.html`, add to the `<head>`:
 - Double-tap back to actually quit
 
 ### Offline Mode
-- CSS/JS files are cached
-- Listened tracks are available offline
+
+> **⚠️ Known limitation: offline playback is currently broken.** Caching a song still works
+> from the UI (the stems are downloaded into the `stemtube-stems-v1` cache), but the cached audio
+> is never played back offline:
+>
+> - **Wrong URL pattern:** the mobile mixer streams stems through `/poc-mixer/audio/...`, while
+>   `static/sw.js` only serves cached audio for `/api/extracted_stems/`, `/api/jam/stems/` and
+>   `/stems/`. Mixer requests never hit the stem cache.
+> - **Hard-coded stem names:** `sw.js` only knows six stems (`vocals`, `bass`, `drums`, `guitar`,
+>   `piano`, `other`), so the 17 fine stems of `mvsep_mega_fine` (kick, snare, backing_vocals, ...)
+>   are not recognised.
+> - **Stale precache list:** `PRECACHE_FILES` in `sw.js` does not match what `/mobile` loads today
+>   (split CSS files, mixer modules, jam scripts...), so a cold offline load of `/mobile` fails.
+>
+> Fixing it means routing `/poc-mixer/audio/` through the stem cache, deriving stem names from
+> the extraction instead of a fixed list, and regenerating the precache list.
+
+What does work today:
+- CSS/JS files under `/static/` are cached as they are fetched (cache-first)
+- Songs can be cached from the library, and cache stats / clearing work
 - "You are offline" banner when disconnected
 
 ### JavaScript API
 
 ```javascript
-// Cache audio for offline playback
-PWACache.cacheAudio('/audio/stems/xxx/vocals.mp3');
+// Cache all stems of a song (from the main thread, so auth cookies are sent)
+await StemCache.cacheSong(songId, stemUrls);
 
-// Clear audio cache
-PWACache.clearAudioCache();
+// List cached songs and total size
+const songs = await StemCache.getCachedSongs();
+const stats = await StemCache.getStats();
+console.log(StemCache.formatSize(stats.totalSize)); // "45.2 MB"
 
-// Get cache size
-const size = await PWACache.getCacheSize();
-console.log(PWACache.formatSize(size)); // "45.2 MB"
+// Clear the stems cache
+await StemCache.clearAll();
 
 // Force installation
 window.installPWA();

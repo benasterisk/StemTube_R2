@@ -61,24 +61,17 @@ I BTC-ISMIR19 [...] label file saved : ./test_output/example.lab
 
 ## Usage in StemTube
 
-BTC is automatically used as the primary chord detection backend. The fallback chain is:
+BTC is the **only** chord detection backend. It runs automatically after each download
+(`core/chord_detector.py` → `core/btc_chord_detector.py`) with the large 170-chord vocabulary.
 
-1. **BTC Transformer** (170 chords) - Primary
-2. **madmom CRF** (24 chords) - Fallback
-3. **Hybrid detector** - Last resort
+There is **no fallback**: if BTC is missing or fails, the song has no chords. madmom is used only
+for beat/downbeat detection (metronome grid), and `core/hybrid_chord_detector.py` is dead code.
 
 ### Configuration
 
-Edit `core/config.json` to change chord detection settings:
-
-```json
-{
-  "chord_detection": {
-    "backend": "btc",
-    "btc_large_vocab": true
-  }
-}
-```
+There are no working chord settings. `chords_use_madmom` and `chords_use_hybrid` still exist in
+`core/config.json` but are inert. The large vocabulary is hard-wired
+(`BTCWrapper(use_large_vocab=True)`).
 
 ### Manual Testing
 
@@ -144,6 +137,10 @@ ls -lh external/BTC-ISMIR19/test/*.pt
 ### NumPy compatibility error
 The BTC wrapper includes fixes for NumPy compatibility. If you see `np.float` errors, the fix may not have been applied.
 
+### Skip Intro / beat offset reset after regenerating chords
+Known issue: regenerating chords or beats resets Skip Intro (`music_start_time`) and the beat
+offset to 0. Re-apply them after regenerating.
+
 ## Credits
 
 BTC (Bi-directional Transformer for Chord Recognition) is based on:
@@ -156,5 +153,5 @@ BTC (Bi-directional Transformer for Chord Recognition) is based on:
 ## See Also
 
 - [Chord Detection Feature Guide](../feature-guides/CHORD-DETECTION.md)
-- [madmom Setup](MADMOM-SETUP.md)
+- [madmom Setup](MADMOM-SETUP.md) (beat detection only)
 - [GPU Setup](GPU-SETUP.md)

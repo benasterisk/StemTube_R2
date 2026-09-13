@@ -22,11 +22,13 @@ Complete guide to the JavaScript frontend architecture and modules.
 
 ## Overview
 
-**Total Lines**: ~10,800 lines of JavaScript
-
-**Module Count**: 24 JavaScript files
-- Main app: 1 file (app.js)
-- Mixer modules: 23 files
+**Module Count**:
+- Main app: `app.js` (+ `app-*.js` helpers)
+- Desktop mixer: POC engine in `static/js/poc/` (15 files loaded by `templates/mixer.html`)
+  plus 7 live files from `static/js/mixer/`
+- Mobile mixer: the same POC engine via `static/js/mixer/mobile-poc-engine.js`
+- 20 files in `static/js/mixer/` are orphaned (loaded by no template) - see
+  [Orphaned Modules](#orphaned-modules)
 
 **Technology Stack**:
 - Vanilla JavaScript ES6+
@@ -50,74 +52,69 @@ Complete guide to the JavaScript frontend architecture and modules.
 ```
 static/js/
 ├── app.js                      # Main application (downloads, extractions)
-└── mixer/                      # Mixer interface modules
-    ├── core.js                 # Mixer initialization
-    ├── audio-engine.js         # Desktop audio processing
-    ├── simple-pitch-tempo.js   # Pitch/tempo controls
-    ├── waveform.js             # Waveform visualization
-    ├── timeline.js             # Timeline interactions
-    ├── track-controls.js       # Stem controls (vol, pan, mute, solo)
+├── poc/                        # Desktop mixer engine (POC) - loaded by templates/mixer.html
+│   ├── api.js                  # All /poc-mixer/* server calls
+│   ├── audio.js                # Multi-stem Web Audio engine + SoundTouch worklet
+│   ├── state.js                # Per-song session persistence (localStorage "poc_state")
+│   ├── timeline.js             # Ruler, waveforms, beat grid, playhead, zoom
+│   ├── mixer.js                # Track rows (controls left, waveform lanes right)
+│   ├── tempo.js                # BPM (time-stretch) + pitch (semitones)
+│   ├── precount.js             # Detect Intro + baked count-in
+│   ├── snap.js                 # Shared snap-to-beat toggle
+│   ├── scrub.js                # Playhead scrubbing with audible slices
+│   ├── loop.js                 # A/B loop: draggable bounds + numeric fields
+│   ├── loader.js               # Prepare / poll / load an extraction
+│   ├── main.js                 # Transport, zoom, render loop (glue)
+│   ├── export.js               # Server-side mix export modal
+│   ├── mixer-compat.js         # window.mixer shim for the display components
+│   └── recording-ui.js         # Recording lanes on the POC mixer
+└── mixer/                      # Desktop mixer loads only the first 7 below:
+    ├── stage-window.js         # Chords grid / lyrics focus in a real browser window
     ├── chord-display.js        # Chord timeline
     ├── karaoke-display.js      # Lyrics display
-    ├── structure-display.js    # Structure sections
-    ├── tab-manager.js          # Tab switching
-    ├── mixer-persistence.js    # LocalStorage state
-    ├── advanced-controls.js    # Advanced features
+    ├── structure-display.js    # Structure sections (backend non-functional)
     ├── lyrics-popup.js         # Lyrics modal
-    ├── soundtouch-engine.js    # SoundTouch integration
+    ├── recording-effects.js    # Per-recording-track effects chain
     ├── recording-engine.js     # Multi-track recording & playback
-    ├── stem-worklet.js         # AudioWorklet processor
-    └── mobile-*.js             # Mobile-specific (9 files)
+    ├── mobile-poc-engine.js    # POC engine bridge for the mobile PWA (loaded by the mobile page)
+    └── (20 orphaned files)     # Pre-POC design, loaded by no template
 ```
 
 ### Design Patterns
 
-**1. Module Pattern**:
+**1. Object-Literal Singletons** (POC engine modules):
 ```javascript
-// Each module is self-contained
-(function() {
-    'use strict';
-
-    // Private variables
-    const internalState = {};
-
-    // Public API
-    window.MixerModule = {
-        init: function() { ... },
-        doSomething: function() { ... }
-    };
-})();
+// static/js/poc/*.js - one global object per concern, wired by main.js
+const LoopSel = {
+    engine: null, view: null,
+    init(engine, view) { this.engine = engine; this.view = view; this._wire(); },
+    _wire() { /* DOM handlers */ }
+};
 ```
 
-**2. Class-Based Modules** (newer modules):
+**2. Class-Based Modules** (`AudioEngine`, display components, `RecordingEngine`):
 ```javascript
-class MixerModule {
-    constructor(mixer) {
-        this.mixer = mixer;
+class KaraokeDisplay {
+    constructor(containerSelector, extractionId) {
         this.init();
     }
 
-    init() {
-        // Setup
-    }
-
-    doSomething() {
-        // Functionality
+    sync(currentTime) {
+        // Called during playback
     }
 }
 
-window.MixerModule = MixerModule;
+window.KaraokeDisplay = KaraokeDisplay;
 ```
 
-**3. Event-Driven**:
+**3. Shared Globals, No Event Bus**:
 ```javascript
-// Modules communicate via custom events
-document.dispatchEvent(new CustomEvent('mixer:play', { detail: { time: 0 } }));
+// Modules talk through globals (engine, View, TempoPitch, PreCount, LoopSel, Snap).
+// Display components written for the pre-POC mixer reach the engine through the
+// window.mixer shim built by mixer-compat.js:
+window.mixer.audioEngine.seek(42.0);
 
-// Other modules listen
-document.addEventListener('mixer:play', (e) => {
-    console.log('Play at:', e.detail.time);
-});
+// Stage windows (stage-window.js) mirror the main mixer over a BroadcastChannel.
 ```
 
 ---
@@ -229,530 +226,184 @@ if (isLocalUser()) {
 
 ## Mixer Modules
 
+The desktop mixer (`templates/mixer.html`) runs the **POC engine** from `static/js/poc/`,
+served by the `/poc-mixer/*` bridge in `routes/poc_mixer.py`. Only 7 files from
+`static/js/mixer/` are loaded alongside it. The pre-POC architecture (`core.js` coordinator,
+`audio-engine.js`, `waveform.js`, `timeline.js`, `track-controls.js`, `simple-pitch-tempo.js`,
+`soundtouch-engine.js`) is no longer loaded - see [Orphaned Modules](#orphaned-modules).
+
 ### Core Modules
 
-#### 1. core.js
+#### 1. main.js / loader.js / api.js
 
-**Purpose**: Mixer initialization and orchestration
+**Purpose**: Wiring, load flow and server calls
 
-**Size**: ~650 lines
+- `main.js` - creates the `AudioEngine`, wires transport, zoom and the render loop (glue only)
+- `loader.js` - the page is opened with `window.EXTRACTION_ID`; the loader asks the bridge to
+  prepare the extraction's mixer artifacts, polls progress, then loads stems + metadata
+- `api.js` - every `/poc-mixer/*` call in one place (`prepare`, `progress`, `meta`, `audio`, ...)
 
-**Responsibilities**:
-- Initialize all mixer modules
-- Platform detection (mobile vs desktop)
-- Load mixer data from API
-- Coordinate module lifecycle
-
-**Key Functions**:
+**Load Flow**:
 ```javascript
-// Initialize mixer
-async function initMixer(downloadId) {
-    // 1. Load mixer data
-    const data = await fetch(`/api/downloads/${downloadId}`).then(r => r.json());
-
-    // 2. Platform detection
-    const isMobile = detectMobile();
-
-    // 3. Initialize audio engine
-    if (isMobile) {
-        mixer.audioEngine = new MobileAudioEngine();
-    } else {
-        mixer.audioEngine = new AudioEngine();
-    }
-
-    // 4. Initialize all modules
-    mixer.waveform = new Waveform(mixer);
-    mixer.timeline = new Timeline(mixer);
-    mixer.trackControls = new TrackControls(mixer);
-    mixer.chordDisplay = new ChordDisplay(mixer);
-    // ... more modules
-
-    // 5. Load stems
-    await mixer.audioEngine.loadStems(data.stems_paths);
-
-    // 6. Restore saved state
-    MixerPersistence.restore(mixer);
-}
+// loader.js
+await API.prepare(extractionId);      // POST /poc-mixer/prepare/<id>
+// poll GET /poc-mixer/progress/<id> until ready
+const meta = await API.meta(extractionId);   // GET /poc-mixer/meta/<id> (gzipped)
+// stems and metronome WAVs stream from GET /poc-mixer/audio/<id>/<stem>
 ```
 
-**Platform Detection**:
-```javascript
-function detectMobile() {
-    const userAgent = navigator.userAgent.toLowerCase();
-    const isMobileUA = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
-    const isSmallScreen = window.innerWidth < 768;
+After every extraction the backend already runs `warm_prepare()`, so the first open is usually
+instant.
 
-    return isMobileUA || isSmallScreen;
-}
-```
-
-**File**: static/js/mixer/core.js
+**Files**: static/js/poc/main.js, static/js/poc/loader.js, static/js/poc/api.js
 
 ---
 
-#### 2. mixer-persistence.js
+#### 2. state.js
 
-**Purpose**: State persistence using LocalStorage
+**Purpose**: Per-song UI session persistence using LocalStorage
 
-**Size**: ~300 lines
+**Persisted State** (key `poc_state`, one entry per extraction):
+- Per-track mute, solo, volume, pan
+- Zoom (`pxPerSec`, `zoomV`) and scroll mode
+- Playhead position
+- Tempo target, base BPM, pitch semitones
+- Metronome resolution, Start/Stop markers, precount beats
+- A/B loop bounds and enabled flag
+- Snap-to-beat toggle
 
-**Persisted State**:
-- Track volumes, pan, solo, mute
-- Pitch shift, tempo
-- Current playback position
-- Tab selection
-- Waveform zoom level
-
-**API**:
-```javascript
-// Save state
-MixerPersistence.save(mixer);
-
-// Restore state
-MixerPersistence.restore(mixer);
-
-// Clear state
-MixerPersistence.clear(downloadId);
-```
-
-**Storage Format**:
-```javascript
-// LocalStorage key: `mixer_state_${downloadId}`
-{
-    "tracks": {
-        "vocals": {
-            "volume": 100,
-            "pan": 0,
-            "solo": false,
-            "mute": false
-        },
-        "drums": { ... }
-    },
-    "pitch": 0,
-    "tempo": 1.0,
-    "currentTime": 45.5,
-    "activeTab": "chords",
-    "waveformZoom": 1.0
-}
-```
-
-**Automatic Saving**:
-```javascript
-// Save on every state change
-document.addEventListener('mixer:volumeChanged', () => {
-    MixerPersistence.save(mixer);
-});
-
-document.addEventListener('mixer:pitchChanged', () => {
-    MixerPersistence.save(mixer);
-});
-```
-
-**File**: static/js/mixer/mixer-persistence.js
+**File**: static/js/poc/state.js
 
 ---
 
 ### Audio Processing
 
-#### 3. audio-engine.js
+#### 3. audio.js
 
-**Purpose**: Desktop audio processing using Web Audio API
+**Purpose**: Sample-accurate multi-stem playback engine (Web Audio) with SoundTouch
+time-stretch and pitch-shift
 
-**Size**: ~700 lines
-
-**Architecture**:
+**Architecture** (per stem):
 ```
-Audio Files
+AudioBufferSourceNode (playbackRate)
     ↓
-AudioBufferSourceNode (for each stem)
+SoundTouch AudioWorkletNode (tempo, pitch)
     ↓
-GainNode (volume)
+GainNode (volume / mute / solo)
     ↓
 StereoPannerNode (pan)
     ↓
-SoundTouch AudioWorklet (pitch/tempo)
-    ↓
-GainNode (master)
-    ↓
-AnalyserNode (visualization)
-    ↓
-AudioDestination (speakers)
+Master GainNode → DynamicsCompressor (brick-wall limiter) → destination
 ```
 
 **Key Features**:
-- Load and decode audio files
-- Create Web Audio graph
-- Solo/mute stem handling
-- Synchronized playback across stems
-- Real-time pitch/tempo processing
+- Hybrid tempo: speed-up uses native `playbackRate`, slow-down uses SoundTouch tempo
+- Metronome follows tempo but is never pitch-shifted
+- Metronome and count-in are server-rendered WAVs played as ordinary stems (sample-locked)
+- Native loop points for seamless A/B looping
 
-**Loading Stems**:
-```javascript
-async loadStems(stemsPaths) {
-    for (const [name, path] of Object.entries(stemsPaths)) {
-        const response = await fetch(path);
-        const arrayBuffer = await response.arrayBuffer();
-        const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-
-        this.stems[name] = {
-            buffer: audioBuffer,
-            source: null,
-            gainNode: null,
-            panNode: null,
-            soundTouchNode: null
-        };
-    }
-
-    this.duration = this.stems['vocals'].buffer.duration;
-}
-```
-
-**Playback**:
-```javascript
-play() {
-    const offset = this.currentTime;
-
-    for (const [name, stem] of Object.entries(this.stems)) {
-        // Create source node
-        const source = this.audioContext.createBufferSource();
-        source.buffer = stem.buffer;
-
-        // Create gain node (volume)
-        const gainNode = this.audioContext.createGain();
-        gainNode.gain.value = stem.volume;
-
-        // Create pan node
-        const panNode = this.audioContext.createStereoPanner();
-        panNode.pan.value = stem.pan;
-
-        // Connect: source → gain → pan → soundTouch → master
-        source.connect(gainNode);
-        gainNode.connect(panNode);
-        panNode.connect(stem.soundTouchNode);
-
-        // Start playback (synchronized)
-        source.start(0, offset);
-
-        stem.source = source;
-        stem.gainNode = gainNode;
-        stem.panNode = panNode;
-    }
-
-    this.isPlaying = true;
-    this.startTime = this.audioContext.currentTime - offset;
-    this.updatePlayhead();
-}
-```
-
-**File**: static/js/mixer/audio-engine.js
+**File**: static/js/poc/audio.js
 
 ---
 
-#### 4. simple-pitch-tempo.js
+#### 4. tempo.js
 
-**Purpose**: Pitch and tempo controls using SoundTouch
-
-**Size**: ~700 lines
+**Purpose**: BPM (time-stretch) and pitch (semitones) controller
 
 **Features**:
-- Independent pitch shifting (-12 to +12 semitones)
-- Independent tempo control (0.5x to 2.0x)
-- SoundTouch AudioWorklet integration
-- Real-time parameter updates
+- Base BPM = median inter-beat interval of the detected beats
+- Sliding-window local BPM readout during playback
+- Tempo ratio 0.5x to 2.0x
 
-**Architecture**:
-```javascript
-// Load SoundTouch worklet
-await audioContext.audioWorklet.addModule('/static/wasm/soundtouch-worklet.js');
-
-// Create SoundTouch node for each stem
-const soundTouchNode = new AudioWorkletNode(audioContext, 'soundtouch-processor');
-
-// Set parameters
-soundTouchNode.port.postMessage({
-    type: 'setPitch',
-    value: 1.0  // No pitch change
-});
-
-soundTouchNode.port.postMessage({
-    type: 'setTempo',
-    value: 1.0  // No tempo change
-});
-```
-
-**Pitch Control**:
-```javascript
-function setPitch(semitones) {
-    // Convert semitones to pitch factor
-    const pitchFactor = Math.pow(2, semitones / 12);
-
-    // Update all stems
-    for (const stem of Object.values(mixer.stems)) {
-        stem.soundTouchNode.port.postMessage({
-            type: 'setPitch',
-            value: pitchFactor
-        });
-    }
-
-    // Save state
-    mixer.pitch = semitones;
-    MixerPersistence.save(mixer);
-}
-```
-
-**Tempo Control**:
-```javascript
-function setTempo(tempo) {
-    // tempo: 0.5 to 2.0 (50% to 200%)
-
-    // Update all stems
-    for (const stem of Object.values(mixer.stems)) {
-        stem.soundTouchNode.port.postMessage({
-            type: 'setTempo',
-            value: tempo
-        });
-    }
-
-    // Save state
-    mixer.tempo = tempo;
-    MixerPersistence.save(mixer);
-}
-```
-
-**HTTPS Requirement**:
-```javascript
-// Check if SharedArrayBuffer is available (requires HTTPS)
-if (typeof SharedArrayBuffer === 'undefined') {
-    console.warn('SoundTouch requires HTTPS or localhost');
-    showHTTPSWarning();
-}
-```
-
-**File**: static/js/mixer/simple-pitch-tempo.js
+**File**: static/js/poc/tempo.js
 
 ---
 
-#### 5. soundtouch-engine.js
+#### 5. precount.js
 
-**Purpose**: SoundTouch integration layer
+**Purpose**: "Detect Intro" and count-in
 
-**Size**: ~460 lines
+The count-in is baked into the metronome WAVs server-side, so it stays sample-locked to the
+stems at any tempo. The Off/2/4/8 toggle chooses how many baked beats are heard before the
+Start marker.
 
-**SoundTouch Configuration**:
-```javascript
-{
-    pitch: 1.0,           // 1.0 = no change, 2.0 = octave up
-    tempo: 1.0,           // 1.0 = no change, 2.0 = double speed
-    rate: 1.0,            // Combined pitch+tempo
-    sampleRate: 48000,    // Audio sample rate
-    channels: 2           // Stereo
-}
-```
-
-**Processing Pipeline**:
-```
-Input Audio Buffer
-    ↓
-SoundTouch Processor (C++ via WASM)
-    ↓
-    - Time-Domain WSOLA algorithm
-    - Pitch shifting
-    - Time stretching
-    ↓
-Output Audio Buffer (modified)
-```
-
-**File**: static/js/mixer/soundtouch-engine.js
+**File**: static/js/poc/precount.js
 
 ---
 
-#### 6. stem-worklet.js
+#### 6. stage-window.js
 
-**Purpose**: AudioWorklet processor for stem mixing
+**Purpose**: Chords grid view / lyrics focus in a real browser window (`window.open`)
 
-**Size**: ~250 lines
+The stage window loads the same mixer page with `?stage=lyrics|chords` as a display mirror: no
+audio, clock driven by the main mixer over a BroadcastChannel, transport commands sent back.
 
-**AudioWorklet** (runs in separate thread):
-```javascript
-class StemProcessor extends AudioWorkletProcessor {
-    constructor() {
-        super();
-        this.volume = 1.0;
-        this.muted = false;
-    }
-
-    process(inputs, outputs, parameters) {
-        const input = inputs[0];
-        const output = outputs[0];
-
-        for (let channel = 0; channel < output.length; ++channel) {
-            const inputChannel = input[channel];
-            const outputChannel = output[channel];
-
-            for (let i = 0; i < outputChannel.length; ++i) {
-                outputChannel[i] = inputChannel[i] * (this.muted ? 0 : this.volume);
-            }
-        }
-
-        return true;  // Keep processor alive
-    }
-}
-
-registerProcessor('stem-processor', StemProcessor);
-```
-
-**File**: static/js/mixer/stem-worklet.js
+**File**: static/js/mixer/stage-window.js
 
 ---
 
 ### Display Modules
 
-#### 7. waveform.js
+#### 7. timeline.js
 
-**Purpose**: Waveform visualization
+**Purpose**: Timeline ruler, waveforms, beat grid, playhead and zoom
 
-**Size**: ~270 lines
+All lanes share one time→px mapping (`pxPerSec`), so they stay aligned at any zoom. Waveform
+peaks come precomputed in `/poc-mixer/meta`.
 
-**Rendering**:
-```javascript
-function drawWaveform(audioBuffer) {
-    const canvas = document.getElementById('waveform');
-    const ctx = canvas.getContext('2d');
-
-    const data = audioBuffer.getChannelData(0);  // Left channel
-    const step = Math.ceil(data.length / canvas.width);
-    const amp = canvas.height / 2;
-
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.beginPath();
-    ctx.strokeStyle = '#4a9eff';
-    ctx.lineWidth = 1;
-
-    for (let i = 0; i < canvas.width; i++) {
-        const min = data.slice(i * step, (i + 1) * step).reduce((a, b) => Math.min(a, b), 1);
-        const max = data.slice(i * step, (i + 1) * step).reduce((a, b) => Math.max(a, b), -1);
-
-        ctx.moveTo(i, (1 + min) * amp);
-        ctx.lineTo(i, (1 + max) * amp);
-    }
-
-    ctx.stroke();
-}
-```
-
-**Optimization**:
-- Simplified waveform on mobile (lower resolution)
-- Canvas caching to avoid re-drawing
-- Offscreen canvas for better performance
-
-**File**: static/js/mixer/waveform.js
+**File**: static/js/poc/timeline.js
 
 ---
 
-#### 8. timeline.js
+#### 8. mixer.js
 
-**Purpose**: Timeline interactions (seeking, playhead)
+**Purpose**: Track rows - fixed controls on the left, waveform lanes on the right
 
-**Size**: ~220 lines
+- Stem order covers 4-stem, 6-stem and `mvsep_mega_fine` names; unknown stems are appended
+- Volume shown in dB, pan, mute, solo per track
+- The small per-track record dot button in the lane header is a stub ("coming soon"); recording itself is live (see
+  [Recording Modules](#16-recording-modules))
 
-**Seeking**:
-```javascript
-function handleClick(event) {
-    const canvas = event.target;
-    const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-
-    // Calculate time from click position
-    const time = (x / canvas.width) * mixer.duration;
-
-    // Seek to time
-    mixer.audioEngine.seek(time);
-}
-```
-
-**Playhead Drawing**:
-```javascript
-function drawPlayhead(currentTime) {
-    const canvas = document.getElementById('timeline');
-    const ctx = canvas.getContext('2d');
-
-    // Calculate playhead position
-    const x = (currentTime / mixer.duration) * canvas.width;
-
-    // Draw vertical line
-    ctx.strokeStyle = '#ff0000';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height);
-    ctx.stroke();
-}
-```
-
-**File**: static/js/mixer/timeline.js
+**File**: static/js/poc/mixer.js
 
 ---
 
-#### 9. track-controls.js
+#### 9. snap.js
 
-**Purpose**: Stem controls (volume, pan, mute, solo)
+**Purpose**: One snap-to-beat setting shared by every surface
 
-**Size**: ~330 lines
+Loop bounds (dragged on a waveform or on the timeline) and the Start/Stop markers call
+`Snap.toBeat(t, view)`. Holding Alt ignores the grid for one drag. Beats come from madmom.
 
-**Volume Control**:
-```javascript
-function setVolume(stemName, volume) {
-    // Update audio engine
-    mixer.audioEngine.setVolume(stemName, volume / 100);
-
-    // Update UI
-    const slider = document.querySelector(`#volume-${stemName}`);
-    slider.value = volume;
-
-    // Update display
-    const display = document.querySelector(`#volume-${stemName}-value`);
-    display.textContent = `${volume}%`;
-
-    // Save state
-    MixerPersistence.save(mixer);
-}
-```
-
-**Mute/Solo Logic**:
-```javascript
-function handleSolo(stemName) {
-    // If this stem is already solo, un-solo it
-    if (mixer.stems[stemName].solo) {
-        mixer.stems[stemName].solo = false;
-
-        // Unmute all other stems
-        for (const name of Object.keys(mixer.stems)) {
-            mixer.audioEngine.setMute(name, false);
-        }
-    } else {
-        // Solo this stem, mute all others
-        for (const name of Object.keys(mixer.stems)) {
-            if (name === stemName) {
-                mixer.stems[name].solo = true;
-                mixer.audioEngine.setMute(name, false);
-            } else {
-                mixer.stems[name].solo = false;
-                mixer.audioEngine.setMute(name, true);
-            }
-        }
-    }
-
-    updateSoloButtons();
-}
-```
-
-**File**: static/js/mixer/track-controls.js
+**File**: static/js/poc/snap.js
 
 ---
 
-#### 10. chord-display.js
+#### 10. scrub.js
+
+**Purpose**: Playhead scrubbing with audible slices
+
+Dragging the ruler moves the playhead and plays short slices (~140 ms, throttled) through
+throwaway `AudioBufferSourceNode`s straight into the master gain, bypassing SoundTouch. A single
+seek lands the real transport when the drag ends.
+
+**File**: static/js/poc/scrub.js
+
+---
+
+#### 11. loop.js
+
+**Purpose**: A/B loop selection
+
+- Drag across any waveform to define a region; bounds are draggable afterwards
+- Two numeric fields accept a timecode (`1:23.45`) or a bar (`b17`, `b17.3` = bar 17 beat 3)
+- Bounds snap to beats when snap is on
+
+**File**: static/js/poc/loop.js
+
+---
+
+#### 12. chord-display.js
 
 **Purpose**: Chord timeline visualization
 
@@ -811,7 +462,7 @@ function getChordColor(chord) {
 
 ---
 
-#### 11. karaoke-display.js
+#### 13. karaoke-display.js
 
 **Purpose**: Synchronized lyrics display
 
@@ -877,9 +528,14 @@ function updateKaraoke(currentTime) {
 
 ---
 
-#### 12. structure-display.js
+#### 14. structure-display.js
 
 **Purpose**: Song structure visualization
+
+> **Non-functional.** `structure_data` is NULL in every database row: `msaf` fails to
+> import (`from scipy import inf`, removed in modern SciPy) and
+> `core/msaf_structure_detector.py` returns None. The component's `analyzeStructure()` calls
+> `POST /api/extractions/<id>/analyze-structure`, a route that does not exist.
 
 **Size**: ~530 lines
 
@@ -918,124 +574,67 @@ function drawStructure(structureData, duration) {
 
 ---
 
-#### 13. tab-manager.js
+#### 15. mixer-compat.js / export.js / lyrics-popup.js
 
-**Purpose**: Tab switching (Mix, Chords, Lyrics, Structure)
+- `mixer-compat.js` - thin `window.mixer` object (currentTime, maxDuration, isPlaying,
+  `audioEngine.seek()`, ...) so the chord/lyrics/structure components drive off the POC engine
+- `export.js` - modal that POSTs the current mix state to `/poc-mixer/export` (MP3/WAV, optional
+  metronome, original tempo)
+- `lyrics-popup.js` - lyrics modal
 
-**Size**: ~270 lines
+**Files**: static/js/poc/mixer-compat.js, static/js/poc/export.js, static/js/mixer/lyrics-popup.js
 
-**Tab Switching**:
-```javascript
-function switchTab(tabName) {
-    // Hide all tab contents
-    document.querySelectorAll('.tab-content').forEach(el => {
-        el.classList.remove('active');
-    });
+---
 
-    // Show selected tab
-    document.getElementById(`${tabName}-tab`).classList.add('active');
+#### 16. Recording Modules
 
-    // Update tab buttons
-    document.querySelectorAll('.tab-button').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    document.getElementById(`${tabName}-btn`).classList.add('active');
+**Purpose**: Multi-track recording on the desktop mixer (live)
 
-    // Save state
-    mixer.activeTab = tabName;
-    MixerPersistence.save(mixer);
-}
-```
+- `recording-engine.js` - `RecordingEngine`: capture, latency compensation, playback, upload to
+  `/api/recordings` (see `routes/recordings.py`)
+- `recording-effects.js` - per-track chain: HPF → EQ → compressor → reverb send
+- `recording-ui.js` - builds recording control blocks and lanes in the POC layout
 
-**File**: static/js/mixer/tab-manager.js
+**Files**: static/js/mixer/recording-engine.js, static/js/mixer/recording-effects.js,
+static/js/poc/recording-ui.js
 
 ---
 
 ### Mobile Modules
 
-**9 mobile-specific modules** for iOS and Android compatibility:
+#### 17. mobile-poc-engine.js
 
-#### 14. mobile-audio-engine.js
+**Purpose**: Runs the POC `AudioEngine` (`static/js/poc/audio.js`) inside the mobile PWA
 
-**Purpose**: HTML5 Audio Elements engine for mobile
+`mobile-app.js` keeps its UI and orchestration (track widgets, jam broadcast, recording hooks,
+wake lock, lyrics scroll); only the audio primitives are delegated:
 
-**Size**: ~360 lines
-
-**Why HTML5 instead of Web Audio API**:
-- Better battery life on mobile
-- More consistent behavior across browsers
-- Simpler iOS audio unlock mechanism
-
-**Architecture**:
 ```javascript
-class MobileAudioEngine {
-    constructor() {
-        this.audioElements = {};  // HTML5 <audio> elements
-        this.isPlaying = false;
-        this.currentTime = 0;
-    }
-
-    async loadStems(stemsPaths) {
-        for (const [name, path] of Object.entries(stemsPaths)) {
-            const audio = new Audio(path);
-            audio.preload = 'auto';
-            this.audioElements[name] = audio;
-        }
-    }
-
-    play() {
-        for (const audio of Object.values(this.audioElements)) {
-            audio.currentTime = this.currentTime;
-            audio.play();
-        }
-        this.isPlaying = true;
-    }
-
-    pause() {
-        for (const audio of Object.values(this.audioElements)) {
-            audio.pause();
-        }
-        this.isPlaying = false;
-    }
-}
+loadAll(job, names, meta)          // engine.setStems (metronome included)
+startAll(pos) / stopAll() / seek(t) / pos() / playing
+setVol / setPan / setMute / setSolo(name, v)
+applyTempoPitch(ratio, semi)
 ```
 
-**File**: static/js/mixer/mobile-audio-engine.js
+Metronome and count-in are the same server-rendered WAVs as on desktop.
+
+**File**: static/js/mixer/mobile-poc-engine.js
 
 ---
 
-#### 15-23. Other Mobile Modules
+### Orphaned Modules
 
-**mobile-touch-fix.js** (~220 lines):
-- Fix touch event handling
-- Prevent accidental zoom
-- Improve slider responsiveness
+These files in `static/js/mixer/` are loaded by **no template**. They are the pre-POC mixer and
+the old mobile engine and its patches; do not document or extend them as live code:
 
-**mobile-debug-fix.js** (~340 lines):
-- Android-style controls
-- iOS debugging helpers
+`advanced-controls.js`, `audio-engine.js`, `core.js`, `export-handler.js`,
+`mixer-persistence.js`, `mobile-audio-engine.js`, `mobile-audio-fixes.js`,
+`mobile-audio-patch.js`, `mobile-debug-fix.js`, `mobile-direct-fix.js`,
+`mobile-playhead-fix.js`, `mobile-simple-fixes.js`, `mobile-touch-fix.js`,
+`simple-pitch-tempo.js`, `soundtouch-engine.js`, `stem-worklet.js`, `tab-manager.js`,
+`timeline.js`, `track-controls.js`, `waveform.js`
 
-**mobile-playhead-fix.js** (~105 lines):
-- Missing playhead methods for mobile engine
-
-**mobile-audio-fixes.js** (~240 lines):
-- iOS audio unlock mechanism
-- Android playhead sync
-
-**mobile-direct-fix.js** (~265 lines):
-- Direct and simple mobile fixes
-
-**mobile-audio-patch.js** (~30 lines):
-- iOS variables patch
-
-**mobile-simple-fixes.js** (~195 lines):
-- Simple mobile compatibility fixes
-
-**advanced-controls.js** (~350 lines):
-- Advanced mixer features (EQ, effects)
-
-**lyrics-popup.js** (~100 lines):
-- Lyrics modal popup
+`static/css/mixer/mixer.css` (the `@import` aggregator) is likewise loaded by no template.
 
 ---
 
@@ -1044,52 +643,62 @@ class MobileAudioEngine {
 ### Dependency Graph
 
 ```
-core.js
-  ├── audio-engine.js
-  │     └── soundtouch-engine.js
-  │           └── stem-worklet.js
-  ├── mobile-audio-engine.js
-  ├── simple-pitch-tempo.js
-  ├── waveform.js
-  ├── timeline.js
-  ├── track-controls.js
+main.js
+  ├── audio.js (AudioEngine)
+  ├── timeline.js (View)
+  ├── mixer.js
+  ├── state.js
+  ├── tempo.js
+  ├── precount.js
+  ├── snap.js ← loop.js, precount.js
+  ├── scrub.js
+  ├── loop.js
+  ├── loader.js → api.js
+  └── export.js
+mixer-compat.js (window.mixer shim)
   ├── chord-display.js
-  ├── karaoke-display.js
   ├── structure-display.js
-  ├── tab-manager.js
-  ├── mixer-persistence.js
-  └── advanced-controls.js
+  ├── karaoke-display.js
+  ├── lyrics-popup.js
+  └── recording-ui.js → recording-engine.js → recording-effects.js
+stage-window.js (BroadcastChannel mirror)
 ```
 
 ### Load Order
 
-**Mixer page**:
+**Mixer page** (`templates/mixer.html`):
 ```html
-<!-- Core first -->
-<script src="/static/js/mixer/core.js"></script>
+<!-- POC engine -->
+<script src="/static/js/poc/api.js"></script>
+<script src="/static/js/poc/audio.js"></script>
+<script src="/static/js/poc/state.js"></script>
+<script src="/static/js/poc/timeline.js"></script>
+<script src="/static/js/poc/mixer.js"></script>
+<script src="/static/js/poc/tempo.js"></script>
+<script src="/static/js/poc/precount.js"></script>
+<script src="/static/js/poc/snap.js"></script>
+<script src="/static/js/poc/scrub.js"></script>
+<script src="/static/js/poc/loop.js"></script>
+<script src="/static/js/poc/loader.js"></script>
+<script src="/static/js/poc/main.js"></script>
+<script src="/static/js/mixer/stage-window.js"></script>
+<script src="/static/js/poc/export.js"></script>
 
-<!-- Audio engine -->
-<script src="/static/js/mixer/audio-engine.js"></script>
-<script src="/static/js/mixer/mobile-audio-engine.js"></script>
-<script src="/static/js/mixer/soundtouch-engine.js"></script>
-
-<!-- UI modules -->
-<script src="/static/js/mixer/waveform.js"></script>
-<script src="/static/js/mixer/timeline.js"></script>
-<script src="/static/js/mixer/track-controls.js"></script>
+<!-- Display components + compat shim -->
 <script src="/static/js/mixer/chord-display.js"></script>
-<script src="/static/js/mixer/karaoke-display.js"></script>
 <script src="/static/js/mixer/structure-display.js"></script>
+<script src="/static/js/mixer/karaoke-display.js"></script>
+<script src="/static/js/mixer/lyrics-popup.js"></script>
+<script src="/static/js/poc/mixer-compat.js"></script>
 
-<!-- Utilities -->
-<script src="/static/js/mixer/mixer-persistence.js"></script>
-<script src="/static/js/mixer/tab-manager.js"></script>
-
-<!-- Mobile fixes (conditional) -->
-<script src="/static/js/mixer/mobile-touch-fix.js"></script>
-<script src="/static/js/mixer/mobile-audio-fixes.js"></script>
-<!-- ... more mobile modules -->
+<!-- Recording -->
+<script src="/static/js/mixer/recording-effects.js"></script>
+<script src="/static/js/mixer/recording-engine.js"></script>
+<script src="/static/js/poc/recording-ui.js"></script>
 ```
+
+**Mixer CSS**: `css/mixer/{chords,karaoke,export,structure,lyrics-popup}.css` are linked
+directly; themes are inline CSS in `mixer.html`.
 
 ---
 
@@ -1116,29 +725,30 @@ audioContext.resume().then(() => {
 
 ### Audio Graph
 
-**Typical Mixer Graph**:
+**POC Mixer Graph** (`static/js/poc/audio.js`):
 ```
-AudioBufferSourceNode (vocals)
+AudioBufferSourceNode (vocals, playbackRate)
+    ↓
+AudioWorkletNode (SoundTouch: tempo, pitch)
     ↓
 GainNode (volume: 0.8)
     ↓
 StereoPannerNode (pan: -0.5)
     ↓
-AudioWorkletNode (SoundTouch)
-    ↓
 GainNode (master: 1.0)
     ↓
-AnalyserNode (for visualization)
+DynamicsCompressorNode (brick-wall limiter)
     ↓
 AudioDestinationNode (speakers)
 ```
 
 **Parallel Stems**:
 ```
-[vocals] → [gain] → [pan] → [soundtouch] ─┐
-[drums]  → [gain] → [pan] → [soundtouch] ─┤
-[bass]   → [gain] → [pan] → [soundtouch] ─┼→ [master gain] → [destination]
-[other]  → [gain] → [pan] → [soundtouch] ─┘
+[metronome] → [soundtouch] → [gain] → [pan] ─┐
+[vocals]    → [soundtouch] → [gain] → [pan] ─┤
+[drums]     → [soundtouch] → [gain] → [pan] ─┼→ [master gain] → [limiter] → [destination]
+[bass]      → [soundtouch] → [gain] → [pan] ─┤
+[other]     → [soundtouch] → [gain] → [pan] ─┘
 ```
 
 ### AudioWorklet
@@ -1148,24 +758,18 @@ AudioDestinationNode (speakers)
 - Low latency
 - Precise audio processing
 
-**Example**:
+**Example** (as in `audio.js`):
 ```javascript
-// Load worklet module
+// Load worklet module once (needs a secure context: localhost/HTTPS)
 await audioContext.audioWorklet.addModule('/static/wasm/soundtouch-worklet.js');
 
-// Create worklet node
-const workletNode = new AudioWorkletNode(audioContext, 'soundtouch-processor');
+// Create one worklet node per stem source
+const st = new AudioWorkletNode(audioContext, 'soundtouch-processor');
 
-// Send messages to worklet
-workletNode.port.postMessage({
-    type: 'setPitch',
-    value: 1.0
-});
-
-// Receive messages from worklet
-workletNode.port.onmessage = (event) => {
-    console.log('Worklet says:', event.data);
-};
+// Parameters are AudioParams
+st.parameters.get('tempo').value = 1.0;
+st.parameters.get('pitch').value = 1.0;
+st.parameters.get('rate').value = 1.0;
 ```
 
 ---
@@ -1174,61 +778,47 @@ workletNode.port.onmessage = (event) => {
 
 ### LocalStorage
 
-**Namespace**: `mixer_state_${downloadId}`
+**Key**: `poc_state` (one object, entries keyed by extraction id, plus `_lastJob`)
 
-**Saved State**:
+**Saved State** (per extraction):
 ```javascript
 {
-    "version": "2.0",
-    "downloadId": "dQw4w9WgXcQ",
+    "label": "Song Title",
+    "pxPerSec": 40,
+    "zoomV": 1,
+    "scrollMode": "center",
+    "snapEnabled": true,
+    "pos": 42.5,
+    "bpmBase": 120.3,
+    "bpmTarget": 110,
+    "pitchSemitones": 0,
+    "metroRes": "1",
+    "startTime": 3.2,
+    "precountBeats": 4,
+    "precountActive": true,
+    "stopTime": null,
+    "loopA": 30.0,
+    "loopB": 45.0,
+    "loopEnabled": false,
     "tracks": {
-        "vocals": { "volume": 100, "pan": 0, "solo": false, "mute": false },
-        "drums": { "volume": 80, "pan": 0, "solo": false, "mute": false },
-        "bass": { "volume": 90, "pan": 0, "solo": false, "mute": false },
-        "other": { "volume": 70, "pan": 0, "solo": false, "mute": false }
-    },
-    "pitch": 0,
-    "tempo": 1.0,
-    "currentTime": 0,
-    "activeTab": "mix",
-    "waveformZoom": 1.0
+        "vocals": { "muted": false, "solo": false, "vol": 1.0, "pan": 0 },
+        "drums":  { "muted": false, "solo": false, "vol": 0.8, "pan": 0 }
+    }
 }
 ```
 
-**Save**:
+**Save / Restore**:
 ```javascript
-localStorage.setItem(`mixer_state_${downloadId}`, JSON.stringify(state));
+SessionState.save(job, view, engine);
+SessionState.apply(job, view, engine);
 ```
 
-**Restore**:
-```javascript
-const state = JSON.parse(localStorage.getItem(`mixer_state_${downloadId}`));
-```
+### Cross-Module Updates
 
-### Event-Driven Updates
-
-**Custom Events**:
-```javascript
-// Dispatch
-document.dispatchEvent(new CustomEvent('mixer:volumeChanged', {
-    detail: { stem: 'vocals', volume: 80 }
-}));
-
-// Listen
-document.addEventListener('mixer:volumeChanged', (e) => {
-    console.log(`${e.detail.stem} volume: ${e.detail.volume}`);
-});
-```
-
-**Common Events**:
-- `mixer:play`
-- `mixer:pause`
-- `mixer:seek`
-- `mixer:volumeChanged`
-- `mixer:pitchChanged`
-- `mixer:tempoChanged`
-- `mixer:stemLoaded`
-- `mixer:ready`
+There is no `mixer:*` custom-event bus in the live mixer. Modules call each other through
+globals (`engine`, `View`, `TempoPitch`, `PreCount`, `LoopSel`, `Snap`); the legacy display
+components use the `window.mixer` shim and are driven by `sync(currentTime)` from the render
+loop. Stage windows receive `{pos, playing, rate, bpm, semi}` over a BroadcastChannel.
 
 ---
 
@@ -1312,6 +902,5 @@ try {
 ---
 
 **Frontend Version**: 2.0
-**Last Updated**: December 2025
-**Total Modules**: 24 JavaScript files
-**Total Lines**: ~10,800 lines
+**Last Updated**: September 2026
+**Desktop Mixer**: POC engine (`static/js/poc/`) + 7 live files in `static/js/mixer/`

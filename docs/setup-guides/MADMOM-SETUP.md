@@ -1,42 +1,45 @@
-# Professional Madmom Chord Detection - Setup Guide
+# Madmom Beat & Downbeat Detection - Setup Guide
 
 ## Overview
 
-StemTube now uses **madmom** - a professional music information retrieval library with deep learning models for chord detection. This provides Chordify/Moises-level accuracy with improved timeline synchronization.
+StemTube uses **madmom** - a music information retrieval library with deep learning models - for **beat and downbeat detection only**. Its output drives the metronome grid, count-in, bar numbers (`b17` loop fields) and the measure layout of the chord views.
 
-## What's New
+> **madmom is NOT used for chord detection.** Chords come exclusively from the BTC-ISMIR19
+> Transformer (see [BTC Setup](BTC-SETUP.md) and the
+> [Chord Detection Guide](../feature-guides/CHORD-DETECTION.md)). The old madmom CRF chord path
+> and the hybrid detector are no longer wired in, and the `chords_use_madmom` /
+> `chords_use_hybrid` settings in `core/config.json` have no effect.
 
-### Professional Detection Engine
-- **CNN-based feature extraction** - More accurate than STFT/chroma analysis
-- **CRF chord recognition** - Conditional Random Fields for better accuracy
-- **RNN beat tracking** - Neural network beat detection for perfect timeline sync
-- **24-chord vocabulary** - 12 major + 12 minor chords
-- **Automatic fallback** - Uses basic detector if madmom unavailable
+## What It Does
 
-### Improved Timeline Sync
-- **Beat offset detection** - First downbeat precisely identified
-- **Beat-aligned chords** - Chords synced to musical beats, not arbitrary time
-- **Better mixer display** - Past/current/next chords perfectly timed
+### Beat Tracking Engine
+- **RNN downbeat activations** - `RNNDownBeatProcessor` computes beat/downbeat likelihoods
+- **DBN decoding** - `DBNDownBeatTrackingProcessor` (Viterbi) turns them into beat times and bar positions
+- **Tempo-constrained search** - the detected BPM narrows the tempo window, avoiding octave errors
+- **Fallback** - plain `RNNBeatProcessor` + `DBNBeatTrackingProcessor` if downbeat tracking fails (beats without bar positions)
+
+### Timeline Sync
+- **Beat offset** - first downbeat precisely identified
+- **Beat grid** - every beat time plus its position in the bar (1, 2, 3, 4...)
+- **Metronome** - the mixer's click track and count-in are built from this grid
 
 ## Installation
 
 ### Automatic (Recommended)
 ```bash
-# Install all dependencies including madmom
-pip install -r requirements.txt
-
-# Patch madmom for Python 3.10+ compatibility
-python patch_madmom.py
+# Installs madmom, pins numpy 1.26.4 / scipy 1.17.1 / librosa 0.11.0,
+# and runs patch_madmom.py for you
+python3.12 setup_dependencies.py
 ```
 
 ### Manual
 ```bash
-# Install dependencies
-pip install numpy<2.0  # Required: madmom needs numpy 1.x
+source venv/bin/activate
+pip install 'numpy==1.26.4'  # Required: madmom needs numpy 1.x
 pip install cython
 pip install madmom
 
-# Patch for Python 3.10+
+# Patch for numpy 1.20+ / Python 3.10+
 python patch_madmom.py
 ```
 
@@ -44,124 +47,87 @@ python patch_madmom.py
 
 ### NumPy Version Requirement
 ⚠️ **Madmom requires numpy 1.x** (not 2.x)
-- Madmom's compiled Cython extensions were built with numpy 1.x
-- `requirements.txt` pins to `numpy<2.0`
-- Other dependencies (scipy, librosa) work fine with numpy 1.x
+- Madmom 0.16.1's compiled Cython extensions were built with numpy 1.x
+- `setup_dependencies.py` pins `numpy==1.26.4`
+- `scipy` is pinned to `1.17.1` (1.18+ references the removed `np.long` and breaks madmom's wav loading)
+- `librosa` is pinned to `0.11.0` (1.0 requires numpy 2)
 
 ### Python 3.10+ Compatibility
 The `patch_madmom.py` script fixes:
 - `collections.MutableSequence` → `collections.abc.MutableSequence`
+- Deprecated `np.float` / `np.int` / `np.complex` / `np.bool` aliases
 
 Run after every madmom installation.
 
 ## How It Works
 
 ### Automatic Integration
-All new downloads automatically use madmom chord detection:
+Beat detection runs automatically **after stem extraction** (not at download time):
 
 ```python
-# In download_manager.py - already integrated!
-from .chord_detector import analyze_audio_file
+# In extensions.py - post-extraction chain
+from core.madmom_chord_detector import MadmomChordDetector
 
-# Automatically tries madmom first, falls back to basic detector
-chords_data, beat_offset = analyze_audio_file(file_path, bpm=detected_bpm)
+detector = MadmomChordDetector()
+beat_offset, beats, beat_positions = detector._detect_beats(audio_path, known_bpm=known_bpm)
 ```
 
-### Re-Analyze Existing Downloads
-Upgrade old downloads to use madmom:
+Despite the module name, only `_detect_beats()` is used.
+
+### Regenerate Beats
+From the mixer, or via API:
 
 ```bash
-python reanalyze_with_madmom.py
+curl -X POST http://localhost:5011/api/extractions/<extraction_id>/beats/regenerate
 ```
 
-This script:
-1. Finds all downloads with audio files
-2. Re-analyzes each with madmom
-3. Updates database with improved chord data
-4. Preserves BPM/key from original analysis
+To fill in songs that have no beat grid yet:
 
-### Manual Usage
-```python
-from core.chord_detector import analyze_audio_file
-
-# Use madmom (with fallback)
-chords_json, beat_offset = analyze_audio_file(audio_path, bpm=120, use_madmom=True)
-
-# Force basic detector
-chords_json, beat_offset = analyze_audio_file(audio_path, bpm=120, use_madmom=False)
+```bash
+python utils/analysis/regenerate_beat_times.py
 ```
+
+⚠️ Known issue: regenerating beats (or chords) resets **Skip Intro** (`music_start_time`) and the beat offset to 0. Re-apply them afterwards.
 
 ## Detection Pipeline
 
-1. **Beat Tracking (RNN)**
-   - Detects all beats in audio
-   - Identifies first downbeat (beat offset)
-   - Used for timeline synchronization
+1. **Activations (RNN)**
+   - `RNNDownBeatProcessor` on the audio (~10-30 s, the expensive step)
 
-2. **Feature Extraction (CNN)**
-   - Processes audio into 128-dimensional features
-   - Deep learning model trained on music
+2. **Decoding (DBN)**
+   - Tempo-constrained around the known BPM when available
+   - Outputs (time, bar position) pairs
 
-3. **Chord Recognition (CRF)**
-   - Decodes features into chord labels
-   - Outputs 24-chord vocabulary (major/minor)
+3. **Sanity Checks**
+   - Post-hoc octave check on the resulting tempo
+   - Fallback to beat-only tracking if downbeats fail
 
-4. **Post-Processing**
-   - Merges consecutive duplicates
-   - Filters short chord changes (< 0.2s)
-   - Formats for database storage
-
-## Chord Vocabulary
-
-Madmom CRF model supports:
-
-**Major Chords (0-11):**
-C, C#, D, Eb, E, F, F#, G, Ab, A, Bb, B
-
-**Minor Chords (12-23):**
-Cm, C#m, Dm, Ebm, Em, Fm, F#m, Gm, Abm, Am, Bbm, Bm
-
-**No Chord:**
-N (filtered out in results)
+4. **Storage**
+   - Beat times rounded and saved with bar positions
 
 ## Output Format
 
-```json
-[
-  {
-    "timestamp": 0.330,
-    "chord": "D",
-    "confidence": 1.0
-  },
-  {
-    "timestamp": 2.150,
-    "chord": "G",
-    "confidence": 1.0
-  }
-]
-```
-
-**Database Fields:**
-- `chords_data` - JSON array of chord timeline
+**Database Fields** (`global_downloads`):
+- `beat_times` - JSON array of beat times in seconds
+- `beat_positions` - JSON array of beat-in-bar positions (1 = downbeat)
 - `beat_offset` - Time of first downbeat (seconds)
+
+```json
+{
+  "beat_offset": 0.33,
+  "beat_times": [0.33, 0.83, 1.33, 1.83, 2.33],
+  "beat_positions": [1, 2, 3, 4, 1]
+}
+```
 
 ## Mixer Integration
 
-The mixer automatically loads chord data:
-
-```javascript
-// In mixer/core.js
-const chordsData = EXTRACTION_INFO.chords_data;
-const beatOffset = EXTRACTION_INFO.beat_offset;
-
-// Chord display syncs with playback
-chordDisplay.sync(currentTime);
-```
-
-Displays:
-- **Past chord** (gray)
-- **Current chord** (highlighted)
-- **Next chord** (preview)
+The mixer uses the beat grid for:
+- **Metronome track** (starts muted - unmute it to hear the click)
+- **Count-in** and the Start / Stop markers
+- **Snap to beat** for loop bounds and markers
+- **Bar-based loop fields** (`b17`, `b17.3`)
+- **Chord views** laid out beat by beat and measure by measure
 
 ## Troubleshooting
 
@@ -173,9 +139,15 @@ python patch_madmom.py
 
 ### Wrong NumPy Version
 ```bash
-pip install 'numpy<2.0'
+pip install 'numpy==1.26.4'
 pip install --force-reinstall --no-cache-dir madmom
 python patch_madmom.py
+```
+
+### "module 'numpy' has no attribute 'long'"
+SciPy is too new for numpy 1.x:
+```bash
+pip install 'scipy==1.17.1'
 ```
 
 ### Madmom Not Available
@@ -187,55 +159,35 @@ python -c "import madmom; print(madmom.__version__)"
 Should output: `0.16.1`
 
 ### Detection Fails
-The system automatically falls back to basic detector:
+Beat detection failures are non-fatal - the extraction still completes:
 ```
-[CHORD DETECTION] Madmom error, falling back...
-[CHORD DETECTION] Using basic STFT-based detector...
+[BEATS] Beat detection error (non-fatal): ...
 ```
+The song then has no beat grid (no metronome). Fix madmom, then regenerate beats.
 
 ## Performance
 
-**Madmom vs Basic Detector:**
-
-| Metric | Madmom | Basic |
-|--------|--------|-------|
-| Accuracy | High (CNN+CRF) | Medium (Template) |
-| Timeline Sync | Excellent (RNN beats) | Good (Autocorrelation) |
-| Chord Vocabulary | 24 chords | 24 chords |
-| Processing Speed | ~30s per song | ~5s per song |
-| Dependencies | NumPy 1.x, Cython | NumPy any, Scipy |
+| Metric | Value |
+|--------|-------|
+| Processing Speed | ~10-30 s per song (CPU) |
+| GPU | Not used |
+| Dependencies | NumPy 1.x, SciPy ≤ 1.17.1, Cython |
 
 ## Files
 
 **Core Implementation:**
-- `core/madmom_chord_detector.py` - Professional detection engine
-- `core/chord_detector.py` - Integration with fallback
-- `patch_madmom.py` - Python 3.10+ compatibility patcher
+- `core/madmom_chord_detector.py` - `MadmomChordDetector._detect_beats()` (beat/downbeat tracking; the chord code in this module is unused)
+- `extensions.py` - Post-extraction beat detection call
+- `routes/media.py` - `/beats/regenerate` endpoint
+- `patch_madmom.py` - numpy / Python 3.10+ compatibility patcher (also in `utils/setup/`)
 
 **Utilities:**
-- `reanalyze_with_madmom.py` - Re-analyze existing downloads
-- `reanalyze_all_chords.py` - Legacy re-analyzer (uses madmom now)
+- `utils/analysis/regenerate_beat_times.py` - Detect beats for songs missing a beat grid
+- `utils/testing/test_madmom_tempo_key.py` - Test madmom tempo/key/beat detection
 
-**Configuration:**
-- `requirements.txt` - Dependencies (numpy<2.0, madmom, cython)
-
-## Future Improvements
-
-1. **Extended Chord Vocabulary**
-   - Add 7th, sus, dim, aug chords
-   - Requires custom model training
-
-2. **Hybrid Approach**
-   - Madmom beat tracking + custom template matching
-   - Better for folk/acoustic guitar
-
-3. **Key-Aware Detection**
-   - Detect key first
-   - Constrain chord search to key
-
-4. **Model Fine-Tuning**
-   - Train on folk/acoustic dataset
-   - Improve accuracy for fingerpicking styles
+**Not related to madmom anymore:**
+- `utils/analysis/reanalyze_with_madmom.py` - despite the name, re-runs BTC chord detection
+- `utils/analysis/reanalyze_all_chords.py` - BTC chord re-analysis
 
 ## Credits
 

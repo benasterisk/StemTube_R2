@@ -4,6 +4,8 @@
 
 **faster-whisper** is used in StemTube for automatic lyrics transcription (karaoke/lyrics). It is an optimized implementation of OpenAI Whisper using CTranslate2 for ~4x faster performance.
 
+After stem extraction, Whisper runs **in parallel** with a Musixmatch lookup, and `core/lyrics_merger.py` merges the two: Musixmatch provides the text, Whisper provides the word timings. Whisper alone is used when Musixmatch has no match. (LRCLIB is not used.)
+
 ## Installation
 
 ### Automatic (Recommended)
@@ -16,7 +18,7 @@ python setup_dependencies.py
 
 The script:
 1. ✓ Detects an NVIDIA GPU
-2. ✓ Installs faster-whisper from requirements.txt
+2. ✓ Installs faster-whisper
 3. ✓ Installs cuDNN for GPU support (if GPU available)
 4. ✓ Verifies that faster-whisper runs
 
@@ -93,18 +95,20 @@ This is required so faster-whisper can find the cuDNN libraries.
 ### Code Example
 
 ```python
-from core.lyrics_detector import LyricsDetector
+from core.lyrics_detector import detect_song_lyrics, detect_lyrics_unified
 
-# Initialize detector (GPU auto-detected)
-detector = LyricsDetector()
-
-# Transcribe an audio file
-audio_path = "path/to/audio.mp3"
-lyrics_data = detector.transcribe_audio(
+# Whisper only
+audio_path = "path/to/vocals.mp3"
+lyrics_data = detect_song_lyrics(
     audio_path,
     model_size="medium",  # tiny, base, small, medium, large, large-v3
-    language="en"         # or None for auto-detect
+    language="en",        # or None for auto-detect
+    use_gpu=True
 )
+
+# What StemTube actually runs after extraction: Whisper + Musixmatch in parallel, merged
+result = detect_lyrics_unified(audio_path, title="Artist - Title", model_size="medium")
+lyrics_data = result.get('lyrics')
 
 # Result format
 # [
@@ -238,17 +242,21 @@ for model_size in ["tiny", "base", "small", "medium"]:
 
 ### Automatic Workflow
 
-1. **Audio download** → `DownloadManager.download_audio()`
-2. **Automatic lyrics detection** → `LyricsDetector.transcribe_audio()`
-3. **DB storage** → `global_downloads.lyrics_data` (JSON)
-4. **Mixer display** → `karaoke-display.js` (playback sync)
+1. **Audio download** → Musixmatch lookup only (`core/syncedlyrics_client.py`), no Whisper
+2. **Stem extraction complete** → `detect_lyrics_unified()` on `vocals.mp3`
+   (`extensions.py`): Whisper transcription + Musixmatch fetch in parallel threads
+3. **Merge** → `core/lyrics_merger.py`: Musixmatch text + Whisper word timings
+   (Whisper-only if no Musixmatch match, Musixmatch-only if Whisper fails)
+4. **DB storage** → `global_downloads.lyrics_data` (JSON)
+5. **Mixer display** → `karaoke-display.js` (playback sync)
 
 ### Configuration in app.py
 
 ```python
 # core/config.json
 {
-    "use_gpu_for_extraction": true  # Also controls faster-whisper GPU
+    "use_gpu_for_extraction": true,  # Also controls faster-whisper GPU
+    "lyrics_model_size": "large-v3"  # Whisper model used after extraction
 }
 ```
 

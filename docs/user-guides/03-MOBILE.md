@@ -77,7 +77,7 @@ StemTube can be installed as a Progressive Web App (PWA) for a native app-like e
 
 - **Standalone Mode**: No browser URL bar, full-screen experience
 - **Home Screen Icon**: Launch like a native app
-- **Offline Support**: Access cached audio without internet
+- **Offline Support**: Songs can be cached, but offline playback is currently broken (see [Offline Mode](#offline-mode))
 - **Faster Loading**: Core files cached locally
 - **Splash Screen**: Branded loading screen on startup
 
@@ -85,40 +85,39 @@ StemTube can be installed as a Progressive Web App (PWA) for a native app-like e
 
 ## Offline Mode
 
-StemTube supports offline playback of previously cached audio.
+> **⚠️ Known limitation: offline playback does not work today.** You can still cache a song from
+> the library, and the stems are stored on the device, but the mixer cannot play them back without
+> a connection:
+> - The mobile mixer streams stems through `/poc-mixer/audio/...`, a URL the service worker
+>   (`static/sw.js`) does not intercept, so cached audio is never served.
+> - The service worker only knows six stem names (vocals, bass, drums, guitar, piano, other), so
+>   the 17 fine stems of the MVSep Mega model are not recognised.
+> - Its precache list is out of date, so opening `/mobile` from a cold start while offline fails.
+>
+> Treat the cache as a download of the stems for later, not as a working offline mode.
 
-### How Offline Mode Works
+### How Offline Caching Works
 
-1. **Automatic Caching**: When you play a track, audio files are automatically cached
-2. **Manual Caching**: Use the Settings tab to explicitly cache tracks
-3. **Offline Playback**: Cached tracks are available without internet connection
+1. **Manual Caching**: Tap the cache (download) button on a song in the library
+2. **No Automatic Caching**: Playing a track does not cache its stems
+3. **Offline Playback**: ❌ Currently broken (see above)
 4. **Offline Banner**: A "You are offline" banner appears when disconnected
 
 ### Mobile Settings Tab
 
-Access the **Settings** tab in the mobile interface to manage offline audio:
+Access the **Settings** tab, **Offline Storage** card, to manage cached audio:
 
-**Cache Management**:
-- **View Cache Size**: See total storage used by cached audio
-- **Clear Audio Cache**: Remove all cached audio to free storage
-- **Cache Specific Tracks**: Manually cache tracks for offline use
-
-**Settings Options**:
-- **Auto-cache**: Toggle automatic caching of played tracks
-- **Cache Quality**: Choose between standard and high quality caching
-- **Storage Limit**: Set maximum cache size
+- **Enable offline cache**: Toggle caching on or off
+- **Max storage**: Set the maximum cache size (100 MB to 2 GB)
+- **Storage used**: See total storage used by cached stems
+- **Clear**: Remove all cached audio to free storage
 
 ### Caching Audio for Offline
 
-**Automatic** (Default):
-- Audio is cached as you listen
-- Recent tracks available offline
-
-**Manual**:
-1. Open the track in the mixer
-2. Go to **Settings** tab
-3. Tap **"Cache for Offline"**
-4. Track is now available offline
+1. Open the **Library**
+2. Tap the cache button on a song
+3. Wait for the "saved for offline" toast
+4. Tap the button again to remove the song from the cache
 
 ### Storage Considerations
 
@@ -160,7 +159,7 @@ The mobile interface (`/mobile` route) provides:
 
 | Feature | Desktop | Mobile |
 |---------|---------|--------|
-| Audio Engine | Web Audio API | HTML5 Audio Elements |
+| Audio Engine | Web Audio API (POC engine) | Web Audio API (same POC engine) |
 | Waveform | Full detail | Simplified |
 | Lyrics | Full view | Focused (3 lines) |
 | Chords | Timeline display | Compact progression |
@@ -231,7 +230,7 @@ The mobile interface (`/mobile` route) provides:
 
 ### Android Audio
 
-**Audio Engine**: HTML5 Audio Elements (consistent across browsers)
+**Audio Engine**: Web Audio API — the same POC engine as the desktop mixer
 
 **Playback**:
 - No unlock required (unlike iOS)
@@ -272,7 +271,7 @@ The mobile interface (`/mobile` route) provides:
 **Low-End Devices**:
 - 4-stem models work best
 - Reduce waveform detail (automatic)
-- Disable chords/structure if slow
+- Disable chords display if slow
 
 ---
 
@@ -322,7 +321,7 @@ The mobile interface (`/mobile` route) provides:
 
 **Simplified Waveform**:
 - Lower detail for faster rendering
-- Still shows peaks and structure
+- Still shows peaks
 - Color-coded by stem
 
 **Focused Lyrics**:
@@ -461,8 +460,8 @@ The mobile interface (`/mobile` route) provides:
 1. Close background apps
 2. Clear browser cache
 3. Use WiFi instead of cellular
-4. Try simpler model (htdemucs instead of htdemucs_6s)
-5. Disable chords/structure display
+4. Try simpler model (htdemucs instead of htdemucs_6s or mvsep_mega_fine - 17 stems is heavy on a phone)
+5. Disable chords display
 
 #### Controls Not Responding
 
@@ -503,33 +502,41 @@ The mobile interface (`/mobile` route) provides:
 3. Enable JavaScript in browser settings
 4. Try opening mixer in new tab manually: `/mixer/<download_id>`
 
+#### Cached Song Won't Play Offline
+
+**Cause**: Known limitation - offline playback is broken (see [Offline Mode](#offline-mode)).
+
+**Solution**: Reconnect to the network; there is no workaround yet.
+
+#### Recording Fails to Decode (iOS)
+
+**Cause**: When the browser cannot decode a recorded take directly, `recording-utils.js` falls
+back to a server-side conversion at `/api/recordings/convert`. That endpoint does not exist on
+the server (404), so the fallback always fails.
+
+**Solution**: Known limitation - record from the desktop mixer instead.
+
 ---
 
 ## Mobile Architecture
 
 ### Technical Details (For Developers)
 
-**9 Mobile-Specific JavaScript Modules**:
-1. `mobile-audio-engine.js` - HTML5 Audio Elements engine
-2. `mobile-touch-fix.js` - Touch event handling improvements
-3. `mobile-debug-fix.js` - Android-style controls with iOS debugging
-4. `mobile-playhead-fix.js` - Missing playhead methods
-5. `mobile-audio-fixes.js` - iOS unlock and Android playhead
-6. `mobile-direct-fix.js` - Direct and simple mobile fix
-7. `mobile-audio-patch.js` - iOS variables patch
-8. `mobile-simple-fixes.js` - Simple mobile fixes
+**Audio engine**: the mobile PWA runs the same POC Web Audio engine as the desktop mixer
+(`static/js/poc/audio.js`, SoundTouch worklet), wired to the mobile UI by
+`static/js/mixer/mobile-poc-engine.js`. The older `mobile-audio-engine.js` (HTML5 `<audio>`
+elements) and the `mobile-*-fix.js` series are no longer loaded by any page.
+
+**Main mobile modules**: `mobile-app.js` (navigation, library, mixer, chords, lyrics, jam),
+`mobile-constants.js`, `mobile-guitar-diagram.js`, `mobile-neumorphic-dial.js`,
+`mobile-admin.js`, `mobile-recording.js`, `mobile-metronome.js`.
 
 **Backend**:
 - Separate route: `/mobile` (mobile_routes.py)
 - Same API endpoints as desktop
-- Mobile-optimized templates
+- Jam guests are served this same PWA (`/jam/<code>`)
 
-**Audio Engine Differences**:
-- Desktop: Web Audio API (AudioContext, AudioWorklet)
-- Mobile: HTML5 Audio Elements (`<audio>` tags)
-- Reason: Better compatibility and battery life
-
-See [Mobile Architecture Guide](../feature-guides/MOBILE-ARCHITECTURE.md) for technical deep dive.
+See the [Frontend Guide](../developer-guides/FRONTEND-GUIDE.md) for the technical details.
 
 ---
 
@@ -538,12 +545,11 @@ See [Mobile Architecture Guide](../feature-guides/MOBILE-ARCHITECTURE.md) for te
 **Learn More**:
 - [Usage Guide](02-USAGE.md) - How to use all features
 - [Troubleshooting](05-TROUBLESHOOTING.md) - Common issues and solutions
-- [Mobile Architecture](../feature-guides/MOBILE-ARCHITECTURE.md) - Technical details
+- [Frontend Guide](../developer-guides/FRONTEND-GUIDE.md) - Mobile PWA and mixer engine
 
 **Advanced Features**:
-- [Pitch/Tempo Control](../feature-guides/PITCH-TEMPO-CONTROL.md) - Change key and speed
 - [Chord Detection](../feature-guides/CHORD-DETECTION.md) - Automatic chord recognition
-- [Lyrics & Karaoke](../feature-guides/LYRICS-KARAOKE.md) - Synchronized lyrics
+- [Processing Flow](../PROCESSING_FLOW.md) - Lyrics pipeline (Whisper + Musixmatch)
 
 ---
 

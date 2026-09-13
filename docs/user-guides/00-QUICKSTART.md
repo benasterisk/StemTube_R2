@@ -101,8 +101,8 @@ Access at:
 | Feature | What It Does |
 |---------|-------------|
 | **YouTube Download** | Download audio from YouTube (no API key needed) |
-| **Stem Extraction** | Separate vocals, drums, bass, other (AI-powered) |
-| **Chord Detection** | Detect chords automatically (3 backends available) |
+| **Stem Extraction** | Separate vocals, drums, bass, other - up to 17 fine stems on a CUDA GPU (AI-powered) |
+| **Chord Detection** | Detect chords automatically (BTC Transformer, 170 chord types) |
 | **Karaoke Mode** | Display synchronized lyrics word-by-word |
 | **Pitch/Tempo Control** | Change pitch ±12 semitones, tempo 0.5x-2.0x |
 | **Mobile Interface** | Full-featured iOS/Android controls at `/mobile` |
@@ -181,7 +181,7 @@ nvidia-smi
 
 **For Administrators:**
 - [Security Setup](../admin-guides/SECURITY_SETUP.md) - Production security
-- [Deployment Guide](../admin-guides/DEPLOYMENT.md) - Production deployment
+- [Service Management](../admin-guides/SERVICE_COMMANDS.md) - systemd service and production start
 - [HTTPS Setup](../admin-guides/HTTPS-SETUP.md) - SSL certificate setup
 
 **For Developers:**

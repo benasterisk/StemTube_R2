@@ -1,6 +1,6 @@
 # StemTube API Reference
 
-Complete documentation of all 74 API endpoints and WebSocket events.
+Documentation of the StemTube HTTP API endpoints and WebSocket events.
 
 ---
 
@@ -19,7 +19,9 @@ Complete documentation of all 74 API endpoints and WebSocket events.
 - [API - Files & Storage](#api---files--storage)
 - [API - Library](#api---library)
 - [API - Recordings](#api---recordings)
+- [API - POC Mixer](#api---poc-mixer)
 - [API - Logging](#api---logging)
+- [Known Gaps](#known-gaps)
 
 ---
 
@@ -27,9 +29,15 @@ Complete documentation of all 74 API endpoints and WebSocket events.
 
 **Base URL**: `http://localhost:5011` (or ngrok HTTPS URL)
 
-**Total Endpoints**: 69
-- HTTP Routes: 67
-- WebSocket Events: 2
+**Total Endpoints**: ~115 route decorators
+- HTTP routes live in Flask blueprints under `routes/*.py`, plus `mobile_routes.py` (`app.py`
+  registers them via `register_all_blueprints()`)
+- Plus SocketIO events (core progress events + jam session events in `routes/jam.py`)
+- Not every route is documented below; see [Known Gaps](#known-gaps) for routes that are
+  called but missing, or present but unused
+
+**Note on `File:` references**: the `app.py:<line>` references below predate the split of
+`app.py` into blueprints. The handlers now live in the matching `routes/*.py` module.
 
 **Authentication**:
 - Session-based (Flask-Login)
@@ -205,12 +213,13 @@ Mobile-optimized interface.
 
 ### GET /mixer
 
-Interactive mixer interface.
+Interactive mixer interface (POC engine, fed by the `/poc-mixer/*` routes).
 
 **Auth**: Required
 
 **Query Parameters**:
-- `download_id` (optional): Specific download to load
+- `extraction_id`: Extraction to load (e.g. `download_42`)
+- `stage` (optional): `lyrics` or `chords` - opens the page as a display-only stage window
 
 **Response**: HTML template (mixer.html)
 
@@ -249,11 +258,13 @@ Embedded admin panel (for iframe).
 
 Mobile admin settings panel.
 
+**Status**: Unused - the page exists but nothing links to it.
+
 **Auth**: Required (admin only)
 
 **Response**: HTML template
 
-**Files**: app.py:3637, add_mobile_routes.py:37
+**File**: routes/admin.py
 
 ---
 
@@ -351,7 +362,7 @@ List all downloads accessible to user.
       "stems_available": ["vocals", "drums", "bass", "other"],
       "chords_available": true,
       "lyrics_available": true,
-      "structure_available": true
+      "structure_available": false
     }
   ]
 }
@@ -553,7 +564,7 @@ List all extractions accessible to user.
       "extraction_date": "2025-12-28T11:00:00",
       "chords_available": true,
       "lyrics_available": true,
-      "structure_available": true
+      "structure_available": false
     }
   ]
 }
@@ -603,17 +614,25 @@ Start stem extraction.
 ```json
 {
   "video_id": "dQw4w9WgXcQ",
-  "model": "htdemucs",
-  "stems": ["vocals", "drums", "bass", "other"],
-  "generate_chords": true,
-  "generate_lyrics": true,
-  "generate_structure": true
+  "model_name": "htdemucs",
+  "force_reextract": false
 }
 ```
 
-**Models**:
+**Models** (`STEM_MODELS` in `core/config.py`):
 - `htdemucs`: 4-stem (vocals, drums, bass, other)
+- `htdemucs_ft`: 4-stem, fine-tuned
 - `htdemucs_6s`: 6-stem (adds guitar, piano)
+- `mdx_extra`: 4-stem
+- `mdx_extra_q`: 4-stem - unreachable (disabled in both templates, `diffq` not installed)
+- `mvsep_mega_fine`: 17 fine stems (engine `msst`, CUDA only, min 6 GB VRAM)
+
+**Re-extraction**: `force_reextract: true` with a different model replaces the previous stems
+(`remove_replaced_stems()` in `extensions.py`). After extraction, `warm_prepare()` pre-builds the
+mixer artifacts.
+
+**Note**: `structure_data` is never populated (structure detection is non-functional), so any
+structure fields in responses are empty.
 
 **Response** (200 OK):
 ```json
@@ -736,34 +755,32 @@ Regenerate chord detection.
 
 **Auth**: Required
 
-**Request**:
-```json
-{
-  "backend": "btc"
-}
-```
-
-**Backends**:
-- `btc`: BTC Transformer (170 vocab)
-- `madmom`: madmom CRF (24 types)
-- `hybrid`: Hybrid detector
+**Request**: No body. There is no backend selection: chord detection is BTC Transformer only
+(170 vocab). The `chords_use_madmom` / `chords_use_hybrid` config keys are passed along but inert.
 
 **Response** (200 OK):
 ```json
 {
   "success": true,
-  "chords_count": 150,
-  "backend_used": "btc"
+  "chords": [...],
+  "detected_bpm": 120.0,
+  "beat_offset": 0.0,
+  "beat_times": [],
+  "beat_positions": []
 }
 ```
 
-**File**: app.py:1932
+**Known issue**: BTC returns no beats, so this route writes `beat_offset = 0.0`, and it does not
+pass `music_start_time`, which resets to 0.0. `COALESCE` in `update_download_analysis()` cannot
+protect a non-NULL 0.0, so previously detected values are overwritten.
+
+**File**: routes/media.py
 
 ---
 
-### POST /api/extractions/<extraction_id>/lyrics/generate
+### POST /api/extractions/<extraction_id>/beats/regenerate
 
-Generate lyrics transcription.
+Regenerate beat and downbeat timestamps with madmom.
 
 **Auth**: Required
 
@@ -771,12 +788,59 @@ Generate lyrics transcription.
 ```json
 {
   "success": true,
-  "lyrics_count": 25,
-  "message": "Lyrics generated successfully"
+  "beat_times": [0.52, 1.02, ...],
+  "beat_positions": [1, 2, 3, 4, ...],
+  "beat_offset": 0.52,
+  "beat_count": 412
 }
 ```
 
-**File**: app.py:2022
+**Known issue**: does not pass `music_start_time`, which resets to 0.0 (same `COALESCE`
+limitation as `/chords/regenerate`).
+
+**File**: routes/media.py
+
+---
+
+### POST /api/extractions/<extraction_id>/lyrics/regenerate
+
+Regenerate lyrics: faster-whisper transcription and Musixmatch fetch run in parallel, then merge
+(Musixmatch text + Whisper word timestamps). Emits `lyrics_progress` SocketIO events.
+
+**Auth**: Required
+
+**Request** (all optional):
+```json
+{
+  "artist": "Override artist",
+  "track": "Override track",
+  "force_whisper": false,
+  "musixmatch_track_id": 12345
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "lyrics": [...],
+  "source": "...",
+  "artist": "Artist Name",
+  "track": "Song Title",
+  "segments_count": 25
+}
+```
+
+**File**: routes/media.py
+
+---
+
+### POST /api/extractions/<extraction_id>/lyrics/generate
+
+**Deprecated** shim - redirects to `/lyrics/regenerate`. `POST .../lyrics/lrclib` is the same
+deprecated shim.
+
+**File**: routes/media.py
 
 ---
 
@@ -1231,14 +1295,18 @@ Get application configuration.
 **Response** (200 OK):
 ```json
 {
-  "models": ["htdemucs", "htdemucs_6s"],
-  "chord_backends": ["btc", "madmom", "hybrid"],
-  "default_model": "htdemucs",
-  "default_chord_backend": "btc",
-  "gpu_available": true,
-  "cuda_version": "12.1"
+  "theme": "dark",
+  "downloads_directory": "/path/to/downloads",
+  "max_concurrent_downloads": 3,
+  "use_gpu_for_extraction": true,
+  "default_stem_model": "htdemucs",
+  "ffmpeg_path": "/path/to/ffmpeg",
+  "using_gpu": true,
+  "mega_available": true
 }
 ```
+
+(Abridged; there is no chord backend setting - chords are BTC only.)
 
 **File**: app.py:2950
 
@@ -1253,8 +1321,8 @@ Update configuration (admin only).
 **Request**:
 ```json
 {
-  "default_model": "htdemucs_6s",
-  "default_chord_backend": "madmom"
+  "default_stem_model": "htdemucs_6s",
+  "use_gpu_for_extraction": true
 }
 ```
 
@@ -1670,6 +1738,61 @@ Delete a recording and its WAV file from disk.
 
 ---
 
+## API - POC Mixer
+
+Bridge between extractions and the POC mixer engine (desktop `templates/mixer.html` and the
+mobile PWA via `mobile-poc-engine.js`). `<extraction_id>` is the extraction id (e.g.
+`download_<id>`). All routes require login.
+
+### POST /poc-mixer/prepare/<extraction_id>
+
+Start (or reuse, if already running) building the per-user mixer artifacts in a background thread
+(beat map, metronome WAVs, waveform peaks, meta). The same preparation runs automatically after
+every extraction via `warm_prepare()`.
+
+**Response** (200 OK):
+```json
+{ "job": "download_42", "cached": false }
+```
+
+---
+
+### GET /poc-mixer/progress/<extraction_id>
+
+**Response** (200 OK):
+```json
+{ "stage": "starting", "pct": 0, "done": false, "error": null }
+```
+
+---
+
+### GET /poc-mixer/meta/<extraction_id>
+
+Mixer metadata (duration, beats, waveform peaks, stems...). Gzipped (`Content-Encoding: gzip`)
+when the client sends `Accept-Encoding: gzip`; the plain payload is ~1.3 MB.
+
+**Errors**: 404 `not prepared`
+
+---
+
+### GET|HEAD /poc-mixer/audio/<extraction_id>/<stem>
+
+Serve a stem or a metronome track. Metronome WAVs are served as cached MP3 twins (created once
+next to the WAV, ~96 kbps mono) to cut transfer size; the WAV stays on disk for baking and export.
+Responses use `Cache-Control: no-cache` with ETag/Last-Modified revalidation.
+
+---
+
+### Other POC mixer routes
+
+- `POST /poc-mixer/detect_intro/<extraction_id>` - detect the start and bake the count-in
+- `GET /poc-mixer/metro_instruments`, `POST /poc-mixer/set_metro_instrument/<extraction_id>`
+- `POST /poc-mixer/export/<extraction_id>`, `GET /poc-mixer/download/<token>/<filename>` - mix export
+
+**File**: routes/poc_mixer.py
+
+---
+
 ## API - Logging
 
 ### POST /api/logs/browser
@@ -1763,6 +1886,22 @@ GET /api/logs/download/app.log
 **Response**: File download (text/plain)
 
 **File**: app.py:2515
+
+---
+
+## Known Gaps
+
+**Called by JavaScript but missing server-side** (the request fails):
+- `POST /api/extractions/<id>/analyze-structure` - called by `static/js/mixer/structure-display.js`.
+  Structure detection is non-functional anyway (`structure_data` is always NULL).
+- `POST /api/recordings/convert` - called by `static/js/recording-utils.js`
+
+**Present but unused**:
+- `POST /api/mobile/toggle` (`mobile_routes.py`)
+- `GET /admin/mobile-settings` (unlinked)
+
+**Deprecated shims**:
+- `POST /api/extractions/<id>/lyrics/generate` and `.../lyrics/lrclib` → `/lyrics/regenerate`
 
 ---
 
@@ -1873,10 +2012,7 @@ async function extractStems(videoId) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       video_id: videoId,
-      model: 'htdemucs',
-      stems: ['vocals', 'drums', 'bass', 'other'],
-      generate_chords: true,
-      generate_lyrics: true
+      model_name: 'htdemucs'
     })
   });
 
@@ -1907,5 +2043,5 @@ async function checkStatus(videoId) {
 ---
 
 **API Version**: 2.0+
-**Last Updated**: December 2025
-**Total Endpoints**: 69 (67 HTTP + 2 WebSocket)
+**Last Updated**: September 2026
+**Total Endpoints**: ~115 route decorators (`routes/*.py`, `mobile_routes.py`, `app.py`) + SocketIO events

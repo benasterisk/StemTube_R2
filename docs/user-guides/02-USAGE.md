@@ -12,7 +12,7 @@ Learn how to use all features of StemTube.
 - [Using the Mixer](#using-the-mixer)
 - [Chord Detection](#chord-detection)
 - [Lyrics & Karaoke](#lyrics--karaoke)
-- [Structure Analysis](#structure-analysis)
+- [Structure Analysis](#structure-analysis) (currently unavailable)
 - [Pitch & Tempo Control](#pitch--tempo-control)
 - [File Management](#file-management)
 - [Admin Features](#admin-features)
@@ -95,10 +95,29 @@ Upload your own audio or video files to process them.
      - Fastest processing
      - Best general-purpose quality
 
+   - **htdemucs_ft** (4-stem) - Fine-tuned HTDemucs
+     - Stems: vocals, drums, bass, other
+     - Slightly better quality, slower
+
    - **htdemucs_6s** (6-stem) - For instrumental-heavy music
      - Stems: vocals, drums, bass, other, guitar, piano
      - Slower processing (~1.5x longer)
      - Better separation of specific instruments
+
+   - **mdx_extra** (4-stem) - Vocal focus
+     - Stems: vocals, drums, bass, other
+
+   - **MVSep Mega (fine stems)** - `mvsep_mega_fine`, 17 stems
+     - **Requires a CUDA GPU** (~6 GB VRAM); ~1-2 minutes per song
+     - Lead vocals and backing vocals as separate stems
+     - Drum kit split into kick, snare, toms and cymbals (hi-hat is inside cymbals), plus a
+       "drums" stem with the rest of the kit
+     - Bass, electric guitar vs acoustic guitar, piano, organ, synth, brass, winds, strings
+     - "Other" holds whatever is left (and any stem you uncheck)
+     - The stems always add up to the original mix
+     - The option is hidden in the extraction dialog when the server has no suitable CUDA GPU
+
+   - **mdx_extra_q** is shown disabled: it needs the `diffq` package, which is not installed
 
 3. **Select Stems**:
    - ✅ Check stems you want to extract
@@ -129,7 +148,13 @@ Extracting... 100% - Finalizing
 **Results**:
 - Individual stem files saved in `downloads/global/VIDEO_ID/stems/htdemucs/`
 - Mixer automatically available
-- Chords, structure, lyrics analyzed (if selected)
+- Lyrics transcribed from the vocals stem and beats detected (chords were already analyzed after download)
+
+### Re-extracting With Another Model
+
+- Click the small **↻** button next to "Open Mixer" on an extracted song
+- Pick another model (e.g. go from htdemucs to MVSep Mega) and extract
+- The new stems **replace** the previous ones for that song
 
 ### Advanced Options
 
@@ -140,17 +165,20 @@ Extracting... 100% - Finalizing
 
 **Model Comparison**:
 
-| Feature | htdemucs (4-stem) | htdemucs_6s (6-stem) |
-|---------|------------------|---------------------|
-| Vocals | ✅ Excellent | ✅ Excellent |
-| Drums | ✅ Excellent | ✅ Excellent |
-| Bass | ✅ Excellent | ✅ Excellent |
-| Guitar | ⚠️ In "other" | ✅ Dedicated stem |
-| Piano | ⚠️ In "other" | ✅ Dedicated stem |
-| Speed | ⚡ Fast | 🐌 Slower |
-| Use Case | General music | Instrumental-heavy |
+| Feature | htdemucs (4-stem) | htdemucs_6s (6-stem) | MVSep Mega (17-stem) |
+|---------|------------------|---------------------|---------------------|
+| Vocals | ✅ Excellent | ✅ Excellent | ✅ Lead + backing split |
+| Drums | ✅ Excellent | ✅ Excellent | ✅ Kick / snare / toms / cymbals + rest |
+| Bass | ✅ Excellent | ✅ Excellent | ✅ Dedicated stem |
+| Guitar | ⚠️ In "other" | ✅ Dedicated stem | ✅ Electric vs acoustic |
+| Piano | ⚠️ In "other" | ✅ Dedicated stem | ✅ Piano, organ, synth |
+| Brass / winds / strings | ⚠️ In "other" | ⚠️ In "other" | ✅ Dedicated stems |
+| Speed | ⚡ Fast | 🐌 Slower | ⚡ ~1-2 min on GPU |
+| Hardware | CPU or GPU | CPU or GPU | CUDA GPU only |
+| Use Case | General music | Instrumental-heavy | Detailed arrangement work |
 
 **Troubleshooting**:
+- "Extraction failed" with MVSep Mega: this model only runs on a CUDA GPU with ~6 GB VRAM
 - "Extraction failed": Check logs in `app.log`
 - "Out of memory": Reduce model complexity or restart app
 - GPU errors: Restart app to auto-configure CUDA
@@ -166,66 +194,63 @@ The **interactive mixer** provides full control over extracted stems.
 
 1. Find extracted download in "Your Downloads"
 2. Click "Open Mixer" button
-3. Mixer loads with all stems
+3. Mixer loads progressively: all tracks and their waveforms appear right away, and each
+   stem's audio fills in as it finishes loading (useful with 17-stem extractions)
 
 **Mixer Interface**:
 ```
-┌─────────────────────────────────────────┐
-│  Timeline (waveform + chords + structure) │
-├─────────────────────────────────────────┤
-│  Playback Controls (play/pause/seek)      │
-├─────────────────────────────────────────┤
-│  Track Controls (vocals, drums, bass...)  │
-│    - Volume sliders                       │
-│    - Pan controls (L/R)                   │
-│    - Solo/Mute buttons                    │
-├─────────────────────────────────────────┤
-│  Global Controls                          │
-│    - Pitch shift (-12 to +12 semitones)   │
-│    - Tempo control (0.5x to 2.0x)         │
-│    - Master volume                        │
-└─────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│ Tabs: Mixer · Chords · Lyrics                                          │
+├──────────────────────────────────────────────────────────────────────┤
+│ Transport: ▶ play · ⚑ from Start · ■ stop · 🔁 loop [start → end] ✕    │
+│            ● record · ＋ add track · Detect intro · Precount ·          │
+│            Stop metronome · BPM −/value/+ ↺ · Key −/+ · time ·          │
+│            Focus · 🧲 Snap · scroll mode · zoom H/V · Export            │
+├──────────────────────┬───────────────────────────────────────────────┤
+│ Track controls        │ Timeline ruler (drag = scrub, Shift+drag = loop) │
+│  name · M · S · ●     │ Waveform lanes, beat grid, playhead,             │
+│  volume · pan L/R     │ loop band, Start/Stop markers                    │
+└──────────────────────┴───────────────────────────────────────────────┘
 ```
+Tempo ranges from 0.5× to 2.0× and pitch from -12 to +12 semitones (BPM and Key groups).
+There is no master volume control.
 
 ### Track Controls
 
 **Volume**:
-- Drag slider to adjust track volume (0-100%)
-- Supports values > 100% for quiet tracks
-- Double-click to reset to 100%
+- Drag the slider: 0 to 150% (the metronome goes up to 300% so the click cuts through)
+- Double-click to return to 0 dB (unity)
 
 **Pan** (Left/Right):
-- -100 (full left) to +100 (full right)
-- 0 = center (default)
-- Create stereo separation effects
+- Slider from full left (L) to full right (R), centred by default
+- Double-click to re-centre
 
 **Solo**:
-- Click "S" button to solo a track
-- Mutes all other tracks
+- Click "S" to solo a track; only soloed tracks stay audible
 - Click again to un-solo
 
 **Mute**:
-- Click "M" button to mute track
-- Muted tracks shown with strikethrough
+- Click "M" to mute a track (the button lights up)
 - Click again to unmute
+- A muted track wins over solo
 
-**Reset**:
-- Click "Reset" button on track to restore defaults
-- Volume: 100%, Pan: 0, Solo: off, Mute: off
+**Metronome Track**:
+- The metronome track starts **muted** - unmute it to hear the click
 
 ### Recording (Multi-Track)
 
 Record yourself playing along with stems. Recordings are positioned on the timeline and included in mix exports.
 
 **Adding a Track**:
-- Click "Add Track" in the recording toolbar below the stem tracks
+- Click **Add track** (＋) in the transport bar
 - Each track has its own input device selector (for multiple mics/instruments)
+- The small dot button on each stem lane is a placeholder and does nothing yet - use Add track
 
 **Recording**:
 1. Click the **R** button on a track to arm it (turns red when armed)
 2. Click the global **Record** button (red circle in transport bar)
-3. Playback starts automatically — record along with the stems
-4. Click **Stop** or **Record** again to stop
+3. Latency is calibrated automatically, then playback starts — record along with the stems
+4. Click **Record** again to stop
 5. Waveform appears on the track after processing
 
 **Punch In/Out** (DAW-style):
@@ -237,40 +262,58 @@ Record yourself playing along with stems. Recordings are positioned on the timel
 - **R** (Arm) — Enable track for recording
 - **S** (Solo) / **M** (Mute) — Same behavior as stem tracks
 - **Volume** / **Pan** — Independent per track
-- **Expand** (chevron) — Shows device selector, input level meter, monitor volume, Save/Delete buttons
+- **Expand** (chevron) — Shows device selector, input level meter, monitor volume, FX preset, Delete button
 
 **Saving**:
-- Expand the track and click **Save** to persist the recording to the server
+- Takes are saved to the server automatically when you stop recording
 - Saved recordings turn green and are restored when you reload the mixer
 
 **Latency Calibration**:
-- Click **Calibrate** in the recording toolbar to run an automatic loopback test
+- Runs automatically before each take (loopback test)
 - Plays a test click through speakers, records it via mic, measures round-trip delay
-- Result is saved per device — only needs to be done once
-
-**Speaker Bleed Removal** (De-bleed):
-- Per-track setting in expanded recording controls (dropdown)
-- Uses server-side Demucs AI to isolate the selected instrument/voice from mic bleed
-- Options: Off, Vocals, Bass, Drums, Other (Guitar/Keys)
-- Set to match what you are recording — Demucs will remove everything else
-- Leave "Off" when using headphones for fastest workflow
+- The compensated latency is shown next to the transport buttons
 
 ### Playback Controls
 
 **Play/Pause**:
-- Spacebar or click play button
-- Resumes from current position
+- Click the play button; playback resumes from the current position
+- There are no keyboard transport shortcuts (Enter only commits the BPM and loop fields)
 
 **Seek**:
-- Click anywhere on timeline
-- Drag playhead
-- Use keyboard:
-  - `←` Left arrow: -5 seconds
-  - `→` Right arrow: +5 seconds
+- Click anywhere on the timeline ruler or on a waveform
+
+**Scrub**:
+- Drag on the timeline ruler: the playhead follows the mouse and you hear short slices of the
+  mix, so you can find a spot by ear
+- Scrubbing is silent while playback is running (the playhead still moves)
 
 **Time Display**:
 - Shows current time / total duration
 - Format: `MM:SS / MM:SS`
+
+### Loops, Snap and Markers (Desktop Mixer)
+
+**A/B Loop**:
+- **Shift+drag** on the ruler or on any waveform to set a loop region
+- Drag the loop's start or end bound to adjust it
+- Toggle the **Loop** button (🔁) to enable looping
+- Or type the bounds in the **Loop** start/end fields in the toolbar: a timecode (`1:23.45`)
+  or a bar number (`b17`, `b17.3` for bar 17, beat 3)
+- Click **✕** next to the fields to clear the loop
+
+**Snap to Beat**:
+- The **Snap** toggle (🧲 magnet) makes loop bounds and markers land on the nearest beat
+- Hold **Alt** while dragging to ignore snap for that one drag
+
+**Markers**:
+- **Alt+click** on a waveform lane sets the count-in **Start** marker
+- **Ctrl+click** (Cmd+click on macOS) on a waveform lane sets the metronome **Stop** marker - the click stops
+  there, the tracks keep playing
+
+**Horizontal Scroll Mode**:
+- The scroll mode button cycles Manual → Page → Center; it defaults to **Center** (the view
+  follows the playhead)
+- Only a choice made with the button is remembered for next time
 
 ### Timeline Features
 
@@ -286,8 +329,7 @@ Record yourself playing along with stems. Recordings are positioned on the timel
 - See [Chord Detection](#chord-detection)
 
 **Structure Sections**:
-- Color-coded sections (intro, verse, chorus, etc.)
-- Labels at section boundaries
+- ❌ Currently unavailable - the structure bar stays empty
 - See [Structure Analysis](#structure-analysis)
 
 ### State Persistence
@@ -310,38 +352,25 @@ Record yourself playing along with stems. Recordings are positioned on the timel
 
 ## Chord Detection
 
-StemTube detects chords automatically using **3 different backends**.
+StemTube detects chords automatically using the **BTC Transformer** (BTC-ISMIR19).
 
-### Chord Detection Backends
+### Chord Detection Backend
 
-**1. BTC Transformer** (Default when available)
+**BTC Transformer** (the only chord backend)
 - **Vocabulary**: 170 chord types
-- **Accuracy**: Highest
 - **Speed**: 15-30 seconds per song
-- **Genres**: All genres, especially jazz/complex harmonies
-- **Requirement**: External dependency `../essentiatest/BTC-ISMIR19`
-- **Best for**: Accurate transcription, music theory analysis
+- **Genres**: All genres, including jazz/complex harmonies
+- **Requirement**: Model weights at `external/BTC-ISMIR19/test/btc_model_large_voca.pt`
+- **No fallback**: if BTC is missing or fails, the song simply has no chords
 
-**2. madmom CRF** (Built-in fallback)
-- **Vocabulary**: 24 chord types (maj, min, dim, aug, 7, maj7, min7)
-- **Accuracy**: Professional-grade (Chordify/Moises level)
-- **Speed**: 20-40 seconds per song
-- **Genres**: Pop, rock, folk, country
-- **Requirement**: Built-in, no external dependencies
-- **Best for**: Most popular music, quick transcription
-
-**3. Hybrid Detector** (Automatic fallback)
-- **Combines**: Multiple backends for best results
-- **Accuracy**: Varies by song
-- **Speed**: Similar to individual backends
-- **Fallback**: Activated when BTC unavailable
-- **Best for**: Ensuring chord detection always works
+**madmom** is used only for beat and downbeat detection (the metronome grid), never for chords.
+The `chords_use_madmom` and `chords_use_hybrid` settings in `core/config.json` have no effect.
 
 ### Using Chord Detection
 
 **Automatic Detection**:
-1. Extract stems from a download
-2. Chords automatically detected during extraction
+1. Download or upload a song
+2. Chords are detected automatically right after the download (beats are detected after stem extraction)
 3. Results shown in mixer timeline
 
 **Manual Re-Analysis**:
@@ -376,33 +405,38 @@ python utils/analysis/reanalyze_all_chords.py
 - Songs with clear harmonic content
 - Avoid heavily distorted or noisy recordings
 
-**Genre Recommendations**:
-- **Pop/Rock/Folk**: madmom CRF or BTC
-- **Jazz/Classical**: BTC Transformer (170 vocab required)
+**Genre Notes**:
+- **Pop/Rock/Folk**: Generally reliable
+- **Jazz/Classical**: Benefits from the 170-chord vocabulary
 - **Electronic/Ambient**: May have mixed results (less harmonic content)
 
 **Troubleshooting**:
-- Incorrect chords: Try different backend (see [Chord Detection Guide](../feature-guides/CHORD-DETECTION.md))
-- No chords detected: Check that extraction completed successfully
-- BTC unavailable: Install external dependency (see [BTC Setup](../setup-guides/BTC-SETUP.md))
+- Incorrect chords: Regenerate chords from the mixer (there is no alternative backend to switch to)
+- No chords detected: Check the logs for `[CHORDS] BTC not available` or `BTC error`
+- BTC unavailable: Check the model weights (see [BTC Setup](../setup-guides/BTC-SETUP.md))
+- **Known issue**: regenerating chords or beats resets **Skip Intro** and the beat offset to 0 -
+  re-apply them afterwards
 
 ---
 
 ## Lyrics & Karaoke
 
-**Automatic lyrics transcription** with word-level timing using faster-whisper.
+**Automatic synced lyrics** with word-level timing: faster-whisper transcription and Musixmatch run in parallel and are merged.
 
 ### Lyrics Transcription
 
 **Automatic Detection**:
-1. Extract stems from a song
-2. Lyrics automatically transcribed during extraction
-3. Uses isolated vocals stem for best accuracy
+1. After download, StemTube looks the song up on Musixmatch (quick API call)
+2. After stem extraction, faster-whisper transcribes the isolated vocals stem **and** Musixmatch
+   is queried at the same time
+3. The results are merged: Musixmatch provides the words, Whisper provides the word timings
+4. If Musixmatch has no match, the Whisper transcription is used alone; if Whisper fails, the
+   Musixmatch lyrics are used alone
 
 **Processing**:
 - **CPU Mode**: 30-120 seconds per song
 - **GPU Mode**: 10-30 seconds per song (3-5x faster)
-- Runs in parallel with stem extraction
+- Runs right after stem extraction finishes
 
 **Accuracy**:
 - 90-95% word accuracy for clear vocals
@@ -460,67 +494,21 @@ Compact for easier reading on small screens
 **Troubleshooting**:
 - No lyrics: Ensure song has vocals (not instrumental)
 - Wrong lyrics: Try re-running extraction or edit manually
-- Timing off: faster-whisper provides best available timing
+- Timing off: timings come from faster-whisper; regenerate lyrics from the mixer
 - Language issues: English most accurate, other languages may vary
 
 ---
 
 ## Structure Analysis
 
-**Automatic song structure detection** using MSAF (Music Structure Analysis Framework).
-
-### Structure Detection
-
-**Automatic Analysis**:
-1. Extract stems from a song
-2. Structure automatically analyzed during extraction
-3. Results shown in mixer timeline
-
-**Detected Sections**:
-- **Intro**: Opening section
-- **Verse**: Verse sections (Verse 1, Verse 2, etc.)
-- **Chorus**: Chorus/Refrain sections
-- **Bridge**: Bridge sections
-- **Outro**: Ending section
-- **Instrumental**: Instrumental breaks
-- **Other**: Unclassified sections
-
-### Using Structure Information
-
-**In Mixer Timeline**:
-- Color-coded sections
-- Section labels at boundaries
-- Click to jump to section
-
-**Navigation**:
-- Quickly jump between song sections
-- Loop specific sections (verse, chorus, etc.)
-- Identify song form (ABABCB, etc.)
-
-**Color Scheme**:
-- Intro: Light blue
-- Verse: Green
-- Chorus: Yellow
-- Bridge: Orange
-- Outro: Red
-- Instrumental: Purple
-- Other: Gray
-
-**Manual Re-Analysis**:
-```bash
-source venv/bin/activate
-python utils/analysis/reanalyze_all_structure.py
-```
-
-**Accuracy**:
-- 70-90% accuracy for pop/rock music
-- Best with clear verse/chorus structure
-- May struggle with through-composed or classical music
-
-**Troubleshooting**:
-- Incorrect sections: MSAF uses algorithmic detection (may not match human perception)
-- No structure detected: Check that extraction completed successfully
-- Too many sections: MSAF may over-segment some songs
+> **❌ Currently unavailable.** Automatic song structure detection (intro / verse / chorus
+> sections) does not work in this version, and the structure bar in the mixer stays empty.
+> The MSAF library it relies on no longer loads with current SciPy releases, so no song gets
+> sections, and the reanalysis script (`utils/analysis/reanalyze_all_structure.py`) fails too.
+> Use the A/B loop and markers to navigate song sections manually in the meantime.
+>
+> Technical details and what it would take to revive the feature:
+> [Structure Analysis Implementation](../feature-guides/STRUCTURE_ANALYSIS_IMPLEMENTATION.md).
 
 ---
 
@@ -648,7 +636,7 @@ StemTube uses a **hybrid pitch/tempo engine**:
 
 **Actions**:
 - **Extract Stems**: Start stem extraction
-- **Re-analyze**: Re-run chord/structure/lyrics detection
+- **Re-analyze**: Re-run chord/lyrics detection
 - **Open Mixer**: Open interactive mixer
 - **Download**: Download original audio file
 - **Delete**: Remove from your library (admin only for global downloads)
@@ -801,13 +789,12 @@ grep "download_id" app.log
 - [Feature Guides](../feature-guides/) - Deep dives into specific features
 
 **Advanced Usage**:
-- [Chord Detection Guide](../feature-guides/CHORD-DETECTION.md) - BTC/madmom/hybrid backends
-- [Pitch/Tempo Guide](../feature-guides/PITCH-TEMPO-CONTROL.md) - Advanced techniques
-- [Mobile Architecture](../feature-guides/MOBILE-ARCHITECTURE.md) - Mobile-specific features
+- [Chord Detection Guide](../feature-guides/CHORD-DETECTION.md) - BTC Transformer chord detection
+- [Frontend Guide](../developer-guides/FRONTEND-GUIDE.md) - Mixer engine, tempo/pitch and the mobile PWA
 
 **For Administrators**:
 - [Security Setup](../admin-guides/SECURITY_SETUP.md) - Production security
-- [Deployment Guide](../admin-guides/DEPLOYMENT.md) - Deploy to production
+- [Service Management](../admin-guides/SERVICE_COMMANDS.md) - systemd service and production start
 
 ---
 

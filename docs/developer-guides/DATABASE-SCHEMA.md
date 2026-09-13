@@ -36,14 +36,15 @@ Complete documentation of the SQLite database structure.
 **Key Features**:
 - Global file deduplication (saves disk space)
 - Per-user access control
-- Extraction metadata (stems, chords, lyrics, structure)
-- Audio analysis results (BPM, key, confidence)
+- Extraction metadata (stems, chords, lyrics; the structure column exists but is always NULL)
+- Audio analysis results (BPM, key, confidence, beats)
+- User recording takes (`recordings`)
 
 ---
 
 ## Database File
 
-**Location**: `/home/michael/Documents/Dev/stemtube_dev_v1.2/stemtubes.db`
+**Location**: `stemtubes.db` in the project root (resolved by `core/db/connection.py`)
 
 **Access**:
 ```python
@@ -169,9 +170,16 @@ CREATE TABLE global_downloads (
     beat_offset REAL DEFAULT 0.0,
     structure_data TEXT,
     lyrics_data TEXT,
+    beat_times TEXT,
+    beat_positions TEXT,
+    music_start_time REAL DEFAULT 0.0,
+    metronome_offset_ms REAL DEFAULT 0.0,
     UNIQUE(video_id, media_type, quality)
 )
 ```
+
+(The extraction and analysis columns, `extracted` onward, are ensured at startup by the
+auto-migration `_add_extraction_fields_if_missing()` in `core/db/schema.py`.)
 
 **Columns**:
 
@@ -187,7 +195,7 @@ CREATE TABLE global_downloads (
 | `file_size` | INTEGER | YES | NULL | File size in bytes |
 | `created_at` | TIMESTAMP | NO | CURRENT_TIMESTAMP | Download date |
 | `extracted` | BOOLEAN | NO | 0 | Extraction complete? |
-| `extraction_model` | TEXT | YES | NULL | Demucs model used (htdemucs, htdemucs_6s) |
+| `extraction_model` | TEXT | YES | NULL | Model used (htdemucs, htdemucs_ft, htdemucs_6s, mdx_extra, mvsep_mega_fine) |
 | `stems_paths` | TEXT | YES | NULL | JSON: {"vocals": "path", "drums": "path", ...} |
 | `stems_zip_path` | TEXT | YES | NULL | Path to ZIP archive of stems |
 | `extracted_at` | TIMESTAMP | YES | NULL | Extraction completion date |
@@ -195,10 +203,14 @@ CREATE TABLE global_downloads (
 | `detected_bpm` | REAL | YES | NULL | Detected tempo (BPM) |
 | `detected_key` | TEXT | YES | NULL | Detected musical key (e.g., "C major") |
 | `analysis_confidence` | REAL | YES | NULL | BPM/key detection confidence (0.0-1.0) |
-| `chords_data` | TEXT | YES | NULL | JSON: [{"timestamp": 0.0, "chord": "C:maj"}, ...] |
+| `chords_data` | TEXT | YES | NULL | JSON: [{"timestamp": 0.0, "chord": "C:maj"}, ...] (BTC) |
 | `beat_offset` | REAL | NO | 0.0 | Time offset to first downbeat (seconds) |
-| `structure_data` | TEXT | YES | NULL | JSON: [{"start": 0.0, "end": 30.0, "label": "intro"}, ...] |
+| `structure_data` | TEXT | YES | NULL | JSON: [{"start": 0.0, "end": 30.0, "label": "intro"}, ...] - **always NULL** (structure detection non-functional) |
 | `lyrics_data` | TEXT | YES | NULL | JSON: [{"start": 0.0, "end": 2.5, "text": "...", "words": [...]}, ...] |
+| `beat_times` | TEXT | YES | NULL | JSON array of beat timestamps (madmom) |
+| `beat_positions` | TEXT | YES | NULL | JSON array of beat-in-bar positions (1,2,3,4) |
+| `music_start_time` | REAL | NO | 0.0 | Where the music actually begins (seconds) |
+| `metronome_offset_ms` | REAL | NO | 0.0 | Manual metronome grid nudge (milliseconds) |
 
 **Constraints**:
 - `PRIMARY KEY (id)`
@@ -218,6 +230,11 @@ CREATE TABLE global_downloads (
 }
 ```
 
+`mvsep_mega_fine` stores 17 keys instead: vocals, backing_vocals, drums, kick, snare, toms,
+cymbals, bass, electric_guitar, acoustic_guitar, piano, organ, synth, brass, winds, strings,
+other. Its `drums_full.mp3` (for metronome beat detection) is written to the stems folder but is
+not a mixer track. Re-extracting with another model replaces the stored stems.
+
 **chords_data** (array):
 ```json
 [
@@ -227,7 +244,9 @@ CREATE TABLE global_downloads (
 ]
 ```
 
-**structure_data** (array):
+**structure_data** (array) - intended format only. The column is NULL in every row: `msaf`
+fails to import under modern SciPy (`from scipy import inf`), so
+`core/msaf_structure_detector.py` returns None.
 ```json
 [
   {"start": 0.0, "end": 8.0, "label": "intro"},
@@ -269,6 +288,14 @@ if download['stems_paths']:
     stems = json.loads(download['stems_paths'])
     print(f"Vocals: {stems['vocals']}")
 ```
+
+**Known Issues**:
+- `update_download_analysis()` (`core/db/downloads.py`) uses `COALESCE(?, column)`, which only
+  protects against NULL. `POST /api/extractions/<id>/chords/regenerate` and
+  `POST /api/extractions/<id>/beats/regenerate` (`routes/media.py`) do not pass
+  `music_start_time`, so it is overwritten with the 0.0 default; `/chords/regenerate` also writes
+  `beat_offset = 0.0` because BTC returns no beats. A non-NULL 0.0 replaces the stored value.
+- `structure_data` is always NULL (see above).
 
 **File**: core/downloads_db.py
 
@@ -332,6 +359,8 @@ CREATE TABLE user_downloads (
 
 **Denormalization**:
 - Most fields copied from `global_downloads` for faster queries
+- The startup auto-migration adds the same analysis columns (`detected_bpm` ... `metronome_offset_ms`)
+  to `user_downloads` too; queries prefer global values via `COALESCE(global.field, user.field)`
 - Single query returns all user downloads without JOIN
 - Trade-off: Data redundancy for query performance
 
@@ -441,6 +470,10 @@ CREATE TABLE IF NOT EXISTS recordings (
 - `user_downloads.global_download_id` references `global_downloads.id`
 - Cascade delete: Not implemented (manual cleanup required)
 
+**global_downloads → recordings** (1:N, per user)
+- `recordings.download_id` references `global_downloads.id`; `recordings.user_id` is the owner
+- Managed by `routes/recordings.py` and the desktop mixer's `RecordingEngine`
+
 ### Access Control Flow
 
 ```python
@@ -472,6 +505,7 @@ grant_user_access(user_id, global_download_id, video_id)
 - `users.id`
 - `global_downloads.id`
 - `user_downloads.id`
+- `recordings.id`
 
 **Unique Constraints** (auto-indexed):
 - `users.username`
@@ -568,6 +602,11 @@ def _add_extraction_fields_if_missing(conn):
         ("detected_bpm", "REAL"),
         ("detected_key", "TEXT"),
         ("beat_offset", "REAL DEFAULT 0.0"),
+        ("beat_times", "TEXT"),
+        ("beat_positions", "TEXT"),
+        ("music_start_time", "REAL DEFAULT 0.0"),
+        ("metronome_offset_ms", "REAL DEFAULT 0.0"),
+        # ... (abridged; see core/db/schema.py)
     ]
 
     for table_name in ["global_downloads", "user_downloads"]:
@@ -580,13 +619,13 @@ def _add_extraction_fields_if_missing(conn):
                 conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {field_name} {field_type}")
 ```
 
-**Called by**: `init_table()` in core/downloads_db.py
+**Called by**: `init_table()` in `core/db/schema.py` (re-exported by `core/downloads_db.py`)
 
 ### Manual Migration Scripts
 
 **Location**: `utils/database/`
 
-**Add Structure Column**:
+**Add Structure Column** (legacy; the column is never populated):
 ```bash
 python utils/database/add_structure_column.py
 ```
@@ -613,6 +652,7 @@ SELECT name FROM sqlite_master WHERE type='table';
 PRAGMA table_info(users);
 PRAGMA table_info(global_downloads);
 PRAGMA table_info(user_downloads);
+PRAGMA table_info(recordings);
 ```
 
 **Python Script**:
@@ -801,6 +841,11 @@ if record['chords_data']:
 **v2.1** (February 2026):
 - Added: `recordings` table for multi-track recording feature
 
+**Current state** (September 2026):
+- Four tables: `users`, `global_downloads`, `user_downloads`, `recordings` (recordings are live)
+- Beat columns in use: `beat_times`, `beat_positions`, `music_start_time`, `metronome_offset_ms`
+- `structure_data` still exists but is always NULL (structure detection non-functional)
+
 ### Future Considerations
 
 **Potential Additions**:
@@ -827,5 +872,5 @@ if record['chords_data']:
 ---
 
 **Database Version**: 2.1
-**Last Updated**: February 2026
+**Last Updated**: September 2026
 **Schema Complexity**: 4 tables, 55+ columns

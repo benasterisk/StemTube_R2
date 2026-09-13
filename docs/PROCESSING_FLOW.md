@@ -36,18 +36,19 @@ This document describes the complete flow from download to extraction, including
 - **Output:** `detected_bpm`, `detected_key`, `analysis_confidence`
 
 ### 2.2 Chord Detection
-- **Library:** BTC Transformer → madmom CRF → hybrid (fallback chain)
-- **Input:** Full audio + detected BPM/key for beat grid alignment
-- **Output:** `chords_data`, `beat_offset`
+- **Library:** BTC-ISMIR19 Transformer only (170-chord vocabulary, weights in `external/BTC-ISMIR19/test/btc_model_large_voca.pt`)
+- **No fallback:** if BTC is unavailable or fails, `chords_data` stays empty. madmom is NOT used for chords; `core/hybrid_chord_detector.py` is dead code and the `chords_use_madmom` / `chords_use_hybrid` settings are inert.
+- **Input:** Full audio
+- **Output:** `chords_data` (beats are detected later, in Phase 4)
 
-### 2.3 Structure Detection
+### 2.3 Structure Detection (NOT functional)
 - **Library:** MSAF (Music Structure Analysis Framework)
-- **Algorithm:** CNMF + Foote boundaries
-- **Output:** `structure_data` (sections: Intro, Verse, Chorus, etc.)
+- **Status:** ❌ Broken. `msaf` cannot be imported with modern SciPy (`from scipy import inf`), so `core/msaf_structure_detector.py` logs "msaf library is not installed" and returns `None`.
+- **Output:** `structure_data` is always `NULL`. See [STRUCTURE_ANALYSIS_IMPLEMENTATION.md](feature-guides/STRUCTURE_ANALYSIS_IMPLEMENTATION.md).
 
 ### 2.4 Lyrics Detection (Musixmatch Only)
-- **Library:** syncedlyrics API (Musixmatch)
-- **Note:** Only API call, NO Whisper fallback (will be done after extraction)
+- **Library:** syncedlyrics API (Musixmatch), via `core/syncedlyrics_client.py`
+- **Note:** Only API call, NO Whisper (done after extraction)
 - **Output:** `lyrics_data` (if found on Musixmatch)
 
 **Database Update:** All results saved to `global_downloads` table
@@ -61,11 +62,23 @@ This document describes the complete flow from download to extraction, including
 **Operations:**
 1. Check global extraction (deduplication)
 2. Reserve extraction slot (prevent race conditions)
-3. Load Demucs model (auto GPU detection)
-4. Separate stems: vocals, drums, bass, other (+ guitar, piano for 6-stem)
+3. Load the separation model (auto GPU detection)
+4. Separate stems (see models below)
 5. Detect silent stems (RMS energy analysis)
 6. Copy to output directory
 7. Create ZIP archive
+
+**Models:**
+
+| Model | Stems | Notes |
+|-------|-------|-------|
+| `htdemucs` | 4: vocals, drums, bass, other | Default |
+| `htdemucs_ft` | 4 | Fine-tuned HTDemucs |
+| `htdemucs_6s` | 6: + guitar, piano | |
+| `mdx_extra` | 4 | Vocal focus |
+| `mvsep_mega_fine` | 17 | CUDA GPU only (~6 GB VRAM), ~1-2 min per song. 3-stage hybrid run by `core/msst/separate.py`: `htdemucs_6s` → DrumSep on drums → MVSep Mega BS-Roformer heads |
+
+`mdx_extra_q` is disabled (the `diffq` package is not installed). Re-extracting a song with another model replaces its stems.
 
 **Files Created:**
 ```
@@ -74,10 +87,12 @@ This document describes the complete flow from download to extraction, including
 ├── drums.mp3
 ├── bass.mp3
 ├── other.mp3
-├── guitar.mp3 (6-stem only)
-├── piano.mp3 (6-stem only)
+├── guitar.mp3 (htdemucs_6s only)
+├── piano.mp3 (htdemucs_6s only)
 └── {title}_stems.zip
 ```
+
+With `mvsep_mega_fine` the stems are `vocals` (lead), `backing_vocals`, `drums` (kit remainder), `kick`, `snare`, `toms`, `cymbals`, `bass`, `electric_guitar`, `acoustic_guitar`, `piano`, `organ`, `synth`, `brass`, `winds`, `strings` and `other`, plus `drums_full.mp3` (the full Demucs drums, used for beat detection, not a mixer track). The stems always sum to the original mix.
 
 ---
 
@@ -89,31 +104,36 @@ This document describes the complete flow from download to extraction, including
 
 ### 4.1 Lyrics Detection (Full)
 - **Condition:** Only if `vocals.mp3` exists
-- **Library:** SyncedLyrics (Musixmatch) → faster-whisper (fallback)
+- **Entry point:** `detect_lyrics_unified()` in `core/lyrics_detector.py`
+- **Method:** faster-whisper transcription AND Musixmatch fetch run **in parallel**, then `core/lyrics_merger.py` merges them: Musixmatch text + Whisper word timings. Whisper-only if Musixmatch has nothing; Musixmatch-only if Whisper fails.
 - **Input:** vocals.mp3 (better quality than full audio)
-- **Sync:** vocal_onset_detector for precise timing
 - **Output:** Updates `lyrics_data` in database
 
 **Note:** This REPLACES any lyrics found during download phase (uses better source)
+
+### 4.2 Beat / Downbeat Detection
+- **Library:** madmom (beat and downbeat tracking only - never chords)
+- **Output:** `beat_offset`, `beat_times`, `beat_positions` (metronome grid)
+
+### 4.3 Mixer Pre-Build
+- Metronome WAVs, waveform peaks and `meta.json` are prepared so the first mixer open is fast.
 
 ---
 
 ## Fallback Chains
 
 ### Chord Detection
-1. BTC Transformer (professional, 170 chord vocabulary)
-2. madmom CRF (works on all genres)
-3. Hybrid (madmom beats + key-aware templates)
+1. BTC Transformer (170 chord vocabulary) - no fallback. madmom CRF and the hybrid detector are no longer wired in.
 
 ### Lyrics Detection
-1. Musixmatch via SyncedLyrics (word-level timestamps)
-2. faster-whisper (speech-to-text transcription)
-3. vocal_onset_detector (align with vocal peaks)
+1. faster-whisper + Musixmatch in parallel, merged (Musixmatch text, Whisper timings)
+2. Whisper-only if Musixmatch has no match
+3. Musixmatch-only if Whisper fails
+
+LRCLIB is not a lyrics source. `core/lrclib_client.py`, `core/lyrics_aligner.py` and `core/vocal_onset_detector.py` are dead code.
 
 ### Structure Analysis
-1. CNMF + Foote boundaries
-2. Spectral Clustering (scluster)
-3. Online LDA (olda)
+Not functional (MSAF import fails with modern SciPy) - no fallback.
 
 ---
 
@@ -122,12 +142,12 @@ This document describes the complete flow from download to extraction, including
 | Analysis | Library | Purpose |
 |----------|---------|---------|
 | BPM/Key | librosa, scipy | Spectral analysis, template matching |
-| Chords | BTC, madmom | Chord recognition |
-| Structure | MSAF | Section segmentation |
-| Lyrics (sync) | syncedlyrics | Musixmatch API |
-| Lyrics (ASR) | faster-whisper | Speech-to-text |
-| Onset Detection | librosa | Vocal onset alignment |
-| Stem Separation | Demucs | Source separation |
+| Chords | BTC-ISMIR19 | Chord recognition |
+| Beats | madmom | Beat/downbeat grid for the metronome |
+| Structure | MSAF | Section segmentation (❌ broken) |
+| Lyrics (sync) | syncedlyrics / Musixmatch | Musixmatch API |
+| Lyrics (ASR) | faster-whisper | Speech-to-text, word timings |
+| Stem Separation | Demucs, MSST (BS-Roformer), DrumSep | Source separation |
 
 ---
 
@@ -136,13 +156,13 @@ This document describes the complete flow from download to extraction, including
 | Component | File |
 |-----------|------|
 | Download Management | `core/download_manager.py` |
-| Stem Extraction | `core/stems_extractor.py` |
-| Chord Detection | `core/chord_detector.py`, `core/btc_chord_detector.py`, `core/madmom_chord_detector.py` |
-| Lyrics Detection | `core/lyrics_detector.py`, `core/syncedlyrics_client.py` |
-| Vocal Sync | `core/vocal_onset_detector.py` |
-| Structure Analysis | `core/msaf_structure_detector.py` |
-| Database | `core/downloads_db.py` |
-| Main Routes | `app.py` |
+| Stem Extraction | `core/stems_extractor.py`, `core/msst/separate.py` (fine stems) |
+| Chord Detection | `core/chord_detector.py`, `core/btc_chord_detector.py` |
+| Beat Detection | `core/madmom_chord_detector.py` (beats only), called from `extensions.py` |
+| Lyrics Detection | `core/lyrics_detector.py`, `core/lyrics_merger.py`, `core/syncedlyrics_client.py`, `core/musixmatch_client.py` |
+| Structure Analysis | `core/msaf_structure_detector.py` (❌ broken) |
+| Database | `core/downloads_db.py` → `core/db/` |
+| Main Routes | `routes/` blueprints, post-extraction chain in `extensions.py` |
 
 ---
 
@@ -150,13 +170,13 @@ This document describes the complete flow from download to extraction, including
 
 1. **Lyrics Detection Optimized:**
    - During download: Only Musixmatch (fast API call)
-   - After extraction: Musixmatch + Whisper fallback (using vocals.mp3)
+   - After extraction: Musixmatch + Whisper in parallel, merged (using vocals.mp3)
    - Avoids redundant Whisper processing on full audio
 
 2. **Chord Detection:**
    - Currently uses full audio
    - Could potentially use instrumental stem for better accuracy (future optimization)
+   - Known issue: regenerating chords or beats resets Skip Intro (`music_start_time`) and the beat offset to 0
 
 3. **Structure Analysis:**
-   - Only during download phase
-   - Could be re-run on instrumental stems (future optimization)
+   - Currently non-functional (see Phase 2.3)

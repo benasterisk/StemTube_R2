@@ -1,11 +1,215 @@
 # Changelog
 
-All notable changes to StemTube will be documented in this file.
+All notable changes to StemTube are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+**On versions:** only `v3.0.0`, `v3.0.1` and `v3.0.2` exist as git tags (plus
+`v2.2.0-monolithic`, which marks the last commit before the Blueprint refactor).
+The long stretch between 2026-02 and 2026-08 was never tagged, so it is grouped
+here by date and theme instead of behind invented version numbers. Entries cite
+the commits that carry the change.
 
 ---
+
+## [Unreleased]
+
+### Added
+- **Fine-stem extraction model `mvsep_mega_fine`** (CUDA only) — a three-stage
+  pipeline in `core/msst/separate.py`: `htdemucs_6s` coarse split → **DrumSep**
+  (inagoy, HDemucs, MIT) on the drums stem → **MVSep Mega 53-stem BS-Roformer**
+  (ZFTurbo, MIT) heads splitting the remaining stems with Wiener masks. Produces up
+  to 17 stems: lead/backing vocals, drums + kick/snare/toms/cymbals, bass,
+  electric/acoustic guitar, piano, organ, synth, brass, winds, strings, other.
+  Weights download on first use into `core/models/msst/` (`48cb9bf`).
+- **Mixer scrub** — dragging the timeline ruler moves the playhead and plays short
+  audible slices (`static/js/poc/scrub.js`, ported from the desktop edition).
+- **Loop controls** — Shift+drag on the ruler or a waveform, draggable bounds,
+  numeric fields accepting a timecode (`1:23.45`) or a bar (`b17`), and a clear
+  button; plus a shared **snap-to-beat** toggle used by loops and markers
+  (`static/js/poc/snap.js`).
+- **Explicit re-extraction** — re-run a song with another model (or the same one);
+  the previous stems and their stale ZIP are removed.
+
+### Changed
+- Mixer artifacts (metronome, waveform peaks, `meta.json`) are now built at the end
+  of an extraction, so the first mixer open is a cache hit instead of a ~1 min wait.
+- The mixer shows its tracks and server-side waveforms immediately and decodes each
+  stem as its own download finishes, with per-stem progress.
+- Metronome tracks are served as MP3 (82 MB → 11 MB per song) and `meta.json` is
+  gzipped (1.3 MB → 0.27 MB). Audio responses revalidate instead of hard-caching.
+- Mobile no longer downloads the full mix just to draw one waveform.
+- The horizontal scroll mode defaults to **Center**, and only a choice made with the
+  toolbar button is remembered.
+- The metronome track starts muted.
+
+### Fixed
+- **Playback died until the page was reloaded**: every stem's gain and pan nodes
+  stayed connected to the master bus on stop, so each seek leaked a full chain and
+  the browser's audio thread eventually gave up.
+- **Silence when moving the playhead with a loop armed**: a source started past
+  `loopEnd` never wraps, so every stem ran to the end of its buffer while the
+  playhead kept looping.
+- **Tempo leaking between songs**: a session state saved before `TempoPitch.load()`
+  stretched other songs to 120 BPM on the next open.
+- Lyrics regeneration reads `stems_paths['vocals']` instead of a hard-coded path.
+- A failed or cancelled re-extraction no longer relabels the existing stems with the
+  new model name.
+
+---
+
+## [3.0.2] - 2026-08-16
+
+### Fixed
+- Stems ZIP returned 404 for anything not extracted in the current run (`cce0f0e`).
+- `create-zip` accepts `download_<id>`, not just a bare integer (`71ce67b`), and
+  resolves by global id as well as `user_downloads` id (`c278daf`).
+- Stacked ZIP-button click handlers caused duplicate toasts and downloads (`2c635b2`).
+
+## [3.0.1] - 2026-08-16
+
+### Fixed
+- A fresh clone now actually installs and runs, and the setup summary reports
+  honestly what works (`a7c1374`).
+
+## [3.0.0] - 2026-08-16
+
+### Added
+- **Sample-accurate jam sync** — shared clock, time anchors and latency
+  compensation (`75ecdb4`), clock slaving for long-run drift, host session surviving
+  a socket reconnect (`c66a8fb`).
+- Guests follow the host's tempo and key exactly (`211cca4`); guest link and QR use
+  the LAN IP when the host runs on localhost (`d5ed13c`).
+- `STEMTUBE_SSL=1` self-signed HTTPS for LAN device testing (`977349b`);
+  `STEMTUBE_PORT` / `STEMTUBE_HOST` overrides (`2c6f212`).
+
+### Changed
+- **The mobile PWA is the single jam guest surface** — the dedicated guest page was
+  dropped (`31904bc`), and the PWA now runs the POC engine (`471670a`, `ba6f21e`).
+- HTML documents are served `no-store` so deployments reach users (`353a301`).
+
+### Fixed
+- iOS: jam guests could not load stems (`cef5c2e`); measured output latency, resume
+  handling and faster anchors (`688b709`).
+- A guest page can never reclaim the host role (`8231a37`).
+- madmom on modern numpy/scipy: pinned `librosa` (`955543f`) and `scipy==1.17.1`
+  (`58b02d7`), patched the ragged-array crash (`7eae9bf`), restored numpy aliases
+  (`175e498`).
+
+## 2026-08-14 → 2026-08-15 — POC engine takes over the desktop mixer
+
+### Changed
+- **Breaking: the desktop mixer front-end was replaced by the POC front**
+  (`7a191b8`), on top of a multi-user rewrite of the POC mixer blueprint
+  (`0c16339`). Documentation describing the pre-POC mixer internals is obsolete.
+- The jam bridge was rewritten against the POC engine (`f64e468`).
+- The metronome, beat and precount engine was imported from the POC (`b86c04d`).
+
+### Added
+- **Stage View** — the focus dialogs detach into a real, synchronised browser window
+  (`5969b12`, `678dff1`, `4a9e202`, `8a91d62`, `6459592`, `e7a99e0`), with chord
+  highlight, karaoke wipe and auto-scroll following playback (`d1ae883`).
+- Stage-size Chords Grid View and Lyrics Focus popups (`381d684`), size slider
+  scaling characters (`ef9ad85`), English UI throughout (`c2b960e`).
+- Metronome: manual offset, Tap-to-Sync and nudge controls (`b3bfff8`), persisted
+  across reloads (`2c17d2c`), per-user grid-alignment offset (`0ab2aef`).
+- Beat grid detected once per song and preserved forever (`d26f973`).
+- Export: metronome bake, async MP3 encode and progress yield (`8a3e6fe`).
+- Enriched madmom chord detector backported from the Friend edition (`91ae1cc`),
+  synthetic-grid time mapping and per-word lyrics (`f66b93a`).
+
+### Removed
+- The full-screen **Stage Prompter** was reverted the day it landed (`90a96ac` then
+  `df0c1a5`); its purpose is served by Stage View instead.
+
+## 2026-05-30 → 2026-06-07 — Deployment hardening
+
+### Added
+- Configurable WSGI server, werkzeug or gunicorn (`5455881`).
+- Failed login attempts logged for fail2ban brute-force protection (`5fcef5c`).
+
+### Changed
+- **Deno is again the primary JS runtime** for yt-dlp's YouTube challenge
+  (`a6c163a`), reversing the February switch to Node.js (`27d08b9`).
+
+## 2026-03-12 → 2026-04-26 — Public website
+
+### Added
+- Landing page for GitHub Pages with i18n, hero image and contribute section
+  (`7fa94c2`, `7cd8096`, `8c01782`), expanded to **20 languages** (`7923310`),
+  mobile language dropdown fixes (`1fd9936`, `d0400e0`), screenshots blocks
+  (`a1b493c`, `45508db`), and `publish.sh` to sync `website/` to `gh-pages`
+  (`0f59114`).
+
+### Changed
+- Hero copy reworked around learning and exploration (`0ec10f8`); the "6 AI Models"
+  stat became "0 Cloud Dependency" (`84cd00f`).
+- **MSAF was removed from the advertised tech stack** (`ee3fabe`).
+
+## 2026-03-07 → 2026-03-19 — Recording overhaul
+
+### Added
+- Per-track FX presets with live monitoring (`814a2da`); digital loopback fallback
+  for latency calibration with headphones (`c727c1b`); recordings auto-save
+  (`1c656e7`); recording controls moved to the transport bar (`7955833`).
+- Mobile recording engine integrated (`1de7f80`) and synced with the playback
+  transport (`5cae2b3`); Skip Intro on every mobile view (`4ee7c3c`).
+- Custom neumorphic theme with spectrum colour picker (`2ef067f`).
+- Inline media player in the library views (`f759031`).
+
+### Removed
+- **De-bleed removed entirely**, desktop and mobile (`8bc0983`, cleanup `82920e6`) —
+  after having been moved server-side to Demucs two weeks earlier (`78d0bc4`).
+- **The metronome mixer track was removed**; latency is auto-calibrated on record
+  (`26c432f`).
+- The manual Save button for recordings (`1c656e7`) and the yt-dlp `player_client`
+  override (`dbfc724`).
+
+### Fixed
+- iOS: AudioContext kept alive across track changes (`de8eb47`), Skip Intro seeks
+  without a pause/play cycle (`9344497`), SoundTouch node always created so
+  tempo/pitch works without pause/play (`fdb3191`).
+- Admin cleanup deletes every entry for a `video_id` (`44f5429`).
+
+## 2026-02-16 → 2026-02-24 — Blueprint refactor, jam, recording, themes
+
+### Added
+- **Jam Session** — precount sync, metronome, guest permissions, stale session
+  handling (`ea02aad`), later Skip Intro detection and bulk admin actions
+  (`bfdcf39`).
+- **Multi-track recording** with latency calibration (`185f81a`).
+- Glassmorphism and Cyberpunk Neon themes (`ec26c35`) with popup and chord overrides
+  (`686c509`, `a1c8b43`, `7c9c1b3`).
+- Metronome mixer track and extraction/export fixes (`a957c13`), smoother extraction
+  progress (`be7b7a4`).
+
+### Changed
+- **The monolithic `app.py` was decomposed into Flask Blueprints** (`9f913b8`), and
+  the large frontend and database files were split into modules (`8fc094d`). The tag
+  `v2.2.0-monolithic` (`27d08b9`) marks the last monolithic state.
+- JS runtime switched from Deno to Node.js (`27d08b9`) — reversed in June.
+
+### Fixed
+- Blueprint `url_for` endpoints, idempotent setup, metronome default off (`86e79c9`).
+- A long series of mobile waveform fixes: overflow, sizing, theme colours and the
+  artifact at the end of a track (`7d2b2b1`, `1c17dbe`, `e4c562d`, `c5c0b19`,
+  `fe48bfc`, `b7fdb8b`, `5c42d64`, `c266260`, `86e273b`, `d5afda0`).
+
+## 2026-02-01 → 2026-02-02 — Lyrics
+
+### Added
+- **Unified lyrics system**: Musixmatch, vocal onset alignment and Whisper fallback,
+  plus cookies upload (`7c7da93`); Musixmatch track selection dialog (`bfd3216`).
+
+### Changed
+- Default Whisper model is `medium`, and admin settings are respected (`8787b11`).
+
+---
+
+## Earlier history
+
+The entries below predate the public repository (first commit `6ffddb8`,
+2026-01-25) and are kept as they were written.
 
 ## [2.2.0] - 2026-01-25
 

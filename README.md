@@ -13,19 +13,19 @@
 
 ## ✨ Features
 
-- 🎹 **AI Stem Extraction** - Demucs 4-stem/6-stem separation (GPU accelerated)
-- 🎸 **Advanced Chord Detection** - BTC Transformer (170 chords), madmom CRF (24 types), hybrid fallback with Guitar Hero-style fixed reading focus
-- 🎤 **Karaoke Mode** - LRCLIB synchronized lyrics with faster-whisper fallback (GPU-accelerated)
-- 🎼 **Structure Analysis** - MSAF automatic section detection (intro/verse/chorus)
-- 🎚️ **Interactive Mixer** - Independent pitch/tempo control (SoundTouch + Web Audio API)
-- 🎙️ **Multi-Track Recording** - DAW-style record-along with latency calibration and AI de-bleed (Demucs)
+- 🎹 **AI Stem Extraction** - Demucs 4-stem/6-stem separation, plus a 17-stem fine model (GPU accelerated)
+- 🥁 **Fine Stems** - lead/backing vocals, kick/snare/toms/cymbals, electric/acoustic guitar, piano, organ, synth, brass, winds, strings (CUDA GPU required)
+- 🎸 **Chord Detection** - BTC Transformer, 170-chord vocabulary, with Guitar Hero-style fixed reading focus
+- 🥁 **Beat Grid** - madmom downbeat detection driving the metronome, detected once per song
+- 🎤 **Karaoke Mode** - Musixmatch lyrics and faster-whisper transcription merged (GPU-accelerated)
+- 🎚️ **Interactive Mixer** - Independent pitch/tempo control (SoundTouch + Web Audio API), audible scrubbing and A/B loops
+- 🎙️ **Multi-Track Recording** - DAW-style record-along with latency calibration
 - 📁 **File Upload** - Support for MP3, WAV, FLAC, M4A, AAC, OGG, WMA, MP4, AVI, MKV, MOV, WEBM
 - 📱 **Mobile PWA** - Installable app with offline mode and audio caching
 - 🎵 **Jam Session** - Real-time collaborative playback with shared BPM, precount, and metronome *(dev stage)*
 - 👥 **Multi-User** - Authentication + global file deduplication
 - 🚀 **GPU Accelerated** - 4-10x faster processing (automatic CUDA detection)
 - 🔒 **HTTPS Required** - For pitch/tempo features (ngrok included)
-- 📲 **Offline Support** - Cache audio for playback without internet connection
 
 ---
 
@@ -90,13 +90,12 @@ See [Installation Guide](docs/user-guides/01-INSTALLATION.md) for detailed setup
 
 **For Administrators:**
 - [🔐 Security Setup](docs/admin-guides/SECURITY_SETUP.md) - Best practices
-- [🚀 Deployment](docs/admin-guides/DEPLOYMENT.md) - Production setup
 - [🔒 HTTPS Setup](docs/admin-guides/HTTPS-SETUP.md) - Required for audio features
 - [📊 Service Management](docs/admin-guides/SERVICE_COMMANDS.md) - systemd
 
 **For Developers:**
 - [🏗️ Architecture](docs/developer-guides/ARCHITECTURE.md) - System design
-- [📡 API Reference](docs/developer-guides/API-REFERENCE.md) - All 69 endpoints
+- [📡 API Reference](docs/developer-guides/API-REFERENCE.md) - REST + SocketIO endpoints
 - [🗄️ Database Schema](docs/developer-guides/DATABASE-SCHEMA.md) - Tables & relationships
 - [💻 Frontend Guide](docs/developer-guides/FRONTEND-GUIDE.md) - JavaScript modules
 - [🐍 Backend Guide](docs/developer-guides/BACKEND-GUIDE.md) - Python modules
@@ -104,11 +103,8 @@ See [Installation Guide](docs/user-guides/01-INSTALLATION.md) for detailed setup
 
 **Feature Guides:**
 - [🎸 Chord Detection](docs/feature-guides/CHORD-DETECTION.md) - BTC/madmom/hybrid
-- [🎹 Stem Extraction](docs/feature-guides/STEM-EXTRACTION.md) - Demucs models
-- [🎤 Lyrics & Karaoke](docs/feature-guides/LYRICS-KARAOKE.md) - faster-whisper
-- [🎼 Structure Analysis](docs/feature-guides/STRUCTURE-ANALYSIS.md) - MSAF
-- [🎚️ Pitch/Tempo Control](docs/feature-guides/PITCH-TEMPO-CONTROL.md) - SoundTouch
-- [📱 Mobile Architecture](docs/feature-guides/MOBILE-ARCHITECTURE.md) - iOS/Android
+- [🔄 Processing Flow](docs/PROCESSING_FLOW.md) - Download → analysis → extraction
+- [🛠️ Utilities](utils/UTILITIES_GUIDE.md) - Maintenance and analysis scripts
 
 ---
 
@@ -152,26 +148,28 @@ See [Installation Guide](docs/user-guides/01-INSTALLATION.md) for detailed setup
 | Stem extraction (4 stems, 4 min song) | 3-8 min | 20-60s | **4-8x** |
 | Lyrics transcription | 30-120s | 10-30s | **3-5x** |
 | Chord detection (BTC) | 15-30s | 15-30s | - |
-| Chord detection (madmom) | 20-40s | 20-40s | - |
-| Structure analysis | ~5s | ~5s | - |
+| Beat grid (madmom) | 20-40s | 20-40s | - |
+| Fine stems (17 stems, 4 min song) | not supported | 60-90s | GPU only |
 
 ---
 
-## 🎸 Chord Detection Backends
+## 🎸 Chord & Beat Analysis
 
-StemTube supports **3 chord detection backends** with automatic fallback:
+Two engines, each with one job:
 
-1. **BTC Transformer** (170 chord vocabulary) - Most accurate, GPU-optimized
-   - External dependency: `../essentiatest/BTC-ISMIR19`
-   - Supports complex jazz/advanced harmonies
+1. **Chords — BTC Transformer** (170-chord vocabulary), the only chord engine today
+   - Weights vendored in `external/BTC-ISMIR19/`
+   - Handles complex jazz and extended harmonies
 
-2. **madmom CRF** (24 chord types) - Professional-grade, CPU-friendly
-   - Built-in, no external dependencies
-   - Chordify/Moises accuracy level
+2. **Beats — madmom** downbeat detection
+   - Drives the metronome and the chord grid; detected once per song and stored
+   - Sits on a pinned stack (numpy 1.26.4, scipy 1.17.1, librosa 0.11.0)
 
-3. **Hybrid Detector** - Combines multiple backends for best results
-   - Automatic fallback when BTC unavailable
-   - Configurable via `core/config.json`
+> The older hybrid detector and the `chords_use_madmom` / `chords_use_hybrid`
+> settings are no longer wired: madmom no longer produces chords.
+
+> Song structure detection (intro/verse/chorus) is **not functional**: MSAF no longer
+> imports with the pinned SciPy, so no sections are ever computed.
 
 See [Chord Detection Guide](docs/feature-guides/CHORD-DETECTION.md) for details.
 
@@ -182,7 +180,8 @@ See [Chord Detection Guide](docs/feature-guides/CHORD-DETECTION.md) for details.
 Full-featured mobile interface at `/mobile`:
 
 - **Progressive Web App (PWA)** - Install as native app on iOS/Android home screen
-- **Offline Mode** - Cache audio for playback without internet
+- **Offline caching** - Songs can be cached from the Settings tab, but *offline playback is
+  currently broken*: the mixer streams through routes the service worker does not intercept
 - **Mobile Settings Tab** - Manage cached audio and storage
 - **Responsive Touch Controls** - Optimized for iOS and Android
 - **iOS Audio Unlock** - Automatic handling of iOS audio restrictions
@@ -279,13 +278,12 @@ Built with:
 - [faster-whisper](https://github.com/guillaumekln/faster-whisper) - Speech recognition
 - [madmom](https://github.com/CPJKU/madmom) - Audio analysis & chord detection
 - [BTC](https://github.com/jayg996/BTC-ISMIR19) - Advanced chord recognition
-- [MSAF](https://github.com/urinieto/msaf) - Structure analysis
 - [SoundTouchJS](https://github.com/cutterbl/SoundTouchJS) - Pitch/tempo processing
 - [guitar-chords-db-json](https://github.com/tombatossals/guitar-chords-db-json) - Chord diagrams
 
 ---
 
-**Version**: 2.3.0
-**Last Updated**: February 2026
+**Version**: 3.0.2 (latest tag) — see [CHANGELOG.md](CHANGELOG.md)
+**Last Updated**: September 2026
 **Status**: Active Development
 **GPU Support**: Fully Automated ✨

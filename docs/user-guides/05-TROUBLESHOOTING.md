@@ -118,12 +118,12 @@ ffmpeg -version
 
 **Symptom**: `ImportError: cannot import name 'xxxx' from madmom`
 
-**Cause**: numpy 2.x compatibility issue
+**Cause**: numpy compatibility issue (madmom 0.16.1 needs numpy 1.x and a patch for deprecated aliases)
 
 **Solution**:
 ```bash
 source venv/bin/activate
-python utils/setup/patch_madmom_numpy.py
+python patch_madmom.py
 
 # Verify
 python -c "import madmom; print('madmom OK')"
@@ -338,6 +338,23 @@ top
 3. **Re-extract**:
    - Delete extraction
    - Extract again (may help with transient errors)
+   - Or click **↻** next to "Open Mixer" to re-extract with another model (replaces the stems)
+
+### MVSep Mega (Fine Stems) Fails
+
+**Symptom**: Extraction with `mvsep_mega_fine` fails immediately, or the option is missing from the model list
+
+**Cause**: This model needs a CUDA GPU with ~6 GB VRAM. The extraction dialog hides it when the
+server cannot run it; if it is selected anyway (e.g. as the admin default), it fails.
+
+**Solutions**:
+- Use a Demucs model (`htdemucs`, `htdemucs_ft`, `htdemucs_6s`, `mdx_extra`) on CPU-only servers
+- On a GPU server, check `nvidia-smi` and that no other fine extraction holds the GPU (a second one waits for the first)
+- Model weights are downloaded to `core/models/msst/` on first use - check network access
+
+### mdx_extra_q Is Greyed Out
+
+**Cause**: It requires the `diffq` package, which is not installed. Use `mdx_extra` instead.
 
 ---
 
@@ -433,6 +450,47 @@ ls downloads/global/VIDEO_ID/stems/htdemucs/
 4. **Check System Performance**:
    - Close CPU-heavy applications
    - Reduce number of browser tabs
+
+### Structure Bar Stays Empty
+
+**Symptom**: No intro/verse/chorus sections in the mixer
+
+**Cause**: Known limitation - structure analysis is not functional. The MSAF library fails to
+import with current SciPy (the log misleadingly says `[MSAF] msaf library is not installed`), and
+the endpoint the mixer calls (`/api/extractions/<id>/analyze-structure`) does not exist.
+
+**Solution**: None yet. See `docs/feature-guides/STRUCTURE_ANALYSIS_IMPLEMENTATION.md`.
+
+### No Chords in Mixer
+
+**Symptom**: Chord lane empty
+
+**Cause**: BTC (the only chord detector) is unavailable or failed - there is no fallback.
+
+**Solution**:
+```bash
+grep -E "\[CHORDS\]|\[BTC\]" app.log
+python -c "from core.btc_chord_detector import is_available; print(is_available())"
+```
+Then regenerate chords from the mixer. See [BTC Setup](../setup-guides/BTC-SETUP.md).
+
+### Skip Intro or Metronome Offset Lost
+
+**Symptom**: After regenerating chords or beats, Skip Intro is back at the start and the metronome
+offset is 0
+
+**Cause**: Known issue - the regenerate actions reset `music_start_time` and the beat offset.
+
+**Solution**: Re-apply Skip Intro / Detect Intro and re-align the metronome after regenerating.
+
+### No Metronome Click
+
+**Cause**: The metronome track starts muted. Unmute it in its track controls.
+
+### Stem Lane Record Dot Does Nothing
+
+**Cause**: The small dot button on each stem lane is a placeholder. Use **Add track** (＋) in the
+transport bar, arm the track with **R**, then press **Record**.
 
 ---
 
@@ -842,7 +900,7 @@ sudo ufw allow 5011
 
 2. **Reduce Quality Settings**:
    - Use htdemucs (4-stem) instead of htdemucs_6s
-   - Disable chords/structure display if slow
+   - Disable chords display if slow
 
 3. **Clear Storage**:
    - Free up device storage
@@ -850,6 +908,24 @@ sudo ufw allow 5011
 
 4. **Use WiFi**:
    - Better than cellular for streaming
+
+### Cached Songs Don't Play Offline
+
+**Symptom**: A song cached from the library will not play without a connection, or `/mobile` does
+not open offline
+
+**Cause**: Known limitation - offline playback is broken. The mixer streams through
+`/poc-mixer/audio/...`, which the service worker does not serve from cache; the service worker
+only knows six stem names (not the 17 fine stems); and its precache list is stale.
+
+**Solution**: None yet - stay online. See `PWA_README.md`.
+
+### Mobile Recording Fails to Decode
+
+**Cause**: When the browser cannot decode a take, the fallback posts to `/api/recordings/convert`,
+which does not exist on the server (404).
+
+**Solution**: Record from the desktop mixer.
 
 ---
 

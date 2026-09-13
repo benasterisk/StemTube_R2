@@ -31,9 +31,11 @@ Complete guide to the Python backend architecture and modules.
 - Flask 3.x (web framework)
 - SocketIO (real-time communication)
 - PyTorch 2.x + Demucs 4.x (AI stem separation)
-- madmom (music analysis)
-- faster-whisper (lyrics transcription)
-- MSAF (structure analysis)
+- MSST BS-Roformer, vendored in `core/msst/` (MVSep Mega fine stems, CUDA only)
+- BTC-ISMIR19 transformer (chord detection)
+- madmom (beat/downbeat detection only)
+- faster-whisper + Musixmatch (lyrics, run in parallel and merged)
+- MSAF (installed but fails to import - structure analysis is non-functional)
 - SQLite3 (database)
 - aiotube + yt-dlp (YouTube download)
 
@@ -54,19 +56,28 @@ core/
 ├── download_manager.py         # Download queue management
 ├── file_cleanup.py             # File management
 │
-├── stems_extractor.py          # Demucs stem extraction
+├── stems_extractor.py          # Demucs / MSST subprocess runner, GPU lock
 ├── demucs_wrapper.py           # Demucs CLI wrapper
 ├── wrap_demucs.py              # Demucs process wrapper
+├── msst/                       # Vendored BS-Roformer + separate.py (mvsep_mega_fine)
+├── poc/                        # Mixer artifact pipeline (beats, metronome, precount, export)
 │
-├── chord_detector.py           # Chord detection manager
+├── chord_detector.py           # analyze_audio_file(): BTC only
 ├── btc_chord_detector.py       # BTC Transformer (170 vocab)
-├── madmom_chord_detector.py    # madmom CRF (24 types)
-├── hybrid_chord_detector.py    # Hybrid fallback detector
+├── madmom_chord_detector.py    # madmom - used ONLY for beat/downbeat detection
+├── hybrid_chord_detector.py    # DEAD (no importers)
 │
-├── lyrics_detector.py          # faster-whisper lyrics
-├── structure_detector.py       # Structure analysis manager
-├── msaf_structure_detector.py  # MSAF structure detector
-├── llm_structure_analyzer.py   # LLM-based analyzer
+├── lyrics_detector.py          # detect_lyrics_unified(): Whisper + Musixmatch in parallel
+├── lyrics_merger.py            # Merge Musixmatch text with Whisper timestamps
+├── musixmatch_client.py        # Musixmatch API client
+├── syncedlyrics_client.py      # Synced lyrics lookup (download phase only)
+├── lrclib_client.py            # DEAD
+├── lyrics_aligner.py           # DEAD
+├── vocal_onset_detector.py     # DEAD
+│
+├── msaf_structure_detector.py  # MSAF structure detector - NON-FUNCTIONAL (always None)
+├── structure_detector.py       # DEAD (app never calls it; imports msaf)
+├── llm_structure_analyzer.py   # DEAD (no importers)
 │
 ├── downloads_db.py             # Downloads database
 ├── auth_db.py                  # Authentication database
@@ -175,6 +186,7 @@ def get_video_info(video_id):
 - Download queue management
 - BPM detection
 - Musical key detection
+- Download-phase analysis: BTC chords, MSAF structure (currently always None), synced lyrics
 - Download progress via WebSocket
 
 **Download Pipeline**:
@@ -372,115 +384,54 @@ def cleanup_orphaned_files(downloads_dir):
 
 #### 4. stems_extractor.py
 
-**Purpose**: Demucs stem extraction orchestration
+**Purpose**: Stem extraction orchestration (Demucs and MSST subprocesses)
 
 **Size**: ~1,190 lines
 
 **Key Features**:
-- Demucs model selection (htdemucs, htdemucs_6s)
-- Stem selection (vocals, drums, bass, other, guitar, piano)
-- GPU acceleration
+- Model selection from `STEM_MODELS` in `core/config.py`
+- Stem separation only - chords and structure run at download time, lyrics and beats run
+  post-extraction in `extensions.py`
+- GPU auto-detection with CPU fallback (MSST requires CUDA)
+- Global `_MSST_GPU_LOCK`: only one `mvsep_mega_fine` job holds the GPU at a time
+- Silent stem detection
 - Progress tracking via WebSocket
-- Automatic chord/lyrics/structure analysis
 
-**Extraction Pipeline**:
+**Extraction Pipeline** (simplified):
 ```python
-def extract_stems(video_id, model='htdemucs', stems=None, user_id=None):
-    """
-    Extract stems using Demucs.
+# StemsExtractor worker, per ExtractionItem
+engine = model_engine(item.model_name)          # "demucs" (default) or "msst"
 
-    Pipeline:
-    1. Load audio file
-    2. Run Demucs separation
-    3. Save individual stems
-    4. Generate chord detection
-    5. Generate lyrics transcription
-    6. Generate structure analysis
-    7. Update database
-    8. Emit completion via WebSocket
+if engine == "msst":
+    self._acquire_msst_slot(item)               # global GPU lock
+    cmd = [sys.executable, '-m', 'core.msst.separate', ...]
+else:
+    cmd = [sys.executable, '-m', 'demucs.separate', '-n', item.model_name, ...]
 
-    Args:
-        video_id: Video ID to extract
-        model: Demucs model ('htdemucs' or 'htdemucs_6s')
-        stems: List of stems to extract (default: all)
-        user_id: User ID for progress updates
-
-    Returns:
-        dict: Extraction results
-    """
-    from demucs import separate
-    import torch
-
-    # Get download
-    download = find_global_download(video_id)
-    audio_path = download['file_path']
-
-    # Emit progress: Starting
-    emit_progress(user_id, 0, 'Initializing Demucs...')
-
-    # Run Demucs
-    output_dir = f'downloads/global/{video_id}/stems/{model}/'
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Check GPU availability
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-    # Separate stems
-    emit_progress(user_id, 25, 'Separating stems...')
-    separate.main([
-        '--two-stems', 'vocals',  # Or select specific stems
-        '-n', model,
-        '-o', output_dir,
-        '--device', device,
-        audio_path
-    ])
-
-    # Save stems paths
-    stems_paths = {
-        'vocals': os.path.join(output_dir, 'vocals.wav'),
-        'drums': os.path.join(output_dir, 'drums.wav'),
-        'bass': os.path.join(output_dir, 'bass.wav'),
-        'other': os.path.join(output_dir, 'other.wav')
-    }
-
-    if model == 'htdemucs_6s':
-        stems_paths.update({
-            'guitar': os.path.join(output_dir, 'guitar.wav'),
-            'piano': os.path.join(output_dir, 'piano.wav')
-        })
-
-    # Chord detection
-    emit_progress(user_id, 50, 'Detecting chords...')
-    chords = detect_chords(audio_path, backend='btc')
-
-    # Lyrics transcription
-    emit_progress(user_id, 75, 'Transcribing lyrics...')
-    lyrics = transcribe_lyrics(stems_paths['vocals'])
-
-    # Structure analysis
-    emit_progress(user_id, 90, 'Analyzing structure...')
-    structure = analyze_structure(audio_path)
-
-    # Update database
-    update_extraction(video_id, {
-        'extracted': True,
-        'extraction_model': model,
-        'stems_paths': json.dumps(stems_paths),
-        'chords_data': json.dumps(chords),
-        'lyrics_data': json.dumps(lyrics),
-        'structure_data': json.dumps(structure)
-    })
-
-    # Emit completion
-    emit_progress(user_id, 100, 'Complete!')
-    emit_complete(user_id, video_id, stems_paths)
-
-    return stems_paths
+subprocess.Popen(cmd, ...)                      # progress parsed from output
+# stems copied as MP3, silent stems detected (ZIP built on demand via /create-zip)
+# → on_extraction_complete → extensions.py post-extraction steps:
+#     remove_replaced_stems(item)               # re-extraction replaces old stems
+#     db_mark_extraction_complete(...)
+#     detect_lyrics_unified(vocals)             # Whisper + Musixmatch, merged
+#     MadmomChordDetector beat/downbeat detection
+#     routes.poc_mixer.warm_prepare(...)        # pre-build mixer artifacts
 ```
 
-**Model Selection**:
-- `htdemucs`: 4-stem (vocals, drums, bass, other) - Faster, general-purpose
+**Model Selection** (`STEM_MODELS`):
+- `htdemucs`: 4-stem (vocals, drums, bass, other) - Faster, general-purpose (default)
+- `htdemucs_ft`: 4-stem, fine-tuned HTDemucs
 - `htdemucs_6s`: 6-stem (adds guitar, piano) - Slower, better for instrumental music
+- `mdx_extra`: 4-stem MDX
+- `mdx_extra_q`: 4-stem - unreachable (disabled in both templates, `diffq` not installed)
+- `mvsep_mega_fine`: 17 stems, engine `msst`, CUDA only, min 6 GB VRAM. 3-stage hybrid in
+  `core/msst/separate.py`: `htdemucs_6s` coarse split → DrumSep (inagoy, HDemucs, MIT) on the
+  drums stem → MVSep Mega 53-stem BS-Roformer heads (ZFTurbo, MIT) split the remaining stems
+  with Wiener masks. Weights auto-downloaded to `core/models/msst/`. Also writes
+  `drums_full.mp3` (not a mixer track) for metronome beat detection.
+
+**Re-extraction**: `force_reextract` with another model replaces the previous stems
+(`remove_replaced_stems()` in `extensions.py`).
 
 **File**: core/stems_extractor.py
 
@@ -546,44 +497,34 @@ def run_demucs(audio_path, model, output_dir, device='cpu'):
 
 #### 7. chord_detector.py
 
-**Purpose**: Chord detection manager (3 backends)
+**Purpose**: Chord detection entry point - BTC only
 
 **Size**: ~530 lines
 
-**Backends**:
-1. BTC Transformer (170 chord vocabulary)
-2. madmom CRF (24 chord types)
-3. Hybrid detector (fallback combination)
+**Backend**: BTC Transformer (170 chord vocabulary). There is no backend selection; the
+`chords_use_madmom` and `chords_use_hybrid` config keys are read but inert.
 
 **Detection**:
 ```python
-def detect_chords(audio_path, backend='btc'):
+def analyze_audio_file(audio_file_path, bpm=None, **_kwargs):
     """
-    Detect chords using specified backend.
-
-    Args:
-        audio_path: Path to audio file
-        backend: 'btc', 'madmom', or 'hybrid'
+    Analyze an audio file: BTC for chords only.
+    Beat detection is handled post-extraction in extensions.py via madmom.
 
     Returns:
-        list: [{'timestamp': 0.0, 'chord': 'C:maj'}, ...]
+        tuple: (chords_json, 0.0, [], [])  - no beats
     """
-    if backend == 'btc':
-        from core.btc_chord_detector import BTCChordDetector
-        detector = BTCChordDetector()
-    elif backend == 'madmom':
-        from core.madmom_chord_detector import MadmomChordDetector
-        detector = MadmomChordDetector()
-    elif backend == 'hybrid':
-        from core.hybrid_chord_detector import HybridChordDetector
-        detector = HybridChordDetector()
-    else:
-        raise ValueError(f"Unknown backend: {backend}")
+    from core.btc_chord_detector import analyze_audio_file as btc_analyze, is_available
 
-    chords = detector.detect(audio_path)
+    chords_json = None
+    if is_available():
+        chords_json = btc_analyze(audio_file_path, bpm)[0]
 
-    return chords
+    return chords_json, 0.0, [], []
 ```
+
+**Called by**: `core/download_manager.py` (download phase), `/chords/regenerate` in
+`routes/media.py`
 
 **File**: core/chord_detector.py
 
@@ -595,18 +536,17 @@ def detect_chords(audio_path, backend='btc'):
 
 **Size**: ~230 lines
 
-**Model**: External dependency - `../essentiatest/BTC-ISMIR19`
+**Model**: External dependency - `external/BTC-ISMIR19` (weights:
+`external/BTC-ISMIR19/test/btc_model_large_voca.pt`)
 
 **Vocabulary**: 170 chord types (major, minor, 7th, 9th, 11th, 13th, sus, add, dim, aug, etc.)
 
 **Usage**:
 ```python
-from core.btc_chord_detector import BTCChordDetector
+from core.btc_chord_detector import analyze_audio_file, is_available
 
-detector = BTCChordDetector()
-chords = detector.detect('audio.mp3')
-
-# Output: [{'timestamp': 0.0, 'chord': 'C:maj7'}, {'timestamp': 2.5, 'chord': 'Am9'}, ...]
+if is_available():
+    chords_json = analyze_audio_file('audio.mp3')[0]
 ```
 
 **Genres**: All genres, especially jazz/complex harmonies
@@ -617,30 +557,23 @@ chords = detector.detect('audio.mp3')
 
 #### 9. madmom_chord_detector.py
 
-**Purpose**: madmom CRF chord detection (24 types)
+**Purpose**: Beat and downbeat detection (madmom). Its chord recognition is no longer used.
 
 **Size**: ~245 lines
 
-**Model**: Built-in madmom trained model
+**Model**: Built-in madmom trained models
 
-**Vocabulary**: 24 chord types:
-- Major: C, C#, D, D#, E, F, F#, G, G#, A, A#, B
-- Minor: Cm, C#m, Dm, D#m, Em, Fm, F#m, Gm, G#m, Am, A#m, Bm
-- No chord: N
+**Live callers**:
+- `extensions.py` - post-extraction beat/downbeat detection
+- `routes/media.py` - `POST /api/extractions/<id>/beats/regenerate`
 
 **Usage**:
 ```python
 from core.madmom_chord_detector import MadmomChordDetector
 
 detector = MadmomChordDetector()
-chords = detector.detect('audio.mp3')
-
-# Output: [{'timestamp': 0.0, 'chord': 'C:maj'}, {'timestamp': 2.5, 'chord': 'Am'}, ...]
+beat_offset, beats, beat_positions = detector._detect_beats(audio_path, detected_bpm)
 ```
-
-**Accuracy**: Professional-grade (Chordify/Moises level)
-
-**Genres**: Pop, rock, folk, country
 
 **File**: core/madmom_chord_detector.py
 
@@ -648,22 +581,7 @@ chords = detector.detect('audio.mp3')
 
 #### 10. hybrid_chord_detector.py
 
-**Purpose**: Hybrid fallback chord detector
-
-**Size**: ~600 lines
-
-**Strategy**:
-1. Try BTC Transformer
-2. If unavailable, try madmom
-3. Combine results with confidence weighting
-
-**Usage**:
-```python
-from core.hybrid_chord_detector import HybridChordDetector
-
-detector = HybridChordDetector()
-chords = detector.detect('audio.mp3')
-```
+**Status**: DEAD - no importers. Not part of the chord pipeline.
 
 **File**: core/hybrid_chord_detector.py
 
@@ -671,67 +589,38 @@ chords = detector.detect('audio.mp3')
 
 #### 11. lyrics_detector.py
 
-**Purpose**: Lyrics transcription using faster-whisper
+**Purpose**: Unified lyrics detection - faster-whisper AND Musixmatch in parallel, then merge
 
 **Size**: ~280 lines
 
-**Model**: faster-whisper (Whisper v2/v3)
+**Modules**:
+- `core/lyrics_detector.py` - `detect_lyrics_unified()`
+- `core/lyrics_merger.py` - merges Musixmatch text with Whisper word timestamps
+- `core/musixmatch_client.py` - Musixmatch API
+- `core/syncedlyrics_client.py` - used only at download time
+- DEAD: `core/lrclib_client.py`, `core/lyrics_aligner.py`, `core/vocal_onset_detector.py`
 
-**Features**:
-- Word-level timestamps
-- GPU acceleration
-- Multiple languages (English best)
-
-**Transcription**:
+**Flow**:
 ```python
-def transcribe_lyrics(vocals_path, model_size='base'):
+def detect_lyrics_unified(audio_path, title=None, model_size=None, use_gpu=True,
+                          override_artist=None, override_track=None,
+                          force_whisper=False, musixmatch_track_id=None, ...):
     """
-    Transcribe lyrics from vocals stem.
-
-    Args:
-        vocals_path: Path to vocals audio file
-        model_size: 'tiny', 'base', 'small', 'medium', 'large'
+    1. Extract metadata (artist/track)
+    2. Launch Whisper transcription AND Musixmatch fetch in parallel threads
+    3. When both complete, merge: Musixmatch text + Whisper timestamps
+    4. Fallbacks: Whisper-only if no Musixmatch, Musixmatch-only if Whisper fails
 
     Returns:
-        list: [
-            {
-                'start': 0.0,
-                'end': 2.5,
-                'text': 'First line of lyrics',
-                'words': [
-                    {'start': 0.0, 'end': 0.5, 'word': 'First'},
-                    {'start': 0.6, 'end': 1.0, 'word': 'line'},
-                    ...
-                ]
-            },
-            ...
-        ]
+        dict: {lyrics, source, artist, track, alignment_stats}
     """
-    from faster_whisper import WhisperModel
-
-    # Load model
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    model = WhisperModel(model_size, device=device, compute_type='float16')
-
-    # Transcribe
-    segments, info = model.transcribe(vocals_path, word_timestamps=True)
-
-    lyrics = []
-    for segment in segments:
-        lyrics.append({
-            'start': segment.start,
-            'end': segment.end,
-            'text': segment.text,
-            'words': [
-                {'start': w.start, 'end': w.end, 'word': w.word}
-                for w in segment.words
-            ]
-        })
-
-    return lyrics
 ```
 
-**Performance**:
+**Called by**: `extensions.py` (post-extraction, on the vocals stem) and
+`POST /api/extractions/<id>/lyrics/regenerate`. `/lyrics/generate` and `/lyrics/lrclib` are
+deprecated shims that redirect to `/lyrics/regenerate`.
+
+**Performance** (Whisper side):
 - CPU: 30-120 seconds per song
 - GPU: 10-30 seconds per song (3-5x faster)
 
@@ -741,41 +630,8 @@ def transcribe_lyrics(vocals_path, model_size='base'):
 
 #### 12. structure_detector.py
 
-**Purpose**: Structure analysis manager
-
-**Size**: ~247 lines
-
-**Backends**:
-1. MSAF (Music Structure Analysis Framework)
-2. LLM-based analyzer (experimental)
-
-**Detection**:
-```python
-def analyze_structure(audio_path, backend='msaf'):
-    """
-    Analyze song structure.
-
-    Args:
-        audio_path: Path to audio file
-        backend: 'msaf' or 'llm'
-
-    Returns:
-        list: [
-            {'start': 0.0, 'end': 8.0, 'label': 'intro'},
-            {'start': 8.0, 'end': 32.0, 'label': 'verse'},
-            {'start': 32.0, 'end': 56.0, 'label': 'chorus'},
-            ...
-        ]
-    """
-    if backend == 'msaf':
-        from core.msaf_structure_detector import detect_structure_msaf
-        return detect_structure_msaf(audio_path)
-    elif backend == 'llm':
-        from core.llm_structure_analyzer import analyze_with_llm
-        return analyze_with_llm(audio_path)
-    else:
-        raise ValueError(f"Unknown backend: {backend}")
-```
+**Status**: DEAD - the app never calls it (only `utils/analysis/reanalyze_all_structure.py`
+imports it, and it fails because it imports `msaf`).
 
 **File**: core/structure_detector.py
 
@@ -783,19 +639,21 @@ def analyze_structure(audio_path, backend='msaf'):
 
 #### 13. msaf_structure_detector.py
 
-**Purpose**: MSAF structure detection
+**Purpose**: MSAF structure detection - **NON-FUNCTIONAL**
 
 **Size**: ~63 lines
 
-**Algorithm**: MSAF automatic segmentation
+**Status**: `msaf` is installed but fails to import (`from scipy import inf`, removed in modern
+SciPy). The module catches the ImportError, logs the misleading "msaf library is not installed",
+and returns None. `structure_data` is therefore NULL in every database row.
 
-**Sections**: intro, verse, chorus, bridge, outro, instrumental, other
+**Only caller**: `core/download_manager.py` (download phase)
 
 **Usage**:
 ```python
-from core.msaf_structure_detector import detect_structure_msaf
+from core.msaf_structure_detector import detect_song_structure_msaf
 
-structure = detect_structure_msaf('audio.mp3')
+structure = detect_song_structure_msaf('audio.mp3')   # currently always None
 ```
 
 **File**: core/msaf_structure_detector.py
@@ -804,11 +662,8 @@ structure = detect_structure_msaf('audio.mp3')
 
 #### 14. llm_structure_analyzer.py
 
-**Purpose**: LLM-based structure analysis (experimental)
-
-**Size**: ~280 lines
-
-**Note**: Requires LLM API (e.g., OpenAI, Claude)
+**Status**: DEAD - no importers. The frontend's `/api/extractions/<id>/analyze-structure` call
+has no matching route.
 
 **File**: core/llm_structure_analyzer.py
 
@@ -974,14 +829,17 @@ def load_config():
     "DOWNLOADS_DIR": "downloads/",
     "DATABASE_PATH": "data/stemtubes.db",
     "MAX_CONTENT_LENGTH": 524288000,
-    "chord_backend": "btc",
-    "default_model": "htdemucs",
+    "chords_use_madmom": true,
+    "chords_use_hybrid": true,
+    "default_stem_model": "htdemucs",
     "browser_logging": {
         "enabled": true,
         "log_level": "INFO"
     }
 }
 ```
+
+**Note**: `chords_use_madmom` and `chords_use_hybrid` are inert - chord detection is BTC only.
 
 **File**: core/config.json
 
@@ -1208,11 +1066,17 @@ User Input (YouTube URL or File Upload)
     ↓
 4. Detect musical key (chroma features)
     ↓
-5. Save to global_downloads table
+5. Chord detection (BTC only)
     ↓
-6. Grant user access (user_downloads table)
+6. Structure detection (MSAF - currently always returns None)
     ↓
-7. Emit WebSocket completion
+7. Synced lyrics lookup (syncedlyrics_client)
+    ↓
+8. Save to global_downloads table
+    ↓
+9. Grant user access (user_downloads table)
+    ↓
+10. Emit WebSocket completion
     ↓
 DONE
 ```
@@ -1222,33 +1086,26 @@ DONE
 ```
 User initiates extraction (video_id, model, stems)
     ↓
-1. Load audio file
+1. Resolve model in STEM_MODELS (engine "demucs" or "msst")
     ↓
-2. Initialize Demucs model (htdemucs or htdemucs_6s)
+2. Check GPU availability (msst: CUDA required, global GPU lock)
     ↓
-3. Check GPU availability
+3. Run separation subprocess
+   (demucs.separate, or core.msst.separate: htdemucs_6s → DrumSep → MVSep Mega)
     ↓
-4. Run Demucs separation
+    [Progress] Separating stems
     ↓
-    [Progress: 0-40%] Separating stems
+4. Save individual stem files (MP3; ZIP built on demand via /create-zip)
     ↓
-5. Save individual stem files (.wav)
+5. remove_replaced_stems() (re-extraction with another model)
     ↓
-    [Progress: 40-60%] Detecting chords
+6. Mark extraction complete in database
     ↓
-6. Chord detection (BTC/madmom/hybrid)
+7. Lyrics: detect_lyrics_unified() on vocals (Whisper + Musixmatch, merged)
     ↓
-    [Progress: 60-80%] Transcribing lyrics
+8. Beats/downbeats (madmom)
     ↓
-7. Lyrics transcription (faster-whisper)
-    ↓
-    [Progress: 80-95%] Analyzing structure
-    ↓
-8. Structure analysis (MSAF)
-    ↓
-    [Progress: 95-100%] Saving to database
-    ↓
-9. Update database with results
+9. warm_prepare() pre-builds POC mixer artifacts
     ↓
 10. Emit WebSocket completion
     ↓
