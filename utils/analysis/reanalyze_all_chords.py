@@ -73,14 +73,10 @@ def reanalyze_all_chords():
                 continue
 
             try:
-                # Re-analyze chords with BPM-based beat grid
-                print(f"  [ANALYZING] Using BPM={bpm} for beat grid...")
-                result = analyze_audio_file(file_path, bpm=bpm)
-                if len(result) == 4:
-                    chords_data, beat_offset, beat_times, beat_positions = result
-                else:
-                    chords_data, beat_offset, beat_times = result
-                    beat_positions = []
+                # BTC detects chords only: its beat values are placeholders, so the
+                # stored beat grid, beat offset and Skip Intro are left untouched.
+                print(f"  [ANALYZING] BPM={bpm}...")
+                chords_data = analyze_audio_file(file_path, bpm=bpm)[0]
 
                 if chords_data:
                     # Update database
@@ -90,29 +86,16 @@ def reanalyze_all_chords():
                         detected_key=key,
                         analysis_confidence=confidence,
                         chords_data=chords_data,
-                        beat_offset=beat_offset,
-                        beat_times=beat_times,
-                        beat_positions=beat_positions
                     )
 
                     # Parse to count chords
                     import json
                     chords = json.loads(chords_data) if isinstance(chords_data, str) else chords_data
 
-                    print(f"  [SUCCESS] {len(chords)} chords detected, beat_offset={beat_offset:.3f}s")
+                    print(f"  [SUCCESS] {len(chords)} chords detected")
                     success_count += 1
                 else:
                     print(f"  [WARNING] No chords detected")
-                    # Still update with beat_offset
-                    update_download_analysis(
-                        video_id=video_id,
-                        detected_bpm=bpm,
-                        detected_key=key,
-                        analysis_confidence=confidence,
-                        chords_data=None,
-                        beat_offset=beat_offset,
-                        beat_times=beat_times
-                    )
                     success_count += 1
 
             except Exception as e:

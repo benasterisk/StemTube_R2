@@ -9,7 +9,7 @@ import time
 from flask import Blueprint, render_template, request
 from flask_login import login_required, current_user
 
-from core.config import get_setting
+from core.config import get_setting, APP_VERSION
 from extensions import (
     user_session_manager,
     get_model_display_name, is_mobile_user_agent,
@@ -19,6 +19,12 @@ from core.logging_config import get_logger
 logger = get_logger(__name__)
 
 pages_bp = Blueprint('pages', __name__)
+
+
+@pages_bp.app_context_processor
+def inject_app_version():
+    """Expose the single application version to every template."""
+    return {'app_version': APP_VERSION}
 
 
 @pages_bp.route('/sw.js')
@@ -90,73 +96,63 @@ def mixer():
     extraction_info = None
     se = user_session_manager.get_stems_extractor()
     extraction = se.get_extraction_status(extraction_id)
+    video_id_hint = getattr(extraction, 'video_id', None) if extraction else None
 
-    if extraction:
+    # Analysis (BPM, chords, beat grid, Skip Intro, structure) only lives in the
+    # database: an in-memory extraction item (a song extracted since the server
+    # started) carries none of it, so the database record is looked up either way.
+    db_extraction = None
+    try:
+        from core.downloads_db import list_extractions_for
+        # Exact id / video_id matches win over the filename-prefix fallback.
+        prefix_match = None
+        for candidate in list_extractions_for(current_user.id):
+            video_id = candidate.get('video_id', '')
+            if (f"download_{candidate['id']}" == extraction_id or video_id == extraction_id
+                    or (video_id_hint and video_id == video_id_hint)):
+                db_extraction = candidate
+                break
+            file_path = candidate.get('file_path', '')
+            filename = os.path.basename(file_path).replace('.mp3', '') if file_path else ''
+            if prefix_match is None and filename and extraction_id.startswith(filename):
+                prefix_match = candidate
+        db_extraction = db_extraction or prefix_match
+    except Exception as e:
+        print(f"[MIXER] Error loading historical extraction data: {e}")
+
+    if extraction or db_extraction:
+        db = db_extraction or {}
+        output_paths = {}
+        stems_paths_json = db.get('stems_paths')
+        if stems_paths_json:
+            try:
+                output_paths = json.loads(stems_paths_json)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if extraction and extraction.output_paths:
+            output_paths = extraction.output_paths
+
         extraction_info = {
-            'extraction_id': extraction.extraction_id,
-            'video_id': getattr(extraction, 'video_id', None),
-            'status': extraction.status.value,
-            'output_paths': extraction.output_paths or {},
-            'audio_path': extraction.audio_path,
-            'title': getattr(extraction, 'title', None),
-            'extraction_model': get_model_display_name(getattr(extraction, 'model_name', 'htdemucs')),
-            'detected_bpm': getattr(extraction, 'detected_bpm', None),
-            'detected_key': getattr(extraction, 'detected_key', None),
-            'analysis_confidence': getattr(extraction, 'analysis_confidence', None),
-            'chords_data': getattr(extraction, 'chords_data', None),
-            'beat_offset': getattr(extraction, 'beat_offset', 0.0),
-            'beat_times': getattr(extraction, 'beat_times', None),
-            'beat_positions': getattr(extraction, 'beat_positions', None),
-            'music_start_time': getattr(extraction, 'music_start_time', 0.0),
-            'metronome_offset_ms': getattr(extraction, 'metronome_offset_ms', 0.0)
+            'extraction_id': extraction.extraction_id if extraction else extraction_id,
+            'video_id': video_id_hint or db.get('video_id'),
+            'status': extraction.status.value if extraction else 'completed',
+            'output_paths': output_paths,
+            'audio_path': extraction.audio_path if extraction else db.get('file_path'),
+            'title': (getattr(extraction, 'title', None) if extraction else None) or db.get('title'),
+            'extraction_model': get_model_display_name(
+                getattr(extraction, 'model_name', None) if extraction
+                else db.get('extraction_model', 'htdemucs')),
+            'detected_bpm': db.get('detected_bpm'),
+            'detected_key': db.get('detected_key'),
+            'analysis_confidence': db.get('analysis_confidence'),
+            'chords_data': db.get('chords_data'),
+            'beat_offset': db.get('beat_offset') or 0.0,
+            'beat_times': db.get('beat_times'),
+            'beat_positions': db.get('beat_positions'),
+            'music_start_time': db.get('music_start_time') or 0.0,
+            'metronome_offset_ms': db.get('metronome_offset_ms') or 0.0,
+            'structure_data': db.get('structure_data'),
         }
-    else:
-        try:
-            from core.downloads_db import list_extractions_for
-            db_extractions = list_extractions_for(current_user.id)
-
-            for db_extraction in db_extractions:
-                db_id = f"download_{db_extraction['id']}"
-                video_id = db_extraction.get('video_id', '')
-                file_path = db_extraction.get('file_path', '')
-                filename = os.path.basename(file_path).replace('.mp3', '') if file_path else ''
-
-                matches = (
-                    db_id == extraction_id or
-                    video_id == extraction_id or
-                    (filename and extraction_id.startswith(filename))
-                )
-
-                if matches:
-                    output_paths = {}
-                    stems_paths_json = db_extraction.get('stems_paths')
-                    if stems_paths_json:
-                        try:
-                            output_paths = json.loads(stems_paths_json)
-                        except (json.JSONDecodeError, TypeError):
-                            pass
-
-                    extraction_info = {
-                        'extraction_id': extraction_id,
-                        'video_id': db_extraction.get('video_id'),
-                        'status': 'completed',
-                        'output_paths': output_paths,
-                        'audio_path': db_extraction['file_path'],
-                        'title': db_extraction.get('title'),
-                        'extraction_model': get_model_display_name(db_extraction.get('extraction_model', 'htdemucs')),
-                        'detected_bpm': db_extraction.get('detected_bpm'),
-                        'detected_key': db_extraction.get('detected_key'),
-                        'analysis_confidence': db_extraction.get('analysis_confidence'),
-                        'chords_data': db_extraction.get('chords_data'),
-                        'beat_offset': db_extraction.get('beat_offset', 0.0),
-                        'beat_times': db_extraction.get('beat_times'),
-                        'beat_positions': db_extraction.get('beat_positions'),
-                        'music_start_time': db_extraction.get('music_start_time', 0.0),
-                        'metronome_offset_ms': db_extraction.get('metronome_offset_ms', 0.0)
-                    }
-                    break
-        except Exception as e:
-            print(f"[MIXER] Error loading historical extraction data: {e}")
 
     cache_buster = int(time.time())
     return render_template('mixer.html', extraction_id=extraction_id, extraction_info=extraction_info, cache_buster=cache_buster)

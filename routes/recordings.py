@@ -6,13 +6,17 @@ associated with a specific download/extraction.
 """
 
 import os
+import shutil
+import subprocess
+import tempfile
 
-from flask import Blueprint, request, jsonify, send_from_directory
+from flask import Blueprint, Response, request, jsonify, send_from_directory
 from flask_login import current_user
+from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 
 from extensions import api_login_required
-from core.config import ensure_valid_downloads_directory
+from core.config import ensure_valid_downloads_directory, get_ffmpeg_path
 from core.logging_config import get_logger
 from core.db.recordings import (
     create_recording,
@@ -25,6 +29,25 @@ from core.db.recordings import (
 logger = get_logger(__name__)
 
 recordings_bp = Blueprint('recordings', __name__)
+
+# /api/recordings/convert limits. A MediaRecorder take (Opus/AAC) runs ~1 MB per minute,
+# so 64 MB is well over half an hour; the WAV cap bounds what we load into memory.
+CONVERT_MAX_UPLOAD_BYTES = 64 * 1024 * 1024
+CONVERT_MAX_OUTPUT_BYTES = 512 * 1024 * 1024
+CONVERT_TIMEOUT_SECONDS = 120
+
+# Container types MediaRecorder produces across browsers. Chrome/Firefox label WebM/Ogg
+# takes audio/*, Safari uses audio/mp4 but some builds report video/mp4; an empty type or
+# octet-stream happens when the Blob loses its type, so ffmpeg's probe decides there.
+_CONVERT_ALLOWED_MIME_PREFIXES = ('audio/',)
+_CONVERT_ALLOWED_MIME_TYPES = {
+    'video/webm', 'video/mp4', 'video/quicktime', 'video/ogg',
+    'application/ogg', 'application/octet-stream', '',
+}
+
+# Demuxers ffmpeg may use on the upload. Whitelisting blocks playlist/concat demuxers
+# (hls, concat, ...) that could make ffmpeg read other local files or URLs.
+_CONVERT_FORMAT_WHITELIST = 'mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,ogg,wav,aac,mp3,flac,caf'
 
 
 def _resolve_download(extraction_id):
@@ -125,6 +148,93 @@ def upload_recording():
         'start_offset': start_offset,
         'filename': filename,
     })
+
+
+@recordings_bp.route('/api/recordings/convert', methods=['POST'])
+@api_login_required
+def convert_recording():
+    """Convert a MediaRecorder take the browser cannot decode into 16-bit PCM WAV.
+
+    Fallback for ``RecordingUtils.decodeAudioBlob`` (mostly iOS Safari). Expects a
+    multipart form with the take in the ``audio`` field and returns the WAV bytes
+    (``audio/wav``) for ``AudioContext.decodeAudioData``. Nothing is persisted.
+    """
+    # Enforce the cap before the multipart body is parsed (Flask 3.1 per-request limit).
+    request.max_content_length = CONVERT_MAX_UPLOAD_BYTES + 1024 * 1024
+    try:
+        upload = request.files.get('audio')
+    except RequestEntityTooLarge:
+        return jsonify({'error': 'Recording too large'}), 413
+
+    if upload is None or not upload.filename:
+        return jsonify({'error': 'No audio provided'}), 400
+
+    mimetype = (upload.mimetype or '').lower()
+    if not (mimetype.startswith(_CONVERT_ALLOWED_MIME_PREFIXES)
+            or mimetype in _CONVERT_ALLOWED_MIME_TYPES):
+        return jsonify({'error': f'Unsupported media type: {mimetype}'}), 415
+
+    work_dir = tempfile.mkdtemp(prefix='stemtube_rec_convert_')
+    try:
+        # Neutral names: the client always calls the part "recording.mp4" whatever the
+        # container, so the format comes from ffmpeg's content probe, not the extension.
+        input_path = os.path.join(work_dir, 'input.bin')
+        output_path = os.path.join(work_dir, 'output.wav')
+        upload.save(input_path)
+
+        input_size = os.path.getsize(input_path)
+        if input_size == 0:
+            return jsonify({'error': 'Empty recording'}), 400
+        if input_size > CONVERT_MAX_UPLOAD_BYTES:
+            return jsonify({'error': 'Recording too large'}), 413
+
+        cmd = [
+            get_ffmpeg_path(),
+            '-nostdin', '-hide_banner', '-loglevel', 'error', '-y',
+            '-protocol_whitelist', 'file',
+            '-format_whitelist', _CONVERT_FORMAT_WHITELIST,
+            '-i', input_path,
+            '-map', '0:a:0',  # fails when there is no audio stream -> non-audio input rejected
+            '-vn', '-sn', '-dn',
+            '-c:a', 'pcm_s16le',
+            '-f', 'wav',
+            output_path,
+        ]
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=CONVERT_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            logger.warning("[RECORDINGS] Conversion timed out")
+            return jsonify({'error': 'Conversion timed out'}), 504
+        except OSError as e:
+            logger.error(f"[RECORDINGS] Could not run ffmpeg: {e}")
+            return jsonify({'error': 'Audio converter unavailable'}), 500
+
+        if result.returncode != 0 or not os.path.exists(output_path):
+            logger.warning(
+                f"[RECORDINGS] Conversion failed (rc={result.returncode}, type={mimetype}): "
+                f"{result.stderr.strip()[-500:]}"
+            )
+            return jsonify({'error': 'Could not decode recording as audio'}), 422
+
+        output_size = os.path.getsize(output_path)
+        if output_size > CONVERT_MAX_OUTPUT_BYTES:
+            return jsonify({'error': 'Recording too long to convert'}), 413
+
+        # Read into memory so the temp dir can be removed before the response is sent.
+        with open(output_path, 'rb') as fh:
+            wav_bytes = fh.read()
+
+        logger.info(
+            f"[RECORDINGS] Converted {input_size} bytes ({mimetype or 'unknown'}) "
+            f"to {output_size} bytes WAV"
+        )
+        response = Response(wav_bytes, mimetype='audio/wav')
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
 
 
 @recordings_bp.route('/api/recordings/<download_id>', methods=['GET'])

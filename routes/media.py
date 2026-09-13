@@ -16,6 +16,35 @@ from core.config import get_setting
 from core.logging_config import get_logger
 from core.downloads_db import find_any_global_extraction as db_find_any_global_extraction
 
+
+def _as_list(value):
+    """DB JSON columns come back as a JSON string, a list or None."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            return []
+    return value if isinstance(value, list) else []
+
+
+def _find_download_for(extraction_id):
+    """Resolve an extraction id (download_<id>, video id or filename prefix) to a row."""
+    from core.downloads_db import get_download_by_id, list_extractions_for
+    download = None
+    if extraction_id.startswith('download_'):
+        download = get_download_by_id(current_user.id, extraction_id.replace('download_', ''))
+    if not download:
+        for db_extraction in list_extractions_for(current_user.id):
+            video_id = db_extraction.get('video_id', '')
+            file_path = db_extraction.get('file_path', '')
+            filename = os.path.basename(file_path).replace('.mp3', '') if file_path else ''
+            if video_id == extraction_id or (filename and extraction_id.startswith(filename)):
+                download = db_extraction
+                break
+    if not download:
+        download = db_find_any_global_extraction(extraction_id)
+    return download
+
 logger = get_logger(__name__)
 
 media_bp = Blueprint('media', __name__)
@@ -99,7 +128,6 @@ def regenerate_extraction_chords(extraction_id):
     try:
         from core.downloads_db import get_download_by_id, list_extractions_for, update_download_analysis
         from core.chord_detector import analyze_audio_file
-        from core.config import load_config
 
         download = None
         download_id = extraction_id
@@ -126,22 +154,11 @@ def regenerate_extraction_chords(extraction_id):
         if not audio_path or not os.path.exists(audio_path):
             return jsonify({'error': 'Audio file not found'}), 404
 
-        config = load_config()
-        use_hybrid = config.get('chords_use_hybrid', True)
-        use_madmom = config.get('chords_use_madmom', True)
-
-        result = analyze_audio_file(
-            audio_path,
-            bpm=download.get('detected_bpm'),
-            detected_key=download.get('detected_key'),
-            use_hybrid=use_hybrid,
-            use_madmom=use_madmom
-        )
-        if len(result) == 4:
-            chords_json, beat_offset, beat_times, beat_positions = result
-        else:
-            chords_json, beat_offset, beat_times = result
-            beat_positions = []
+        # BTC is the only chord engine and it detects no beats: the offset and beat lists
+        # it returns are placeholders (0.0, [], []). Storing them wiped the beat grid
+        # offset, and returning them sent zeros to the browser, which knocked the
+        # metronome out of alignment until reload. The beat grid is left untouched.
+        chords_json = analyze_audio_file(audio_path, bpm=download.get('detected_bpm'))[0]
 
         if not chords_json:
             return jsonify({'error': 'Chord detection failed'}), 500
@@ -174,11 +191,9 @@ def regenerate_extraction_chords(extraction_id):
             download.get('detected_key'),
             download.get('analysis_confidence'),
             chords_json,
-            beat_offset,
+            None,                 # beat grid untouched (see above)
             structure_data,
             lyrics_data,
-            beat_times=beat_times,
-            beat_positions=beat_positions
         )
 
         parsed_chords = json.loads(chords_json)
@@ -186,13 +201,52 @@ def regenerate_extraction_chords(extraction_id):
             'success': True,
             'chords': parsed_chords,
             'detected_bpm': detected_bpm,
-            'beat_offset': beat_offset,
-            'beat_times': beat_times,
-            'beat_positions': beat_positions
+            # the STORED grid, so clients keep their metronome alignment
+            'beat_offset': download.get('beat_offset') or 0.0,
+            'beat_times': _as_list(download.get('beat_times')),
+            'beat_positions': _as_list(download.get('beat_positions'))
         })
 
     except Exception as e:
         logger.error(f"Error regenerating chords: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+# ------------------------------------------------------------------
+# Structure analysis
+# ------------------------------------------------------------------
+
+@media_bp.route('/api/extractions/<extraction_id>/analyze-structure', methods=['POST'])
+@api_login_required
+def analyze_extraction_structure(extraction_id):
+    """Detect song sections with MSAF and store them as structure_data."""
+    try:
+        from core.downloads_db import update_download_analysis
+        from core.msaf_structure_detector import detect_song_structure_msaf
+
+        download = _find_download_for(extraction_id)
+        if not download:
+            return jsonify({'error': 'Extraction not found'}), 404
+        audio_path = download.get('file_path')
+        if not audio_path or not os.path.exists(audio_path):
+            return jsonify({'error': 'Audio file not found'}), 404
+        video_id = download.get('video_id')
+        if not video_id:
+            return jsonify({'error': 'Video ID not found'}), 400
+
+        sections = detect_song_structure_msaf(audio_path)
+        if not sections:
+            return jsonify({'error': 'Structure detection failed'}), 500
+
+        # Everything else is None, so COALESCE keeps the stored analysis untouched.
+        update_download_analysis(video_id, None, None, None, structure_data=sections)
+        return jsonify({
+            'success': True,
+            'structure': {'sections': sections},
+            'sections_count': len(sections)
+        })
+    except Exception as e:
+        logger.error(f"Error analyzing structure: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 

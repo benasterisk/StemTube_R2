@@ -1,6 +1,6 @@
 /**
  * RecordingEngine — Multi-track recording with per-track input devices,
- * latency compensation and server-side de-bleed via Demucs.
+ * latency compensation and per-track FX presets.
  *
  * Each recording track has its own input device selector. Multiple armed tracks
  * record simultaneously. The global Record button starts/stops recording on all
@@ -33,9 +33,6 @@ class RecordingEngine {
         // Latency compensation (seconds)
         this.calibratedLatency = this._loadCalibratedLatency();
         this.isCalibrating = false;
-
-        // Pending de-bleed operations (serverId → { resolve, reject })
-        this.pendingDebleeds = new Map();
 
         // Shared effects manager (lazy-init on first AudioContext use)
         this.effects = null;

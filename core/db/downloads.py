@@ -74,10 +74,16 @@ def add_or_update(user_id, meta):
         return global_download_id
 
 
-def update_download_analysis(video_id, detected_bpm, detected_key, analysis_confidence, chords_data=None, beat_offset=0.0, structure_data=None, lyrics_data=None, beat_times=None, beat_positions=None, music_start_time=0.0):
-    """Update audio analysis results for a download."""
+def update_download_analysis(video_id, detected_bpm, detected_key, analysis_confidence, chords_data=None, beat_offset=None, structure_data=None, lyrics_data=None, beat_times=None, beat_positions=None, music_start_time=None):
+    """Update audio analysis results for a download.
+
+    Every field defaults to None, which PRESERVES the stored value. beat_offset and
+    music_start_time used to default to 0.0: not NULL, so COALESCE let that 0.0 win and
+    any caller that omitted them (chord and beat regeneration) wiped Skip Intro and the
+    beat grid offset.
+    """
     with _conn() as conn:
-        print(f"[DB DEBUG] Updating analysis for video_id='{video_id}': BPM={detected_bpm}, Key={detected_key}, Chords={bool(chords_data)}, BeatOffset={beat_offset:.3f}s, Structure={bool(structure_data)}, Lyrics={bool(lyrics_data)}, BeatTimes={len(beat_times) if beat_times else 0}, BeatPositions={len(beat_positions) if beat_positions else 0}, MusicStart={music_start_time:.1f}s")
+        print(f"[DB DEBUG] Updating analysis for video_id='{video_id}': BPM={detected_bpm}, Key={detected_key}, Chords={bool(chords_data)}, BeatOffset={beat_offset}, Structure={bool(structure_data)}, Lyrics={bool(lyrics_data)}, BeatTimes={len(beat_times) if beat_times else 0}, BeatPositions={len(beat_positions) if beat_positions else 0}, MusicStart={music_start_time}")
 
         # Convert structure_data, lyrics_data, beat_times, beat_positions to JSON if necessary
         structure_json = json.dumps(structure_data) if structure_data else None

@@ -56,17 +56,8 @@ def reanalyze_song(video_id):
 
     # Step 2: Re-run chord detection with key-aware mode
     print("Step 2: Chord Detection (Key-Aware Hybrid)...")
-    result = analyze_audio_file(
-        audio_path,
-        bpm=detected_bpm,
-        detected_key=detected_key,
-        use_hybrid=True
-    )
-    if len(result) == 4:
-        chords_json, beat_offset, beat_times, beat_positions = result
-    else:
-        chords_json, beat_offset, beat_times = result
-        beat_positions = []
+    # BTC detects chords only; the stored beat grid and beat offset are kept.
+    chords_json = analyze_audio_file(audio_path, bpm=detected_bpm)[0]
 
     if not chords_json:
         print("❌ Chord detection failed")
@@ -75,7 +66,6 @@ def reanalyze_song(video_id):
     import json
     chords = json.loads(chords_json)
     print(f"✅ Detected {len(chords)} chord changes")
-    print(f"✅ Beat offset: {beat_offset:.3f}s")
 
     # Count chord frequency
     chord_counts = {}
@@ -98,9 +88,6 @@ def reanalyze_song(video_id):
         detected_key=detected_key,
         analysis_confidence=confidence,
         chords_data=chords_json,
-        beat_offset=beat_offset,
-        beat_times=beat_times,
-        beat_positions=beat_positions
     )
 
     print("✅ Re-analysis complete!\n")

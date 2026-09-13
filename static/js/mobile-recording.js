@@ -502,19 +502,6 @@ class MobileRecordingEngine {
         }
     }
 
-    async _reloadTrackAudio(track, url) {
-        if (!url || !this.app.audioContext) return;
-        try {
-            const resp = await fetch(url);
-            if (!resp.ok) return;
-            const buf = await resp.arrayBuffer();
-            track.audioBuffer = await this.app.audioContext.decodeAudioData(buf);
-            console.log('[Recording] Reloaded de-bleeded audio for', track.name);
-        } catch (e) {
-            console.warn('[Recording] Reload failed:', e);
-        }
-    }
-
     async loadFromServer(downloadId) {
         try {
             const recordings = await RecordingUtils.fetchRecordings(downloadId);

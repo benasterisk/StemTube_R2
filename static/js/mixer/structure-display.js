@@ -51,36 +51,32 @@ class StructureDisplay {
     /**
      * Load structure from EXTRACTION_INFO global variable if available
      */
+    /**
+     * Normalize stored structure data to display sections [{start, end, label}].
+     * The page receives structure_data as the JSON text stored in the database; the
+     * analyze-structure route answers {sections: [...]}. Returns [] when unusable.
+     */
+    parseSections(structureData) {
+        if (typeof structureData === 'string') {
+            try {
+                structureData = JSON.parse(structureData);
+            } catch (e) {
+                console.error('[StructureDisplay] Failed to parse structure JSON:', e);
+                return [];
+            }
+        }
+        if (structureData && Array.isArray(structureData.sections)) {
+            return this.transformLLMStructure(structureData);
+        }
+        return Array.isArray(structureData) ? structureData : [];
+    }
+
     loadStructureFromExtractionInfo() {
         if (typeof EXTRACTION_INFO !== 'undefined' && EXTRACTION_INFO && EXTRACTION_INFO.structure_data) {
             console.log('[StructureDisplay] Loading structure from EXTRACTION_INFO');
-            let structureData = EXTRACTION_INFO.structure_data;
+            const sections = this.parseSections(EXTRACTION_INFO.structure_data);
 
-            // Parse if JSON string
-            if (typeof structureData === 'string') {
-                try {
-                    structureData = JSON.parse(structureData);
-                } catch (e) {
-                    console.error('[StructureDisplay] Failed to parse structure JSON:', e);
-                    return;
-                }
-            }
-
-            // Check if it's LLM format (with sections property) or simple array
-            let sections;
-            if (structureData.sections && Array.isArray(structureData.sections)) {
-                // LLM format - transform it
-                console.log('[StructureDisplay] Transforming LLM structure format');
-                sections = this.transformLLMStructure(structureData);
-            } else if (Array.isArray(structureData)) {
-                // Simple array format
-                sections = structureData;
-            } else {
-                console.error('[StructureDisplay] Unknown structure data format');
-                return;
-            }
-
-            if (sections && sections.length > 0) {
+            if (sections.length > 0) {
                 console.log(`[StructureDisplay] Loaded ${sections.length} sections from extraction info`);
 
                 // Calculate total duration from last section
@@ -207,7 +203,7 @@ class StructureDisplay {
         return llmStructure.sections.map(section => ({
             start: section.start,
             end: section.end,
-            label: labelMapping[section.type] || section.type
+            label: labelMapping[section.type] || section.type || section.label || ''
         }));
     }
 
@@ -262,12 +258,18 @@ class StructureDisplay {
      * Returns a mapping of section indices to color groups
      */
     analyzeHarmonicSimilarity() {
+        // MSAF labels (A, B, C...) are similarity clusters already: color by them.
+        if (this.structureData.every(section => section.label)) {
+            return this.groupByLabel();
+        }
         if (!window.EXTRACTION_INFO || !window.EXTRACTION_INFO.chords_data) {
-            // No chord data available, fall back to label-based grouping
             return this.groupByLabel();
         }
 
-        const chordsData = window.EXTRACTION_INFO.chords_data;
+        let chordsData = window.EXTRACTION_INFO.chords_data;
+        if (typeof chordsData === 'string') {
+            try { chordsData = JSON.parse(chordsData); } catch (e) { chordsData = []; }
+        }
         const sectionChords = [];
 
         // Extract chords for each section
@@ -325,7 +327,7 @@ class StructureDisplay {
         let groupId = 0;
 
         this.structureData.forEach((section, index) => {
-            const normalizedLabel = section.label.replace(/\d+/g, '').trim();
+            const normalizedLabel = String(section.label || '').replace(/\d+/g, '').trim();
 
             if (labelGroups[normalizedLabel] === undefined) {
                 labelGroups[normalizedLabel] = groupId++;

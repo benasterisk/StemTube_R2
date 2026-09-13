@@ -477,7 +477,7 @@
   .rec-lctrl .input-level-fill { height:100%; width:0%; background:linear-gradient(90deg,#3ddc84,#e6d24a,#ff5252); transition:width .05s; }
   .rec-lctrl .monitor-control { display:flex; align-items:center; gap:4px; color:var(--muted); font-size:11px; }
   .rec-lctrl .monitor-slider { width:48px; }
-  .rec-lctrl .rec-debleed-row, .rec-lctrl .rec-fx-row { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--muted); }
+  .rec-lctrl .rec-fx-row { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--muted); }
   .rec-lctrl .rec-fx-desc { font-size:10px; color:var(--muted); }
   .rec-lctrl .rec-delete-btn { background:var(--bg-tertiary); border:1px solid var(--line); color:var(--stop-fg,#ff9a9a);
     border-radius:5px; font-size:11px; padding:3px 8px; cursor:pointer; }
@@ -871,9 +871,9 @@
       window.mixer.recordingEngine = new RecordingEngine(window.mixer);
       var recEngine = window.mixer.recordingEngine;
 
-      // de-bleed progress over socket.io (already loaded for lyrics regen)
+      // socket.io connection shared with lyrics regeneration
       var sock = window.mixerSocket || (typeof io !== "undefined" ? io() : null);
-      if (sock) { window.mixerSocket = sock; if (recEngine.setupDebleedSocketListeners) recEngine.setupDebleedSocketListeners(sock); }
+      if (sock) { window.mixerSocket = sock; }
 
       var addBtn = document.getElementById("addTrackBtn");
       var recBtn = document.getElementById("recordBtn");

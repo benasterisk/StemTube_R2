@@ -1244,36 +1244,40 @@ class MobileApp {
         this.showToast(`Caching "${title}"...`, 'info');
 
         try {
-            // Fetch full extraction data for offline mixer
+            // Extraction record: offline, openMixer() hands it to loadMixerData(), which
+            // needs stems_paths (plus BPM/key/chords/lyrics for the UI).
             let fullExtractionData = null;
             try {
                 const res = await fetch('/api/extractions/' + songId);
                 if (res.ok) {
-                    fullExtractionData = await res.json();
-                    console.log('[Cache] Fetched full extraction data');
+                    const json = await res.json();
+                    if (json && !json.error) fullExtractionData = json;
                 }
             } catch (e) {
                 console.warn('[Cache] Could not fetch extraction data:', e);
             }
-
-            // Build stem URLs from this song's actual stems (models differ in stem names)
-            let stemNames = ['vocals', 'bass', 'drums', 'guitar', 'piano', 'other'];
-            let stemsPaths = fullExtractionData && fullExtractionData.stems_paths;
-            if (typeof stemsPaths === 'string') {
-                try { stemsPaths = JSON.parse(stemsPaths); } catch (e) { stemsPaths = null; }
+            const dataToStore = fullExtractionData || itemData || {};
+            if (!dataToStore.stems_paths) {
+                this.showToast('Song data unavailable - cannot save for offline', 'error');
+                return false;
             }
-            if (stemsPaths && Object.keys(stemsPaths).length) {
-                stemNames = Object.keys(stemsPaths);
-            }
-            const stemUrls = stemNames.map(stem => `/api/extracted_stems/${songId}/${stem}`);
-            console.log('[Cache] Stem URLs:', stemUrls);
 
-            const result = await window.StemCache.cacheSong(songId, stemUrls);
+            // songId is the job id the mixer opens the song with (see openMixer), so the
+            // cache holds exactly the /poc-mixer/* URLs the POC engine will request.
+            let lastLogged = -1;
+            const result = await window.StemCache.cacheSong(songId, {
+                title,
+                onProgress: (stage, pct) => {
+                    const step = Math.floor((pct || 0) / 25);
+                    if (step !== lastLogged) {
+                        lastLogged = step;
+                        console.log(`[Cache] ${songId}: ${stage} (${Math.round(pct || 0)}%)`);
+                    }
+                }
+            });
             console.log('[Cache] Result:', result);
 
             if (result.success) {
-                // Store full extraction data for offline mixer access
-                const dataToStore = fullExtractionData || itemData || {};
                 dataToStore.title = title;
                 this.saveOfflineSongMetadata(songId, dataToStore);
                 this.showToast(`"${title}" saved for offline`, 'success');

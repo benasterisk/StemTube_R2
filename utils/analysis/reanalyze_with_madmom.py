@@ -80,12 +80,9 @@ def main():
         # Analyze with madmom
         try:
             print(f"  🔍 Analyzing with madmom (BPM: {bpm or 'auto-detect'})...")
-            result = analyze_audio_file(file_path, bpm=bpm, use_madmom=True)
-            if len(result) == 4:
-                chords_data, beat_offset, beat_times, beat_positions = result
-            else:
-                chords_data, beat_offset, beat_times = result
-                beat_positions = []
+            # BTC is the only chord engine now; its beat values are placeholders,
+            # so the stored beat grid and beat offset are left untouched.
+            chords_data = analyze_audio_file(file_path, bpm=bpm)[0]
 
             if chords_data:
                 # Parse to count chords
@@ -99,12 +96,9 @@ def main():
                     detected_key=None,  # Keep existing key
                     analysis_confidence=None,  # Keep existing confidence
                     chords_data=chords_data,
-                    beat_offset=beat_offset,
-                    beat_times=beat_times,
-                    beat_positions=beat_positions
                 )
 
-                print(f"  ✅ Success: {chord_count} chords, beat offset: {beat_offset:.3f}s")
+                print(f"  ✅ Success: {chord_count} chords")
                 success_count += 1
             else:
                 print(f"  ❌ No chords detected")

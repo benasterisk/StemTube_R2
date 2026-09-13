@@ -230,7 +230,11 @@ Loader.init(engine, view, (meta, label)=>{
     }
     // Structure needs the real duration → (re)load it now that we have meta.
     if(window.mixer.structureDisplay && window.EXTRACTION_INFO && window.EXTRACTION_INFO.structure_data){
-      try { window.mixer.structureDisplay.loadStructure(window.EXTRACTION_INFO.structure_data, meta.duration); } catch(e){}
+      try {
+        const sd = window.mixer.structureDisplay;
+        const sections = sd.parseSections(window.EXTRACTION_INFO.structure_data);
+        if(sections.length) sd.loadStructure(sections, meta.duration);
+      } catch(e){ console.warn("[structure] load failed", e); }
     }
     // Karaoke auto-loads from EXTRACTION_INFO in its constructor; nothing to do here.
     // Saved takes: restore this song's recordings (friend parity — they reappear

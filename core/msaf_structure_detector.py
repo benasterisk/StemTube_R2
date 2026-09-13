@@ -8,9 +8,31 @@ without the previous multi-feature SSM and merging pipeline.
 
 import os
 import logging
+import shutil
+import tempfile
 from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
+
+# msaf repeats the final boundary, which yields a zero-length last section.
+MIN_SECTION_SEC = 0.5
+
+
+def _patch_scipy_for_msaf() -> None:
+    """Restore the SciPy names msaf 0.1.80 still uses.
+
+    SciPy 1.12/1.13 removed ``scipy.inf`` (imported by msaf/pymf/sivm_search.py) and
+    ``scipy.signal.gaussian`` (used by the Foote segmenter). Without these aliases msaf
+    fails to import, and structure analysis silently produced nothing for every song.
+    """
+    import numpy as np
+    import scipy
+    import scipy.signal
+    if not hasattr(scipy, "inf"):
+        scipy.inf = np.inf
+    if not hasattr(scipy.signal, "gaussian"):
+        from scipy.signal import windows
+        scipy.signal.gaussian = windows.gaussian
 
 
 def detect_song_structure_msaf(
@@ -35,12 +57,19 @@ def detect_song_structure_msaf(
         return None
 
     try:
+        _patch_scipy_for_msaf()
         import msaf
     except ImportError as exc:
-        logger.error("[MSAF] msaf library is not installed. "
-                     "Run `pip install msaf` inside the virtual environment.")
-        logger.debug(exc, exc_info=True)
+        # Report the real cause: this used to say "not installed" when msaf WAS installed
+        # but broke on a SciPy API it relies on.
+        logger.error(f"[MSAF] msaf could not be imported: {exc}")
         return None
+
+    # msaf caches features in ./.features_msaf_tmp.json by default, i.e. in the server's
+    # working directory, shared by every concurrent analysis. Give each run its own.
+    work_dir = tempfile.mkdtemp(prefix="msaf_")
+    previous_tmp = msaf.config.features_tmp_file
+    msaf.config.features_tmp_file = os.path.join(work_dir, "features.json")
 
     try:
         logger.info(f"[MSAF] Running structure analysis with boundaries_id={boundaries_id}, "
@@ -58,14 +87,25 @@ def detect_song_structure_msaf(
             return None
 
         sections: List[Dict] = []
+        # fmc2d labels are similarity-cluster ids (0, 1, 2...), not "verse"/"chorus":
+        # sections that sound alike share an id. Show them as letters, A for the first
+        # cluster heard, so repeats read naturally (A B C B A...).
+        letters: Dict[int, str] = {}
 
         for idx in range(len(boundaries) - 1):
             start = float(boundaries[idx])
             end = float(boundaries[idx + 1])
+            if end - start < MIN_SECTION_SEC:
+                continue
 
-            # Some MSAF labelers can output None; fallback to generic section names.
-            label_value = labels[idx] if labels is not None and idx < len(labels) else None
-            label = label_value if label_value else f"Section {idx + 1}"
+            raw = labels[idx] if labels is not None and idx < len(labels) else None
+            if raw is None:
+                label = f"Section {len(sections) + 1}"
+            else:
+                cluster = int(raw)
+                if cluster not in letters:
+                    letters[cluster] = chr(ord("A") + len(letters) % 26)
+                label = letters[cluster]
 
             sections.append({
                 "start": start,
@@ -75,8 +115,11 @@ def detect_song_structure_msaf(
             })
 
         logger.info(f"[MSAF] Detected {len(sections)} sections.")
-        return sections
+        return sections or None
 
     except Exception as exc:
         logger.error(f"[MSAF] Structure detection failed: {exc}", exc_info=True)
         return None
+    finally:
+        msaf.config.features_tmp_file = previous_tmp
+        shutil.rmtree(work_dir, ignore_errors=True)

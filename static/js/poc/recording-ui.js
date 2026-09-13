@@ -3,7 +3,7 @@
 // FUNCTIONAL logic = friend (recording-engine.js / recording-effects.js, verbatim).
 // VISUAL design   = the POC tracks (compact controls left, waveform lane right).
 //
-// friend's engine draws every recording waveform (live, final, de-bleed) into
+// friend's engine draws every recording waveform (live and final) into
 //   document.getElementById('rec-track-<id>').querySelector('.waveform')  →  <canvas>
 // and positions it as ratios of that container's FULL width (full-song width × zoom).
 // So we build, per recording:
@@ -207,9 +207,6 @@
             '<div class="monitor-control" title="Monitoring"><i class="fas fa-headphones"></i>' +
               '<input type="range" class="monitor-slider" min="0" max="1" step="0.01" value="0"></div>' +
           '</div>' +
-          '<div class="rec-debleed-row"><label class="rec-debleed-label" title="Remove bleed (Demucs)"><i class="fas fa-magic"></i> De-bleed :</label>' +
-            '<select class="rec-debleed-select"><option value="off">Off</option><option value="vocals">Vocals</option>' +
-              '<option value="bass">Bass</option><option value="drums">Drums</option><option value="other">Other (Guitar/Keys)</option></select></div>' +
           '<div class="rec-fx-row"><label class="rec-fx-label" title="Effects preset"><i class="fas fa-sliders-h"></i> FX :</label>' +
             '<select class="rec-fx-select"><option value="off">Off</option><option value="subtle">Subtle</option>' +
               '<option value="warm">Warm</option><option value="heavy">Heavy</option></select></div>' +
@@ -273,22 +270,14 @@
       });
       monitorSlider.addEventListener("input", function (e) { recEngine.setTrackMonitorVolume(recording.id, parseFloat(e.target.value)); });
 
-      var debleedSelect = lc.querySelector(".rec-debleed-select");
       var fxSelect = lc.querySelector(".rec-fx-select");
       var fxDesc = lc.querySelector(".rec-fx-desc");
       function updateFxDesc() {
         if (!fxDesc) return;
-        var cat = debleedSelect ? debleedSelect.value : "other";
         var preset = fxSelect ? fxSelect.value : "off";
-        fxDesc.textContent = (typeof RecordingEffects !== "undefined") ? RecordingEffects.describePreset(cat === "off" ? "other" : cat, preset) : "";
-      }
-      if (debleedSelect) {
-        debleedSelect.value = recording.debleedStem || "off";
-        debleedSelect.addEventListener("change", function (e) {
-          recEngine.setTrackDebleed(recording.id, e.target.value);
-          if (fxSelect && fxSelect.value !== "off") recEngine.setTrackFxPreset(recording.id, fxSelect.value);
-          updateFxDesc();
-        });
+        // RecordingEngine.setTrackFxPreset always applies the "vocals" preset family,
+        // so describe that family to match what is actually heard.
+        fxDesc.textContent = (typeof RecordingEffects !== "undefined") ? RecordingEffects.describePreset("vocals", preset) : "";
       }
       if (fxSelect) {
         fxSelect.value = recording.fxPreset || "off";
