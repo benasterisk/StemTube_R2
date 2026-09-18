@@ -765,12 +765,12 @@
                     </div>
 
                     <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 0.85rem;">
-                        <p style="margin: 0 0 8px 0;"><strong>Upload cookies.txt file:</strong></p>
+                        <p style="margin: 0 0 8px 0;"><strong>1. Import once &mdash; cookies.txt file</strong> (brings Google's login cookies)</p>
                         <ol style="margin: 0; padding-left: 20px;">
                             <li>Install extension: <strong>"Get cookies.txt LOCALLY"</strong> (Chrome) or <strong>"cookies.txt"</strong> (Firefox)</li>
-                            <li>Go to <a href="https://youtube.com" target="_blank">youtube.com</a> (logged in)</li>
+                            <li>Go to <a href="https://youtube.com" target="_blank">youtube.com</a>, logged in (preferably a dedicated Google account)</li>
                             <li>Export cookies with the extension</li>
-                            <li>Upload the file below</li>
+                            <li>Upload the file below (only YouTube/Google cookies are kept)</li>
                         </ol>
                     </div>
 
@@ -784,14 +784,14 @@
                         </button>
                     </div>
 
-                    <!-- Bookmarklet (secondary, collapsed) -->
-                    <details style="margin-top: 12px;">
-                        <summary style="cursor: pointer; font-size: 0.8rem; color: var(--text-muted);">
-                            Alternative: Bookmarklet (limited)
+                    <!-- Bookmarklet: refresh, merges into the stored cookies -->
+                    <details open style="margin-top: 12px;">
+                        <summary style="cursor: pointer; font-size: 0.8rem; color: var(--text-secondary);">
+                            <strong>2. Refresh later &mdash; bookmarklet</strong>
                         </summary>
-                        <div style="margin-top: 8px; padding: 10px; background: var(--bg-secondary); border-radius: 8px; border-left: 3px solid #f0ad4e;">
-                            <p style="margin: 0 0 8px 0; font-size: 0.75rem; color: #f0ad4e;">
-                                Cannot capture HttpOnly auth cookies. Use file upload for reliable results.
+                        <div style="margin-top: 8px; padding: 10px; background: var(--bg-secondary); border-radius: 8px; border-left: 3px solid var(--accent-color, #2196F3);">
+                            <p style="margin: 0 0 8px 0; font-size: 0.75rem; color: var(--text-secondary);">
+                                Click it on youtube.com (same account) to refresh in one click. It merges into the stored cookies and keeps the login cookies from step 1. Each link works once: generate a new one before each use.
                             </p>
                             <button class="mobile-btn mobile-btn-secondary" id="mobileGenerateBookmarkletBtn" style="font-size: 0.8rem;">
                                 <i class="fas fa-magic"></i> Generate Bookmarklet
