@@ -4,7 +4,7 @@
 
 **faster-whisper** is used in StemTube for automatic lyrics transcription (karaoke/lyrics). It is an optimized implementation of OpenAI Whisper using CTranslate2 for ~4x faster performance.
 
-After stem extraction, Whisper runs **in parallel** with a Musixmatch lookup, and `core/lyrics_merger.py` merges the two: Musixmatch provides the text, Whisper provides the word timings. Whisper alone is used when Musixmatch has no match. (LRCLIB is not used.)
+After stem extraction, Whisper transcribes the vocals stem in the sung language and `align_lines_with_whisper()` (`core/lyrics_merger.py`) puts the lyrics found on [LRCLIB](https://lrclib.net) onto the Whisper word timings: LRCLIB provides the text, Whisper provides the word timings (source `lrclib+whisper`). Whisper alone is used when LRCLIB has no record, or when a plain-text record matches fewer than 30 % of the Whisper words (a line-synced record then keeps its own line timing).
 
 ## Installation
 
@@ -106,9 +106,10 @@ lyrics_data = detect_song_lyrics(
     use_gpu=True
 )
 
-# What StemTube actually runs after extraction: Whisper + Musixmatch in parallel, merged
+# What StemTube actually runs after extraction: LRCLIB lookup + Whisper, aligned
 result = detect_lyrics_unified(audio_path, title="Artist - Title", model_size="medium")
 lyrics_data = result.get('lyrics')
+# result['source']: 'lrclib+whisper', 'lrclib' or 'whisper'; result['alignment_stats'] when aligned
 
 # Result format
 # [
@@ -163,6 +164,13 @@ lyrics_data = result.get('lyrics')
 3. **VAD (Voice Activity Detection)**:
    - Enabled by default in StemTube
    - Filters non-voice segments (improves accuracy)
+
+4. **Language detection**:
+   - Whisper `detect_language` runs with the VAD filter on voiced parts (three 30 s windows)
+   - A language detected with ≥0.7 probability wins; otherwise the language declared by YouTube
+     is used, and only then a weak guess (this stops French songs being transcribed in English)
+   - Known credit hallucinations ("Sous-titrage Société Radio-Canada", Amara.org,
+     "thanks for watching") are dropped from the transcription
 
 ## Troubleshooting
 
@@ -242,11 +250,14 @@ for model_size in ["tiny", "base", "small", "medium"]:
 
 ### Automatic Workflow
 
-1. **Audio download** → Musixmatch lookup only (`core/syncedlyrics_client.py`), no Whisper
+1. **Audio download** → yt-dlp metadata stored in `media_metadata`, LRCLIB lookup only
+   (`core/lrclib_client.py`), no Whisper; a line-timed preview is stored when LRCLIB has
+   line-synced lyrics
 2. **Stem extraction complete** → `detect_lyrics_unified()` on `vocals.mp3`
-   (`extensions.py`): Whisper transcription + Musixmatch fetch in parallel threads
-3. **Merge** → `core/lyrics_merger.py`: Musixmatch text + Whisper word timings
-   (Whisper-only if no Musixmatch match, Musixmatch-only if Whisper fails)
+   (`extensions.py`): artist/track resolved → LRCLIB lookup → Whisper transcription
+3. **Align** → `core/lyrics_merger.py`: LRCLIB words on Whisper word timings
+   (below 30 % matched words: LRCLIB line timing for a synced record, Whisper alone for
+   plain text; Whisper alone if the song is not on LRCLIB)
 4. **DB storage** → `global_downloads.lyrics_data` (JSON)
 5. **Mixer display** → `karaoke-display.js` (playback sync)
 

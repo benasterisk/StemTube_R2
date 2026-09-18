@@ -39,6 +39,26 @@ the commits that carry the change.
   415, 422, 504.
 
 ### Changed
+- **Lyrics come from LRCLIB aligned on Whisper**, replacing Musixmatch, whose unofficial
+  desktop API stopped serving anonymous clients around April 2026 (all-zero user token,
+  unrelated canned search results). `core/lrclib_client.py` looks the song up on
+  [LRCLIB](https://lrclib.net) (free, no account; artist and track must both match,
+  line-synced records preferred, closest duration wins); faster-whisper transcribes the
+  vocals stem and `align_lines_with_whisper()` in `core/lyrics_merger.py` puts the LRCLIB
+  words on the Whisper word timings (source `lrclib+whisper`, with `alignment_stats`).
+  Below 30 % matched words the lyrics are rejected: a line-synced record falls back to its
+  own line timing, plain text to Whisper alone; songs missing from LRCLIB use Whisper alone.
+  Measured: 81.9 % words matched on a plain-text record, 70.7 % and 50.6 % on synced ones.
+- **One lyrics pipeline**: `detect_lyrics_unified()` runs after extraction and on
+  Regenerate; the post-extraction step now runs it on the vocals stem instead of Whisper
+  alone. The download phase only looks LRCLIB up and stores a line-timed preview when the
+  record is line-synced. `lyrics_progress` reports metadata, search, Whisper and alignment steps.
+- **YouTube metadata is stored**: `core/media_metadata.py` keeps artist, track, language,
+  uploader, tags and duration from yt-dlp in the new `media_metadata` column (fetched
+  lazily for songs downloaded earlier) and resolves the artist/track used for the lookup.
+- The Regenerate dialog (desktop and mobile) searches LRCLIB (`POST /api/lyrics/search`),
+  marks results **L** (line-synced) or **T** (text only), and offers "LRCLIB timing" or
+  "LRCLIB + Whisper sync"; `/lyrics/regenerate` takes `lrclib_id` and `sync_with_whisper`.
 - Mixer artifacts (metronome, waveform peaks, `meta.json`) are now built at the end
   of an extraction, so the first mixer open is a cache hit instead of a ~1 min wait.
 - The mixer shows its tracks and server-side waveforms immediately and decodes each
@@ -97,6 +117,20 @@ the commits that carry the change.
 - **One application version**: `APP_VERSION` in `core/config.py` is `3.0.2` and is
   injected into every template (`app_version`); the mobile page shows it instead of a
   hard-coded "1.3.0 PWA".
+- **French songs transcribed (or regenerated) in English**: Whisper guessed the language
+  from the first 30 s, often an instrumental intro. The language is now detected on voiced
+  parts only (VAD, three 30 s windows); a detection at ≥ 0.7 probability wins, otherwise
+  the language YouTube declares for the audio. Taxi Girl "Paris": `nn` 0.77 before,
+  `fr` 0.99 now.
+- Whisper credit hallucinations over instrumentals ("Sous-titrage Société Radio-Canada",
+  Amara.org, "thanks for watching"…) are dropped from the transcription.
+
+### Removed
+- Musixmatch: `core/musixmatch_client.py`, `core/syncedlyrics_client.py`, the
+  `syncedlyrics` dependency and `POST /api/musixmatch/search` (the Regenerate body no
+  longer accepts `musixmatch_track_id` or `skip_onset_sync`).
+- Dead code `core/lyrics_aligner.py` and `core/vocal_onset_detector.py`, and the old
+  Musixmatch `merge_lyrics()` in `core/lyrics_merger.py`.
 
 ---
 

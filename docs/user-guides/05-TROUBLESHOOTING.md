@@ -483,6 +483,36 @@ python -c "from core.btc_chord_detector import is_available; print(is_available(
 ```
 Then regenerate chords from the mixer. See [BTC Setup](../setup-guides/BTC-SETUP.md).
 
+### Lyrics in the Wrong Language
+
+**Symptom**: The lyrics of a non-English song come out as an English (or other) transcription
+that does not match the words sung.
+
+**Status**: Fixed. Whisper used to guess the language on the first seconds of the vocals and
+could get it wrong (a French song detected as Norwegian and transcribed in English). The
+language is now detected on the voiced parts of the vocals stem: a detection of 70 % confidence
+or more wins; otherwise the language declared by YouTube is used, and only then Whisper's weak
+guess. The language used is shown when you regenerate lyrics.
+
+**Solution**: Songs processed before the fix keep their old lyrics - regenerate them from the
+mixer (**Regenerate lyrics (LRCLIB + Whisper)**, also on mobile). Check the choice in the logs:
+```bash
+grep "\[LYRICS\]" app.log
+```
+
+### No Lyrics Found on LRCLIB
+
+**Symptom**: The lyrics are a raw Whisper transcription (source `whisper`), with misheard words.
+
+**Cause**: LRCLIB has no record whose artist **and** track both match the song. The artist/track
+come from the YouTube metadata (or the title, or the uploader), which can be wrong or missing;
+songs absent from LRCLIB fall back to Whisper alone.
+
+**Solution**: Open **Regenerate lyrics** in the mixer, click **Search LRCLIB**, correct the
+artist/track and search again, then pick a result: **L** = line-synced, **T** = text only (timed
+by Whisper). Use **LRCLIB + Whisper sync** for word timing, or **LRCLIB timing** for a
+line-synced result.
+
 ### No Metronome Click
 
 **Cause**: The metronome track starts muted. Unmute it in its track controls.

@@ -466,13 +466,19 @@ function getChordColor(chord) {
 
 **Purpose**: Synchronized lyrics display
 
-**Size**: ~490 lines
+**Size**: ~1330 lines
 
 **Features**:
 - Word-level highlighting
 - Auto-scroll to current line
 - Click to seek
 - Mobile-optimized (focused view)
+- Regenerate dialog (button tooltip "Regenerate lyrics (LRCLIB + Whisper)"): **Search LRCLIB**
+  (`POST /api/lyrics/search`) lists results with a badge **L** (line-synced) or **T** (text only,
+  timed by Whisper) and the duration; **LRCLIB timing** (synced results only) and
+  **LRCLIB + Whisper sync** call `/lyrics/regenerate` with `lrclib_id` and `sync_with_whisper`;
+  **Whisper Only** sends `force_whisper`. The success message shows source, language and word
+  match stats. `mobile-app.js` has the same dialog.
 
 **Lyrics Rendering**:
 ```javascript

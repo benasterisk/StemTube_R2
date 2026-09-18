@@ -40,9 +40,9 @@ User Request → Check global_downloads → Use existing OR Process → Add user
 ### Processing Pipeline (4 phases)
 
 1. **Download** — yt-dlp downloads from YouTube, converts to MP3. File upload also supported (MP3, WAV, FLAC, M4A, AAC, OGG, WMA, MP4, AVI, MKV, MOV, WEBM).
-2. **Audio Analysis** (auto after download) — BPM/key detection (librosa/scipy), chord detection (BTC transformer only), synced lyrics lookup (`syncedlyrics_client.py`). Structure analysis (MSAF Foote boundaries + FMC2D labels) fills `structure_data`: sections are similarity clusters labelled with letters in order of first appearance (`A B C D E D E D`) — MSAF does not name verses/choruses. msaf 0.1.80 needs `scipy.inf` / `scipy.signal.gaussian`, which the detector restores before importing it; each run uses its own temporary feature cache. `POST /api/extractions/<id>/analyze-structure` re-runs it; `utils/analysis/reanalyze_all_structure.py [--force] [--limit N]` backfills existing songs (~30 s per song).
+2. **Audio Analysis** (auto after download) — BPM/key detection (librosa/scipy), chord detection (BTC transformer only), lyrics preview: the yt-dlp metadata (artist, track, language…) is stored in `media_metadata`, and when LRCLIB (`lrclib_client.py`, free, no account) has line-synced lyrics a line-timed preview is stored as `lyrics_data` (plain-text records need Whisper timing, so they wait for extraction). Structure analysis (MSAF Foote boundaries + FMC2D labels) fills `structure_data`: sections are similarity clusters labelled with letters in order of first appearance (`A B C D E D E D`) — MSAF does not name verses/choruses. msaf 0.1.80 needs `scipy.inf` / `scipy.signal.gaussian`, which the detector restores before importing it; each run uses its own temporary feature cache. `POST /api/extractions/<id>/analyze-structure` re-runs it; `utils/analysis/reanalyze_all_structure.py [--force] [--limit N]` backfills existing songs (~30 s per song).
 3. **Stem Extraction** (user-triggered) — Demucs separation: `htdemucs` (4 stems), `htdemucs_ft` (4 stems), `htdemucs_6s` (6 stems), `mdx_extra` (4 stems); `mdx_extra_q` is listed but unreachable (disabled in the UI, `diffq` not installed). Auto GPU detection with CPU fallback. Plus `mvsep_mega_fine` (engine `msst`, CUDA only), a 3-stage hybrid run by `core/msst/separate.py`: `htdemucs_6s` coarse split → DrumSep (inagoy, HDemucs, MIT) on the drums stem → ZFTurbo's MVSep Mega 53-stem BS-Roformer heads split the remaining Demucs stems via Wiener masks. 17 fine stems (lead/backing vocals, drums (rest)/kick/snare/toms/cymbals, electric/acoustic guitar, piano, organ, synth, brass, winds, strings, other). Measured on real songs: Mega alone misses much of the kit, and its kit heads isolate 9-44 % of the drums where DrumSep reaches 76-94 %; stems always sum to the mix. Also writes `drums_full.mp3` (the Demucs drums, not a mixer track) for metronome beat detection. Re-extracting with another model replaces the stems (`remove_replaced_stems` in `extensions.py`).
-4. **Post-Extraction** (auto) — Lyrics re-detection on the vocals stem: faster-whisper and Musixmatch run **in parallel** and are merged (Musixmatch text + Whisper timings, `core/lyrics_merger.py`). Then the madmom beat/downbeat grid, then the mixer artifacts are pre-built (`warm_prepare` in `routes/poc_mixer.py`) so the first mixer open is a cache hit.
+4. **Post-Extraction** (auto) — Lyrics on the vocals stem with the full `detect_lyrics_unified()` pipeline (the same one Regenerate uses), replacing the preview: artist/track resolved from `media_metadata` → LRCLIB lookup → faster-whisper in the sung language (detected on voiced parts; falls back to the YouTube-declared language when unsure) → `core/lyrics_merger.py` aligns the LRCLIB words onto the Whisper word timings (source `lrclib+whisper`). Below 30 % matched words the lyrics are rejected in favour of LRCLIB line timing (synced record) or Whisper alone (plain text); no LRCLIB record → Whisper alone. Then the madmom beat/downbeat grid, then the mixer artifacts are pre-built (`warm_prepare` in `routes/poc_mixer.py`) so the first mixer open is a cache hit.
 
 ### Startup Sequence (`app.py`)
 
@@ -56,7 +56,7 @@ User Request → Check global_downloads → Use existing OR Process → Add user
 Four tables in `stemtubes.db`:
 
 - **`users`** — Authentication (Flask-Login + werkzeug bcrypt). Fields: `id`, `username`, `password_hash`, `is_admin`, `disclaimer_accepted`.
-- **`global_downloads`** — Master file records. Key fields: `video_id` (unique key), `extracted`, `extraction_model`, `stems_paths` (JSON), `chords_data` (JSON), `structure_data` (JSON), `lyrics_data` (JSON), `detected_bpm`, `detected_key`, `beat_offset`.
+- **`global_downloads`** — Master file records. Key fields: `video_id` (unique key), `extracted`, `extraction_model`, `stems_paths` (JSON), `chords_data` (JSON), `structure_data` (JSON), `lyrics_data` (JSON), `media_metadata` (JSON: yt-dlp artist/track/language/uploader/tags/duration, used by the lyrics lookup), `detected_bpm`, `detected_key`, `beat_offset`.
 - **`user_downloads`** — Per-user access (denormalized copy of global fields for query speed). FK to `global_downloads.id`.
 - **`recordings`** — User recording takes. Fields: `id` (UUID hex), `user_id`, `download_id`, `name`, `start_offset` (timeline position in seconds), `filename` (WAV path). FK to `global_downloads.id`.
 
@@ -84,10 +84,10 @@ Central anti-circular-dependency hub — all blueprints import from here. Contai
 | `chord_detector.py` | BTC chord detector (170 chord vocabulary) — the only chord engine; returns no beats |
 | `madmom_chord_detector.py` | madmom **beat/downbeat** detection only (its chord path is unused) |
 | `hybrid_chord_detector.py` | Dead code — no importers |
-| `lyrics_detector.py` | `detect_lyrics_unified()`: faster-whisper + Musixmatch in parallel, merged by `lyrics_merger.py` |
-| `lyrics_aligner.py` | Dead code — no importers (the LrcLib path is gone; `lrclib_client.py` is dead too) |
-| `syncedlyrics_client.py` | Synced lyrics lookup (Musixmatch) — at download time, and inside `detect_lyrics_unified()` after extraction |
-| `vocal_onset_detector.py` | Dead code — no importers |
+| `lyrics_detector.py` | `detect_lyrics_unified()` — the one lyrics pipeline (after download, after extraction, Regenerate): LRCLIB lookup → faster-whisper in the sung language (Whisper `detect_language` on voiced parts, ≥0.7 wins, else the YouTube language) → alignment; drops Whisper credit hallucinations |
+| `lyrics_merger.py` | `align_lines_with_whisper()`: SequenceMatcher on normalized words, matched words take Whisper timings, the rest are interpolated; returns `alignment_stats` (match rate < 30 % = rejected) |
+| `lrclib_client.py` | LRCLIB API (lrclib.net, free, no account): `search_tracks()`, `get_record()`, `find_best_record()` (artist and track ≥0.6 similarity, synced preferred, closest duration), LRC/plain parsing, `spread_words()`; retries 429/5xx. Never word-level |
+| `media_metadata.py` | yt-dlp metadata (`from_ytdlp_info`, lazy `load_media_metadata` for older YouTube songs) and `resolve_artist_track()`: override > YouTube artist+track > "Artist - Track" title > ID3 (uploads) > "(Musical Artist)" tag > YouTube artist > uploader |
 | `msaf_structure_detector.py` | MSAF structure analysis — sections labelled A, B, C… by similarity cluster; patches the two SciPy names msaf needs before import (`structure_detector.py` and `llm_structure_analyzer.py` are dead code) |
 | `config.py` | Configuration management, `get_setting()` / `update_setting()` |
 | `auth_db.py` | User authentication, `create_user()`, `authenticate_user()` |
@@ -115,7 +115,7 @@ Central anti-circular-dependency hub — all blueprints import from here. Contai
 | `admin_api_bp` | `routes/admin_api.py` | Admin REST API |
 | `downloads_bp` | `routes/downloads.py` | Search, download CRUD |
 | `extractions_bp` | `routes/extractions.py` | Stem extraction CRUD |
-| `media_bp` | `routes/media.py` | Lyrics, chords, beats, musixmatch |
+| `media_bp` | `routes/media.py` | Lyrics (incl. LRCLIB search), chords, beats, structure |
 | `library_bp` | `routes/library.py` | User library, disclaimer, cleanup |
 | `files_bp` | `routes/files.py` | Upload, download, stream, stems serving |
 | `config_bp` | `routes/config_routes.py` | App config, FFmpeg, browser logging config |

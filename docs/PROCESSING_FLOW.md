@@ -47,10 +47,11 @@ This document describes the complete flow from download to extraction, including
 - **Output:** `structure_data` - sections labelled by similarity cluster with letters in order of first appearance (e.g. `A B C D E D E D`); MSAF does not name verses or choruses. Zero-length sections are dropped. See [STRUCTURE_ANALYSIS_IMPLEMENTATION.md](feature-guides/STRUCTURE_ANALYSIS_IMPLEMENTATION.md).
 - **Re-run:** `POST /api/extractions/<id>/analyze-structure`, or `python utils/analysis/reanalyze_all_structure.py [--force] [--limit N]` for the whole library
 
-### 2.4 Lyrics Detection (Musixmatch Only)
-- **Library:** syncedlyrics API (Musixmatch), via `core/syncedlyrics_client.py`
-- **Note:** Only API call, NO Whisper (done after extraction)
-- **Output:** `lyrics_data` (if found on Musixmatch)
+### 2.4 Lyrics Preview (LRCLIB Only)
+- **Metadata:** the yt-dlp metadata (artist, track, language, uploader, tags, duration) is stored as JSON in `media_metadata` (`core/media_metadata.py`); `resolve_artist_track()` picks the artist/track used for the lookup
+- **Library:** [LRCLIB](https://lrclib.net) (free, no account) via `core/lrclib_client.py` - artist and track must both match (≥0.6 similarity), line-synced records preferred, closest duration wins
+- **Note:** API call only, NO Whisper (done after extraction). Plain-text records need Whisper timing, so they wait for extraction
+- **Output:** `lyrics_data` - a line-timed preview, only when LRCLIB has line-synced lyrics
 
 **Database Update:** All results saved to `global_downloads` table
 
@@ -106,11 +107,12 @@ With `mvsep_mega_fine` the stems are `vocals` (lead), `backing_vocals`, `drums` 
 ### 4.1 Lyrics Detection (Full)
 - **Condition:** Only if `vocals.mp3` exists
 - **Entry point:** `detect_lyrics_unified()` in `core/lyrics_detector.py`
-- **Method:** faster-whisper transcription AND Musixmatch fetch run **in parallel**, then `core/lyrics_merger.py` merges them: Musixmatch text + Whisper word timings. Whisper-only if Musixmatch has nothing; Musixmatch-only if Whisper fails.
+- **Method:** the full pipeline (the same one Regenerate uses): artist/track resolved from `media_metadata` → LRCLIB lookup → faster-whisper in the sung language (Whisper `detect_language` on voiced parts; ≥0.7 probability wins, else the YouTube-declared language) → `align_lines_with_whisper()` in `core/lyrics_merger.py` puts the LRCLIB words on the Whisper word timings (source `lrclib+whisper`, with `alignment_stats`). Whisper credit hallucinations ("thanks for watching", Amara.org, ...) are dropped.
 - **Input:** vocals.mp3 (better quality than full audio)
 - **Output:** Updates `lyrics_data` in database
+- **Progress:** `lyrics_progress` steps `metadata`, `lyrics_search`, `lyrics_found` / `lyrics_not_found`, `whisper`, `whisper_done`, `aligning`, `aligned` / `align_rejected`, `done` / `failed` (extraction progress 49-72 %)
 
-**Note:** This REPLACES any lyrics found during download phase (uses better source)
+**Note:** This REPLACES the LRCLIB preview stored during the download phase
 
 ### 4.2 Beat / Downbeat Detection
 - **Library:** madmom (beat and downbeat tracking only - never chords)
@@ -127,11 +129,11 @@ With `mvsep_mega_fine` the stems are `vocals` (lead), `backing_vocals`, `drums` 
 1. BTC Transformer (170 chord vocabulary) - no fallback. madmom CRF and the hybrid detector are no longer wired in.
 
 ### Lyrics Detection
-1. faster-whisper + Musixmatch in parallel, merged (Musixmatch text, Whisper timings)
-2. Whisper-only if Musixmatch has no match
-3. Musixmatch-only if Whisper fails
+1. LRCLIB words aligned on the Whisper word timings (`lrclib+whisper`)
+2. Below 30 % matched words the alignment is rejected: a line-synced record keeps its own line timing (`lrclib`), a plain-text record falls back to Whisper alone
+3. Whisper alone (`whisper`) if the song is not on LRCLIB
 
-LRCLIB is not a lyrics source. `core/lrclib_client.py`, `core/lyrics_aligner.py` and `core/vocal_onset_detector.py` are dead code.
+Musixmatch was removed: its unofficial desktop API stopped serving anonymous clients around April 2026.
 
 ### Structure Analysis
 MSAF only - no fallback. If detection fails, `structure_data` is left unchanged.
@@ -146,7 +148,7 @@ MSAF only - no fallback. If detection fails, `structure_data` is left unchanged.
 | Chords | BTC-ISMIR19 | Chord recognition |
 | Beats | madmom | Beat/downbeat grid for the metronome |
 | Structure | MSAF | Section segmentation (A/B/C similarity labels) |
-| Lyrics (sync) | syncedlyrics / Musixmatch | Musixmatch API |
+| Lyrics (text) | LRCLIB | Lyrics lookup (line-synced or plain text) |
 | Lyrics (ASR) | faster-whisper | Speech-to-text, word timings |
 | Stem Separation | Demucs, MSST (BS-Roformer), DrumSep | Source separation |
 
@@ -160,7 +162,7 @@ MSAF only - no fallback. If detection fails, `structure_data` is left unchanged.
 | Stem Extraction | `core/stems_extractor.py`, `core/msst/separate.py` (fine stems) |
 | Chord Detection | `core/chord_detector.py`, `core/btc_chord_detector.py` |
 | Beat Detection | `core/madmom_chord_detector.py` (beats only), called from `extensions.py` |
-| Lyrics Detection | `core/lyrics_detector.py`, `core/lyrics_merger.py`, `core/syncedlyrics_client.py`, `core/musixmatch_client.py` |
+| Lyrics Detection | `core/lyrics_detector.py`, `core/lyrics_merger.py`, `core/lrclib_client.py`, `core/media_metadata.py` |
 | Structure Analysis | `core/msaf_structure_detector.py` |
 | Database | `core/downloads_db.py` → `core/db/` |
 | Main Routes | `routes/` blueprints, post-extraction chain in `extensions.py` |
@@ -170,8 +172,8 @@ MSAF only - no fallback. If detection fails, `structure_data` is left unchanged.
 ## Optimization Notes
 
 1. **Lyrics Detection Optimized:**
-   - During download: Only Musixmatch (fast API call)
-   - After extraction: Musixmatch + Whisper in parallel, merged (using vocals.mp3)
+   - During download: Only LRCLIB (fast API call, line-synced preview)
+   - After extraction: LRCLIB + Whisper, aligned (using vocals.mp3)
    - Avoids redundant Whisper processing on full audio
 
 2. **Chord Detection:**

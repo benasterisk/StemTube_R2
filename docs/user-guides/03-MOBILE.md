@@ -548,7 +548,7 @@ See the [Frontend Guide](../developer-guides/FRONTEND-GUIDE.md) for the technica
 
 **Advanced Features**:
 - [Chord Detection](../feature-guides/CHORD-DETECTION.md) - Automatic chord recognition
-- [Processing Flow](../PROCESSING_FLOW.md) - Lyrics pipeline (Whisper + Musixmatch)
+- [Processing Flow](../PROCESSING_FLOW.md) - Lyrics pipeline (LRCLIB + Whisper)
 
 ---
 

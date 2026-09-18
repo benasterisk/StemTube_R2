@@ -17,7 +17,7 @@
 - 🥁 **Fine Stems** - lead/backing vocals, kick/snare/toms/cymbals, electric/acoustic guitar, piano, organ, synth, brass, winds, strings (CUDA GPU required)
 - 🎸 **Chord Detection** - BTC Transformer, 170-chord vocabulary, with Guitar Hero-style fixed reading focus
 - 🥁 **Beat Grid** - madmom downbeat detection driving the metronome, detected once per song
-- 🎤 **Karaoke Mode** - Musixmatch lyrics and faster-whisper transcription merged (GPU-accelerated)
+- 🎤 **Karaoke Mode** - LRCLIB lyrics aligned word by word on a faster-whisper transcription in the sung language (GPU-accelerated)
 - 🎚️ **Interactive Mixer** - Independent pitch/tempo control (SoundTouch + Web Audio API), audible scrubbing and A/B loops
 - 🎙️ **Multi-Track Recording** - DAW-style record-along with latency calibration
 - 📁 **File Upload** - Support for MP3, WAV, FLAC, M4A, AAC, OGG, WMA, MP4, AVI, MKV, MOV, WEBM

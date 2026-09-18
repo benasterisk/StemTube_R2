@@ -236,7 +236,7 @@ chore: update dependencies to latest versions
 **Always test:**
 1. Download workflow (YouTube + file upload)
 2. Extraction with different models (`mvsep_mega_fine` needs a CUDA GPU)
-3. Chord detection (BTC), beat detection (madmom), structure analysis (MSAF) and lyrics (Whisper + Musixmatch)
+3. Chord detection (BTC), beat detection (madmom), structure analysis (MSAF) and lyrics (LRCLIB + Whisper alignment)
 4. Mixer functionality (play/pause, stems, pitch/tempo, loop/scrub, recording)
 5. Mobile interface (if UI changes)
 

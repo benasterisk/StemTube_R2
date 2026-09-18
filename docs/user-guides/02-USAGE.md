@@ -420,17 +420,20 @@ python utils/analysis/reanalyze_all_chords.py
 
 ## Lyrics & Karaoke
 
-**Automatic synced lyrics** with word-level timing: faster-whisper transcription and Musixmatch run in parallel and are merged.
+**Automatic synced lyrics** with word-level timing: the lyrics text comes from [LRCLIB](https://lrclib.net) (free, no account) and is aligned on the word timings of a faster-whisper transcription.
 
 ### Lyrics Transcription
 
 **Automatic Detection**:
-1. After download, StemTube looks the song up on Musixmatch (quick API call)
-2. After stem extraction, faster-whisper transcribes the isolated vocals stem **and** Musixmatch
-   is queried at the same time
-3. The results are merged: Musixmatch provides the words, Whisper provides the word timings
-4. If Musixmatch has no match, the Whisper transcription is used alone; if Whisper fails, the
-   Musixmatch lyrics are used alone
+1. After download, StemTube keeps the YouTube metadata (artist, track, language) and looks the
+   song up on LRCLIB (quick API call); if LRCLIB has line-synced lyrics, they are shown right
+   away with line timing
+2. After stem extraction, faster-whisper transcribes the isolated vocals stem in the language
+   actually sung (detected on the voiced parts; the YouTube language is used when unsure)
+3. The LRCLIB words are aligned on the Whisper word timings (source `lrclib+whisper`)
+4. If fewer than 30 % of the words match, the alignment is rejected: line-synced LRCLIB lyrics
+   keep their own line timing, text-only lyrics give way to the Whisper transcription. Songs
+   not found on LRCLIB use the Whisper transcription alone
 
 **Processing**:
 - **CPU Mode**: 30-120 seconds per song
@@ -442,6 +445,17 @@ python utils/analysis/reanalyze_all_chords.py
 - English: Best supported
 - Other languages: Supported but may vary
 - Instrumental sections: Detected and skipped
+
+### Regenerating Lyrics
+
+The **Regenerate lyrics (LRCLIB + Whisper)** button in the mixer (also on mobile) opens a dialog:
+
+- **Search LRCLIB**: edit the artist/track and search; each result shows a badge **L**
+  (line-synced) or **T** (text only, timed by Whisper) and its duration
+- Pick a result, then **LRCLIB timing** (line-synced results only, no Whisper run) or
+  **LRCLIB + Whisper sync** (word timing from Whisper)
+- **Whisper Only**: skip LRCLIB and transcribe the vocals
+- The success message shows the source, the language and how many words matched
 
 ### Karaoke Mode
 
@@ -492,9 +506,11 @@ Compact for easier reading on small screens
 
 **Troubleshooting**:
 - No lyrics: Ensure song has vocals (not instrumental)
-- Wrong lyrics: Try re-running extraction or edit manually
-- Timing off: timings come from faster-whisper; regenerate lyrics from the mixer
-- Language issues: English most accurate, other languages may vary
+- Wrong lyrics: Regenerate lyrics, fix the artist/track and pick the right LRCLIB result
+- Timing off: word timings come from faster-whisper; regenerate with **LRCLIB + Whisper sync**,
+  or **LRCLIB timing** for a line-synced result
+- Language issues: the sung language is detected on the vocals; see
+  [Troubleshooting](05-TROUBLESHOOTING.md) if lyrics come out in the wrong language
 
 ---
 

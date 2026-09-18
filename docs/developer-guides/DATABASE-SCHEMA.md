@@ -174,6 +174,7 @@ CREATE TABLE global_downloads (
     beat_positions TEXT,
     music_start_time REAL DEFAULT 0.0,
     metronome_offset_ms REAL DEFAULT 0.0,
+    media_metadata TEXT,
     UNIQUE(video_id, media_type, quality)
 )
 ```
@@ -206,11 +207,12 @@ auto-migration `_add_extraction_fields_if_missing()` in `core/db/schema.py`.)
 | `chords_data` | TEXT | YES | NULL | JSON: [{"timestamp": 0.0, "chord": "C:maj"}, ...] (BTC) |
 | `beat_offset` | REAL | NO | 0.0 | Time offset to first downbeat (seconds) |
 | `structure_data` | TEXT | YES | NULL | JSON: [{"start": 0.0, "end": 18.2, "label": "A", "confidence": 1.0}, ...] (MSAF, similarity-labelled sections) |
-| `lyrics_data` | TEXT | YES | NULL | JSON: [{"start": 0.0, "end": 2.5, "text": "...", "words": [...]}, ...] |
+| `lyrics_data` | TEXT | YES | NULL | JSON: [{"start": 0.0, "end": 2.5, "text": "...", "words": [...]}, ...] (LRCLIB aligned on Whisper, or LRCLIB line preview / Whisper alone) |
 | `beat_times` | TEXT | YES | NULL | JSON array of beat timestamps (madmom) |
 | `beat_positions` | TEXT | YES | NULL | JSON array of beat-in-bar positions (1,2,3,4) |
 | `music_start_time` | REAL | NO | 0.0 | Where the music actually begins (seconds) |
 | `metronome_offset_ms` | REAL | NO | 0.0 | Manual metronome grid nudge (milliseconds) |
+| `media_metadata` | TEXT | YES | NULL | JSON: yt-dlp metadata used by the lyrics lookup (see below) |
 
 **Constraints**:
 - `PRIMARY KEY (id)`
@@ -272,6 +274,28 @@ name verses or choruses. `confidence` is a fixed 1.0 placeholder.
     ]
   }
 ]
+```
+
+Written by the download phase (LRCLIB line-timed preview, each line split into words by length,
+only when LRCLIB has line-synced lyrics), then replaced after extraction and on Regenerate by
+`detect_lyrics_unified()` (LRCLIB words on Whisper word timings, or Whisper alone).
+
+**media_metadata** (object) - built by `from_ytdlp_info()` in `core/media_metadata.py` at
+download time and written on `global_downloads` by `update_media_metadata()` (read with
+`get_media_metadata()`, `core/db/downloads.py`). For songs downloaded before the column existed,
+`load_media_metadata(video_id)` fetches it lazily with a metadata-only yt-dlp request (uploads,
+`upload_<hex>` IDs, are skipped). Used by `resolve_artist_track()` for the LRCLIB lookup and as
+the language hint for Whisper.
+```json
+{
+  "source": "youtube",
+  "artist": "Taxi Girl",
+  "track": "Paris",
+  "language": "fr",
+  "uploader": "Taxi Girl - Topic",
+  "tags": ["Taxi Girl", "Paris"],
+  "duration": 214
+}
 ```
 
 **Example**:
@@ -363,7 +387,7 @@ CREATE TABLE user_downloads (
 
 **Denormalization**:
 - Most fields copied from `global_downloads` for faster queries
-- The startup auto-migration adds the same analysis columns (`detected_bpm` ... `metronome_offset_ms`)
+- The startup auto-migration adds the same analysis columns (`detected_bpm` ... `media_metadata`)
   to `user_downloads` too; queries prefer global values via `COALESCE(global.field, user.field)`
 - Single query returns all user downloads without JOIN
 - Trade-off: Data redundancy for query performance
@@ -610,6 +634,7 @@ def _add_extraction_fields_if_missing(conn):
         ("beat_positions", "TEXT"),
         ("music_start_time", "REAL DEFAULT 0.0"),
         ("metronome_offset_ms", "REAL DEFAULT 0.0"),
+        ("media_metadata", "TEXT"),
         # ... (abridged; see core/db/schema.py)
     ]
 
@@ -849,6 +874,8 @@ if record['chords_data']:
 - Four tables: `users`, `global_downloads`, `user_downloads`, `recordings` (recordings are live)
 - Beat columns in use: `beat_times`, `beat_positions`, `music_start_time`, `metronome_offset_ms`
 - `structure_data` is filled again (MSAF sections, backfilled for existing songs in September 2026)
+- Added: `media_metadata` (yt-dlp artist/track/language... for the LRCLIB lyrics lookup), on
+  `global_downloads` and `user_downloads`
 
 ### Future Considerations
 

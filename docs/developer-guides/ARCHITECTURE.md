@@ -57,7 +57,8 @@ global_downloads:
   - detected_key (TEXT) - Musical key (e.g. "F major")
   - chords_data (JSON) - Chord progression with timestamps
   - structure_data (JSON) - Song sections (MSAF, labelled A, B, C... by similarity)
-  - lyrics_data (JSON) - Transcribed lyrics with word timestamps
+  - lyrics_data (JSON) - Lyrics lines with word timestamps (LRCLIB aligned on Whisper)
+  - media_metadata (JSON) - yt-dlp artist/track/language/uploader/tags/duration (lyrics lookup)
 ```
 
 **Analysis Data Priority:**
@@ -174,25 +175,29 @@ core/downloads/
 - Dead modules: `core/structure_detector.py`, `core/llm_structure_analyzer.py` (no importers)
 
 ### 4. Lyrics System
-**Files:** `core/lyrics_detector.py` (`detect_lyrics_unified`), `core/lyrics_merger.py`, `core/musixmatch_client.py`, `core/syncedlyrics_client.py` (download phase only)
+**Files:** `core/lyrics_detector.py` (`detect_lyrics_unified`, run after extraction and on Regenerate; the download phase only does its LRCLIB lookup), `core/lyrics_merger.py` (`align_lines_with_whisper`), `core/lrclib_client.py` (LRCLIB API, free, no account), `core/media_metadata.py` (yt-dlp metadata, artist/track resolution)
 
-**Dead modules:** `core/lrclib_client.py`, `core/lyrics_aligner.py`, `core/vocal_onset_detector.py`
+Musixmatch was removed: its unofficial desktop API stopped serving anonymous clients around April 2026.
 
 **faster-whisper Integration:**
 - GPU-accelerated speech recognition (3-5x faster than CPU)
 - Automatic GPU library configuration in `app.py` startup
 - Word-level timestamps for karaoke synchronization
-- Multi-language support with auto-detection
+- Sung-language detection on voiced parts (≥0.7 probability wins, else the YouTube-declared language)
+- Known Whisper credit hallucinations ("thanks for watching", Amara.org, ...) dropped
 - VAD (Voice Activity Detection) filtering
 
 **Process:**
 ```python
-1. Prefer vocals stem if available
-2. Run faster-whisper transcription AND Musixmatch fetch in parallel threads
-3. Merge: Musixmatch text + Whisper word timestamps (core/lyrics_merger.py)
-   (Whisper-only if Musixmatch has nothing, Musixmatch-only if Whisper fails)
-4. Save to lyrics_data JSON
-5. Display in mixer karaoke interface
+1. Resolve artist/track (media_metadata: override > YouTube artist+track > "Artist - Track" title > ...)
+2. Look the song up on LRCLIB (artist and track must match, line-synced preferred, closest duration)
+   - download phase: store a line-timed preview if the record is line-synced, stop there
+3. After extraction / Regenerate: faster-whisper on the vocals stem, in the sung language
+4. Align: LRCLIB words on Whisper word timings (core/lyrics_merger.py) -> source 'lrclib+whisper'
+   (< 30 % matched words: LRCLIB line timing for a synced record, Whisper alone for plain text;
+   not on LRCLIB: Whisper alone)
+5. Save to lyrics_data JSON
+6. Display in mixer karaoke interface
 ```
 
 **GPU Configuration:**
@@ -319,7 +324,8 @@ class ModuleName {
 
 **Lyrics / Analysis:** (routes/media.py)
 - `GET /api/extractions/<id>/lyrics` - Get cached lyrics
-- `POST /api/extractions/<id>/lyrics/regenerate` - Whisper + Musixmatch in parallel, merged
+- `POST /api/extractions/<id>/lyrics/regenerate` - LRCLIB + Whisper, aligned (`artist`, `track`, `force_whisper`, `lrclib_id`, `sync_with_whisper`)
+- `POST /api/lyrics/search` - Search LRCLIB for the Regenerate dialog
 - `POST /api/extractions/<id>/lyrics/generate`, `POST /api/extractions/<id>/lyrics/lrclib` - Deprecated shims redirecting to `/lyrics/regenerate`
 - `POST /api/extractions/<id>/chords/regenerate` - BTC chords (beat grid and Skip Intro untouched)
 - `POST /api/extractions/<id>/beats/regenerate` - madmom beats/downbeats (keeps Skip Intro)

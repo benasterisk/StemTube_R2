@@ -34,7 +34,7 @@ Complete guide to the Python backend architecture and modules.
 - MSST BS-Roformer, vendored in `core/msst/` (MVSep Mega fine stems, CUDA only)
 - BTC-ISMIR19 transformer (chord detection)
 - madmom (beat/downbeat detection only)
-- faster-whisper + Musixmatch (lyrics, run in parallel and merged)
+- LRCLIB + faster-whisper (lyrics: LRCLIB text aligned on Whisper word timings)
 - MSAF (structure analysis: sections labelled A, B, C... by similarity)
 - SQLite3 (database)
 - aiotube + yt-dlp (YouTube download)
@@ -67,13 +67,10 @@ core/
 ├── madmom_chord_detector.py    # madmom - used ONLY for beat/downbeat detection
 ├── hybrid_chord_detector.py    # DEAD (no importers)
 │
-├── lyrics_detector.py          # detect_lyrics_unified(): Whisper + Musixmatch in parallel
-├── lyrics_merger.py            # Merge Musixmatch text with Whisper timestamps
-├── musixmatch_client.py        # Musixmatch API client
-├── syncedlyrics_client.py      # Synced lyrics lookup (download phase only)
-├── lrclib_client.py            # DEAD
-├── lyrics_aligner.py           # DEAD
-├── vocal_onset_detector.py     # DEAD
+├── lyrics_detector.py          # detect_lyrics_unified(): LRCLIB lookup → Whisper → alignment
+├── lyrics_merger.py            # align_lines_with_whisper(): LRCLIB words on Whisper timings
+├── lrclib_client.py            # LRCLIB API client (lrclib.net, free, no account)
+├── media_metadata.py           # yt-dlp metadata, resolve_artist_track()
 │
 ├── msaf_structure_detector.py  # MSAF structure detector (A/B/C similarity sections)
 ├── structure_detector.py       # DEAD (no importers)
@@ -186,7 +183,7 @@ def get_video_info(video_id):
 - Download queue management
 - BPM detection
 - Musical key detection
-- Download-phase analysis: BTC chords, MSAF structure, synced lyrics
+- Download-phase analysis: BTC chords, MSAF structure, `media_metadata` + LRCLIB line-synced lyrics preview
 - Download progress via WebSocket
 
 **Download Pipeline**:
@@ -413,7 +410,7 @@ subprocess.Popen(cmd, ...)                      # progress parsed from output
 # → on_extraction_complete → extensions.py post-extraction steps:
 #     remove_replaced_stems(item)               # re-extraction replaces old stems
 #     db_mark_extraction_complete(...)
-#     detect_lyrics_unified(vocals)             # Whisper + Musixmatch, merged
+#     detect_lyrics_unified(vocals)             # LRCLIB + Whisper, aligned
 #     MadmomChordDetector beat/downbeat detection
 #     routes.poc_mixer.warm_prepare(...)        # pre-build mixer artifacts
 ```
@@ -589,34 +586,61 @@ beat_offset, beats, beat_positions = detector._detect_beats(audio_path, detected
 
 #### 11. lyrics_detector.py
 
-**Purpose**: Unified lyrics detection - faster-whisper AND Musixmatch in parallel, then merge
+**Purpose**: Unified lyrics detection - LRCLIB lookup, faster-whisper transcription in the sung
+language, then alignment of the LRCLIB words on the Whisper word timings. Used after extraction
+and on Regenerate; the download phase (`download_manager.py`) runs only the LRCLIB lookup
+(`find_best_record()`) and stores a line-timed preview when the record is line-synced.
 
-**Size**: ~280 lines
+**Size**: ~440 lines
 
 **Modules**:
-- `core/lyrics_detector.py` - `detect_lyrics_unified()`
-- `core/lyrics_merger.py` - merges Musixmatch text with Whisper word timestamps
-- `core/musixmatch_client.py` - Musixmatch API
-- `core/syncedlyrics_client.py` - used only at download time
-- DEAD: `core/lrclib_client.py`, `core/lyrics_aligner.py`, `core/vocal_onset_detector.py`
+- `core/lyrics_detector.py` - `detect_lyrics_unified()`, `detect_song_lyrics()` (Whisper only),
+  `choose_language()`, `is_hallucination()`
+- `core/lyrics_merger.py` - `align_lines_with_whisper()`: SequenceMatcher on normalized words;
+  matched words take the Whisper timings, misheard runs share the Whisper span, the rest use the
+  line estimates shifted by the median offset (or their neighbours); returns `alignment_stats`
+- `core/lrclib_client.py` - LRCLIB API (lrclib.net, free, no account): `search_tracks()`,
+  `get_record()`, `find_best_record()` (artist and track ≥0.6 similarity, synced preferred,
+  closest duration), `parse_synced()` / `parse_plain()` / `record_to_lines()` (level `line` or
+  `text`), `spread_words()`; retries 429/502/503/504. Never word-level timing
+- `core/media_metadata.py` - `from_ytdlp_info()`, `load_media_metadata()` (lazy metadata-only
+  yt-dlp request for older YouTube songs; uploads `upload_<hex>` skipped),
+  `resolve_artist_track()`: override > YouTube artist+track > "Artist - Track" title > ID3 tags
+  (uploads) > "X (Musical Artist)" tag > YouTube artist > uploader (VEVO / " - Topic" stripped)
 
 **Flow**:
 ```python
 def detect_lyrics_unified(audio_path, title=None, model_size=None, use_gpu=True,
+                          duration=None, progress_callback=None,
                           override_artist=None, override_track=None,
-                          force_whisper=False, musixmatch_track_id=None, ...):
+                          force_whisper=False, lrclib_id=None, sync_with_whisper=True,
+                          media_metadata=None, file_path=None):
     """
-    1. Extract metadata (artist/track)
-    2. Launch Whisper transcription AND Musixmatch fetch in parallel threads
-    3. When both complete, merge: Musixmatch text + Whisper timestamps
-    4. Fallbacks: Whisper-only if no Musixmatch, Musixmatch-only if Whisper fails
+    1. Resolve artist/track (resolve_artist_track)
+    2. LRCLIB: the picked lrclib_id or find_best_record() (skipped if force_whisper)
+       - synced record and sync_with_whisper=False -> LRCLIB line timing, source 'lrclib'
+    3. faster-whisper on the vocals stem in the sung language: detect_language with the VAD
+       filter on voiced parts (3 x 30 s windows); >= 0.7 probability wins, else the
+       YouTube-declared language, else the weak guess. Credit hallucinations are dropped.
+    4. Lyrics found -> align_lines_with_whisper(), source 'lrclib+whisper'
+       - match_rate < 30 %: synced record keeps its line timing ('lrclib'),
+         plain text -> Whisper alone ('whisper')
+       Not on LRCLIB -> Whisper alone ('whisper')
 
     Returns:
-        dict: {lyrics, source, artist, track, alignment_stats}
+        dict: {lyrics, source, artist, track, language, lrclib_id, alignment_stats}
+        alignment_stats: {total_words, matched_words, interpolated_words, match_rate, whisper_words}
     """
 ```
 
-**Called by**: `extensions.py` (post-extraction, on the vocals stem) and
+Progress (`lyrics_progress`): `metadata`, `lyrics_search`, `lyrics_found` / `lyrics_not_found`,
+`whisper`, `whisper_done`, `aligning`, `aligned` / `align_rejected`, `done` / `failed`.
+
+Musixmatch was removed (its unofficial desktop API stopped serving anonymous clients around
+April 2026), together with `musixmatch_client.py`, `syncedlyrics_client.py`, `lyrics_aligner.py`,
+`vocal_onset_detector.py` and the `syncedlyrics` dependency.
+
+**Called by**: `extensions.py` (post-extraction, on the vocals stem, extraction progress 49-72 %) and
 `POST /api/extractions/<id>/lyrics/regenerate`. `/lyrics/generate` and `/lyrics/lrclib` are
 deprecated shims that redirect to `/lyrics/regenerate`.
 
@@ -1080,7 +1104,7 @@ User Input (YouTube URL or File Upload)
     ↓
 6. Structure detection (MSAF - A/B/C similarity sections)
     ↓
-7. Synced lyrics lookup (syncedlyrics_client)
+7. Store yt-dlp media_metadata; LRCLIB lookup, line-timed preview if line-synced
     ↓
 8. Save to global_downloads table
     ↓
@@ -1111,7 +1135,7 @@ User initiates extraction (video_id, model, stems)
     ↓
 6. Mark extraction complete in database
     ↓
-7. Lyrics: detect_lyrics_unified() on vocals (Whisper + Musixmatch, merged)
+7. Lyrics: detect_lyrics_unified() on vocals (LRCLIB + Whisper, aligned)
     ↓
 8. Beats/downbeats (madmom)
     ↓

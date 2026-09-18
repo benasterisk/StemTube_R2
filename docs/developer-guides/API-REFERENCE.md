@@ -841,8 +841,11 @@ Only `structure_data` is written; all other analysis fields are preserved.
 
 ### POST /api/extractions/<extraction_id>/lyrics/regenerate
 
-Regenerate lyrics: faster-whisper transcription and Musixmatch fetch run in parallel, then merge
-(Musixmatch text + Whisper word timestamps). Emits `lyrics_progress` SocketIO events.
+Regenerate lyrics with `detect_lyrics_unified()`: LRCLIB lookup (or the record picked with
+`lrclib_id`) → faster-whisper on the vocals stem in the sung language → LRCLIB words aligned on
+the Whisper word timings (`core/lyrics_merger.py`). Emits `lyrics_progress` SocketIO events
+(`metadata`, `lyrics_search`, `lyrics_found` / `lyrics_not_found`, `whisper`, `whisper_done`,
+`aligning`, `aligned` / `align_rejected`, `done` / `failed`).
 
 **Auth**: Required
 
@@ -852,21 +855,82 @@ Regenerate lyrics: faster-whisper transcription and Musixmatch fetch run in para
   "artist": "Override artist",
   "track": "Override track",
   "force_whisper": false,
-  "musixmatch_track_id": 12345
+  "lrclib_id": 12345,
+  "sync_with_whisper": true
 }
 ```
+
+- `artist` / `track`: override the name resolved from `media_metadata`
+- `force_whisper`: skip LRCLIB, Whisper transcription only
+- `lrclib_id`: LRCLIB record picked in the search dialog
+- `sync_with_whisper`: `false` keeps a line-synced record's own line timing (no Whisper run)
 
 **Response** (200 OK):
 ```json
 {
   "success": true,
   "lyrics": [...],
-  "source": "...",
+  "source": "lrclib+whisper",
   "artist": "Artist Name",
   "track": "Song Title",
-  "segments_count": 25
+  "language": "fr",
+  "lrclib_id": 12345,
+  "segments_count": 25,
+  "has_word_timestamps": true,
+  "alignment_stats": {
+    "total_words": 212,
+    "matched_words": 174,
+    "interpolated_words": 38,
+    "match_rate": 82.1,
+    "whisper_words": 205
+  }
 }
 ```
+
+`source` is `lrclib+whisper` (aligned), `lrclib` (LRCLIB line timing: `sync_with_whisper: false`,
+or alignment rejected below 30 % matched words on a line-synced record) or `whisper` (not on
+LRCLIB, `force_whisper`, or alignment rejected on a plain-text record).
+
+**Errors**: `500` when both LRCLIB and Whisper fail.
+
+**File**: routes/media.py
+
+---
+
+### POST /api/lyrics/search
+
+Search LRCLIB for the Regenerate dialog.
+
+**Auth**: Required
+
+**Request**:
+```json
+{
+  "artist": "Artist Name",
+  "track": "Song Title"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "results": [
+    {
+      "track_id": 12345,
+      "track_name": "Song Title",
+      "artist_name": "Artist Name",
+      "album_name": "Album",
+      "duration": 215.0,
+      "has_synced": true,
+      "has_plain": true,
+      "instrumental": false
+    }
+  ],
+  "query": "Artist Name - Song Title"
+}
+```
+
+**Errors**: `400` neither artist nor track given.
 
 **File**: routes/media.py
 
