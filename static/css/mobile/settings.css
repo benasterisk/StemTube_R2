@@ -930,13 +930,13 @@
     background: var(--mobile-bg-secondary, #1e1e1e);
 }
 
-.lyrics-dialog-musixmatch {
+.lyrics-dialog-lrclib-timing {
     background: rgba(29, 185, 84, 0.15);
     border-color: rgba(29, 185, 84, 0.4);
     color: #1db954;
 }
 
-.lyrics-dialog-musixmatch:active {
+.lyrics-dialog-lrclib-timing:active {
     background: rgba(29, 185, 84, 0.25);
 }
 
@@ -1050,12 +1050,12 @@
     font-weight: 700;
 }
 
-.lyrics-dialog-track-badge.badge-richsync {
+.lyrics-dialog-track-badge.badge-synced {
     background: rgba(76, 175, 80, 0.2);
     color: #4caf50;
 }
 
-.lyrics-dialog-track-badge.badge-subtitles {
+.lyrics-dialog-track-badge.badge-plain {
     background: rgba(255, 152, 0, 0.2);
     color: #ff9800;
 }

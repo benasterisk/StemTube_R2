@@ -71,6 +71,8 @@ class DownloadItem:
     detected_bpm: Optional[float] = None
     detected_key: Optional[str] = None
     analysis_confidence: Optional[float] = None
+    # yt-dlp metadata used by the lyrics lookup (core/media_metadata.py)
+    media_metadata: Optional[Dict] = None
     
     def __post_init__(self):
         """Generate a unique download ID if not provided."""
@@ -574,6 +576,9 @@ class DownloadManager:
                     if 'entries' in info:
                         # Playlist
                         info = info['entries'][0]
+
+                    from .media_metadata import from_ytdlp_info
+                    item.media_metadata = from_ytdlp_info(info)
                     
                     # Get file extension
                     ext = 'mp3' if item.download_type == DownloadType.AUDIO else info.get('ext', 'mp4')
@@ -725,35 +730,32 @@ class DownloadManager:
                             print(f"⚠️ [DOWNLOAD] Error MSAF structure: {e}")
                             structure_data = None
 
-                        # Detect lyrics: Only try Musixmatch during download (fast API call)
-                        # Whisper fallback will be done AFTER extraction with vocals.mp3 (better quality)
+                        # Lyrics preview from LRCLIB (fast API call). Only line-synced lyrics are
+                        # usable before extraction: the post-extraction pass aligns the text on
+                        # Whisper word timings from the vocals stem (core/lyrics_detector.py).
                         lyrics_data = None
                         try:
-                            from .metadata_extractor import extract_metadata
-                            from .syncedlyrics_client import fetch_lyrics_enhanced
+                            from .downloads_db import update_media_metadata
+                            from .media_metadata import resolve_artist_track
+                            from .lrclib_client import find_best_record, parse_synced, spread_words
 
-                            print(f"🎤 [DOWNLOAD] Searching Musixmatch lyrics for: {item.title}")
-
-                            # Extract artist/track from title
-                            artist, track = extract_metadata(db_title=item.title)
-
+                            if item.media_metadata:
+                                update_media_metadata(item.video_id, item.media_metadata)
+                            artist, track = resolve_artist_track(
+                                title=item.title, file_path=item.file_path, meta=item.media_metadata)
                             if artist and track:
-                                # Only try Musixmatch (fast API call, no local processing)
-                                synced_lyrics = fetch_lyrics_enhanced(
-                                    track_name=track,
-                                    artist_name=artist,
-                                    allow_plain=False  # Only word-level
-                                )
-
-                                if synced_lyrics:
-                                    lyrics_data = synced_lyrics
-                                    print(f"🎤 [DOWNLOAD] Musixmatch found: {len(lyrics_data)} segments")
+                                print(f"🎤 [DOWNLOAD] Searching LRCLIB lyrics for: {artist} - {track}")
+                                record = find_best_record(artist, track, (item.media_metadata or {}).get('duration'))
+                                lines = parse_synced(record.get('syncedLyrics')) if record else []
+                                if lines:
+                                    lyrics_data = spread_words(lines)
+                                    print(f"🎤 [DOWNLOAD] LRCLIB line-synced preview: {len(lyrics_data)} lines")
                                 else:
-                                    print(f"ℹ️ [DOWNLOAD] No Musixmatch lyrics - will use Whisper after extraction")
+                                    print(f"ℹ️ [DOWNLOAD] No line-synced LRCLIB lyrics - lyrics come after extraction")
                             else:
-                                print(f"ℹ️ [DOWNLOAD] Cannot search Musixmatch (missing artist/track) - will use Whisper after extraction")
+                                print(f"ℹ️ [DOWNLOAD] No artist/track for LRCLIB - lyrics come after extraction")
                         except Exception as e:
-                            print(f"⚠️ [DOWNLOAD] Musixmatch search error: {e}")
+                            print(f"⚠️ [DOWNLOAD] LRCLIB lookup error: {e}")
                             lyrics_data = None
 
                         # Snap music_start_time to nearest beat if beat data available

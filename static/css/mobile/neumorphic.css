@@ -553,17 +553,17 @@ body.neumorphic-custom .lyrics-dialog-field input:focus {
     box-shadow: var(--mobile-neu-inset), 0 0 0 2px rgba(var(--accent-rgb), 0.2);
 }
 
-body.neumorphic-white .lyrics-dialog-musixmatch,
-body.neumorphic-anthracite .lyrics-dialog-musixmatch,
-body.neumorphic-custom .lyrics-dialog-musixmatch {
+body.neumorphic-white .lyrics-dialog-lrclib-timing,
+body.neumorphic-anthracite .lyrics-dialog-lrclib-timing,
+body.neumorphic-custom .lyrics-dialog-lrclib-timing {
     background: rgba(var(--accent-rgb), 0.15);
     border-color: rgba(var(--accent-rgb), 0.4);
     color: var(--mobile-primary);
 }
 
-body.neumorphic-white .lyrics-dialog-musixmatch:active,
-body.neumorphic-anthracite .lyrics-dialog-musixmatch:active,
-body.neumorphic-custom .lyrics-dialog-musixmatch:active {
+body.neumorphic-white .lyrics-dialog-lrclib-timing:active,
+body.neumorphic-anthracite .lyrics-dialog-lrclib-timing:active,
+body.neumorphic-custom .lyrics-dialog-lrclib-timing:active {
     background: rgba(var(--accent-rgb), 0.25);
 }
 

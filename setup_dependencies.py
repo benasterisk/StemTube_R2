@@ -329,7 +329,6 @@ def install_requirements(venv_python):
         "yt-dlp-ejs",           # YouTube JS challenge solver (required since late 2025)
         "faster-whisper",       # Speech recognition (GPU)
         "msaf",                 # Music structure analysis
-        "syncedlyrics",         # Synchronized lyrics (Musixmatch)
         "pychord",              # Chord notation
     ]
 

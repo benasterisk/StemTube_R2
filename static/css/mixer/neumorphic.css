@@ -947,28 +947,22 @@ body.neumorphic-custom .karaoke-step-done .karaoke-step-text {
     color: var(--accent-color);
 }
 
-/* ---- Lyrics Dialog Musixmatch (green→blue for white theme) ---- */
-body.neumorphic-white .lyrics-dialog-musixmatch,
-body.neumorphic-custom .lyrics-dialog-musixmatch {
+/* ---- Lyrics Dialog LRCLIB Timing (green→blue for white theme) ---- */
+body.neumorphic-white .lyrics-dialog-lrclib-timing,
+body.neumorphic-custom .lyrics-dialog-lrclib-timing {
     background: rgba(var(--accent-rgb), 0.15);
     border-color: rgba(var(--accent-rgb), 0.4);
     color: var(--accent-color);
 }
 
-body.neumorphic-white .lyrics-dialog-musixmatch:active,
-body.neumorphic-custom .lyrics-dialog-musixmatch:active {
+body.neumorphic-white .lyrics-dialog-lrclib-timing:active,
+body.neumorphic-custom .lyrics-dialog-lrclib-timing:active {
     background: rgba(var(--accent-rgb), 0.25);
 }
 
-/* ---- Lyrics Source Tag (green→blue for white theme) ---- */
-body.neumorphic-white .lyrics-source-tag.musixmatch,
-body.neumorphic-custom .lyrics-source-tag.musixmatch {
-    color: var(--accent-color);
-}
-
-/* ---- Richsync Badge (green→blue for white theme) ---- */
-body.neumorphic-white .lyrics-dialog-track-badge.badge-richsync,
-body.neumorphic-custom .lyrics-dialog-track-badge.badge-richsync {
+/* ---- Synced Badge (green→blue for white theme) ---- */
+body.neumorphic-white .lyrics-dialog-track-badge.badge-synced,
+body.neumorphic-custom .lyrics-dialog-track-badge.badge-synced {
     background: rgba(var(--accent-rgb), 0.2);
     color: var(--accent-color);
 }

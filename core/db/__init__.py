@@ -22,6 +22,7 @@ from core.db.downloads import (
     update_download_structure, find_global_download, add_user_access,
     list_for, get_download_by_id, get_user_download_id_by_video_id,
     delete_from, update_beat_grid, update_stems_zip_path,
+    get_media_metadata, update_media_metadata,
 )
 from core.db.extractions import (
     find_global_extraction, find_any_global_extraction,

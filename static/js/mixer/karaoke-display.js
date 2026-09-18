@@ -74,7 +74,7 @@ class KaraokeDisplay {
         // Get regenerate button from HTML (single unified button)
         this.regenerateButton = document.getElementById('karaoke-regenerate-btn');
 
-        // Regenerate button event (LrcLib -> Whisper fallback)
+        // Regenerate button event (LRCLIB + Whisper alignment)
         if (this.regenerateButton) {
             this.regenerateButton.addEventListener('click', () => {
                 this.regenerateLyrics();
@@ -154,7 +154,7 @@ class KaraokeDisplay {
         stepEl.className = `karaoke-step karaoke-step-${status}`;
         stepEl.innerHTML = `
             <span class="karaoke-step-icon">${icon}</span>
-            <span class="karaoke-step-text">${text}</span>
+            <span class="karaoke-step-text">${this.escapeHtml(text)}</span>
         `;
         this.loadingSteps.appendChild(stepEl);
         this.progressSteps.push(stepEl);
@@ -174,6 +174,18 @@ class KaraokeDisplay {
         lastStep.className = `karaoke-step karaoke-step-${status}`;
         if (newText) {
             lastStep.querySelector('.karaoke-step-text').textContent = newText;
+        }
+    }
+
+    /**
+     * Mark the last step as done only if it is still running, so a warning
+     * (e.g. no LRCLIB lyrics) is not overwritten by the next step.
+     */
+    finishRunningStep() {
+        if (this.progressSteps.length === 0) return;
+        const lastStep = this.progressSteps[this.progressSteps.length - 1];
+        if (lastStep.classList.contains('karaoke-step-running')) {
+            this.updateLastStep('done');
         }
     }
 
@@ -201,58 +213,56 @@ class KaraokeDisplay {
         // Update main text and add step to log
         switch (step) {
             case 'metadata':
-                this.loadingText.textContent = 'Extracting metadata...';
-                this.addProgressStep('📋', 'Extracting metadata...', 'running');
+                this.loadingText.textContent = 'Reading song metadata...';
+                this.addProgressStep('📋', message || 'Reading song metadata...', 'running');
                 break;
-            case 'syncedlyrics':
-                this.updateLastStep('done');
-                this.loadingText.textContent = 'Searching Musixmatch...';
-                this.addProgressStep('🔍', `Searching: ${message.replace('Searching word-level lyrics for: ', '')}`, 'running');
+            case 'lyrics_search':
+                this.finishRunningStep();
+                this.loadingText.textContent = 'Searching LRCLIB...';
+                this.addProgressStep('🔍', message || 'Searching LRCLIB...', 'running');
                 break;
-            case 'syncedlyrics_found':
-                this.updateLastStep('done', `Musixmatch: ${message}`);
+            case 'lyrics_found':
+                this.updateLastStep('done', message || 'LRCLIB: lyrics found');
                 this.loadingText.textContent = 'Lyrics found!';
                 break;
-            case 'syncedlyrics_not_found':
-            case 'syncedlyrics_skip':
-                this.updateLastStep('warning', 'Musixmatch: No word-level lyrics');
+            case 'lyrics_not_found':
+                this.updateLastStep('warning', message || 'LRCLIB: no lyrics found');
                 this.loadingText.textContent = 'Falling back to Whisper...';
                 break;
-            case 'syncedlyrics_error':
-                this.updateLastStep('error', `Musixmatch: ${message}`);
-                this.loadingText.textContent = 'Falling back to Whisper...';
-                break;
-            case 'onset_sync':
-                this.loadingText.textContent = 'Syncing with vocals...';
-                this.addProgressStep('🎤', 'Analyzing vocal track...', 'running');
-                break;
-            case 'onset_sync_done':
-                this.updateLastStep('done', `Vocal sync: ${message}`);
-                this.loadingText.textContent = 'Sync complete!';
-                break;
-            case 'onset_sync_error':
-                this.updateLastStep('warning', `Vocal sync failed: ${message}`);
-                break;
-            case 'whisper_fallback':
+            case 'whisper':
+                this.finishRunningStep();
                 this.loadingText.textContent = 'Transcribing with Whisper...';
-                this.addProgressStep('🤖', `Loading Whisper ${model} (${gpu})...`, 'running');
-                break;
-            case 'whisper_transcribing':
-                this.updateLastStep('done');
-                this.addProgressStep('📝', 'Transcribing audio...', 'running');
+                this.addProgressStep('🤖', message || `Transcribing with Whisper (${model}, ${gpu})...`, 'running');
                 break;
             case 'whisper_done':
-                this.updateLastStep('done', `Transcription: ${message}`);
+                this.updateLastStep('done', message || 'Whisper: transcription complete');
                 this.loadingText.textContent = 'Transcription complete!';
                 break;
+            case 'aligning':
+                this.finishRunningStep();
+                this.loadingText.textContent = 'Aligning lyrics...';
+                this.addProgressStep('🔗', message || 'Aligning LRCLIB lyrics on Whisper words...', 'running');
+                break;
             case 'aligned':
-                this.updateLastStep('done');
+                this.updateLastStep('done', message || 'Alignment complete');
                 this.loadingText.textContent = 'Alignment complete!';
-                this.addProgressStep('✅', message, 'done');
+                break;
+            case 'align_rejected':
+                this.updateLastStep('warning', message || 'LRCLIB lyrics do not match the audio');
+                this.loadingText.textContent = 'Using Whisper transcription...';
+                break;
+            case 'done':
+                this.finishRunningStep();
+                this.loadingText.textContent = 'Lyrics ready!';
+                this.addProgressStep('✅', message || 'Lyrics ready', 'done');
                 break;
             case 'whisper_error':
             case 'failed':
-                this.updateLastStep('error', `Error: ${message}`);
+                if (this.progressSteps.length === 0) {
+                    this.addProgressStep('❌', `Error: ${message}`, 'error');
+                } else {
+                    this.updateLastStep('error', `Error: ${message}`);
+                }
                 this.loadingText.textContent = 'Error';
                 break;
             default:
@@ -352,7 +362,7 @@ class KaraokeDisplay {
     /**
      * Show two-phase dialog for lyrics regeneration.
      * Phase 1: Search form (artist/track inputs)
-     * Phase 2: Track selection from Musixmatch results
+     * Phase 2: Track selection from LRCLIB results
      */
     showLyricsDialog() {
         return new Promise((resolve) => {
@@ -394,7 +404,7 @@ class KaraokeDisplay {
                 overlay.innerHTML = `
                     <div class="lyrics-dialog">
                         <h3>Regenerate Lyrics</h3>
-                        <p class="lyrics-dialog-hint">Edit artist and track for Musixmatch search:</p>
+                        <p class="lyrics-dialog-hint">Edit artist and track to search LRCLIB:</p>
 
                         <div class="lyrics-dialog-field">
                             <label for="lyrics-artist">Artist</label>
@@ -409,7 +419,7 @@ class KaraokeDisplay {
                         <div class="lyrics-dialog-buttons">
                             <button class="lyrics-dialog-btn lyrics-dialog-cancel">Cancel</button>
                             <button class="lyrics-dialog-btn lyrics-dialog-whisper">Whisper Only</button>
-                            <button class="lyrics-dialog-btn lyrics-dialog-search primary">Search Musixmatch</button>
+                            <button class="lyrics-dialog-btn lyrics-dialog-search primary">Search LRCLIB</button>
                         </div>
                     </div>
                 `;
@@ -426,7 +436,7 @@ class KaraokeDisplay {
 
                 overlay.querySelector('.lyrics-dialog-whisper').addEventListener('click', () => {
                     cleanup();
-                    resolve({ artist: '', track: '', forceWhisper: true, skipOnsetSync: false, musixmatchTrackId: null });
+                    resolve({ artist: '', track: '', forceWhisper: true, lrclibId: null, syncWithWhisper: true });
                 });
 
                 const doSearch = () => {
@@ -459,7 +469,7 @@ class KaraokeDisplay {
                 const query = `${artist} ${track}`.trim();
                 overlay.innerHTML = `
                     <div class="lyrics-dialog">
-                        <h3>Searching Musixmatch</h3>
+                        <h3>Searching LRCLIB</h3>
                         <div class="lyrics-dialog-spinner">
                             <i class="fas fa-spinner fa-spin"></i>
                             <span>Searching for: ${this.escapeHtml(query)}</span>
@@ -468,7 +478,7 @@ class KaraokeDisplay {
                 `;
 
                 try {
-                    const response = await fetch('/api/musixmatch/search', {
+                    const response = await fetch('/api/lyrics/search', {
                         method: 'POST',
                         credentials: 'same-origin',
                         headers: {
@@ -510,24 +520,38 @@ class KaraokeDisplay {
                 selectedTrackId = null;
 
                 const badgeHtml = (r) => {
-                    if (r.has_richsync) return '<span class="lyrics-dialog-track-badge badge-richsync" title="Word-level timestamps">W</span>';
-                    if (r.has_subtitles) return '<span class="lyrics-dialog-track-badge badge-subtitles" title="Line-level timestamps">L</span>';
+                    if (r.has_synced) return '<span class="lyrics-dialog-track-badge badge-synced" title="Line-synced lyrics">L</span>';
+                    if (r.has_plain) return '<span class="lyrics-dialog-track-badge badge-plain" title="Text only - timed by Whisper">T</span>';
                     return '<span class="lyrics-dialog-track-badge badge-unknown" title="Lyrics availability unknown">?</span>';
+                };
+
+                const formatDuration = (seconds) => {
+                    const total = Math.round(Number(seconds) || 0);
+                    if (total <= 0) return '';
+                    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+                };
+
+                const detailsHtml = (r) => {
+                    const parts = [];
+                    if (r.album_name) parts.push(this.escapeHtml(r.album_name));
+                    const duration = formatDuration(r.duration);
+                    if (duration) parts.push(duration);
+                    return parts.length ? '<span class="lyrics-dialog-track-album">' + parts.join(' · ') + '</span>' : '';
                 };
 
                 let resultsHtml = '';
                 if (results.length === 0) {
-                    resultsHtml = '<p class="lyrics-dialog-hint">No results found. Try different search terms.</p>';
+                    resultsHtml = '<p class="lyrics-dialog-hint">No results found. Try different search terms, or transcribe with Whisper only.</p>';
                 } else {
                     resultsHtml = '<div class="lyrics-dialog-results">';
                     results.forEach((r, i) => {
                         resultsHtml += `
-                            <div class="lyrics-dialog-track${i === 0 ? ' selected' : ''}" data-track-id="${r.track_id}">
+                            <div class="lyrics-dialog-track${i === 0 ? ' selected' : ''}" data-track-id="${r.track_id}" data-synced="${r.has_synced ? '1' : '0'}">
                                 <span class="lyrics-dialog-track-radio">${i === 0 ? '●' : '○'}</span>
                                 <div class="lyrics-dialog-track-info">
                                     <span class="lyrics-dialog-track-name">${this.escapeHtml(r.track_name)}</span>
                                     <span class="lyrics-dialog-track-artist">${this.escapeHtml(r.artist_name)}</span>
-                                    ${r.album_name ? '<span class="lyrics-dialog-track-album">' + this.escapeHtml(r.album_name) + '</span>' : ''}
+                                    ${detailsHtml(r)}
                                 </div>
                                 ${badgeHtml(r)}
                             </div>
@@ -537,18 +561,28 @@ class KaraokeDisplay {
                     selectedTrackId = results[0].track_id;
                 }
 
+                const buttonsHtml = results.length === 0
+                    ? `
+                            <button class="lyrics-dialog-btn lyrics-dialog-back">Back</button>
+                            <button class="lyrics-dialog-btn lyrics-dialog-whisper primary">Whisper Only</button>`
+                    : `
+                            <button class="lyrics-dialog-btn lyrics-dialog-back">Back</button>
+                            <button class="lyrics-dialog-btn lyrics-dialog-lrclib-timing"${results[0].has_synced ? '' : ' disabled'} title="Use LRCLIB line timing, words spread inside each line">LRCLIB timing</button>
+                            <button class="lyrics-dialog-btn lyrics-dialog-submit primary" title="Align LRCLIB text on Whisper word timings">LRCLIB + Whisper sync</button>`;
+
                 overlay.innerHTML = `
                     <div class="lyrics-dialog lyrics-dialog-phase2">
                         <h3>Select Track</h3>
                         <p class="lyrics-dialog-hint">Results for: ${this.escapeHtml(artist)} - ${this.escapeHtml(track)}</p>
                         ${resultsHtml}
-                        <div class="lyrics-dialog-buttons">
-                            <button class="lyrics-dialog-btn lyrics-dialog-back">Back</button>
-                            <button class="lyrics-dialog-btn lyrics-dialog-musixmatch"${results.length === 0 ? ' disabled' : ''}>Musixmatch Only</button>
-                            <button class="lyrics-dialog-btn lyrics-dialog-submit primary"${results.length === 0 ? ' disabled' : ''}>Musixmatch + Sync</button>
+                        <div class="lyrics-dialog-buttons">${buttonsHtml}
                         </div>
                     </div>
                 `;
+
+                const lrclibTimingBtn = overlay.querySelector('.lyrics-dialog-lrclib-timing');
+                const submitBtn = overlay.querySelector('.lyrics-dialog-submit');
+                const whisperBtn = overlay.querySelector('.lyrics-dialog-whisper');
 
                 // Track row click handler
                 overlay.querySelectorAll('.lyrics-dialog-track').forEach(row => {
@@ -562,6 +596,8 @@ class KaraokeDisplay {
                         row.classList.add('selected');
                         row.querySelector('.lyrics-dialog-track-radio').textContent = '●';
                         selectedTrackId = parseInt(row.dataset.trackId);
+                        // LRCLIB line timing only exists for synced records
+                        if (lrclibTimingBtn) lrclibTimingBtn.disabled = row.dataset.synced !== '1';
                     });
                 });
 
@@ -569,22 +605,26 @@ class KaraokeDisplay {
                     showPhase1(artist, track);
                 });
 
-                const musixmatchBtn = overlay.querySelector('.lyrics-dialog-musixmatch');
-                const submitBtn = overlay.querySelector('.lyrics-dialog-submit');
-
-                if (musixmatchBtn && !musixmatchBtn.disabled) {
-                    musixmatchBtn.addEventListener('click', () => {
-                        if (!selectedTrackId) return;
+                if (lrclibTimingBtn) {
+                    lrclibTimingBtn.addEventListener('click', () => {
+                        if (!selectedTrackId || lrclibTimingBtn.disabled) return;
                         cleanup();
-                        resolve({ artist, track, forceWhisper: false, skipOnsetSync: true, musixmatchTrackId: selectedTrackId });
+                        resolve({ artist, track, forceWhisper: false, lrclibId: selectedTrackId, syncWithWhisper: false });
                     });
                 }
 
-                if (submitBtn && !submitBtn.disabled) {
+                if (submitBtn) {
                     submitBtn.addEventListener('click', () => {
                         if (!selectedTrackId) return;
                         cleanup();
-                        resolve({ artist, track, forceWhisper: false, skipOnsetSync: false, musixmatchTrackId: selectedTrackId });
+                        resolve({ artist, track, forceWhisper: false, lrclibId: selectedTrackId, syncWithWhisper: true });
+                    });
+                }
+
+                if (whisperBtn) {
+                    whisperBtn.addEventListener('click', () => {
+                        cleanup();
+                        resolve({ artist, track, forceWhisper: true, lrclibId: null, syncWithWhisper: true });
                     });
                 }
 
@@ -614,7 +654,7 @@ class KaraokeDisplay {
     }
 
     /**
-     * Regenerate lyrics using unified endpoint (LrcLib -> Whisper fallback)
+     * Regenerate lyrics using unified endpoint (LRCLIB + Whisper alignment)
      */
     async regenerateLyrics() {
         if (!this.extractionId) {
@@ -651,8 +691,8 @@ class KaraokeDisplay {
                     artist: dialogResult.artist,
                     track: dialogResult.track,
                     force_whisper: dialogResult.forceWhisper,
-                    skip_onset_sync: dialogResult.skipOnsetSync,
-                    musixmatch_track_id: dialogResult.musixmatchTrackId || null
+                    lrclib_id: dialogResult.lrclibId || null,
+                    sync_with_whisper: dialogResult.syncWithWhisper
                 })
             });
 
@@ -677,15 +717,16 @@ class KaraokeDisplay {
                 // Build success message with source info and alignment stats
                 const sourceLabel = this.getSourceLabel(source);
                 let message = `Lyrics loaded (${sourceLabel}): ${data.segments_count} segments`;
+                if (data.language) {
+                    message += `\nLanguage: ${data.language}`;
+                }
 
                 // Add alignment stats if available
                 const stats = data.alignment_stats;
                 if (stats && stats.match_rate !== undefined) {
                     message += `\n\nSync statistics:`;
-                    message += `\n- Words matched: ${stats.matched_words}/${stats.total_words} (${stats.match_rate}%)`;
-                    if (stats.global_offset_sec !== undefined) {
-                        message += `\n- Global offset: ${stats.global_offset_sec}s`;
-                    }
+                    message += `\n- Words matched: ${stats.matched_words}/${stats.total_words}`;
+                    message += `\n- Match rate: ${stats.match_rate}%`;
                 }
 
                 alert(message);
@@ -709,11 +750,8 @@ class KaraokeDisplay {
      */
     getSourceLabel(source) {
         const labels = {
-            'musixmatch+onset': 'Musixmatch + Vocal Sync',
-            'musixmatch': 'Musixmatch',
-            'syncedlyrics': 'Musixmatch (word-level)',
-            'lrclib+whisper': 'LrcLib + Whisper',
-            'lrclib': 'LrcLib',
+            'lrclib+whisper': 'LRCLIB + Whisper',
+            'lrclib': 'LRCLIB (line timing)',
             'whisper': 'Whisper AI'
         };
         return labels[source] || source;

@@ -1,9 +1,17 @@
 """
-Lyrics Detection using Faster-Whisper
-Transcribes audio to text with precise timestamps for karaoke display
+Lyrics detection for karaoke display.
+
+detect_lyrics_unified() is the single pipeline (download analysis, post-extraction and the
+Regenerate button):
+  1. artist/track from YouTube metadata, the title or the file tags (core/media_metadata.py)
+  2. LRCLIB lookup (core/lrclib_client.py): line-synced or plain lyrics text
+  3. faster-whisper on the vocals stem, in the language actually sung
+  4. lyrics found  -> LRCLIB text aligned on Whisper word timings (core/lyrics_merger.py)
+     nothing found -> Whisper transcription alone
 """
 
 import os
+import re
 import sys
 import logging
 from typing import List, Dict, Optional, Tuple, Any
@@ -68,6 +76,7 @@ class LyricsDetector:
         self.device = device
         self.compute_type = compute_type
         self.model = None
+        self.language = None  # language used by the last transcription
 
     def _normalize_model_name(self, name: str) -> Tuple[str, bool]:
         """
@@ -111,104 +120,94 @@ class LyricsDetector:
                     compute_type=self.compute_type
                 )
 
+    def _load_audio(self, audio_path: str):
+        from faster_whisper import decode_audio
+        return decode_audio(audio_path, sampling_rate=16000)
+
+    def detect_language(self, audio) -> Tuple[Optional[str], float]:
+        """
+        Sung language, detected on the voiced parts only.
+
+        Whisper's default looks at the first 30 s, which on a vocals stem is often an
+        instrumental intro: a French song then came out as English (or Norwegian).
+        """
+        self._load_model()
+        try:
+            language, probability, _ = self.model.detect_language(
+                audio, vad_filter=True, language_detection_segments=LANGUAGE_DETECTION_SEGMENTS)
+            return language, float(probability)
+        except Exception as e:
+            logger.warning(f"[LYRICS] Language detection failed: {e}")
+            return None, 0.0
+
     def detect_lyrics(
         self,
         audio_path: str,
         language: Optional[str] = None,
-        word_timestamps: bool = True
+        word_timestamps: bool = True,
+        language_hint: Optional[str] = None,
     ) -> Optional[List[Dict]]:
         """
-        Detect and transcribe lyrics with timestamps
+        Transcribe lyrics with segment and word timestamps.
 
         Args:
-            audio_path: Path to audio file
-            language: Language code (None for auto-detection)
+            audio_path: Path to audio file (preferably the vocals stem)
+            language: Force this language code
             word_timestamps: Include word-level timestamps
+            language_hint: Language declared by the source (YouTube), used when the
+                audio detection is not confident
 
         Returns:
-            List of lyrics segments with timestamps:
-            [
-                {
-                    "start": 0.0,
-                    "end": 2.5,
-                    "text": "Segment text",
-                    "words": [
-                        {"start": 0.0, "end": 0.5, "word": "Word1"},
-                        {"start": 0.6, "end": 1.2, "word": "Word2"}
-                    ]
-                }
-            ]
+            [{"start", "end", "text", "words": [{"start", "end", "word"}]}] or None
         """
         if not os.path.exists(audio_path):
             logger.error(f"[LYRICS] Audio file not found: {audio_path}")
             return None
 
         try:
-            # Load model if needed
             self._load_model()
+            audio = self._load_audio(audio_path)
+            if not language:
+                detected, probability = self.detect_language(audio)
+                language = choose_language(detected, probability, language_hint)
+            self.language = language
 
-            logger.info(f"[LYRICS] Transcribing audio: {audio_path}")
+            logger.info(f"[LYRICS] Transcribing audio: {audio_path} (language: {language})")
 
-            # Transcribe with faster-whisper
-            # VAD disabled to capture entire song including instrumental sections
+            # VAD disabled to capture the entire song including instrumental sections
             try:
                 segments, info = self.model.transcribe(
-                    audio_path,
-                    language=language,
-                    word_timestamps=word_timestamps,
-                    vad_filter=False  # Disabled: Don't stop at silence/instrumental sections
-                )
+                    audio, language=language, word_timestamps=word_timestamps, vad_filter=False)
             except RuntimeError as transcribe_error:
                 if "libcublas" in str(transcribe_error) or "CUDA" in str(transcribe_error):
                     logger.warning(f"[LYRICS] GPU transcription failed ({transcribe_error}), retrying with CPU...")
-                    # Reload model on CPU
                     self.device = "cpu"
                     self.compute_type = "int8"
                     self.model = None
                     self._load_model()
-
-                    # Retry transcription with CPU
                     segments, info = self.model.transcribe(
-                        audio_path,
-                        language=language,
-                        word_timestamps=word_timestamps,
-                        vad_filter=False
-                    )
+                        audio, language=language, word_timestamps=word_timestamps, vad_filter=False)
                 else:
                     raise
 
-            logger.info(f"[LYRICS] Detected language: {info.language} (probability: {info.language_probability:.2f})")
-
-            # Convert segments to list of dicts
             lyrics_data = []
             for segment in segments:
+                if is_hallucination(segment.text):
+                    logger.info(f"[LYRICS] Dropped hallucinated segment at {segment.start:.1f}s: {segment.text.strip()}")
+                    continue
                 segment_dict = {
                     "start": round(segment.start, 2),
                     "end": round(segment.end, 2),
                     "text": segment.text.strip()
                 }
-
-                # Add word-level timestamps if available
-                if word_timestamps and hasattr(segment, 'words') and segment.words:
+                if word_timestamps and getattr(segment, 'words', None):
                     segment_dict["words"] = [
-                        {
-                            "start": round(word.start, 2),
-                            "end": round(word.end, 2),
-                            "word": word.word.strip()
-                        }
-                        for word in segment.words
+                        {"start": round(w.start, 2), "end": round(w.end, 2), "word": w.word.strip()}
+                        for w in segment.words
                     ]
-
                 lyrics_data.append(segment_dict)
 
             logger.info(f"[LYRICS] Transcription complete: {len(lyrics_data)} segments")
-
-            # Log first few segments for debugging
-            if lyrics_data:
-                logger.info("[LYRICS] Sample segments:")
-                for seg in lyrics_data[:3]:
-                    logger.info(f"   {seg['start']:.1f}s - {seg['end']:.1f}s: {seg['text'][:50]}...")
-
             return lyrics_data
 
         except Exception as e:
@@ -216,59 +215,78 @@ class LyricsDetector:
             return None
 
     def get_lyrics_at_time(self, lyrics_data: List[Dict], time: float) -> Optional[Dict]:
-        """
-        Get the lyrics segment at a specific time
-
-        Args:
-            lyrics_data: List of lyrics segments
-            time: Time in seconds
-
-        Returns:
-            Lyrics segment dict or None
-        """
-        if not lyrics_data:
-            return None
-
-        for segment in lyrics_data:
+        """Lyrics segment playing at a given time, or None."""
+        for segment in lyrics_data or []:
             if segment['start'] <= time <= segment['end']:
                 return segment
-
         return None
+
+
+# Number of 30 s voiced windows the language detection averages.
+LANGUAGE_DETECTION_SEGMENTS = 3
+# Audio detection at or above this probability overrides the declared language.
+CONFIDENT_LANGUAGE = 0.7
+# Below this share of lyrics words found by Whisper, lyrics and audio disagree
+# (wrong song, other version, other language).
+MIN_ALIGNMENT_MATCH_RATE = 30.0
+
+
+# Credits Whisper learned from subtitled videos and "hears" over instrumental passages.
+HALLUCINATION_PATTERNS = [re.compile(p, re.IGNORECASE) for p in (
+    r"sous-titr(age|es|é)",
+    r"amara\.org",
+    r"merci d'avoir regardé",
+    r"thanks? (you )?for watching",
+    r"subtitles? (by|made)",
+    r"please subscribe|abonnez-vous",
+    r"untertitel (im auftrag|von|der)",
+    r"subtítulos (realizados|por)",
+)]
+
+
+def is_hallucination(text: str) -> bool:
+    return any(p.search(text or "") for p in HALLUCINATION_PATTERNS)
+
+
+def choose_language(detected: Optional[str], probability: float, hint: Optional[str]) -> Optional[str]:
+    """Confident audio detection first, then the declared language, then the weak guess."""
+    if detected and probability >= CONFIDENT_LANGUAGE:
+        chosen = detected
+    else:
+        chosen = hint or detected
+    logger.info(f"[LYRICS] Language: detected={detected} ({probability:.2f}), declared={hint} -> {chosen}")
+    return chosen
 
 
 def detect_song_lyrics(
     audio_path: str,
     model_size: str = "medium",
     language: Optional[str] = None,
-    use_gpu: bool = True
+    use_gpu: bool = True,
+    language_hint: Optional[str] = None,
 ) -> Optional[List[Dict]]:
-    """
-    Main function to detect lyrics from audio
-
-    Args:
-        audio_path: Path to audio file
-        model_size: Whisper model size (tiny, base, small, medium, large, large-v3)
-        language: Language code (None for auto-detection)
-        use_gpu: Use GPU if available
-
-    Returns:
-        List of lyrics segments with timestamps or None
-    """
+    """Transcribe a song with Whisper (see LyricsDetector.detect_lyrics)."""
     requested_model = model_size or "medium"
     device = "cuda" if use_gpu else "cpu"
     compute_type = "int8_float16" if use_gpu else "int8"
-
-    # Respect admin model choice - no auto-upgrade
-    logger = logging.getLogger(__name__)
     logger.info(f"[LYRICS] Model: {requested_model}, Device: {device}")
 
-    detector = LyricsDetector(
-        model_size=requested_model,
-        device=device,
-        compute_type=compute_type
-    )
+    detector = LyricsDetector(model_size=requested_model, device=device, compute_type=compute_type)
+    return detector.detect_lyrics(audio_path, language=language, language_hint=language_hint)
 
-    return detector.detect_lyrics(audio_path, language=language)
+
+def lookup_lyrics_lines(artist: str, track: str, duration: Optional[float] = None,
+                        record_id: Optional[int] = None) -> Tuple[List[Dict], Optional[str], Optional[Dict]]:
+    """LRCLIB lines for a song: (lines, level 'line'|'text'|None, record)."""
+    from core import lrclib_client
+    try:
+        record = (lrclib_client.get_record(record_id) if record_id
+                  else lrclib_client.find_best_record(artist, track, duration))
+    except Exception as e:
+        logger.warning(f"[LYRICS] LRCLIB lookup failed: {e}")
+        return [], None, None
+    lines, level = lrclib_client.record_to_lines(record)
+    return lines, level, record
 
 
 def detect_lyrics_unified(
@@ -281,35 +299,33 @@ def detect_lyrics_unified(
     override_artist: str = None,
     override_track: str = None,
     force_whisper: bool = False,
-    skip_onset_sync: bool = False,
-    musixmatch_track_id: int = None
+    lrclib_id: int = None,
+    sync_with_whisper: bool = True,
+    media_metadata: Dict = None,
+    file_path: str = None,
 ) -> Dict:
     """
-    Unified lyrics detection: Whisper + Musixmatch in PARALLEL, then merge.
-
-    Flow:
-    1. Extract metadata (artist/track)
-    2. Launch Whisper transcription AND Musixmatch fetch in parallel threads
-    3. When both complete, merge: Musixmatch text + Whisper timestamps
-    4. Fallbacks: Whisper-only if no Musixmatch, Musixmatch-only if Whisper fails
+    Lyrics for a song: LRCLIB text aligned on Whisper word timings, Whisper alone otherwise.
 
     Args:
-        audio_path: Path to audio file (preferably vocals.mp3)
-        title: Track title for metadata extraction
+        audio_path: Audio to transcribe (the vocals stem when available)
+        title: Song title (YouTube title) for the artist/track lookup
         model_size: Whisper model size
-        use_gpu: Use GPU for Whisper if available
-        duration: Track duration in seconds (optional)
-        progress_callback: Optional callback(step, message) for progress updates
-        override_artist: User-provided artist name
-        override_track: User-provided track name
-        force_whisper: Skip Musixmatch entirely
-        skip_onset_sync: Legacy param (ignored — onset sync replaced by Whisper merge)
-        musixmatch_track_id: Specific Musixmatch track ID to fetch
+        use_gpu: Run Whisper on the GPU
+        duration: Song duration in seconds, ranks LRCLIB candidates
+        progress_callback: callback(step, message)
+        override_artist / override_track: user-provided search terms
+        force_whisper: skip LRCLIB
+        lrclib_id: use this LRCLIB record instead of searching
+        sync_with_whisper: False keeps LRCLIB's own line timing (synced records only)
+        media_metadata: stored YouTube metadata (artist, track, language, tags...)
+        file_path: original download, for its ID3 tags
 
     Returns:
-        Dict with lyrics, source, artist, track, alignment_stats
+        {lyrics, source ('lrclib+whisper' | 'lrclib' | 'whisper'), artist, track,
+         language, lrclib_id, alignment_stats}
     """
-    import threading
+    from core.media_metadata import resolve_artist_track
 
     def emit_progress(step, message):
         if progress_callback:
@@ -318,205 +334,107 @@ def detect_lyrics_unified(
             except Exception:
                 pass
 
-    result = {
-        "lyrics": None,
-        "source": None,
-        "artist": None,
-        "track": None,
-        "alignment_stats": None
-    }
+    meta = media_metadata or {}
+    result = {"lyrics": None, "source": None, "artist": None, "track": None,
+              "language": None, "lrclib_id": None, "alignment_stats": None}
 
     if not audio_path or not os.path.exists(audio_path):
         logger.error(f"[LYRICS] Audio file not found: {audio_path}")
         return result
+    model_size = model_size or "medium"
+    duration = duration or meta.get('duration')
 
-    if not model_size:
-        model_size = "medium"
+    # 1. Artist / track
+    emit_progress("metadata", "Reading song metadata...")
+    artist, track = resolve_artist_track(title=title, file_path=file_path, meta=meta,
+                                         override_artist=override_artist, override_track=override_track)
+    result.update(artist=artist, track=track)
+    logger.info(f"[LYRICS] Metadata: artist='{artist}', track='{track}', "
+                f"declared language={meta.get('language')}")
 
-    # Step 1: Extract metadata
-    emit_progress("metadata", "Extracting metadata...")
-
-    if override_artist or override_track:
-        artist = override_artist or ''
-        track = override_track or title or ''
-        logger.info(f"[LYRICS] Using user override: artist='{artist}', track='{track}'")
-    else:
-        try:
-            from core.metadata_extractor import extract_metadata
-            artist, track = extract_metadata(file_path=audio_path, db_title=title)
-            logger.info(f"[LYRICS] Metadata: artist='{artist}', track='{track}'")
-        except Exception as e:
-            logger.warning(f"[LYRICS] Metadata extraction failed: {e}")
-            artist, track = None, title
-
-    result["artist"] = artist
-    result["track"] = track
-
-    # Step 2: Launch Whisper and Musixmatch in PARALLEL
-    whisper_result = [None]
-    whisper_error = [None]
-    musixmatch_result = [None]
-    musixmatch_error = [None]
-
-    def run_whisper():
-        try:
-            gpu_label = "GPU" if use_gpu else "CPU"
-            emit_progress("whisper", f"Transcribing with Whisper ({model_size}, {gpu_label})...")
-            logger.info(f"[LYRICS] Starting Whisper transcription ({model_size}, {gpu_label})")
-            whisper_result[0] = detect_song_lyrics(
-                audio_path=audio_path,
-                model_size=model_size,
-                use_gpu=use_gpu
-            )
-            if whisper_result[0]:
-                emit_progress("whisper_done", f"Whisper: {len(whisper_result[0])} segments")
-                logger.info(f"[LYRICS] Whisper done: {len(whisper_result[0])} segments")
+    # 2. LRCLIB
+    lines, level = [], None
+    if not force_whisper:
+        if lrclib_id or (artist and track):
+            emit_progress("lyrics_search", f"Searching LRCLIB: {artist} - {track}" if not lrclib_id
+                          else f"Fetching LRCLIB lyrics #{lrclib_id}...")
+            lines, level, record = lookup_lyrics_lines(artist, track, duration, lrclib_id)
+            if lines:
+                result["lrclib_id"] = record.get("id")
+                kind = "line-synced" if level == "line" else "text only"
+                emit_progress("lyrics_found", f"LRCLIB: {len(lines)} lines ({kind})")
             else:
-                logger.warning("[LYRICS] Whisper returned no results")
-        except Exception as e:
-            whisper_error[0] = e
-            logger.error(f"[LYRICS] Whisper error: {e}")
+                emit_progress("lyrics_not_found", "No lyrics on LRCLIB, transcribing with Whisper")
+        else:
+            emit_progress("lyrics_not_found", "No artist/track to search, transcribing with Whisper")
 
-    def run_musixmatch():
-        try:
-            if musixmatch_track_id:
-                emit_progress("musixmatch", f"Fetching Musixmatch track #{musixmatch_track_id}...")
-                logger.info(f"[LYRICS] Fetching Musixmatch track_id={musixmatch_track_id}")
-                from core.musixmatch_client import fetch_lyrics_by_track_id
-                musixmatch_result[0] = fetch_lyrics_by_track_id(musixmatch_track_id)
-            elif artist and track:
-                emit_progress("musixmatch", f"Fetching Musixmatch: {artist} - {track}")
-                logger.info(f"[LYRICS] Fetching Musixmatch: {artist} - {track}")
-                from core.syncedlyrics_client import fetch_lyrics_enhanced
-                musixmatch_result[0] = fetch_lyrics_enhanced(
-                    track_name=track,
-                    artist_name=artist,
-                    allow_plain=False
-                )
-            else:
-                logger.info("[LYRICS] Skipping Musixmatch (no artist/track)")
-                return
+    if lines and level == "line" and not sync_with_whisper:
+        from core.lrclib_client import spread_words
+        result.update(lyrics=spread_words(lines), source="lrclib")
+        emit_progress("done", f"Using LRCLIB line timing ({len(lines)} lines)")
+        return result
 
-            if musixmatch_result[0]:
-                total_words = sum(len(s.get('words', [])) for s in musixmatch_result[0])
-                emit_progress("musixmatch_done", f"Musixmatch: {len(musixmatch_result[0])} lines, {total_words} words")
-                logger.info(f"[LYRICS] Musixmatch done: {len(musixmatch_result[0])} lines, {total_words} words")
-            else:
-                emit_progress("musixmatch_not_found", "No Musixmatch lyrics found")
-                logger.info("[LYRICS] No Musixmatch lyrics found")
-        except Exception as e:
-            musixmatch_error[0] = e
-            logger.warning(f"[LYRICS] Musixmatch error: {e}")
+    # 3. Whisper, in the sung language
+    gpu_label = "GPU" if use_gpu else "CPU"
+    emit_progress("whisper", f"Transcribing with Whisper ({model_size}, {gpu_label})...")
+    device = "cuda" if use_gpu else "cpu"
+    detector = LyricsDetector(model_size=model_size, device=device,
+                              compute_type="int8_float16" if use_gpu else "int8")
+    whisper_segments = detector.detect_lyrics(audio_path, language_hint=meta.get('language'))
+    result["language"] = getattr(detector, 'language', None)
+    if whisper_segments:
+        emit_progress("whisper_done", f"Whisper: {len(whisper_segments)} segments ({result['language']})")
 
-    # Start both threads
-    t_whisper = threading.Thread(target=run_whisper, daemon=True)
-
-    if force_whisper:
-        logger.info("[LYRICS] force_whisper=True, skipping Musixmatch")
-        t_whisper.start()
-        t_whisper.join(timeout=300)
-    else:
-        t_musixmatch = threading.Thread(target=run_musixmatch, daemon=True)
-        t_whisper.start()
-        t_musixmatch.start()
-
-        # Wait for both (Musixmatch is fast ~2-5s, Whisper is slow ~30-120s)
-        t_musixmatch.join(timeout=30)
-        t_whisper.join(timeout=300)
-
-    # Step 3: Merge results
-    has_musixmatch = musixmatch_result[0] is not None
-    has_whisper = whisper_result[0] is not None
-
-    if has_musixmatch and has_whisper:
-        # BEST CASE: Merge Musixmatch text + Whisper timestamps
-        emit_progress("merging", "Merging Musixmatch text with Whisper timestamps...")
-        logger.info("[LYRICS] Merging Musixmatch text with Whisper timestamps")
-
-        try:
-            from core.lyrics_merger import merge_lyrics
-            merged, stats = merge_lyrics(musixmatch_result[0], whisper_result[0])
-
-            result["lyrics"] = merged
-            result["source"] = "musixmatch+whisper"
-            result["alignment_stats"] = stats
-            emit_progress("merge_done", f"Merged: {stats['matched_words']}/{stats['total_words']} words matched ({stats['match_rate']}%)")
-            logger.info(f"[LYRICS] Merge complete: {stats['match_rate']}% match rate")
+    # 4. Alignment or fallbacks
+    if lines and whisper_segments:
+        from core.lyrics_merger import align_lines_with_whisper
+        emit_progress("aligning", "Aligning LRCLIB lyrics on Whisper word timings...")
+        aligned, stats = align_lines_with_whisper(lines, whisper_segments)
+        if stats["match_rate"] >= MIN_ALIGNMENT_MATCH_RATE:
+            result.update(lyrics=aligned, source="lrclib+whisper", alignment_stats=stats)
+            emit_progress("aligned", f"Aligned: {stats['matched_words']}/{stats['total_words']} words "
+                                     f"matched ({stats['match_rate']}%)")
             return result
-        except Exception as merge_error:
-            logger.error(f"[LYRICS] Merge failed: {merge_error}", exc_info=True)
-            emit_progress("merge_error", f"Merge failed: {str(merge_error)[:50]}")
-            # Fall through to use best available single source
+        logger.warning(f"[LYRICS] LRCLIB lyrics and audio disagree ({stats['match_rate']}% matched)")
+        emit_progress("align_rejected", f"LRCLIB lyrics do not match the audio ({stats['match_rate']}% words)")
+        if level == "line":
+            # The text is probably right but for another version: keep its own line timing.
+            from core.lrclib_client import spread_words
+            result.update(lyrics=spread_words(lines), source="lrclib", alignment_stats=stats)
+            emit_progress("done", f"Using LRCLIB line timing ({len(lines)} lines)")
+            return result
 
-    if has_whisper:
-        # Whisper-only (good timestamps, possibly wrong words)
-        result["lyrics"] = whisper_result[0]
-        result["source"] = "whisper"
-        emit_progress("done", f"Using Whisper transcription ({len(whisper_result[0])} segments)")
-        logger.info(f"[LYRICS] Using Whisper-only: {len(whisper_result[0])} segments")
+    if whisper_segments:
+        result.update(lyrics=whisper_segments, source="whisper")
+        emit_progress("done", f"Using Whisper transcription ({len(whisper_segments)} segments)")
         return result
 
-    if has_musixmatch:
-        # Musixmatch-only (correct text, potentially early timestamps)
-        result["lyrics"] = musixmatch_result[0]
-        result["source"] = "musixmatch"
-        total_words = sum(len(s.get('words', [])) for s in musixmatch_result[0])
-        result["alignment_stats"] = {
-            "source": "musixmatch",
-            "total_words": total_words,
-            "matched_words": total_words,
-            "match_rate": 100.0
-        }
-        emit_progress("done", f"Using Musixmatch lyrics ({len(musixmatch_result[0])} lines)")
-        logger.info(f"[LYRICS] Using Musixmatch-only: {len(musixmatch_result[0])} lines")
+    if lines and level == "line":
+        from core.lrclib_client import spread_words
+        result.update(lyrics=spread_words(lines), source="lrclib")
+        emit_progress("done", f"Whisper failed, using LRCLIB line timing ({len(lines)} lines)")
         return result
 
-    # Both failed
-    emit_progress("failed", "All methods failed - no lyrics detected")
+    emit_progress("failed", "No lyrics detected")
     logger.error("[LYRICS] All methods failed - no lyrics detected")
     return result
 
 
-# Test if run directly
 if __name__ == "__main__":
-    import sys
     import json
 
     logging.basicConfig(level=logging.INFO)
-
     if len(sys.argv) < 2:
-        print("Usage: python lyrics_detector.py <audio_file> [title]")
-        print("Example: python lyrics_detector.py song.mp3 'Artist - Song Name'")
+        print("Usage: python -m core.lyrics_detector <vocals.mp3> ['Artist - Title'] [youtube_video_id]")
         sys.exit(1)
 
-    audio_file = sys.argv[1]
-    title = sys.argv[2] if len(sys.argv) > 2 else None
-
-    # Test unified function
-    print("\n=== Testing Unified Lyrics Detection ===\n")
-    result = detect_lyrics_unified(
-        audio_path=audio_file,
-        title=title,
-        model_size="medium",
-        use_gpu=True
-    )
-
-    print(f"\nSource: {result['source']}")
-    print(f"Artist: {result['artist']}")
-    print(f"Track: {result['track']}")
-
-    if result['lyrics']:
-        print(f"Total segments: {len(result['lyrics'])}\n")
-
-        for i, segment in enumerate(result['lyrics'][:10], 1):
-            start_min = int(segment['start'] // 60)
-            start_sec = int(segment['start'] % 60)
-            print(f"[{i}] {start_min:02d}:{start_sec:02d} {segment['text'][:60]}")
-
-        # Save to JSON file
-        output_file = audio_file.replace('.mp3', '_lyrics.json')
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
-        print(f"\n[OK] Lyrics saved to: {output_file}")
-    else:
-        print("[ERROR] Failed to detect lyrics")
+    meta = {}
+    if len(sys.argv) > 3:
+        from core.media_metadata import fetch_youtube_metadata
+        meta = fetch_youtube_metadata(sys.argv[3])
+    res = detect_lyrics_unified(audio_path=sys.argv[1], title=sys.argv[2] if len(sys.argv) > 2 else None,
+                                model_size="large-v3", use_gpu=True, media_metadata=meta,
+                                progress_callback=lambda step, msg: print(f"  [{step}] {msg}"))
+    print(json.dumps({k: v for k, v in res.items() if k != "lyrics"}, ensure_ascii=False, indent=2))
+    for seg in (res["lyrics"] or [])[:12]:
+        print(f"{seg['start']:7.2f} {seg['text']}")

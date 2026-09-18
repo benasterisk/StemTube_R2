@@ -82,6 +82,7 @@ def _add_extraction_fields_if_missing(conn):
         ("beat_positions", "TEXT"),  # JSON array of beat-in-bar positions (1,2,3,4) from downbeat detector
         ("music_start_time", "REAL DEFAULT 0.0"),  # Timestamp where actual music begins (skip non-musical intros)
         ("metronome_offset_ms", "REAL DEFAULT 0.0"),  # Manual metronome grid alignment nudge (milliseconds, per-user)
+        ("media_metadata", "TEXT"),  # JSON {artist, track, language, uploader, tags, duration} from yt-dlp (lyrics lookup)
     ]
 
     for table_name in ["global_downloads", "user_downloads"]:

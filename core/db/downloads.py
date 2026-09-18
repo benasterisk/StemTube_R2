@@ -207,6 +207,27 @@ def update_download_lyrics(video_id, lyrics_data):
             print(f"[LYRICS] Lyrics saved successfully for video_id='{video_id}'")
 
 
+def get_media_metadata(video_id):
+    """Stored media metadata (core/media_metadata.py) for a song, or None."""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT media_metadata FROM global_downloads WHERE video_id=?", (video_id,)).fetchone()
+    if not row or not row[0]:
+        return None
+    try:
+        return json.loads(row[0])
+    except (TypeError, ValueError):
+        return None
+
+
+def update_media_metadata(video_id, metadata):
+    """Store media metadata (artist, track, language...) on the global record."""
+    with _conn() as conn:
+        conn.execute("UPDATE global_downloads SET media_metadata=? WHERE video_id=?",
+                     (json.dumps(metadata, ensure_ascii=False) if metadata else None, video_id))
+        conn.commit()
+
+
 def update_download_structure(video_id, structure_data):
     """Update LLM-analyzed structure data for a download."""
     with _conn() as conn:
