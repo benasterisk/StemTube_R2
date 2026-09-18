@@ -850,44 +850,74 @@ def update_system_settings():
 # YouTube Cookies Management API Routes
 # ============================================
 
+AUTH_COOKIE_NAMES = {'__Secure-3PAPISID', 'SID', 'SAPISID', '__Secure-3PSID', 'HSID', 'SSID'}
+# Only these domains matter to yt-dlp; a full browser export also holds every other
+# site's session, which has no business on this server.
+YOUTUBE_COOKIE_DOMAINS = ('youtube.com', 'google.com')
+
+
+def _cookie_lines(content):
+    """Yield (domain, name, line) for each cookie of a Netscape cookie file.
+
+    Lines starting with "#HttpOnly_" are cookies, not comments: Google's session
+    cookies (HSID, SSID, __Secure-3PSID...) are HttpOnly.
+    """
+    for raw in content.splitlines():
+        line = raw.strip()
+        if not line or (line.startswith('#') and not line.startswith('#HttpOnly_')):
+            continue
+        parts = line.split('\t')
+        if len(parts) >= 7:
+            yield parts[0].replace('#HttpOnly_', '', 1), parts[5], line
+
+
+def _is_youtube_domain(domain):
+    domain = domain.lstrip('.').lower()
+    return any(domain == d or domain.endswith('.' + d) for d in YOUTUBE_COOKIE_DOMAINS)
+
+
+def _reload_cookie_broker():
+    try:
+        from core.cookie_broker import get_broker
+        get_broker().reload_from_disk()
+    except Exception as broker_error:
+        logger.warning(f"[Cookies] Cookie broker reload failed: {broker_error}")
+
+
 @admin_api_bp.route('/api/admin/cookies/status', methods=['GET'])
 @api_login_required
 @api_admin_required
 def get_cookies_status():
-    """Get YouTube cookies file status."""
+    """Get YouTube cookies file status (and the shared cookie jar's health)."""
     try:
         if os.path.exists(COOKIES_FILE_PATH):
             stat = os.stat(COOKIES_FILE_PATH)
             modified_time = datetime.fromtimestamp(stat.st_mtime)
             age_hours = (datetime.now() - modified_time).total_seconds() / 3600
 
-            # Count cookies and check for auth cookies
-            cookie_count = 0
-            has_auth_cookies = False
-            auth_cookie_names = {'__Secure-3PAPISID', 'SID', 'SAPISID', '__Secure-3PSID', 'HSID', 'SSID'}
-            found_auth_cookies = []
-            with open(COOKIES_FILE_PATH, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#'):
-                        cookie_count += 1
-                        parts = line.split('\t')
-                        if len(parts) >= 6:
-                            cookie_name = parts[5]
-                            if cookie_name in auth_cookie_names:
-                                has_auth_cookies = True
-                                found_auth_cookies.append(cookie_name)
+            with open(COOKIES_FILE_PATH, 'r', errors='ignore') as f:
+                cookies = list(_cookie_lines(f.read()))
+            found_auth_cookies = sorted({name for _, name, _ in cookies if name in AUTH_COOKIE_NAMES})
+            other_sites = sum(1 for domain, _, _ in cookies if not _is_youtube_domain(domain))
+
+            try:
+                from core.cookie_broker import get_broker
+                broker = get_broker().snapshot()
+            except Exception:
+                broker = None
 
             return jsonify({
                 'success': True,
                 'exists': True,
-                'cookie_count': cookie_count,
-                'has_auth_cookies': has_auth_cookies,
+                'cookie_count': len(cookies),
+                'other_site_cookies': other_sites,
+                'has_auth_cookies': bool(found_auth_cookies),
                 'auth_cookies_found': found_auth_cookies,
                 'modified': modified_time.isoformat(),
                 'age_hours': round(age_hours, 1),
                 'is_fresh': age_hours < 48,
-                'file_size': stat.st_size
+                'file_size': stat.st_size,
+                'broker': broker,
             })
         else:
             return jsonify({
@@ -902,9 +932,9 @@ def get_cookies_status():
 @admin_api_bp.route('/api/admin/cookies/upload', methods=['POST', 'OPTIONS'])
 def upload_cookies():
     """
-    Receive cookies from bookmarklet and save as Netscape cookies.txt format.
-    This endpoint doesn't require auth as it's called from youtube.com via bookmarklet.
-    Instead, it uses a one-time token for security.
+    Receive document.cookie from the bookmarklet (run on youtube.com) and merge it
+    into the shared cookie jar. No login (the request comes from youtube.com): a
+    one-time token generated with the bookmarklet authenticates it instead.
     """
     # Handle CORS preflight request
     if request.method == 'OPTIONS':
@@ -914,71 +944,57 @@ def upload_cookies():
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
         return response
 
+    def cors_response(payload, status=200):
+        response = jsonify(payload)
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        return response, status
+
     try:
-        data = request.json or {}
+        import hmac
+        data = request.get_json(silent=True) or {}
         cookies_raw = data.get('cookies', '')
         domain = data.get('domain', '')
-        token = data.get('token', '')
+        token = str(data.get('token', ''))
 
-        # Helper to add CORS headers to response
-        def cors_response(data, status=200):
-            response = jsonify(data)
-            response.headers['Access-Control-Allow-Origin'] = '*'
-            return response, status
-
-        # Validate token (stored in session or config)
         expected_token = get_setting('cookies_upload_token', None)
-        if not expected_token or token != expected_token:
+        if not expected_token or not hmac.compare_digest(token, str(expected_token)):
             return cors_response({'success': False, 'message': 'Invalid or expired token'}, 403)
 
-        # Clear the token after use (one-time)
+        # One-time token
         update_setting('cookies_upload_token', None)
 
         if not cookies_raw:
             return cors_response({'success': False, 'message': 'No cookies received'}, 400)
 
-        if '.youtube.com' not in domain and 'youtube.com' not in domain:
+        if not _is_youtube_domain(domain):
             return cors_response({'success': False, 'message': 'Cookies must be from youtube.com'}, 400)
 
-        # Parse cookies and convert to Netscape format
-        # Format: domain\tinclude_subdomains\tpath\tsecure\texpiry\tname\tvalue
-        lines = ['# Netscape HTTP Cookie File', '# Generated by StemTube Admin', '']
-
-        cookie_pairs = cookies_raw.split('; ')
-        for pair in cookie_pairs:
-            if '=' in pair:
-                name, value = pair.split('=', 1)
-                # Standard YouTube cookie entry
-                # Use .youtube.com for subdomains
-                lines.append(f".youtube.com\tTRUE\t/\tTRUE\t0\t{name}\t{value}")
-
-        # Write to file
-        with open(COOKIES_FILE_PATH, 'w') as f:
-            f.write('\n'.join(lines))
-
-        cookie_count = len(cookie_pairs)
-        logger.info(f"[Cookies] Saved {cookie_count} cookies from bookmarklet")
+        from core.cookie_broker import get_broker
+        result = get_broker().merge_cookie_header(cookies_raw)
+        logger.info(f"[Cookies] Bookmarklet merge: {result['updated']} updated, {result['added']} added, "
+                    f"{result['total']} in the jar")
 
         return cors_response({
             'success': True,
-            'message': f'{cookie_count} YouTube cookies saved!',
-            'cookie_count': cookie_count
+            'message': (f"YouTube cookies merged: {result['updated']} updated, {result['added']} added. "
+                        "Session cookies from a cookies.txt export are kept."),
+            'cookie_count': result['updated'] + result['added'],
         })
     except Exception as e:
         logger.error(f"[Cookies] Error uploading: {e}")
-        # cors_response is defined inside try, so manually add CORS here
-        response = jsonify({'success': False, 'message': str(e)})
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        return response, 500
+        return cors_response({'success': False, 'message': str(e)}, 500)
 
 
 @admin_api_bp.route('/api/admin/cookies/upload-file', methods=['POST'])
 @api_login_required
 @api_admin_required
 def upload_cookies_file():
-    """Upload a Netscape-format cookies.txt file exported from a browser extension."""
+    """Upload a Netscape cookies.txt exported from a browser extension.
+
+    Only youtube.com / google.com cookies are kept: a whole-browser export would
+    otherwise store every other site's session on the server.
+    """
     try:
-        logger.info(f"[Cookies] Upload file request received. Files: {list(request.files.keys())}, Content-Type: {request.content_type}")
         if 'file' not in request.files:
             return jsonify({'success': False, 'message': 'No file provided'}), 400
 
@@ -997,46 +1013,39 @@ def upload_cookies_file():
                 'message': 'Invalid format. File must be a Netscape HTTP Cookie File (exported with browser extension like "Get cookies.txt LOCALLY")'
             }), 400
 
-        # Check for YouTube domain cookies
-        has_youtube = False
-        cookie_count = 0
-        auth_cookie_names = {'__Secure-3PAPISID', 'SID', 'SAPISID', '__Secure-3PSID', 'HSID', 'SSID'}
-        found_auth_cookies = []
-
-        for line in content.split('\n'):
-            line = line.strip()
-            if line and not line.startswith('#'):
-                cookie_count += 1
-                if '.youtube.com' in line or 'youtube.com' in line or '.google.com' in line:
-                    has_youtube = True
-                parts = line.split('\t')
-                if len(parts) >= 6:
-                    cookie_name = parts[5]
-                    if cookie_name in auth_cookie_names:
-                        found_auth_cookies.append(cookie_name)
-
-        if not has_youtube:
+        cookies = list(_cookie_lines(content))
+        kept = [line for domain, _, line in cookies if _is_youtube_domain(domain)]
+        dropped = len(cookies) - len(kept)
+        if not kept:
             return jsonify({
                 'success': False,
                 'message': 'No YouTube cookies found in file. Export cookies while on youtube.com'
             }), 400
+        found_auth_cookies = sorted({name for domain, name, _ in cookies
+                                     if name in AUTH_COOKIE_NAMES and _is_youtube_domain(domain)})
 
-        # Save the file
-        with open(COOKIES_FILE_PATH, 'w') as f:
-            f.write(content)
+        header = ['# Netscape HTTP Cookie File', '# YouTube/Google cookies uploaded to StemTube', '']
+        fd = os.open(COOKIES_FILE_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, 'w') as f:
+            f.write('\n'.join(header + kept) + '\n')
+        _reload_cookie_broker()
 
-        has_auth = len(found_auth_cookies) > 0
-        logger.info(f"[Cookies] Uploaded {cookie_count} cookies from file (auth cookies: {found_auth_cookies})")
+        logger.info(f"[Cookies] Uploaded {len(kept)} YouTube/Google cookies from file "
+                    f"({dropped} other-site cookies dropped; auth cookies: {found_auth_cookies})")
 
-        message = f'{cookie_count} cookies uploaded successfully!'
-        if not has_auth:
+        message = f'{len(kept)} YouTube/Google cookies uploaded'
+        if dropped:
+            message += f' ({dropped} cookies of other sites ignored)'
+        message += '.'
+        if not found_auth_cookies:
             message += ' WARNING: No authentication cookies found (like __Secure-3PAPISID). Make sure you are logged into YouTube when exporting cookies.'
 
         return jsonify({
             'success': True,
             'message': message,
-            'cookie_count': cookie_count,
-            'has_auth_cookies': has_auth,
+            'cookie_count': len(kept),
+            'dropped_other_sites': dropped,
+            'has_auth_cookies': bool(found_auth_cookies),
             'auth_cookies_found': found_auth_cookies
         })
     except Exception as e:
@@ -1054,8 +1063,7 @@ def generate_cookies_token():
         token = secrets.token_urlsafe(32)
         update_setting('cookies_upload_token', token)
 
-        # Token expires after 5 minutes (handled by bookmarklet timeout)
-        logger.info("[Cookies] Generated new upload token")
+        logger.info("[Cookies] Generated new one-time upload token")
 
         return jsonify({
             'success': True,
@@ -1120,6 +1128,7 @@ def delete_cookies():
     try:
         if os.path.exists(COOKIES_FILE_PATH):
             os.remove(COOKIES_FILE_PATH)
+            _reload_cookie_broker()
             logger.info("[Cookies] Cookies file deleted")
             return jsonify({'success': True, 'message': 'Cookies deleted'})
         else:

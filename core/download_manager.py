@@ -17,22 +17,9 @@ import numpy as np
 
 from .config import get_setting, update_setting, get_ffmpeg_path, DOWNLOADS_DIR, ensure_valid_downloads_directory
 
-# Path to cookies file (uploaded via admin panel)
-COOKIES_FILE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'youtube_cookies.txt')
-
-
-def get_youtube_cookies_config() -> dict:
-    """
-    Get the cookies configuration for yt-dlp.
-    Uses cookies.txt file uploaded via admin panel.
-    Returns dict to merge into ydl_opts.
-    """
-    if os.path.exists(COOKIES_FILE_PATH) and os.path.getsize(COOKIES_FILE_PATH) > 0:
-        print(f"[Cookies] Using cookies file: {COOKIES_FILE_PATH}")
-        return {'cookiefile': COOKIES_FILE_PATH}
-
-    print("[Cookies] WARNING: No cookies file found - YouTube may block downloads. Upload cookies via Admin > Settings > YouTube Cookies")
-    return {}
+# YouTube cookies (uploaded via the admin panel) are shared by every yt-dlp session
+# through core/cookie_broker.py: never pass `cookiefile` to yt-dlp.
+from .cookie_broker import COOKIES_FILE_PATH, get_broker, is_botcheck_error, youtube_dl
 
 
 class DownloadType(Enum):
@@ -503,14 +490,14 @@ class DownloadManager:
             # Let yt-dlp auto-select the best client (default handles SABR natively)
             # Forcing player_client to iOS/android limits formats to 360p muxed only
             # JS runtime for YouTube challenge solving (nsig/signature).
-            # Deno d'abord (EJS exige Node >=22 ; Deno est plus simple en conteneur),
-            # repli sur Node si Deno absent.
+            # Deno first (EJS needs Node >= 22; Deno is simpler in containers),
+            # Node as fallback.
             'js_runtimes': {'deno': {}, 'node': {}},
-            # Cookies config added below
         }
 
-        # Add cookies configuration (file or browser, with fallback)
-        ydl_opts.update(get_youtube_cookies_config())
+        if not os.path.exists(COOKIES_FILE_PATH):
+            print("[Cookies] WARNING: No cookies file - YouTube may block downloads. "
+                  "Upload cookies via Admin > Settings > YouTube Cookies")
         
         # Video: prefer h264+aac which naturally produces mp4 output
         # Do NOT use merge_output_format='mp4' — it forces FFmpeg conversion
@@ -545,6 +532,22 @@ class DownloadManager:
         )
         download_thread.start()
     
+    def _extract_with_botcheck_rescue(self, ydl, url: str, item: DownloadItem):
+        """extract_info with one retry after a YouTube bot check ("Sign in to confirm
+        you're not a bot", HTTP 429): the shared cookies are written out and a
+        keep-alive request refreshes the short-lived ones before the second try."""
+        try:
+            return ydl.extract_info(url, download=True)
+        except Exception as e:
+            if not is_botcheck_error(e) or (item.cancel_event and item.cancel_event.is_set()):
+                raise
+            print(f"[Cookies] Bot check on {item.download_id}: refreshing cookies and retrying once")
+            try:
+                get_broker().rescue_botcheck()
+            except Exception as rescue_error:
+                print(f"[Cookies] Bot-check rescue failed: {rescue_error}")
+            return ydl.extract_info(url, download=True)
+
     def _download_thread(self, url: str, ydl_opts: Dict[str, Any], item: DownloadItem):
         """Thread for downloading a video.
         
@@ -568,8 +571,8 @@ class DownloadManager:
             existing_hooks = ydl_opts.get('progress_hooks', [])
             ydl_opts['progress_hooks'] = existing_hooks + [cancellation_hook]
             
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
+            with youtube_dl(ydl_opts) as ydl:
+                info = self._extract_with_botcheck_rescue(ydl, url, item)
                 
                 # Get the downloaded file path
                 if info:

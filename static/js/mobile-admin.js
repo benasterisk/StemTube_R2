@@ -918,11 +918,15 @@ class MobileAdmin {
                     ? `🔑 Auth: ${data.auth_cookies_found.join(', ')}`
                     : '⚠️ No auth cookies - re-upload while logged in';
                 const authColor = data.has_auth_cookies ? '#28a745' : '#ffc107';
+                const otherSites = data.other_site_cookies
+                    ? `<div style="font-size: 0.8rem; margin-top: 4px; color: #ffc107;">⚠️ ${data.other_site_cookies} cookies of other sites - re-upload to keep only YouTube</div>`
+                    : '';
                 statusDiv.innerHTML = `
                     <div>
                         <div><i class="fas fa-check-circle" style="color: ${data.is_fresh ? '#28a745' : '#ffc107'}"></i>
                         <span>${freshIcon} ${data.cookie_count} cookies - ${freshText}</span></div>
                         <div style="font-size: 0.8rem; margin-top: 4px; color: ${authColor};">${authInfo}</div>
+                        ${otherSites}
                     </div>
                 `;
                 if (deleteBtn) deleteBtn.disabled = false;

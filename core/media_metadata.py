@@ -44,12 +44,10 @@ def fetch_youtube_metadata(video_id: str) -> Dict:
     if not video_id or not YOUTUBE_ID.match(video_id):
         return {}
     try:
-        import yt_dlp
-        from core.download_manager import get_youtube_cookies_config
+        from core.cookie_broker import youtube_dl
         opts = {'quiet': True, 'no_warnings': True, 'skip_download': True,
                 'js_runtimes': {'deno': {}, 'node': {}}}
-        opts.update(get_youtube_cookies_config())
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        with youtube_dl(opts) as ydl:
             info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
         meta = from_ytdlp_info(info)
         logger.info(f"[METADATA] YouTube {video_id}: artist={meta.get('artist')!r} "

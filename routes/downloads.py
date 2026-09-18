@@ -72,19 +72,14 @@ def get_video_info(video_id):
 def get_video_formats(video_id):
     """Return available download formats grouped by type for a YouTube video."""
     try:
-        import yt_dlp
-        import os
+        from core.cookie_broker import youtube_dl
 
-        cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'core', 'youtube_cookies.txt')
         opts = {
             'quiet': True,
             'no_warnings': True,
             'js_runtimes': {'node': {}},
         }
-        if os.path.exists(cookies_path) and os.path.getsize(cookies_path) > 0:
-            opts['cookiefile'] = cookies_path
-
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        with youtube_dl(opts) as ydl:
             info = ydl.extract_info(f'https://www.youtube.com/watch?v={video_id}', download=False)
 
         formats = info.get('formats', [])

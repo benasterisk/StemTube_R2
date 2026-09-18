@@ -46,9 +46,7 @@ login_manager.login_message_category = 'error'
 
 # ── Constants ────────────────────────────────────────────────────────
 
-COOKIES_FILE_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), 'core', 'youtube_cookies.txt'
-)
+from core.cookie_broker import COOKIES_FILE_PATH  # noqa: E402  (one path for the whole app)
 
 # ── Utility functions ────────────────────────────────────────────────
 

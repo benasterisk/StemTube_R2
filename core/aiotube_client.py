@@ -13,13 +13,12 @@ from pathlib import Path
 # aiotube is deprecated/broken - using yt-dlp instead
 # import aiotube
 # pytubefix is also blocked by YouTube bot detection, so we use yt-dlp
-import yt_dlp
 import re
 import requests
 from bs4 import BeautifulSoup
 
 from .config import get_setting
-from .download_manager import get_youtube_cookies_config
+from .cookie_broker import youtube_dl
 
 # Constants
 MAX_RESULTS_PER_PAGE = 50  # Increased limit to allow more results
@@ -132,10 +131,7 @@ class AiotubeClient:
                     }
                 },
             }
-            # Add cookies configuration (file or browser, with fallback)
-            ydl_opts.update(get_youtube_cookies_config())
-
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            with youtube_dl(ydl_opts) as ydl:
                 search_results = ydl.extract_info(f"ytsearch{max_results}:{query}", download=False)
 
             entries = search_results.get('entries', [])
@@ -364,10 +360,7 @@ class AiotubeClient:
                         }
                     },
                 }
-                # Add cookies configuration (file or browser, with fallback)
-                ydl_opts.update(get_youtube_cookies_config())
-
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                with youtube_dl(ydl_opts) as ydl:
                     info = ydl.extract_info(url, download=False)
 
                 # Extract thumbnail URL
@@ -486,7 +479,7 @@ class AiotubeClient:
                 'no_warnings': True,
             }
 
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            with youtube_dl(ydl_opts) as ydl:
                 search_results = ydl.extract_info(f"ytsearch3:{query}", download=False)
 
             entries = search_results.get('entries', [])

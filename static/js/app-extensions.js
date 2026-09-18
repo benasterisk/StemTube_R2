@@ -825,6 +825,13 @@ async function loadCookiesStatus() {
                 ? `Auth cookies: ${data.auth_cookies_found.join(', ')}`
                 : 'No auth cookies found - re-upload while logged into YouTube';
             const authClass = data.has_auth_cookies ? '' : 'color: #f0ad4e;';
+            const broker = data.broker || {};
+            const keepAlive = broker.last_heartbeat_age_s == null
+                ? 'no keep-alive yet'
+                : `keep-alive ${broker.last_heartbeat_ok ? 'ok' : 'failed'} ${Math.round(broker.last_heartbeat_age_s / 60)} min ago`;
+            const otherSites = data.other_site_cookies
+                ? `<p class="info-detail" style="color: #f0ad4e;">⚠️ ${data.other_site_cookies} cookies of other sites stored - re-upload the file to keep only YouTube/Google</p>`
+                : '';
             statusDiv.innerHTML = `
                 <div class="info-card-body">
                     <div class="status-indicator">
@@ -833,6 +840,8 @@ async function loadCookiesStatus() {
                     </div>
                     <p class="info-detail">${data.cookie_count} cookies • Modified: ${new Date(data.modified).toLocaleString()}</p>
                     <p class="info-detail" style="${authClass}">${authIcon} ${authText}</p>
+                    <p class="info-detail">🔄 Shared by all downloads: ${broker.jar_cookies ?? '?'} cookies • ${keepAlive}</p>
+                    ${otherSites}
                 </div>
             `;
             if (deleteBtn) deleteBtn.disabled = false;
