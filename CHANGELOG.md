@@ -125,6 +125,20 @@ the commits that carry the change.
 - Whisper credit hallucinations over instrumentals ("Sous-titrage Société Radio-Canada",
   Amara.org, "thanks for watching"…) are dropped from the transcription.
 
+- **Shared YouTube cookie jar** (`core/cookie_broker.py`, ported from DeezpotHiFi):
+  every yt-dlp session (download, search, formats, lyrics metadata) uses one in-memory
+  jar instead of `cookiefile`, which made each session rewrite the whole file on close
+  and lose the rolling cookies of concurrent sessions. Atomic throttled writes (mode 600),
+  reload when an upload replaces the file, keep-alive every 3 min while idle, and one
+  retry after a bot check ("Sign in to confirm you're not a bot", HTTP 429).
+- **Bookmarklet merges instead of replacing**: `document.cookie` has no HttpOnly cookies
+  (Google's session cookies), so replacing the file logged the account out; the token
+  check uses a constant-time comparison.
+- **Cookie file upload keeps only youtube.com / google.com cookies** (a whole-browser
+  export stored every other site's session on the server); the admin status counts
+  `#HttpOnly_` lines (they were skipped as comments, hiding the auth cookies), shows the
+  shared jar and keep-alive state, and warns when other sites' cookies are stored.
+
 ### Removed
 - Musixmatch: `core/musixmatch_client.py`, `core/syncedlyrics_client.py`, the
   `syncedlyrics` dependency and `POST /api/musixmatch/search` (the Regenerate body no

@@ -47,33 +47,46 @@ Many downloads require authenticated YouTube sessions to bypass restrictions.
 | Requirement | Purpose |
 |-------------|---------|
 | **Node.js** | JavaScript runtime (20+) |
-| **Firefox OR cookies.txt** | YouTube authentication |
+| **YouTube cookies** (admin upload or bookmarklet) | YouTube authentication |
 | **yt-dlp nightly** | Latest YouTube fixes |
 
 ### Cookie Configuration Options
 
-#### Option A: Desktop Server with Firefox (Recommended)
-If your server has a graphical interface with Firefox:
-1. Log into YouTube in Firefox
-2. StemTube will automatically use Firefox cookies
+Use a **dedicated (throwaway) Google account**: a cookies file is a full login for that
+account, and YouTube may restrict an account used for automated downloads.
 
-#### Option B: Headless Server with Bookmarklet
-For servers without a GUI:
-1. Go to **Admin Panel → YouTube Cookies**
-2. Click **"Générer Bookmarklet"**
-3. Drag the bookmarklet link to your browser's bookmarks bar
-4. Visit **youtube.com** and log in
-5. Click the bookmarklet to send cookies to your server
+#### Option A: cookies.txt Upload (recommended first step)
+1. Log into YouTube with the dedicated account and export its cookies with an extension
+   such as "Get cookies.txt LOCALLY"
+2. **Admin Panel → YouTube Cookies → Upload** the file (only `youtube.com` / `google.com`
+   cookies are kept: a whole-browser export has every other site's session in it)
 
-#### Option C: Manual cookies.txt Upload
-1. Export cookies from your browser using an extension like "Get cookies.txt LOCALLY"
-2. Place the file at: `core/youtube_cookies.txt`
+This is the only way to import Google's HttpOnly session cookies (`HSID`, `SSID`,
+`__Secure-3PSID`…), which a page script cannot read.
 
-### Cookie Priority
-StemTube checks for cookies in this order:
-1. `core/youtube_cookies.txt` (uploaded via admin or manual)
-2. Firefox browser cookies (if Firefox profile exists)
-3. No cookies (limited functionality)
+#### Option B: Bookmarklet (refresh from any browser)
+1. **Admin Panel → YouTube Cookies → Generate Bookmarklet** and drag the link to your
+   bookmarks bar (the link carries a one-time token: generate a new one for each use)
+2. Open **youtube.com** while logged in and click the bookmarklet
+
+The bookmarklet sends `document.cookie`, which never includes HttpOnly cookies, so it
+**merges** into the stored cookies (updates values, adds new ones) instead of replacing
+them: it refreshes a session imported with option A without logging it out.
+
+### How StemTube Uses the Cookies
+- `core/youtube_cookies.txt` is loaded once into a **shared cookie jar**
+  (`core/cookie_broker.py`) bound to every yt-dlp session: downloads, search, format
+  listing, lyrics metadata. yt-dlp is never given `cookiefile`, so concurrent sessions no
+  longer overwrite each other's rolling cookies when they close.
+- The jar is written back atomically (temp file + rename, mode 600) at most every 2 s;
+  a file replaced by an upload is detected (size + SHA-1) and reloaded.
+- While nothing uses YouTube, a keep-alive request every 3 min refreshes the short-lived
+  `CONSISTENCY` / `YSC` cookies (only when a cookies file exists).
+- A download rejected by the bot check ("Sign in to confirm you're not a bot", HTTP 429)
+  is retried once after the jar is saved and a keep-alive request is made.
+- Without a cookies file, yt-dlp runs anonymously (no file is created).
+- The admin status shows the auth cookies found, the shared jar size, the last
+  keep-alive and a warning when cookies of other sites are stored.
 
 ---
 
@@ -112,9 +125,10 @@ sudo tail -f /path/to/stemtube/logs/stemtube_app.log | grep -i "cookie\|error\|n
 | Error | Cause | Solution |
 |-------|-------|----------|
 | `n challenge solving failed` | Node.js not installed | Install Node.js 20+ |
-| `403 Forbidden` | Missing/expired cookies | Refresh cookies via bookmarklet |
+| `403 Forbidden` | Missing/expired cookies | Re-upload cookies.txt, or refresh with the bookmarklet |
 | `Requested format not available` | SABR blocking | Use iOS player client |
-| `No cookies available` | No Firefox or cookies.txt | Upload cookies via admin |
+| `Sign in to confirm you're not a bot` | Bot check (retried once automatically) | Refresh cookies; use a dedicated account |
+| `No cookies file` warning | No cookies uploaded | Upload cookies via admin |
 
 ---
 
