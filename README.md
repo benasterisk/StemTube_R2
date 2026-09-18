@@ -273,13 +273,31 @@ See [LICENSE](LICENSE) for details.
 
 ## 🙏 Acknowledgments
 
-Built with:
-- [Demucs](https://github.com/facebookresearch/demucs) - AI stem separation
-- [faster-whisper](https://github.com/guillaumekln/faster-whisper) - Speech recognition
-- [madmom](https://github.com/CPJKU/madmom) - Audio analysis & chord detection
-- [BTC](https://github.com/jayg996/BTC-ISMIR19) - Advanced chord recognition
-- [SoundTouchJS](https://github.com/cutterbl/SoundTouchJS) - Pitch/tempo processing
-- [guitar-chords-db-json](https://github.com/tombatossals/guitar-chords-db-json) - Chord diagrams
+StemTube stands on the work of these open-source projects — thank you to their authors and
+maintainers:
+
+**Audio & separation**
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) — audio download
+- [Demucs](https://github.com/facebookresearch/demucs) (Alexandre Défossez, Meta AI) — stem separation (`htdemucs`, `htdemucs_ft`, `htdemucs_6s`, `mdx_extra`)
+- [Music-Source-Separation-Training](https://github.com/ZFTurbo/Music-Source-Separation-Training) (ZFTurbo) — BS-Roformer code (vendored in `core/msst/`, MIT) and the MVSep Mega 53-stem model
+- [DrumSep](https://github.com/inagoy/drumsep) (inagoy) — kick / snare / toms / cymbals separation
+- [FFmpeg](https://ffmpeg.org) ([BtbN builds](https://github.com/BtbN/FFmpeg-Builds)) — audio conversion
+
+**Music analysis**
+- [BTC-ISMIR19](https://github.com/jayg996/BTC-ISMIR19) (Jonggwon Park et al.) — chord recognition
+- [madmom](https://github.com/CPJKU/madmom) (CPJKU) — beat and downbeat tracking
+- [librosa](https://github.com/librosa/librosa) — tempo and key analysis
+- [MSAF](https://github.com/urinieto/msaf) (Oriol Nieto) — song structure segmentation
+
+**Lyrics**
+- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (SYSTRAN) — transcription and word timings
+- [LRCLIB](https://lrclib.net) ([source](https://github.com/tranxuanthang/lrclib)) — free synced lyrics database
+
+**Web app & playback**
+- [Flask-SocketIO](https://github.com/miguelgrinberg/Flask-SocketIO) (Miguel Grinberg) — real-time progress and jam sessions
+- [SoundTouchJS](https://github.com/cutterbl/SoundTouchJS) — tempo / pitch processing in the browser
+- [lamejs](https://github.com/zhuker/lamejs) — MP3 encoding of mix exports
+- [guitar-chords-db-json](https://github.com/tombatossals/guitar-chords-db-json) — chord diagrams
 
 ---
 
