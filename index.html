@@ -34,6 +34,7 @@
             StemTube
         </a>
         <ul class="nav-links">
+            <li><a href="#news" data-i18n="nav.news">News</a></li>
             <li><a href="#features" data-i18n="nav.features">Features</a></li>
             <li><a href="#how-it-works" data-i18n="nav.howItWorks">How It Works</a></li>
             <li><a href="#screenshots" data-i18n="nav.screenshots">Screenshots</a></li>
@@ -145,6 +146,78 @@
                     <i class="fas fa-arrow-right"></i> <span data-i18n="crossPromo.r2.btn">See StemTube Desktop</span>
                 </a>
             </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── News ────────────────────────────────────────────────────── -->
+<!-- To add an entry: copy one .news-entry block below, put it FIRST in
+     .news-list, give it a new id (news.<id>.*) and add those keys to
+     every lang/*.json file. -->
+<section class="news" id="news">
+    <div class="container">
+        <div class="section-label fade-in" data-i18n="news.label">News</div>
+        <h2 class="section-title fade-in" data-i18n="news.title">What's new</h2>
+        <p class="section-subtitle fade-in" data-i18n="news.subtitle">Latest changes landed in the server edition. Pull the repo to get them.</p>
+
+        <div class="news-list">
+
+            <!-- 2026-09-20 · Fine stem separation -->
+            <article class="news-entry fade-in">
+                <div class="news-entry-head">
+                    <span class="news-date">2026-09-20</span>
+                    <span class="news-tag news-tag-gpu" data-i18n="news.fineStems.tag">NVIDIA GPU only</span>
+                </div>
+                <h3><i class="fas fa-layer-group"></i> <span data-i18n="news.fineStems.title">Fine stem separation — up to 17 stems</span></h3>
+                <p data-i18n-html="news.fineStems.desc">A new separation model, <code>mvsep_mega_fine</code>, runs a three-stage pipeline: <strong>Demucs htdemucs_6s</strong> for the coarse split, then <strong>DrumSep</strong> (inagoy, HDemucs) splitting the drum kit into kick, snare, toms and cymbals (hi-hat folded into cymbals), then <strong>MVSep Mega BS-RoFormer</strong> (ZFTurbo) heads splitting the remaining stems with Wiener masks.</p>
+                <ul class="news-points">
+                    <li data-i18n-html="news.fineStems.p1"><strong>Up to 17 stems</strong> — lead and backing vocals, drums plus kick/snare/toms/cymbals, bass, electric and acoustic guitar, piano, organ, synth, brass, winds, strings, and other.</li>
+                    <li data-i18n="news.fineStems.p2">Roughly 1-2 minutes per song on a GPU.</li>
+                    <li data-i18n="news.fineStems.p3">Model weights (~1.5 GB) download automatically on first use.</li>
+                </ul>
+                <p class="news-note" data-i18n="news.fineStems.note">Requires an NVIDIA CUDA GPU with about 4.5 GB of usable VRAM. This model does not run on CPU — the other separation models still do.</p>
+            </article>
+
+            <!-- 2026-09-20 · Mixer improvements -->
+            <article class="news-entry fade-in">
+                <div class="news-entry-head">
+                    <span class="news-date">2026-09-20</span>
+                    <span class="news-tag" data-i18n="news.mixer.tag">Mixer</span>
+                </div>
+                <h3><i class="fas fa-sliders-h"></i> <span data-i18n="news.mixer.title">Mixer improvements</span></h3>
+                <ul class="news-points">
+                    <li data-i18n-html="news.mixer.p1"><strong>Chords view is now a stage chart</strong> — a grid of four bars per system, lyrics under every beat, chord names that scale to their cell, a clearer "now" cue, and auto-scroll that keeps the active system near the top for maximum look-ahead.</li>
+                    <li data-i18n-html="news.mixer.p2"><strong>Audible scrubbing</strong> — dragging the timeline ruler moves the playhead and plays short slices, so you can find a passage by ear.</li>
+                    <li data-i18n-html="news.mixer.p3"><strong>Richer loop controls</strong> — draggable edge handles, fields accepting a timecode (<code>1:23.45</code>) or a bar (<code>b17</code>), a clear button, and a shared snap-to-beat toggle. Defining a loop is Shift+drag, on the ruler or on a waveform.</li>
+                    <li data-i18n-html="news.mixer.p4"><strong>Lyrics popup became a stage prompter</strong> — real font scaling up to 3x with reflow, size remembered between sessions, active line parked mid-screen.</li>
+                    <li data-i18n-html="news.mixer.p5"><strong>Faster loading</strong> — tracks and server-side waveforms appear immediately, and each stem decodes as its own download finishes.</li>
+                </ul>
+            </article>
+
+            <!-- 2026-09-20 · Lyrics via LRCLIB -->
+            <article class="news-entry fade-in">
+                <div class="news-entry-head">
+                    <span class="news-date">2026-09-20</span>
+                    <span class="news-tag" data-i18n="news.lyrics.tag">Lyrics</span>
+                </div>
+                <h3><i class="fas fa-closed-captioning"></i> <span data-i18n="news.lyrics.title">Lyrics now come from LRCLIB, aligned on Whisper</span></h3>
+                <p data-i18n-html="news.lyrics.desc">Musixmatch's unofficial API stopped serving anonymous clients, so lyrics now come from <strong>LRCLIB</strong> — free, no account — with <strong>faster-whisper</strong> supplying the word timings; the LRCLIB words are then aligned onto those timings.</p>
+                <ul class="news-points">
+                    <li data-i18n="news.lyrics.p1">Fixes French songs being transcribed as English: the language is now detected on voiced parts only.</li>
+                    <li data-i18n="news.lyrics.p2">Whisper's credit hallucinations over instrumental passages are dropped.</li>
+                </ul>
+            </article>
+
+            <!-- 2026-09-20 · Structure detection -->
+            <article class="news-entry fade-in">
+                <div class="news-entry-head">
+                    <span class="news-date">2026-09-20</span>
+                    <span class="news-tag" data-i18n="news.structure.tag">Fix</span>
+                </div>
+                <h3><i class="fas fa-stream"></i> <span data-i18n="news.structure.title">Structure detection works again</span></h3>
+                <p data-i18n="news.structure.desc">MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity.</p>
+            </article>
+
         </div>
     </div>
 </section>
@@ -468,6 +541,7 @@
             <span class="footer-copy" data-i18n="footer.copy">&copy; 2025 StemTube. Open source under MIT License.</span>
             <ul class="footer-links">
                 <li><a href="https://github.com/benasterisk/StemTube_R2" target="_blank"><i class="fab fa-github"></i> GitHub</a></li>
+                <li><a href="#news" data-i18n="nav.news">News</a></li>
                 <li><a href="#features" data-i18n="nav.features">Features</a></li>
                 <li><a href="#contribute" data-i18n="nav.contribute">Contribute</a></li>
                 <li><a href="#story" data-i18n="nav.about">About</a></li>
