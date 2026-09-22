@@ -63,17 +63,21 @@ python utils/testing/test_mvsep_mega.py <audio_file> [--analyse]
 
 ### Reanalysis
 ```bash
-# Re-run chord detection (BTC Transformer) on all songs
-python utils/analysis/reanalyze_all_chords.py
+# Re-detect chords and key on extracted songs (BTC on the harmonic stems, decoded on the beat grid)
+python utils/analysis/reanalyze_all_chords.py [--limit N] [--video-id ID]
 
 # Fill in missing madmom beat grids (songs with beat_times = NULL)
 python utils/analysis/regenerate_beat_times.py
 ```
 
-**Chord reanalysis** stores only `chords_data`: `reanalyze_all_chords.py` (and
-`reanalyze_with_madmom.py`) leave the beat grid, beat offset and Skip Intro (`music_start_time`)
-untouched, since BTC detects no beats. Despite its name, `reanalyze_with_madmom.py` runs BTC too -
-chords are BTC-only.
+**Chord reanalysis**: `reanalyze_all_chords.py` calls `update_song_chords()` in
+`core/chord_refiner.py` - the same pipeline as the post-extraction pass and the mixer's Reanalyze
+button. It stores only `chords_data`, `detected_key` and `analysis_confidence`; the beat grid,
+beat offset, Skip Intro (`music_start_time`), lyrics and structure are untouched. Extracted songs
+only (chords are detected on the stems); songs whose stems are not on disk (e.g. an unmounted
+drive) are skipped. About 5-10 s per song on CPU. Run it once for songs extracted before chords
+moved to the stems (too many chords, wrong key). `reanalyze_with_madmom.py` and
+`reanalyze_neil_young.py` were removed - they stored raw full-mix chords.
 
 **Structure reanalysis:**
 ```bash

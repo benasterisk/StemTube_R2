@@ -125,20 +125,28 @@ or
 ### Test Detection
 
 ```python
-from core.chord_detector import analyze_audio_file
-import json
+from core.btc_chord_detector import detect_segments
 
-chords_json, _, _, _ = analyze_audio_file('path/to/song.mp3')
-chords = json.loads(chords_json) if chords_json else []
+# Raw BTC output: (start, end, label) segments, "N" = no chord
+segments = detect_segments('path/to/song.mp3')
 
-print(f"Detected {len(chords)} chords")
-print(f"First chord: {chords[0] if chords else None}")
+print(f"Detected {len(segments)} raw segments")
+print(f"First segment: {segments[0] if segments else None}")
 
 # Expected output:
-# [CHORDS] Using BTC Transformer (170 chord vocabulary)...
-# [CHORDS] [OK] BTC detection successful
-# Detected 150 chords
-# First chord: {'timestamp': 0.0, 'chord': 'Cmaj7'}
+# [BTC] Running transformer inference...
+# [BTC] Detected 150 chord segments
+# Detected 150 raw segments
+```
+
+Full pipeline on an extracted song (harmonic stems → BTC → beat-grid decoding → key; stores the
+result):
+```python
+from core.chord_refiner import update_song_chords
+
+result = update_song_chords('<video_id>')
+print(result['key'], len(result['chords']), result['chords'][0])
+# E minor 86 {'timestamp': 19.705, 'chord': 'Em7', 'simple': 'Em'}
 ```
 
 Or directly:
@@ -162,27 +170,29 @@ There is nothing to configure:
 
 ### When BTC Is Unavailable
 
-1. `core/chord_detector.py` checks `is_available()`
-2. If BTC is missing, it logs `[CHORDS] BTC not available`
+1. `core/chord_refiner.py` (run after stem extraction) checks `is_available()`
+2. If BTC is missing, it logs `[CHORDS] BTC is not available`
 3. `chords_data` stays empty - **no other detector is tried**
 
-If BTC raises during detection, the log shows `[CHORDS] BTC error: ...` and the result is also empty.
+If BTC raises during the post-extraction pass, the log shows
+`[CHORDS] Chord detection error (non-fatal): ...`, the extraction still completes and the result is
+also empty.
 
 ### Logging
 
 **Success**:
 ```
-[CHORDS] Using BTC Transformer (170 chord vocabulary)...
-[CHORDS] [OK] BTC detection successful
+[CHORDS] 166 raw segments -> 86 chords, key E minor (0.21), from stems
 ```
 
 **Failure**:
 ```
-[CHORDS] BTC not available
+[CHORDS] BTC is not available
 ```
 
-After fixing BTC, regenerate chords for affected songs from the mixer or with
-`python utils/analysis/reanalyze_all_chords.py`.
+After fixing BTC, regenerate chords for affected songs from the mixer (**Reanalyze** in the Chords
+tab) or with `python utils/analysis/reanalyze_all_chords.py [--limit N] [--video-id ID]`
+(extracted songs only; songs whose stems are not on disk are skipped).
 
 ---
 

@@ -472,16 +472,60 @@ Or `POST /api/extractions/<id>/analyze-structure` for a single song, then reload
 
 ### No Chords in Mixer
 
-**Symptom**: Chord lane empty
+**Symptom**: Chords tab empty
 
-**Cause**: BTC (the only chord detector) is unavailable or failed - there is no fallback.
+**Cause**: BTC (the only chord detector) is unavailable or failed - there is no fallback. Chords
+are detected at the end of stem extraction (not at download), from the harmonic stems.
 
 **Solution**:
 ```bash
 grep -E "\[CHORDS\]|\[BTC\]" app.log
 python -c "from core.btc_chord_detector import is_available; print(is_available())"
 ```
-Then regenerate chords from the mixer. See [BTC Setup](../setup-guides/BTC-SETUP.md).
+Then click **Reanalyze** in the Chords tab header (desktop and mobile). See
+[BTC Setup](../setup-guides/BTC-SETUP.md).
+
+### Too Many Chords / Chords Off the Beat
+
+**Symptom**: A chord change on almost every beat, A-B-A flicker, chords that do not line up with
+the beat grid.
+
+**Cause**: The song was extracted before chords were detected on the harmonic stems and decoded
+on the beat grid - it still carries the raw full-mix chords stored at download.
+
+**Solution**: Click **Reanalyze** in the Chords tab, or backfill every extracted song (~5-10 s per
+song; songs whose stems are not on disk are skipped):
+```bash
+python utils/analysis/reanalyze_all_chords.py                 # all extracted songs
+python utils/analysis/reanalyze_all_chords.py --video-id ID   # one song
+```
+If the extensions (`7`, `maj7`...) look wrong, switch the **Simple / Detailed** toggle to Simple.
+If the chords are still off the beat, the beat grid itself may be wrong: regenerate the beats -
+the chords are re-aligned on the new grid.
+
+### Wrong Key ("F major" on Every Song)
+
+**Symptom**: The key shown for a song is wrong - typically "F major" on almost every song, or a
+fifth / a relative away from the real key.
+
+**Cause**:
+- The old download-time estimate said "F major" for almost everything (fixed).
+- Before extraction the key is only a **provisional** estimate on the full mix. The final key is
+  derived from the chords after stem extraction.
+
+**Solution**: Extract the song; for a song extracted earlier, click **Reanalyze** in the Chords
+tab or run `python utils/analysis/reanalyze_all_chords.py`. A few songs are genuinely ambiguous
+(a two-chord Dm-C vamp can come out as C major instead of D minor).
+
+### Volume Slider Missing at Low Vertical Zoom
+
+**Symptom** (older versions): With the vertical zoom turned down, the per-track volume and pan
+sliders were cut off, and after reloading a song with a saved zoom the left control blocks no
+longer lined up with their lanes.
+
+**Status**: Fixed. Rows under about 68 px now use a one-line compact layout (name, volume and pan
+side by side), and row heights are re-synced after the saved zoom is restored. Hard-refresh the
+mixer (Ctrl+Shift+R) if you still see the old layout.
 
 ### Lyrics in the Wrong Language
 

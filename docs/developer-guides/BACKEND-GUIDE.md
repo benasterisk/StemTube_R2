@@ -62,8 +62,8 @@ core/
 ├── msst/                       # Vendored BS-Roformer + separate.py (mvsep_mega_fine)
 ├── poc/                        # Mixer artifact pipeline (beats, metronome, precount, export)
 │
-├── chord_detector.py           # analyze_audio_file(): BTC only
-├── btc_chord_detector.py       # BTC Transformer (170 vocab)
+├── chord_refiner.py            # Chords + key after extraction: harmonic stems -> BTC -> beat-grid decoding
+├── btc_chord_detector.py       # BTC Transformer (170 vocab), detect_segments()
 ├── madmom_chord_detector.py    # madmom - used ONLY for beat/downbeat detection
 ├── hybrid_chord_detector.py    # DEAD (no importers)
 │
@@ -182,8 +182,8 @@ def get_video_info(video_id):
 - File upload handling
 - Download queue management
 - BPM detection
-- Musical key detection
-- Download-phase analysis: BTC chords, MSAF structure, `media_metadata` + LRCLIB line-synced lyrics preview
+- Provisional musical key detection (replaced after extraction by the key derived from the chords)
+- Download-phase analysis: Skip Intro, MSAF structure, `media_metadata` + LRCLIB line-synced lyrics preview (no chords - they are detected after extraction, see `chord_refiner.py`)
 - Download progress via WebSocket
 
 **Download Pipeline**:
@@ -283,43 +283,30 @@ def detect_bpm(audio_path):
     return float(tempo)
 ```
 
-**Musical Key Detection**:
+**Musical Key Detection** (provisional, simplified):
 ```python
-def detect_key(audio_path):
-    """
-    Detect musical key using librosa.
+# Inside the download analysis, after the BPM. `y`, `sr` = the decoded audio.
+# Long window: the tempo STFT (2048 points = 21.5 Hz bins at 44.1 kHz) is wider than a
+# semitone below 370 Hz and its bins are all multiples of a low F - every song came out
+# as "F major" when the key chroma was built from it.
+key_f, _, key_Zxx = signal.stft(y, fs=sr, nperseg=16384, noverlap=8192)
+chroma = self._compute_chroma_from_stft(np.abs(key_Zxx), key_f, sr)   # 65-2100 Hz only
+chroma_mean = np.mean(chroma, axis=1)
 
-    Args:
-        audio_path: Path to audio file
+# Krumhansl-Kessler profile correlation over the 24 keys (not "loudest pitch class")
+from .chord_refiner import NOTES, _KS_MAJOR, _KS_MINOR
+best_score, tonic_name, mode = -2.0, 'C', 'major'
+for tonic in range(12):
+    for profile, profile_mode in ((_KS_MAJOR, 'major'), (_KS_MINOR, 'minor')):
+        score = float(np.corrcoef(np.roll(profile, tonic), chroma_mean)[0, 1])
+        if score > best_score:
+            best_score, tonic_name, mode = score, NOTES[tonic], profile_mode
 
-    Returns:
-        str: Detected key (e.g., "C major", "Am")
-    """
-    import librosa
-    import numpy as np
-
-    # Load audio
-    y, sr = librosa.load(audio_path, duration=30)  # First 30 seconds
-
-    # Compute chroma features
-    chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
-
-    # Aggregate chroma over time
-    chroma_sum = np.sum(chroma, axis=1)
-
-    # Find dominant note (0=C, 1=C#, ..., 11=B)
-    dominant_note = np.argmax(chroma_sum)
-
-    # Determine major or minor
-    # (Simplified heuristic - full implementation more complex)
-    is_major = chroma_sum[dominant_note] > chroma_sum[(dominant_note + 3) % 12]
-
-    # Map to key name
-    notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-    key = notes[dominant_note] + (' major' if is_major else ' minor')
-
-    return key
+detected_key = f"{tonic_name} {mode}"          # e.g. "A# major" (sharp spelling)
 ```
+
+This key is still approximate (often a fifth or a relative off). After stem extraction it is
+replaced by the key `core/chord_refiner.py` derives from the chords.
 
 **File**: core/download_manager.py
 
@@ -387,7 +374,7 @@ def cleanup_orphaned_files(downloads_dir):
 
 **Key Features**:
 - Model selection from `STEM_MODELS` in `core/config.py`
-- Stem separation only - chords and structure run at download time, lyrics and beats run
+- Stem separation only - structure runs at download time; lyrics, beats and chords run
   post-extraction in `extensions.py`
 - GPU auto-detection with CPU fallback (MSST requires CUDA)
 - Global `_MSST_GPU_LOCK`: only one `mvsep_mega_fine` job holds the GPU at a time
@@ -412,6 +399,7 @@ subprocess.Popen(cmd, ...)                      # progress parsed from output
 #     db_mark_extraction_complete(...)
 #     detect_lyrics_unified(vocals)             # LRCLIB + Whisper, aligned
 #     MadmomChordDetector beat/downbeat detection
+#     chord_refiner.update_song_chords(video_id)  # "Detecting chords..." - chords + key
 #     routes.poc_mixer.warm_prepare(...)        # pre-build mixer artifacts
 ```
 
@@ -492,38 +480,61 @@ def run_demucs(audio_path, model, output_dir, device='cpu'):
 
 ### Music Analysis
 
-#### 7. chord_detector.py
+#### 7. chord_refiner.py
 
-**Purpose**: Chord detection entry point - BTC only
+**Purpose**: Chords and key of an extracted song - BTC on the harmonic stems, decoded on the beat
+grid. Replaces the former `core/chord_detector.py` (removed), which ran BTC on the full mix at
+download time.
 
-**Size**: ~530 lines
+**Size**: ~580 lines
 
 **Backend**: BTC Transformer (170 chord vocabulary). There is no backend selection; the
 `chords_use_madmom` and `chords_use_hybrid` config keys are no longer read.
 
-**Detection**:
+**Entry point**:
 ```python
-def analyze_audio_file(audio_file_path, bpm=None, **_kwargs):
+def update_song_chords(video_id, stems_paths=None, fallback_audio=None):
     """
-    Analyze an audio file: BTC for chords only.
-    Beat detection is handled post-extraction in extensions.py via madmom.
+    Analyze an extracted song and store its chords and key.
+    Reads the stems, beat grid and BPM from the database unless `stems_paths` is given;
+    only chords_data, detected_key and analysis_confidence are written
+    (update_download_analysis() with None for everything else).
 
     Returns:
-        tuple: (chords_json, 0.0, [], [])  - no beats
+        dict | None: {'chords': [{timestamp, chord, simple}], 'key', 'key_confidence',
+                      'source': 'stems' | 'mix'}
     """
-    from core.btc_chord_detector import analyze_audio_file as btc_analyze, is_available
-
-    chords_json = None
-    if is_available():
-        chords_json = btc_analyze(audio_file_path, bpm)[0]
-
-    return chords_json, 0.0, [], []
 ```
 
-**Called by**: `core/download_manager.py` (download phase), `/chords/regenerate` in
-`routes/media.py`
+**Pipeline** (`analyze_stems()` → `refine()`):
+1. `harmonic_stem_paths()` - every stem whose name does not match
+   `vocal|drum|kick|snare|tom|cymbal|hihat|metronome|click` (`drums_full.mp3` excluded);
+   `mix_stems()` mixes them to one temporary mono 22.05 kHz file (ffmpeg `amix`, `normalize=0`).
+   No harmonic stem on disk → the full mix (`source` = `mix`)
+2. `detect_segments()` (BTC) → raw `(start, end, label)` segments, "N" kept
+3. `build_grid()` - working copy of the beat grid: intervals of about 2x the median period or more
+   are subdivided (half-tempo sections), grid extended to 0 and to the end; no grid → steady grid
+   from the BPM. The stored grid is never modified
+4. `snap_to_beats()` - boundaries moved onto beats; 40 % or more into a beat → next beat
+5. `decode_on_beats()` - Viterbi over beats on triads; a change costs 0.35 on a downbeat, 0.55
+   mid-bar, 0.85 elsewhere. If the changes pile up on another bar position than 1 (downbeat
+   tracker out of phase), the costs follow that position (internal only)
+6. `settle_thirds()` - major/minor doubts settled with the key and the harmonic chroma
+7. `absorb_single_beats()` - one-beat chords between two others are absorbed
+8. `_richest_label()` - detailed name (`Bm7`, `A7`) when it covers at least 50 % of the segment
+9. `estimate_key()` - best of 24 keys from the chords (time in key, tonic, dominant resolutions,
+   first/last chord) + 0.35 × Krumhansl-Kessler correlation of the harmonic chroma
 
-**File**: core/chord_detector.py
+**Output** (`chords_data`): `[{"timestamp": 19.705, "chord": "Em7", "simple": "Em"}, ...]` -
+timestamps on beats, "N" passages omitted. About 5-10 s per song on CPU.
+
+**Called by**: the post-extraction chain in `extensions.py` (after the madmom beat grid, progress
+message "Detecting chords...", before `warm_prepare`), `/chords/regenerate` and `/beats/regenerate`
+in `routes/media.py`, `utils/analysis/reanalyze_all_chords.py`
+
+**File**: core/chord_refiner.py
+
+See [CHORD-DETECTION.md](../feature-guides/CHORD-DETECTION.md) for the full description.
 
 ---
 
@@ -531,7 +542,7 @@ def analyze_audio_file(audio_file_path, bpm=None, **_kwargs):
 
 **Purpose**: BTC Transformer chord detection (170 vocabulary)
 
-**Size**: ~230 lines
+**Size**: ~310 lines
 
 **Model**: External dependency - `external/BTC-ISMIR19` (weights:
 `external/BTC-ISMIR19/test/btc_model_large_voca.pt`)
@@ -540,11 +551,15 @@ def analyze_audio_file(audio_file_path, bpm=None, **_kwargs):
 
 **Usage**:
 ```python
-from core.btc_chord_detector import analyze_audio_file, is_available
+from core.btc_chord_detector import detect_segments, is_available
 
 if is_available():
-    chords_json = analyze_audio_file('audio.mp3')[0]
+    # Raw (start, end, label) segments, "N" (no chord) kept - this is what chord_refiner.py decodes
+    segments = detect_segments('harmonic_mix.wav')
 ```
+
+`analyze_audio_file()` (merged display labels, no beat-grid decoding) still exists but the
+pipeline goes through `detect_segments()`.
 
 **Genres**: All genres, especially jazz/complex harmonies
 
@@ -1098,9 +1113,9 @@ User Input (YouTube URL or File Upload)
     ↓
 3. Detect BPM (librosa autocorrelation)
     ↓
-4. Detect musical key (chroma features)
+4. Detect a provisional musical key (chroma + Krumhansl-Kessler profiles)
     ↓
-5. Chord detection (BTC only)
+5. (No chord detection here - chords are detected after stem extraction)
     ↓
 6. Structure detection (MSAF - A/B/C similarity sections)
     ↓
@@ -1139,9 +1154,11 @@ User initiates extraction (video_id, model, stems)
     ↓
 8. Beats/downbeats (madmom)
     ↓
-9. warm_prepare() pre-builds POC mixer artifacts
+9. Chords + key: update_song_chords() (BTC on the harmonic stems, decoded on the beat grid)
     ↓
-10. Emit WebSocket completion
+10. warm_prepare() pre-builds POC mixer artifacts
+    ↓
+11. Emit WebSocket completion
     ↓
 DONE
 ```

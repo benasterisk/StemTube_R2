@@ -33,12 +33,66 @@ the commits that carry the change.
 - **`POST /api/extractions/<id>/analyze-structure`** — runs MSAF on one song and
   stores its sections; `utils/analysis/reanalyze_all_structure.py [--force] [--limit N]`
   was rewritten to backfill `structure_data` for the whole library (~30 s per song).
+- **Simple / Detailed chord names** — a toggle in the desktop Chords tab header and a button
+  on mobile (`#mobileChordDetailBtn`) switch between triads (`Em`) and detailed names (`Em7`,
+  `A7`); the chord changes are the same either way. Stored per browser (`localStorage` key
+  `stemtube_chord_detail`, default simple); the live prompter / stage window follows.
+- **Reanalyze button in the desktop Chords tab** (`#regenerateChordsBtn`) — the POC mixer had
+  lost it; mobile already had one.
+- **Fresh chords and key in the mixer metadata**: `GET /poc-mixer/meta/<id>` overlays `chords`,
+  `key`, `key_tonic`, `key_mode` and `key_confidence` from the database on every request (the
+  cached `meta.json` stays valid for the audio artifacts only), so a regeneration shows up
+  without rebuilding the mixer cache.
+- **Chords are re-decoded after a beat regeneration**: `POST /api/extractions/<id>/beats/regenerate`
+  re-runs the chord decoding on the new grid and returns the result as `chords`.
 - **`POST /api/recordings/convert`** — converts a take the browser cannot decode
   (mostly iOS; WebM/Opus, MP4/AAC, Ogg) to 16-bit PCM WAV with ffmpeg, the fallback
   `recording-utils.js` already called. Errors: 400, 413 (64 MB upload / 512 MB WAV),
   415, 422, 504.
 
 ### Changed
+- **Manual scrolling in the lyrics and chord views during playback** (desktop Lyrics
+  tab, both Stage Views, mobile Lyrics tab, mobile Grid View and fullscreen lyrics):
+  scrolling by hand now pauses the auto-follow instead of being snapped back within a
+  second, and a "Now" button appears bottom-right to return to the current position
+  (`static/js/follow-scroll.js`, shared by the desktop mixer and the mobile app).
+- **Lyrics under the chords are now a timeline of their own** (desktop Chords tab,
+  Stage View chord grid, mobile chord timeline): one lane per chord row where each word
+  sits where it is sung, on the same clock as the beat cells, instead of being dumped
+  into the bar it starts in. Overlapping words move to a second row or slide right;
+  the sung word is highlighted; the lane is not cut by beats or bars. The Stage View
+  grid is now systems of 4 bars with the lane underneath; the mobile Grid View gets a
+  lane under each bar. Words are positioned from the on-screen cells, so cell width
+  (80 px on phones, 100 px on desktop) and bar borders cannot drift them.
+- **Chords above the lyrics (songbook)** in the Lyrics tab and its Stage View: every
+  chord change is placed over the syllable where it happens; changes played in a long
+  gap between two lines (intro, solo, outro) appear as a dimmed chord-only row. The
+  songbook already existed but never showed anything: it read the chords from a global
+  that is filled after the lyrics render and used a ±0.5 s window that missed most
+  changes. The lyrics box also fills the tab instead of a 300 px window.
+- **Chord detection moved after stem extraction, onto the harmonic stems.** Nothing is detected
+  at download any more (chords are only shown in the mixer, which needs the stems anyway);
+  the download phase keeps BPM, a provisional key, Skip Intro, structure and the LRCLIB lyrics
+  preview. The new `core/chord_refiner.py` runs after the madmom beat grid ("Detecting
+  chords..."), on `/chords/regenerate` and in `utils/analysis/reanalyze_all_chords.py`:
+  BTC on a mix of every stem but vocals and drums (full mix when none is on disk), boundaries
+  snapped to the beat grid (half-tempo gaps subdivided internally, stored grid untouched), a
+  Viterbi pass over beats on triads (a change is cheapest on a downbeat, and follows the bar
+  position where changes pile up when the downbeat tracker is out of phase), major/minor doubts
+  settled with the key, one-beat chords absorbed. On the 18 songs with stems on disk the chord
+  count roughly halves (It's Probably Me 166 → 86, Virtual Insanity 262 → 121, Lose Yourself to
+  Dance 111 → 53) with zero sub-beat chords; ~5-10 s per song on CPU.
+- **Both chord names are stored**: `chords_data` is now
+  `[{"timestamp": 19.705, "chord": "Em7", "simple": "Em"}, ...]` — the detailed name when it
+  covers at least half of the segment, plus its triad; timestamps sit on beats and "N" passages
+  are omitted. `/chords/regenerate` also returns `detected_key`, `key_confidence` and `source`
+  (`stems` | `mix`). Songs extracted earlier keep their old chords until **Reanalyze** or
+  `python utils/analysis/reanalyze_all_chords.py [--limit N] [--video-id ID]` (rewritten:
+  extracted songs only, skips songs whose stems are not on disk).
+- **The key comes from the chords**: after extraction `detected_key` is the best of the 24 keys
+  scored on time spent on the key's chords, tonic time, dominant resolutions, first/last chord
+  and the Krumhansl-Kessler correlation of the harmonic chroma; `analysis_confidence` is the
+  margin over the runner-up. The download-time key is only provisional.
 - **Lyrics come from LRCLIB aligned on Whisper**, replacing Musixmatch, whose unofficial
   desktop API stopped serving anonymous clients around April 2026 (all-zero user token,
   unrelated canned search results). `core/lrclib_client.py` looks the song up on
@@ -71,6 +125,18 @@ the commits that carry the change.
 - The metronome track starts muted.
 
 ### Fixed
+- **"F major" on almost every song**: the download-time key chroma was built from the tempo STFT
+  (2048-point window at 44.1 kHz = 21.5 Hz bins, all multiples of a low F and wider than a
+  semitone below 370 Hz) and the key was "loudest pitch class + compare triads". It now uses a
+  16384-point STFT restricted to 65–2100 Hz and Krumhansl-Kessler correlation. Still
+  approximate (often a fifth or a relative off) — it is replaced by the chord-based key after
+  extraction.
+- **Volume and pan sliders clipped at low vertical zoom** (desktop mixer): the control block
+  follows the lane height (80 px × zoom, down to 40 px) but needs ~62 px stacked. Rows under
+  68 px now use a one-line compact layout (`Mixer.syncRowHeights`, `.lctrl.compact`).
+- **Control blocks drifting away from their lanes after restoring a saved vertical zoom**: the
+  zoom was restored after the rows were built, leaving the left blocks at the default height;
+  row heights are now re-synced after the restore.
 - **Playback died until the page was reloaded**: every stem's gain and pan nodes
   stayed connected to the master bus on stop, so each seek leaked a full chain and
   the browser's audio thread eventually gave up.
@@ -104,7 +170,7 @@ the commits that carry the change.
   which `COALESCE` could not protect. `/chords/regenerate` no longer writes the beat
   grid (BTC detects none) and returns the stored grid, so the metronome stays aligned;
   `/beats/regenerate` stores the new grid and keeps Skip Intro.
-  The chord reanalysis scripts in `utils/analysis/` store chords only, for the same reason.
+  The chord reanalysis script in `utils/analysis/` stores chords (and key) only, for the same reason.
 - **Offline playback on mobile works**: songs are saved with the URLs the POC mixer
   actually requests (`/poc-mixer/meta` and every `/poc-mixer/audio` stem, metronome and
   count-in file from the meta, then a completion manifest); `static/sw.js` (v2.40) serves
@@ -140,6 +206,9 @@ the commits that carry the change.
   shared jar and keep-alive state, and warns when other sites' cookies are stored.
 
 ### Removed
+- `core/chord_detector.py` (the librosa template detector and the `analyze_audio_file()` wrapper
+  around BTC — no importers left), `utils/analysis/reanalyze_with_madmom.py` and
+  `utils/analysis/reanalyze_neil_young.py` (both stored raw full-mix chords).
 - Musixmatch: `core/musixmatch_client.py`, `core/syncedlyrics_client.py`, the
   `syncedlyrics` dependency and `POST /api/musixmatch/search` (the Regenerate body no
   longer accepts `musixmatch_track_id` or `skip_onset_sync`).

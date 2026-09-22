@@ -753,7 +753,11 @@ Get lyrics for extraction.
 
 ### POST /api/extractions/<extraction_id>/chords/regenerate
 
-Regenerate chord detection.
+Regenerate the chords and the key of an extracted song (`update_song_chords()` in
+`core/chord_refiner.py`): BTC on the harmonic stems (no vocals, no drums; the full mix when no
+harmonic stem is on disk), decoded on the stored beat grid, key derived from the chords. Same code
+as the automatic post-extraction pass. Behind the **Reanalyze** button of the Chords tab (desktop
+`#regenerateChordsBtn`, mobile `#mobileRegenerateChords`).
 
 **Auth**: Required
 
@@ -764,7 +768,13 @@ Regenerate chord detection.
 ```json
 {
   "success": true,
-  "chords": [...],
+  "chords": [
+    {"timestamp": 19.705, "chord": "Em7", "simple": "Em"},
+    {"timestamp": 21.592, "chord": "A7", "simple": "A"}
+  ],
+  "detected_key": "E minor",
+  "key_confidence": 0.21,
+  "source": "stems",
   "detected_bpm": 120.0,
   "beat_offset": 0.52,
   "beat_times": [0.52, 1.02, ...],
@@ -772,9 +782,14 @@ Regenerate chord detection.
 }
 ```
 
-**Beat grid**: BTC detects no beats, so this route stores only `chords_data` and leaves the beat
-grid and Skip Intro (`music_start_time`) untouched. `beat_offset`, `beat_times` and
-`beat_positions` in the response are the **stored** values, so clients keep their metronome
+- `chords[].chord` is the detailed name, `chords[].simple` its triad (root + major/minor); clients
+  show one or the other (Simple / Detailed toggle). Timestamps sit on beats; "N" passages are omitted.
+- `key_confidence` is the margin over the runner-up key (0-1), stored as `analysis_confidence`.
+- `source` is `stems` or `mix` (full-mix fallback).
+
+**Beat grid**: this route stores only `chords_data`, `detected_key` and `analysis_confidence`, and
+leaves the beat grid and Skip Intro (`music_start_time`) untouched. `beat_offset`, `beat_times`
+and `beat_positions` in the response are the **stored** values, so clients keep their metronome
 alignment.
 
 **File**: routes/media.py
@@ -794,12 +809,15 @@ Regenerate beat and downbeat timestamps with madmom.
   "beat_times": [0.52, 1.02, ...],
   "beat_positions": [1, 2, 3, 4, ...],
   "beat_offset": 0.52,
-  "beat_count": 412
+  "beat_count": 412,
+  "chords": [{"timestamp": 19.705, "chord": "Em7", "simple": "Em"}, ...]
 }
 ```
 
 Stores the freshly detected beat grid (`beat_times`, `beat_positions`, `beat_offset`) and keeps
-Skip Intro (`music_start_time` is not passed, so `COALESCE` preserves it).
+Skip Intro (`music_start_time` is not passed, so `COALESCE` preserves it). The chords are then
+re-decoded on the new grid (`update_song_chords()`) and returned as `chords` (`null` when no
+chords could be detected).
 
 **File**: routes/media.py
 
@@ -1900,6 +1918,10 @@ every extraction via `warm_prepare()`.
 
 Mixer metadata (duration, beats, waveform peaks, stems...). Gzipped (`Content-Encoding: gzip`)
 when the client sends `Accept-Encoding: gzip`; the plain payload is ~1.3 MB.
+
+`chords`, `key`, `key_tonic`, `key_mode` and `key_confidence` are overlaid from the database on
+every request - the cached `meta.json` stays valid for the audio artifacts only - so a chord or
+beat regeneration shows up without rebuilding the mixer cache.
 
 **Errors**: 404 `not prepared`
 

@@ -248,7 +248,7 @@ served by the `/poc-mixer/*` bridge in `routes/poc_mixer.py`. Only 7 files from
 // loader.js
 await API.prepare(extractionId);      // POST /poc-mixer/prepare/<id>
 // poll GET /poc-mixer/progress/<id> until ready
-const meta = await API.meta(extractionId);   // GET /poc-mixer/meta/<id> (gzipped)
+const meta = await API.meta(extractionId);   // GET /poc-mixer/meta/<id> (gzipped; chords + key always fresh from the DB)
 // stems and metronome WAVs stream from GET /poc-mixer/audio/<id>/<stem>
 ```
 
@@ -361,6 +361,12 @@ peaks come precomputed in `/poc-mixer/meta`.
 
 - Stem order covers 4-stem, 6-stem and `mvsep_mega_fine` names; unknown stems are appended
 - Volume shown in dB, pan, mute, solo per track
+- `Mixer.syncRowHeights(view)` sizes every left control block to its lane (80 px × vertical zoom,
+  down to 40 px). The stacked layout needs ~62 px, so rows under 68 px (`COMPACT_BELOW_H`) switch
+  to a one-line compact layout (`.lctrl.compact` in `templates/mixer.html`) - the volume and pan
+  sliders are no longer clipped at low vertical zoom. It is re-run after `SessionState` restores a
+  saved vertical zoom (`main.js` / `state.js`), so the control blocks no longer drift away from
+  their lanes
 - The small per-track record dot button in the lane header is a stub ("coming soon"); recording itself is live (see
   [Recording Modules](#16-recording-modules))
 
@@ -415,6 +421,14 @@ seek lands the real transport when the drag ends.
 - Synchronized playhead
 - Click to seek
 - SVG chord diagrams (guitar, piano)
+- **Simple / Detailed** toggle in the Chords tab header: each `chords_data` entry carries `chord`
+  (detailed, e.g. `Em7`) and `simple` (triad, e.g. `Em`). `setChords(list)` keeps the raw list and
+  `applyChordDetail(list)` picks the name to display; the chord changes are the same either way.
+  The choice is stored per browser in `localStorage` (`stemtube_chord_detail`, default `simple`).
+  The stage window / live prompter follows, since it mirrors this component. Mobile equivalent:
+  `#mobileChordDetailBtn` + `setChordList()` in `mobile-app.js`
+- **Reanalyze** button (`#regenerateChordsBtn`) in the Chords tab header →
+  `POST /api/extractions/<id>/chords/regenerate`, then `setChords()` with the response
 
 **Chord Timeline Rendering**:
 ```javascript
@@ -820,6 +834,9 @@ st.parameters.get('rate').value = 1.0;
 SessionState.save(job, view, engine);
 SessionState.apply(job, view, engine);
 ```
+
+**Other keys**: `stemtube_chord_detail` (`simple` | `detailed`) - chord naming for the Chords tab,
+global to the browser (not per song), shared by the desktop mixer and the mobile app.
 
 ### Cross-Module Updates
 

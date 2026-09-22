@@ -54,8 +54,8 @@ global_downloads:
   - extraction_model (TEXT) - AI model used (htdemucs, etc.)
   - stems_paths (JSON) - Individual stem file paths
   - detected_bpm (FLOAT) - Audio analysis result
-  - detected_key (TEXT) - Musical key (e.g. "F major")
-  - chords_data (JSON) - Chord progression with timestamps
+  - detected_key (TEXT) - Musical key (e.g. "E minor"; provisional at download, derived from the chords after extraction)
+  - chords_data (JSON) - Chord progression on the beat grid: [{timestamp, chord, simple}] (filled after extraction)
   - structure_data (JSON) - Song sections (MSAF, labelled A, B, C... by similarity)
   - lyrics_data (JSON) - Lyrics lines with word timestamps (LRCLIB aligned on Whisper)
   - media_metadata (JSON) - yt-dlp artist/track/language/uploader/tags/duration (lyrics lookup)
@@ -132,7 +132,7 @@ core/downloads/
 - 4-8x faster than CPU (20-60s vs 3-8 min for 4 stems)
 
 ### 3. Audio Analysis
-**Files:** `core/download_manager.py`, `core/chord_detector.py`, `core/btc_chord_detector.py`, `core/madmom_chord_detector.py` (beats only)
+**Files:** `core/download_manager.py`, `core/chord_refiner.py`, `core/btc_chord_detector.py`, `core/madmom_chord_detector.py` (beats only)
 
 **BPM Detection:**
 - Custom autocorrelation algorithm using scipy
@@ -140,16 +140,33 @@ core/downloads/
 - Runs automatically after download
 
 **Key Detection:**
-- Pitch class histogram via chroma features
-- Determines musical key (e.g., "C major", "D minor")
+- At download (`core/download_manager.py`): a **provisional** key - 16384-point STFT restricted to
+  65-2100 Hz, folded into a chroma and correlated with the Krumhansl-Kessler profiles. Approximate
+  (often a fifth or a relative off). The previous estimate reused the tempo STFT (2048-point
+  window, 21.5 Hz bins) and said "F major" for almost every song
+- After extraction (`core/chord_refiner.py`): the key is scored from the chords (time in key,
+  tonic, dominant resolutions, first/last chord) plus the harmonic chroma, and replaces the
+  provisional one; `analysis_confidence` is the margin over the runner-up key
 
-**Chord Detection (BTC only):**
+**Chord Detection (BTC only, after extraction):**
 
+- Nothing is detected at download: chords are only shown in the mixer, which needs the stems anyway
 - **BTC Transformer** (170 chord vocabulary) - the only chord backend
-  - `core/chord_detector.py` `analyze_audio_file()` runs BTC-ISMIR19 only and returns
-    `(chords, 0.0, [], [])` - no beats
+  - `core/btc_chord_detector.py` `detect_segments()` returns the raw `(start, end, label)`
+    segments ("N" kept) - no beats
   - Weights: `external/BTC-ISMIR19/test/btc_model_large_voca.pt`
-  - GPU-optimized, supports complex jazz/advanced harmonies
+  - Supports complex jazz/advanced harmonies
+- **`core/chord_refiner.py`** - `update_song_chords(video_id, stems_paths=None, fallback_audio=None)`
+  is the single entry point (post-extraction chain in `extensions.py` after the beat grid,
+  `/chords/regenerate`, after `/beats/regenerate`, `utils/analysis/reanalyze_all_chords.py`). It
+  writes only `chords_data`, `detected_key` and `analysis_confidence`
+  - Input: the harmonic stems (everything but vocals, drums and metronome/click tracks) mixed to
+    one temporary mono 22.05 kHz file with ffmpeg; the full mix when no harmonic stem is on disk
+  - Decoding: boundaries snapped to the beat grid (half-tempo gaps subdivided internally, stored
+    grid untouched), Viterbi over beats on triads (a change is cheapest on a downbeat), major/minor
+    doubts settled with the key, one-beat chords absorbed
+  - Output: `[{"timestamp", "chord", "simple"}]` - detailed name + triad, timestamps on beats, "N"
+    passages omitted. See [CHORD-DETECTION.md](../feature-guides/CHORD-DETECTION.md)
 
 **Beat/Downbeat Detection (madmom):**
 - `core/madmom_chord_detector.py` is live only for beat/downbeat detection
@@ -158,6 +175,8 @@ core/downloads/
 
 **Features:**
 - **Chord Transposition:** Automatically transposes when user changes pitch in mixer
+- **Simple / Detailed names:** the Chords tab toggles between `simple` and `chord` (per-browser
+  `localStorage` key `stemtube_chord_detail`, default simple); same chord changes either way
 - **Backend Selection:** None. The `chords_use_madmom` and `chords_use_hybrid` keys in
   `core/config.json` are inert
 
@@ -327,13 +346,13 @@ class ModuleName {
 - `POST /api/extractions/<id>/lyrics/regenerate` - LRCLIB + Whisper, aligned (`artist`, `track`, `force_whisper`, `lrclib_id`, `sync_with_whisper`)
 - `POST /api/lyrics/search` - Search LRCLIB for the Regenerate dialog
 - `POST /api/extractions/<id>/lyrics/generate`, `POST /api/extractions/<id>/lyrics/lrclib` - Deprecated shims redirecting to `/lyrics/regenerate`
-- `POST /api/extractions/<id>/chords/regenerate` - BTC chords (beat grid and Skip Intro untouched)
-- `POST /api/extractions/<id>/beats/regenerate` - madmom beats/downbeats (keeps Skip Intro)
+- `POST /api/extractions/<id>/chords/regenerate` - BTC chords on the harmonic stems + key (beat grid and Skip Intro untouched)
+- `POST /api/extractions/<id>/beats/regenerate` - madmom beats/downbeats (keeps Skip Intro), then re-decodes the chords on the new grid
 - `POST /api/extractions/<id>/analyze-structure` - MSAF sections → `structure_data`
 
 **POC Mixer:** (routes/poc_mixer.py)
 - `POST /poc-mixer/prepare/<id>`, `GET /poc-mixer/progress/<id>` - Build/poll mixer artifacts
-- `GET /poc-mixer/meta/<id>` - Mixer metadata (gzipped when the client accepts it)
+- `GET /poc-mixer/meta/<id>` - Mixer metadata (gzipped when the client accepts it); chords and key are overlaid from the database on every request
 - `GET/HEAD /poc-mixer/audio/<id>/<stem>` - Stems; metronome WAVs are served as cached MP3 twins
 
 **Recordings:** (routes/recordings.py)
@@ -480,7 +499,7 @@ python reset_admin_password.py  # Reset administrator password
 
 **Re-analysis:**
 ```bash
-python utils/analysis/reanalyze_all_chords.py     # Re-run chord detection
+python utils/analysis/reanalyze_all_chords.py     # Re-detect chords + key on extracted songs ([--limit N] [--video-id ID])
 python utils/analysis/reanalyze_all_structure.py  # Fill missing structure_data ([--force] [--limit N])
 ```
 

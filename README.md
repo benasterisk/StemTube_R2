@@ -15,7 +15,7 @@
 
 - 🎹 **AI Stem Extraction** - Demucs 4-stem/6-stem separation, plus a 17-stem fine model (GPU accelerated)
 - 🥁 **Fine Stems** - lead/backing vocals, kick/snare/toms/cymbals, electric/acoustic guitar, piano, organ, synth, brass, winds, strings (CUDA GPU required)
-- 🎸 **Chord Detection** - BTC Transformer, 170-chord vocabulary, with Guitar Hero-style fixed reading focus
+- 🎸 **Chord Detection** - BTC Transformer (170-chord vocabulary) run on the harmonic stems and decoded on the beat grid, Simple / Detailed chord names, with Guitar Hero-style fixed reading focus
 - 🥁 **Beat Grid** - madmom downbeat detection driving the metronome, detected once per song
 - 🎤 **Karaoke Mode** - LRCLIB lyrics aligned word by word on a faster-whisper transcription in the sung language (GPU-accelerated)
 - 🎚️ **Interactive Mixer** - Independent pitch/tempo control (SoundTouch + Web Audio API), audible scrubbing and A/B loops
@@ -102,7 +102,7 @@ See [Installation Guide](docs/user-guides/01-INSTALLATION.md) for detailed setup
 - [🤖 AI Guidelines](docs/developer-guides/AGENTS.md) - For AI assistants
 
 **Feature Guides:**
-- [🎸 Chord Detection](docs/feature-guides/CHORD-DETECTION.md) - BTC/madmom/hybrid
+- [🎸 Chord Detection](docs/feature-guides/CHORD-DETECTION.md) - BTC on the harmonic stems, beat-grid decoding, key
 - [🔄 Processing Flow](docs/PROCESSING_FLOW.md) - Download → analysis → extraction
 - [🛠️ Utilities](utils/UTILITIES_GUIDE.md) - Maintenance and analysis scripts
 
@@ -147,7 +147,7 @@ See [Installation Guide](docs/user-guides/01-INSTALLATION.md) for detailed setup
 |-----------|-----|------------|---------|
 | Stem extraction (4 stems, 4 min song) | 3-8 min | 20-60s | **4-8x** |
 | Lyrics transcription | 30-120s | 10-30s | **3-5x** |
-| Chord detection (BTC) | 15-30s | 15-30s | - |
+| Chord detection (BTC on the harmonic stems + beat-grid decoding) | 5-10s | 5-10s | - |
 | Beat grid (madmom) | 20-40s | 20-40s | - |
 | Fine stems (17 stems, 4 min song) | not supported | 60-90s | GPU only |
 
@@ -160,9 +160,16 @@ Two engines, each with one job:
 1. **Chords — BTC Transformer** (170-chord vocabulary), the only chord engine today
    - Weights vendored in `external/BTC-ISMIR19/`
    - Handles complex jazz and extended harmonies
+   - Runs **after stem extraction**, on the harmonic stems only (no vocals, no drums) — nothing is
+     detected at download, since chords are only shown in the mixer
+   - `core/chord_refiner.py` decodes the result on the beat grid: changes land on beats (preferably
+     downbeats), one-beat flicker is removed, major/minor doubts are settled with the key
+   - Every chord is stored with two names — detailed (`Em7`) and simple (`Em`); the mixer's
+     **Simple / Detailed** toggle picks one, **Reanalyze** re-runs the detection
+   - The song key is derived from the chords (the key shown before extraction is provisional)
 
 2. **Beats — madmom** downbeat detection
-   - Drives the metronome and the chord grid; detected once per song and stored
+   - Drives the metronome, the chord grid and the chord decoding; detected once per song and stored
    - Sits on a pinned stack (numpy 1.26.4, scipy 1.17.1, librosa 0.11.0)
 
 > The older hybrid detector and the `chords_use_madmom` / `chords_use_hybrid`

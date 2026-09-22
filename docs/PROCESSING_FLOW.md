@@ -32,14 +32,13 @@ This document describes the complete flow from download to extraction, including
 
 ### 2.1 Tempo/Key Detection
 - **Library:** librosa + scipy.signal STFT
-- **Method:** Autocorrelation on spectral flux for BPM, chroma template matching for key
-- **Output:** `detected_bpm`, `detected_key`, `analysis_confidence`
+- **Method:** Autocorrelation on spectral flux for BPM; for the key, a dedicated 16384-point STFT restricted to 65–2100 Hz folded into a chroma and correlated with the Krumhansl-Kessler key profiles
+- **Output:** `detected_bpm`, a **provisional** `detected_key`, `analysis_confidence`
+- **Provisional key:** approximate (often a fifth or a relative off); it is replaced by the key derived from the chords after extraction (Phase 4.3). It used to read "F major" on almost every song: the chroma was built from the tempo STFT (2048-point window at 44.1 kHz = 21.5 Hz bins, all multiples of a low F and wider than a semitone below 370 Hz) and the key was "loudest pitch class + compare triads".
 
-### 2.2 Chord Detection
-- **Library:** BTC-ISMIR19 Transformer only (170-chord vocabulary, weights in `external/BTC-ISMIR19/test/btc_model_large_voca.pt`)
-- **No fallback:** if BTC is unavailable or fails, `chords_data` stays empty. madmom is NOT used for chords; `core/hybrid_chord_detector.py` is dead code and the `chords_use_madmom` / `chords_use_hybrid` settings are inert.
-- **Input:** Full audio
-- **Output:** `chords_data` (beats are detected later, in Phase 4)
+### 2.2 Chord Detection - not at download
+- Chords are **no longer detected at download**. They are only shown in the mixer (carousel, grid popup, live prompter / stage window, desktop and mobile), which needs the stems anyway, so detection runs after extraction on the harmonic stems - see Phase 4.3.
+- `chords_data` stays empty until the song is extracted.
 
 ### 2.3 Structure Detection
 - **Library:** MSAF (Music Structure Analysis Framework) - Foote boundaries + FMC2D labels, via `core/msaf_structure_detector.py` (restores the `scipy.inf` / `scipy.signal.gaussian` aliases msaf 0.1.80 needs before importing it)
@@ -118,7 +117,18 @@ With `mvsep_mega_fine` the stems are `vocals` (lead), `backing_vocals`, `drums` 
 - **Library:** madmom (beat and downbeat tracking only - never chords)
 - **Output:** `beat_offset`, `beat_times`, `beat_positions` (metronome grid)
 
-### 4.3 Mixer Pre-Build
+### 4.3 Chord & Key Detection
+- **Entry point:** `update_song_chords(video_id, stems_paths=None, fallback_audio=None)` in `core/chord_refiner.py` - reads stems, beat grid and BPM from the database and writes ONLY `chords_data`, `detected_key` and `analysis_confidence`
+- **Progress message:** "Detecting chords..." (after the beat grid, before the mixer pre-build)
+- **Library:** BTC-ISMIR19 Transformer only (170-chord vocabulary, weights in `external/BTC-ISMIR19/test/btc_model_large_voca.pt`), through `detect_segments()` in `core/btc_chord_detector.py`
+- **No fallback engine:** if BTC is unavailable or fails, `chords_data` stays empty. madmom is NOT used for chords; `core/hybrid_chord_detector.py` is dead code and the `chords_use_madmom` / `chords_use_hybrid` settings are inert.
+- **Input:** the harmonic stems only - every stem whose name does not match `vocal|drum|kick|snare|tom|cymbal|hihat|metronome|click` (bass + other for 4-stem models, bass + guitar + piano + other for `htdemucs_6s`, every non-vocal non-drum stem for `mvsep_mega_fine`; `drums_full.mp3` excluded), mixed to one temporary mono 22.05 kHz file with ffmpeg. No harmonic stem on disk → the full mix (`source` `mix` instead of `stems`).
+- **Decoding:** raw BTC boundaries are snapped to the beat grid, a Viterbi pass over beats on triads removes flicker (a change is cheapest on a downbeat), major/minor doubts are settled with the key, one-beat chords are absorbed, then each segment takes the richest raw label that agrees with its triad. Details in [CHORD-DETECTION.md](feature-guides/CHORD-DETECTION.md).
+- **Output:** `chords_data` = `[{"timestamp": 19.705, "chord": "Em7", "simple": "Em"}, ...]` (timestamps on beats, "N" passages omitted), `detected_key` scored from the chords (replaces the provisional key of Phase 2.1), `analysis_confidence` = margin over the runner-up key
+- **Cost:** ~5-10 s per song on CPU
+- **Re-run:** `POST /api/extractions/<id>/chords/regenerate`, automatically after `POST /api/extractions/<id>/beats/regenerate` (chords re-decoded on the new grid), or `python utils/analysis/reanalyze_all_chords.py [--limit N] [--video-id ID]` for songs extracted before this pipeline
+
+### 4.4 Mixer Pre-Build
 - Metronome WAVs, waveform peaks and `meta.json` are prepared so the first mixer open is fast.
 
 ---
@@ -126,7 +136,8 @@ With `mvsep_mega_fine` the stems are `vocals` (lead), `backing_vocals`, `drums` 
 ## Fallback Chains
 
 ### Chord Detection
-1. BTC Transformer (170 chord vocabulary) - no fallback. madmom CRF and the hybrid detector are no longer wired in.
+1. BTC Transformer (170 chord vocabulary) - no fallback engine. madmom CRF and the hybrid detector are no longer wired in.
+2. Input: harmonic stems; the full mix only when no harmonic stem is on disk. No stored beat grid → a steady grid built from the BPM.
 
 ### Lyrics Detection
 1. LRCLIB words aligned on the Whisper word timings (`lrclib+whisper`)
@@ -144,8 +155,8 @@ MSAF only - no fallback. If detection fails, `structure_data` is left unchanged.
 
 | Analysis | Library | Purpose |
 |----------|---------|---------|
-| BPM/Key | librosa, scipy | Spectral analysis, template matching |
-| Chords | BTC-ISMIR19 | Chord recognition |
+| BPM / provisional key | librosa, scipy | Spectral analysis, Krumhansl-Kessler key profiles |
+| Chords / key | BTC-ISMIR19 + `core/chord_refiner.py` | Chord recognition on the harmonic stems, beat-grid decoding, key from the chords |
 | Beats | madmom | Beat/downbeat grid for the metronome |
 | Structure | MSAF | Section segmentation (A/B/C similarity labels) |
 | Lyrics (text) | LRCLIB | Lyrics lookup (line-synced or plain text) |
@@ -160,7 +171,7 @@ MSAF only - no fallback. If detection fails, `structure_data` is left unchanged.
 |-----------|------|
 | Download Management | `core/download_manager.py` |
 | Stem Extraction | `core/stems_extractor.py`, `core/msst/separate.py` (fine stems) |
-| Chord Detection | `core/chord_detector.py`, `core/btc_chord_detector.py` |
+| Chord Detection | `core/chord_refiner.py` (pipeline), `core/btc_chord_detector.py` (BTC model) |
 | Beat Detection | `core/madmom_chord_detector.py` (beats only), called from `extensions.py` |
 | Lyrics Detection | `core/lyrics_detector.py`, `core/lyrics_merger.py`, `core/lrclib_client.py`, `core/media_metadata.py` |
 | Structure Analysis | `core/msaf_structure_detector.py` |
@@ -177,8 +188,8 @@ MSAF only - no fallback. If detection fails, `structure_data` is left unchanged.
    - Avoids redundant Whisper processing on full audio
 
 2. **Chord Detection:**
-   - Currently uses full audio
-   - Could potentially use instrumental stem for better accuracy (future optimization)
+   - Runs after extraction on the harmonic stems (no vocals, no drums) instead of the full mix at download
+   - Decoded on the beat grid: chord count roughly halved on the test library, no sub-beat chords
    - Regenerating chords leaves the stored beat grid and Skip Intro untouched; regenerating beats stores the new grid and keeps Skip Intro
 
 3. **Structure Analysis:**

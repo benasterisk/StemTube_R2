@@ -61,8 +61,11 @@ I BTC-ISMIR19 [...] label file saved : ./test_output/example.lab
 
 ## Usage in StemTube
 
-BTC is the **only** chord detection backend. It runs automatically after each download
-(`core/chord_detector.py` → `core/btc_chord_detector.py`) with the large 170-chord vocabulary.
+BTC is the **only** chord detection backend. It runs automatically **after each stem extraction**
+(`core/chord_refiner.py` → `core/btc_chord_detector.py`) with the large 170-chord vocabulary -
+not at download: chords are only shown in the mixer, which needs the stems anyway. BTC is fed the
+harmonic stems only (no vocals, no drums), and its raw output is then decoded on the beat grid
+(see [Chord Detection Guide](../feature-guides/CHORD-DETECTION.md)).
 
 There is **no fallback**: if BTC is missing or fails, the song has no chords. madmom is used only
 for beat/downbeat detection (metronome grid), and `core/hybrid_chord_detector.py` is dead code.
@@ -96,6 +99,11 @@ StemTube converts these to display format:
 - `D:min` → `Dm`
 - `D:min7` → `Dm7`
 - `C:maj7` → `Cmaj7`
+
+These raw segments are not stored as is: `core/chord_refiner.py` snaps them to the beat grid,
+removes the flicker and stores each chord with two names,
+`{"timestamp": 7.13, "chord": "Dm7", "simple": "Dm"}` (detailed / triad - the mixer's
+Simple / Detailed toggle picks one). "N" passages are omitted.
 
 ## Supported Chord Types
 

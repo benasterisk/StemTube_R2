@@ -87,7 +87,7 @@ To fill in songs that have no beat grid yet:
 python utils/analysis/regenerate_beat_times.py
 ```
 
-Regenerating beats stores the freshly detected grid (beat times, bar positions, offset) and keeps **Skip Intro** (`music_start_time`). Regenerating chords does not touch the beat grid.
+Regenerating beats stores the freshly detected grid (beat times, bar positions, offset) and keeps **Skip Intro** (`music_start_time`). Regenerating chords does not touch the beat grid. Regenerating beats re-decodes the chords on the new grid (the chords are aligned on beats by `core/chord_refiner.py`), and the response carries them as `chords`.
 
 ## Detection Pipeline
 
@@ -186,8 +186,10 @@ The song then has no beat grid (no metronome). Fix madmom, then regenerate beats
 - `utils/testing/test_madmom_tempo_key.py` - Test madmom tempo/key/beat detection
 
 **Not related to madmom anymore:**
-- `utils/analysis/reanalyze_with_madmom.py` - despite the name, re-runs BTC chord detection
-- `utils/analysis/reanalyze_all_chords.py` - BTC chord re-analysis
+- `utils/analysis/reanalyze_all_chords.py` - BTC chord + key re-analysis on the harmonic stems,
+  decoded on the stored beat grid (`core/chord_refiner.py`)
+- `utils/analysis/reanalyze_with_madmom.py` was removed (despite its name it stored raw full-mix
+  BTC chords)
 
 ## Credits
 

@@ -47,7 +47,7 @@ Complete guide to GPU acceleration for StemTube (4-10x faster processing).
 | **Stem extraction** (6 stems, 4-min song) | 5-12 min | 30-90s | **4-8x** |
 | **Stem extraction** (`mvsep_mega_fine`, 17 stems) | not supported | ~1-2 min | GPU only |
 | **Lyrics transcription** | 30-120s | 10-30s | **3-5x** |
-| **Chord detection** (BTC) | 30-60s | 30-60s | **1x** (CPU) |
+| **Chord detection** (BTC on the harmonic stems, after extraction) | 5-10s | 5-10s | **1x** (CPU) |
 | **Beat detection** (madmom) | 10-30s | 10-30s | **1x** (no GPU) |
 
 ### Example Workflow
@@ -56,7 +56,7 @@ Complete guide to GPU acceleration for StemTube (4-10x faster processing).
 ```
 Download: 30s
 Extract stems (4): 5 min
-Detect chords: 30s
+Detect chords: 10s
 Transcribe lyrics: 60s
 ───────────────────────
 Total: ~7 minutes
@@ -66,7 +66,7 @@ Total: ~7 minutes
 ```
 Download: 30s
 Extract stems (4): 40s
-Detect chords: 30s
+Detect chords: 10s
 Transcribe lyrics: 15s
 ───────────────────────
 Total: ~2 minutes

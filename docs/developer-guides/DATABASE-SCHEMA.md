@@ -202,9 +202,9 @@ auto-migration `_add_extraction_fields_if_missing()` in `core/db/schema.py`.)
 | `extracted_at` | TIMESTAMP | YES | NULL | Extraction completion date |
 | `extracting` | BOOLEAN | NO | 0 | Extraction in progress? |
 | `detected_bpm` | REAL | YES | NULL | Detected tempo (BPM) |
-| `detected_key` | TEXT | YES | NULL | Detected musical key (e.g., "C major") |
-| `analysis_confidence` | REAL | YES | NULL | BPM/key detection confidence (0.0-1.0) |
-| `chords_data` | TEXT | YES | NULL | JSON: [{"timestamp": 0.0, "chord": "C:maj"}, ...] (BTC) |
+| `detected_key` | TEXT | YES | NULL | Detected musical key, sharp spelling (e.g., "E minor", "A# major"). Provisional chroma estimate at download, replaced after extraction by the key derived from the chords |
+| `analysis_confidence` | REAL | YES | NULL | Detection confidence (0.0-1.0); after extraction, the margin of the key over the runner-up |
+| `chords_data` | TEXT | YES | NULL | JSON: [{"timestamp": 19.705, "chord": "Em7", "simple": "Em"}, ...] (BTC on the harmonic stems, decoded on the beat grid; NULL until extraction) |
 | `beat_offset` | REAL | NO | 0.0 | Time offset to first downbeat (seconds) |
 | `structure_data` | TEXT | YES | NULL | JSON: [{"start": 0.0, "end": 18.2, "label": "A", "confidence": 1.0}, ...] (MSAF, similarity-labelled sections) |
 | `lyrics_data` | TEXT | YES | NULL | JSON: [{"start": 0.0, "end": 2.5, "text": "...", "words": [...]}, ...] (LRCLIB aligned on Whisper, or LRCLIB line preview / Whisper alone) |
@@ -237,14 +237,23 @@ cymbals, bass, electric_guitar, acoustic_guitar, piano, organ, synth, brass, win
 other. Its `drums_full.mp3` (for metronome beat detection) is written to the stems folder but is
 not a mixer track. Re-extracting with another model replaces the stored stems.
 
-**chords_data** (array):
+**chords_data** (array) - written by `update_song_chords()` in `core/chord_refiner.py` after
+stem extraction (never at download), by `/chords/regenerate`, after `/beats/regenerate` and by
+`utils/analysis/reanalyze_all_chords.py`:
 ```json
 [
-  {"timestamp": 0.0, "chord": "C:maj"},
-  {"timestamp": 2.5, "chord": "Am"},
-  {"timestamp": 5.0, "chord": "F:maj7"}
+  {"timestamp": 19.705, "chord": "Em7", "simple": "Em"},
+  {"timestamp": 21.592, "chord": "A7", "simple": "A"},
+  {"timestamp": 23.481, "chord": "Bm7", "simple": "Bm"}
 ]
 ```
+- `chord`: detailed name (the richest BTC label agreeing with the triad over at least half of the
+  segment, else the triad); `simple`: the triad (root + major/minor). The UI shows one or the other
+  (Simple / Detailed toggle) - the chord changes are identical
+- `timestamp` sits on a beat of the grid; "N" (no chord) passages are omitted, so the previous
+  chord stays on screen
+- Rows written before this pipeline have no `simple` field (raw full-mix chords); re-run
+  `utils/analysis/reanalyze_all_chords.py` to upgrade them
 
 **structure_data** (array) - written by `core/msaf_structure_detector.py` at download time,
 by `POST /api/extractions/<id>/analyze-structure`, and by
@@ -318,12 +327,12 @@ if download['stems_paths']:
 **Partial updates**:
 - `update_download_analysis()` (`core/db/downloads.py`) uses `COALESCE(?, column)`: every field
   defaults to `None`, including `beat_offset` and `music_start_time`, so a caller that omits a
-  field preserves the stored value. `/chords/regenerate` stores only `chords_data` (beat grid and
-  Skip Intro untouched); `/beats/regenerate` stores the new beat grid and keeps
-  `music_start_time`; `/analyze-structure` stores only `structure_data`.
+  field preserves the stored value. `/chords/regenerate` stores only `chords_data`, `detected_key`
+  and `analysis_confidence` (beat grid and Skip Intro untouched); `/beats/regenerate` stores the
+  new beat grid, keeps `music_start_time`, then re-decodes the chords on the new grid; `/analyze-structure` stores only `structure_data`.
 - `COALESCE` only protects against NULL: an explicit non-NULL value still replaces the stored
-  value, so callers must pass `None` for anything they did not compute (the chord reanalysis
-  scripts in `utils/analysis/` pass chords only).
+  value, so callers must pass `None` for anything they did not compute (`update_song_chords()`
+  in `core/chord_refiner.py` passes chords, key and confidence only).
 
 **File**: core/downloads_db.py
 
@@ -843,7 +852,8 @@ if record['stems_paths']:
 # Parse chords_data
 if record['chords_data']:
     chords = json.loads(record['chords_data'])
-    first_chord = chords[0]['chord']
+    first_chord = chords[0]['chord']            # detailed name, e.g. "Em7"
+    first_triad = chords[0].get('simple')       # triad, e.g. "Em" (absent on rows from before the stems pipeline)
 ```
 
 ---

@@ -329,6 +329,10 @@ The mobile interface (`/mobile` route) provides:
 - Current chord highlighted
 - Previous/next chords visible
 - Tap chord to see full name
+- **Simple / Detailed** button (next to Reanalyze / Grid View): triads (`Em`) or detailed names
+  (`Em7`) - same chord changes either way, remembered per browser
+- **Reanalyze** re-detects the chords and the key from the stems; use it on songs extracted
+  before chords were aligned on the beat grid (too many chords, wrong key)
 
 **Collapsible Sections**:
 - Tap section header to expand/collapse

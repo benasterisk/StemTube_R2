@@ -148,7 +148,7 @@ Extracting... 100% - Finalizing
 **Results**:
 - Individual stem files saved in `downloads/global/VIDEO_ID/stems/htdemucs/`
 - Mixer automatically available
-- Lyrics transcribed from the vocals stem and beats detected (chords were already analyzed after download)
+- Lyrics transcribed from the vocals stem, beats detected, then chords and the song key detected from the harmonic stems ("Detecting chords...")
 
 ### Re-extracting With Another Model
 
@@ -224,6 +224,10 @@ There is no master volume control.
 **Pan** (Left/Right):
 - Slider from full left (L) to full right (R), centred by default
 - Double-click to re-centre
+
+At low vertical zoom the track rows get short: below about 68 px the controls switch to a
+one-line compact layout (name, volume and pan side by side), so the volume and pan sliders stay
+reachable at any zoom.
 
 **Solo**:
 - Click "S" to solo a track; only soloed tracks stay audible
@@ -352,13 +356,16 @@ Record yourself playing along with stems. Recordings are positioned on the timel
 
 ## Chord Detection
 
-StemTube detects chords automatically using the **BTC Transformer** (BTC-ISMIR19).
+StemTube detects chords automatically using the **BTC Transformer** (BTC-ISMIR19). Detection runs
+**after stem extraction**, on the harmonic stems only (no vocals, no drums), and the result is
+aligned on the beat grid - chords change on beats, without one-beat flicker. The song key is
+derived from the chords.
 
 ### Chord Detection Backend
 
 **BTC Transformer** (the only chord backend)
 - **Vocabulary**: 170 chord types
-- **Speed**: 15-30 seconds per song
+- **Speed**: about 5-10 seconds per song, at the end of the extraction
 - **Genres**: All genres, including jazz/complex harmonies
 - **Requirement**: Model weights at `external/BTC-ISMIR19/test/btc_model_large_voca.pt`
 - **No fallback**: if BTC is missing or fails, the song simply has no chords
@@ -369,15 +376,29 @@ The `chords_use_madmom` and `chords_use_hybrid` settings in `core/config.json` h
 ### Using Chord Detection
 
 **Automatic Detection**:
-1. Download or upload a song
-2. Chords are detected automatically right after the download (beats are detected after stem extraction)
-3. Results shown in mixer timeline
+1. Download or upload a song - only the tempo and a provisional key are analysed at this point
+   (no chords: they are only shown in the mixer, which needs the stems anyway)
+2. Extract the stems - chords and the final key are detected automatically at the end of the
+   extraction, right after the beats
+3. Results shown in the mixer's Chords tab
+
+**Simple / Detailed names**:
+- The Chords tab header has a **Simple / Detailed** toggle (mobile: the button next to
+  Reanalyze / Grid View)
+- **Simple** (default) shows triads (`Em`, `A`); **Detailed** shows the full names (`Em7`, `A7`,
+  `F#maj7`). The chord changes are the same either way - only the names differ
+- The choice is remembered per browser; the live prompter / stage window follows it
 
 **Manual Re-Analysis**:
+- Click **Reanalyze** in the Chords tab header (desktop and mobile) to re-detect the chords and
+  the key of the open song. The beat grid and Skip Intro are not touched
+- Songs extracted before chords moved to the stems still carry the old chords (too many changes,
+  off the beat) and the old key - Reanalyze them, or backfill the whole library:
 ```bash
 source venv/bin/activate
-python utils/analysis/reanalyze_all_chords.py
+python utils/analysis/reanalyze_all_chords.py [--limit N] [--video-id ID]
 ```
+The script covers extracted songs only; songs whose stems are not on disk are skipped (~5-10 s per song).
 
 **Viewing Chords**:
 - Open mixer
@@ -389,7 +410,7 @@ python utils/analysis/reanalyze_all_chords.py
   - Other: Purple
 
 **Chord Display**:
-- Format: `C:maj`, `Am`, `G7`, `Dmaj7`, etc.
+- Format: `C`, `Am`, `G7`, `Dmaj7`, etc. (Simple mode: `C`, `Am`, `G`, `D`)
 - Updates in real-time during playback
 - Synchronized precisely with audio
 
@@ -411,10 +432,12 @@ python utils/analysis/reanalyze_all_chords.py
 - **Electronic/Ambient**: May have mixed results (less harmonic content)
 
 **Troubleshooting**:
-- Incorrect chords: Regenerate chords from the mixer (there is no alternative backend to switch to)
-- No chords detected: Check the logs for `[CHORDS] BTC not available` or `BTC error`
+- Incorrect chords: click **Reanalyze** in the Chords tab (there is no alternative backend to switch to); try **Simple** names if the extensions look wrong
+- Too many chords / chords off the beat: the song was extracted before chords were decoded on the beat grid - click **Reanalyze**
+- Wrong key: before extraction the key is only a provisional estimate; after extraction it comes from the chords. For a song extracted earlier, click **Reanalyze**
+- No chords detected: make sure the song is extracted (no chords before extraction), then check the logs for `[CHORDS] BTC is not available` or `[CHORDS] Chord detection error`
 - BTC unavailable: Check the model weights (see [BTC Setup](../setup-guides/BTC-SETUP.md))
-- Regenerating chords or beats keeps **Skip Intro** and the metronome alignment
+- Regenerating chords or beats keeps **Skip Intro** and the metronome alignment; regenerating beats also re-aligns the chords on the new grid
 
 ---
 
