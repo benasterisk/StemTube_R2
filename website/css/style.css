@@ -862,6 +862,86 @@ section {
     color: var(--accent);
 }
 
+/* ── What's New ──────────────────────────────────────────────── */
+.whats-new {
+    margin-top: 40px;
+    background: var(--bg-card);
+    border: 1px solid rgba(229, 57, 53, 0.3);
+    border-radius: var(--radius-lg);
+    padding: 28px 32px;
+}
+
+.whats-new-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.whats-new-head h3 {
+    font-size: 1.1rem;
+}
+
+.whats-new-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 3px 10px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid rgba(229, 57, 53, 0.3);
+    border-radius: 100px;
+}
+
+.whats-new-list {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px 28px;
+}
+
+.whats-new-list li {
+    position: relative;
+    padding-left: 18px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.7;
+}
+
+.whats-new-list li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.72em;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+[dir="rtl"] .whats-new-list li {
+    padding-left: 0;
+    padding-right: 18px;
+}
+
+[dir="rtl"] .whats-new-list li::before {
+    left: auto;
+    right: 0;
+}
+
+@media (max-width: 768px) {
+    .whats-new {
+        padding: 22px 20px;
+    }
+
+    .whats-new-list {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* ── Experimental Badge ──────────────────────────────────────── */
 .badge-experimental {
     display: inline-block;

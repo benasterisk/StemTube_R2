@@ -90,5 +90,11 @@
     "mobileScreenshot2.caption": "Mixer",
     "mobileScreenshot3.caption": "Akkorde",
     "mobileScreenshot4.caption": "Songtexte",
-    "mobileScreenshot5.caption": "Einstellungen"
+    "mobileScreenshot5.caption": "Einstellungen",
+    "whatsNew.badge": "Neuigkeiten",
+    "whatsNew.title": "Version 3.1.0 — Akkorde und Songtexte",
+    "whatsNew.item1": "Akkorderkennung neu aufgebaut : Analyse auf den harmonischen Stems (ohne Gesang und Schlagzeug) nach der Extraktion, Akkorde am Beat-Raster ausgerichtet, keine störenden Wechsel unter einem Schlag mehr ; einfache oder detaillierte Namen nach Wahl ; Tonart aus den Akkorden neu berechnet.",
+    "whatsNew.item2": "Synchronisierte Songtexte unter den Akkorden, Wort für Wort, in allen Akkordansichten (Desktop, Stage View, Mobil).",
+    "whatsNew.item3": "Akkorde über dem Text in den Lyrics-Ansichten (wie im Songbook).",
+    "whatsNew.item4": "Freies Scrollen während der Wiedergabe, mit einer « Now »-Schaltfläche, um zum aktuellen Akkord oder Wort zurückzukehren."
 }

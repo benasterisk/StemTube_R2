@@ -90,5 +90,11 @@
     "mobileScreenshot2.caption": "Table de mixage",
     "mobileScreenshot3.caption": "Accords",
     "mobileScreenshot4.caption": "Paroles",
-    "mobileScreenshot5.caption": "Paramètres"
+    "mobileScreenshot5.caption": "Paramètres",
+    "whatsNew.badge": "Nouveautés",
+    "whatsNew.title": "Version 3.1.0 — accords et paroles",
+    "whatsNew.item1": "Détection d'accords refaite : analyse sur les pistes harmoniques (sans voix ni batterie) après extraction, accords calés sur la grille des temps, fini les changements parasites de moins d'un temps ; noms simples ou détaillés au choix ; tonalité recalculée à partir des accords.",
+    "whatsNew.item2": "Paroles synchronisées sous les accords, mot par mot, dans toutes les vues accords (bureau, Stage View, mobile).",
+    "whatsNew.item3": "Accords au-dessus des paroles dans les vues Lyrics (façon carnet de chant).",
+    "whatsNew.item4": "Défilement libre pendant la lecture, avec un bouton « Now » pour revenir à l'accord ou à la parole en cours."
 }

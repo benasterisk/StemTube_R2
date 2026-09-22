@@ -90,5 +90,11 @@
   "mobileScreenshot2.caption": "믹서",
   "mobileScreenshot3.caption": "코드",
   "mobileScreenshot4.caption": "가사",
-  "mobileScreenshot5.caption": "설정"
+  "mobileScreenshot5.caption": "설정",
+  "whatsNew.badge": "새로운 기능",
+  "whatsNew.title": "버전 3.1.0 — 코드와 가사",
+  "whatsNew.item1": "코드 감지 전면 개편 : 추출 후 하모닉 스템(보컬과 드럼 제외)에서 분석, 코드를 비트 그리드에 맞춤, 한 박보다 짧은 불필요한 변화 제거 ; 단순 또는 상세 코드 이름 선택 가능 ; 조성은 코드로부터 다시 계산.",
+  "whatsNew.item2": "모든 코드 보기(데스크톱, Stage View, 모바일)에서 코드 아래에 단어별로 동기화된 가사 표시.",
+  "whatsNew.item3": "Lyrics 보기에서 가사 위에 코드 표시(송북 스타일).",
+  "whatsNew.item4": "재생 중 자유롭게 스크롤하고, « Now » 버튼으로 현재 코드나 가사로 돌아갑니다."
 }

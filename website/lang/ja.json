@@ -90,5 +90,11 @@
     "mobileScreenshot2.caption": "ミキサー",
     "mobileScreenshot3.caption": "コード",
     "mobileScreenshot4.caption": "歌詞",
-    "mobileScreenshot5.caption": "設定"
+    "mobileScreenshot5.caption": "設定",
+    "whatsNew.badge": "新機能",
+    "whatsNew.title": "バージョン 3.1.0 — コードと歌詞",
+    "whatsNew.item1": "コード検出を刷新 : 抽出後にハーモニックステム（ボーカルとドラムを除く）で解析、コードをビートグリッドに揃え、1拍未満の不要な変化をなくしました ; シンプル表記と詳細表記を選択可能 ; キーはコードから再計算。",
+    "whatsNew.item2": "すべてのコード表示（デスクトップ、Stage View、モバイル）で、コードの下に同期歌詞を単語ごとに表示。",
+    "whatsNew.item3": "Lyrics 表示では歌詞の上にコードを表示（ソングブック形式）。",
+    "whatsNew.item4": "再生中も自由にスクロールでき、« Now » ボタンで現在のコードや歌詞に戻れます。"
 }

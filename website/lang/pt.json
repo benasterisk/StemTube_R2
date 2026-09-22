@@ -90,5 +90,11 @@
     "mobileScreenshot2.caption": "Mixer",
     "mobileScreenshot3.caption": "Acordes",
     "mobileScreenshot4.caption": "Letras",
-    "mobileScreenshot5.caption": "Configurações"
+    "mobileScreenshot5.caption": "Configurações",
+    "whatsNew.badge": "Novidades",
+    "whatsNew.title": "Versão 3.1.0 — acordes e letras",
+    "whatsNew.item1": "Detecção de acordes refeita : análise nas pistas harmônicas (sem voz nem bateria) após a extração, acordes alinhados à grade de tempos, fim das mudanças parasitas com menos de um tempo ; nomes simples ou detalhados à escolha ; tonalidade recalculada a partir dos acordes.",
+    "whatsNew.item2": "Letras sincronizadas sob os acordes, palavra por palavra, em todas as vistas de acordes (desktop, Stage View, mobile).",
+    "whatsNew.item3": "Acordes acima das letras nas vistas Lyrics (estilo cifra).",
+    "whatsNew.item4": "Rolagem livre durante a reprodução, com um botão « Now » para voltar ao acorde ou à letra em curso."
 }

@@ -90,5 +90,11 @@
     "mobileScreenshot2.caption": "Mikser",
     "mobileScreenshot3.caption": "Akorlar",
     "mobileScreenshot4.caption": "Şarkı Sözleri",
-    "mobileScreenshot5.caption": "Ayarlar"
+    "mobileScreenshot5.caption": "Ayarlar",
+    "whatsNew.badge": "Yenilikler",
+    "whatsNew.title": "Sürüm 3.1.0 — akorlar ve sözler",
+    "whatsNew.item1": "Akor algılama yeniden yapıldı : ayrıştırmadan sonra armonik kanallar (vokal ve davul olmadan) üzerinde analiz, akorlar vuruş ızgarasına hizalandı, bir vuruştan kısa parazit değişimlere son ; isteğe göre basit veya ayrıntılı adlar ; tonalite akorlardan yeniden hesaplanıyor.",
+    "whatsNew.item2": "Tüm akor görünümlerinde (masaüstü, Stage View, mobil) akorların altında kelime kelime senkronize sözler.",
+    "whatsNew.item3": "Lyrics görünümlerinde sözlerin üzerinde akorlar (şarkı defteri tarzı).",
+    "whatsNew.item4": "Çalma sırasında serbest kaydırma, geçerli akora veya söze dönmek için « Now » düğmesi."
 }

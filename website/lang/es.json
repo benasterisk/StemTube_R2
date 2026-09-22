@@ -90,5 +90,11 @@
     "mobileScreenshot2.caption": "Mezclador",
     "mobileScreenshot3.caption": "Acordes",
     "mobileScreenshot4.caption": "Letras",
-    "mobileScreenshot5.caption": "Ajustes"
+    "mobileScreenshot5.caption": "Ajustes",
+    "whatsNew.badge": "Novedades",
+    "whatsNew.title": "Versión 3.1.0 — acordes y letras",
+    "whatsNew.item1": "Detección de acordes rehecha : análisis sobre las pistas armónicas (sin voz ni batería) tras la extracción, acordes ajustados a la rejilla de tiempos, se acabaron los cambios parásitos de menos de un tiempo ; nombres simples o detallados a elegir ; tonalidad recalculada a partir de los acordes.",
+    "whatsNew.item2": "Letras sincronizadas bajo los acordes, palabra por palabra, en todas las vistas de acordes (escritorio, Stage View, móvil).",
+    "whatsNew.item3": "Acordes sobre las letras en las vistas Lyrics (estilo cancionero).",
+    "whatsNew.item4": "Desplazamiento libre durante la reproducción, con un botón « Now » para volver al acorde o a la letra en curso."
 }

@@ -90,5 +90,11 @@
     "mobileScreenshot2.caption": "Mixer",
     "mobileScreenshot3.caption": "Akkoorden",
     "mobileScreenshot4.caption": "Songteksten",
-    "mobileScreenshot5.caption": "Instellingen"
+    "mobileScreenshot5.caption": "Instellingen",
+    "whatsNew.badge": "Nieuw",
+    "whatsNew.title": "Versie 3.1.0 — akkoorden en songteksten",
+    "whatsNew.item1": "Akkoorddetectie opnieuw opgebouwd : analyse op de harmonische stems (zonder zang en drums) na de extractie, akkoorden uitgelijnd op het beatraster, geen storende wisselingen korter dan één tel meer ; eenvoudige of gedetailleerde namen naar keuze ; toonsoort opnieuw berekend uit de akkoorden.",
+    "whatsNew.item2": "Gesynchroniseerde songteksten onder de akkoorden, woord voor woord, in alle akkoordweergaven (desktop, Stage View, mobiel).",
+    "whatsNew.item3": "Akkoorden boven de tekst in de Lyrics-weergaven (zoals in een songbook).",
+    "whatsNew.item4": "Vrij scrollen tijdens het afspelen, met een « Now »-knop om terug te keren naar het huidige akkoord of woord."
 }

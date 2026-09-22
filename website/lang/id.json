@@ -90,5 +90,11 @@
     "mobileScreenshot2.caption": "Mixer",
     "mobileScreenshot3.caption": "Akor",
     "mobileScreenshot4.caption": "Lirik",
-    "mobileScreenshot5.caption": "Pengaturan"
+    "mobileScreenshot5.caption": "Pengaturan",
+    "whatsNew.badge": "Yang baru",
+    "whatsNew.title": "Versi 3.1.0 — akor dan lirik",
+    "whatsNew.item1": "Deteksi akor dibangun ulang : analisis pada stem harmonik (tanpa vokal dan drum) setelah ekstraksi, akor diselaraskan ke grid ketukan, tidak ada lagi perubahan liar yang lebih pendek dari satu ketukan ; nama sederhana atau rinci sesuai pilihan ; nada dasar dihitung ulang dari akor.",
+    "whatsNew.item2": "Lirik tersinkron di bawah akor, kata demi kata, di semua tampilan akor (desktop, Stage View, seluler).",
+    "whatsNew.item3": "Akor di atas lirik pada tampilan Lyrics (gaya buku lagu).",
+    "whatsNew.item4": "Gulir bebas selama pemutaran, dengan tombol « Now » untuk kembali ke akor atau lirik yang sedang berjalan."
 }

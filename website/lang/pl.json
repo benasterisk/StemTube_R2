@@ -90,5 +90,11 @@
     "mobileScreenshot2.caption": "Mikser",
     "mobileScreenshot3.caption": "Akordy",
     "mobileScreenshot4.caption": "Teksty",
-    "mobileScreenshot5.caption": "Ustawienia"
+    "mobileScreenshot5.caption": "Ustawienia",
+    "whatsNew.badge": "Nowości",
+    "whatsNew.title": "Wersja 3.1.0 — akordy i teksty",
+    "whatsNew.item1": "Wykrywanie akordów przebudowane : analiza na ścieżkach harmonicznych (bez wokalu i perkusji) po ekstrakcji, akordy dopasowane do siatki bitów, koniec z fałszywymi zmianami krótszymi niż jedna miara ; nazwy proste lub szczegółowe do wyboru ; tonacja wyliczona ponownie z akordów.",
+    "whatsNew.item2": "Zsynchronizowany tekst pod akordami, słowo po słowie, we wszystkich widokach akordów (komputer, Stage View, mobile).",
+    "whatsNew.item3": "Akordy nad tekstem w widokach Lyrics (jak w śpiewniku).",
+    "whatsNew.item4": "Swobodne przewijanie podczas odtwarzania, z przyciskiem « Now » do powrotu do bieżącego akordu lub słowa."
 }
