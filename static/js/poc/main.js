@@ -180,11 +180,9 @@ function applyZoomH(pps){
 function applyZoomV(z){
   const v=Math.max(ZOOM.V_MIN, Math.min(ZOOM.V_MAX, Math.round(z*100)/100));
   withZoomGuard(()=>{ view.zoomV=v;
-    // per-track height (metronome row is taller for its instrument dropdown)
-    document.querySelectorAll("#left-tracks .lctrl").forEach(lc=>{
-      const volEl=lc.querySelector("input.vol"); const nm=volEl && volEl.dataset.n;
-      lc.style.height=view.laneH(nm)+"px";
-    });
+    // per-track height (metronome row is taller for its instrument dropdown;
+    // short rows switch to the one-line control layout)
+    Mixer.syncRowHeights(view);
     view.redrawAll(); }); Loader.persist();
 }
 $("#zoomHin").onclick =()=> applyZoomH(view.pxPerSec*ZOOM.H_FACTOR);

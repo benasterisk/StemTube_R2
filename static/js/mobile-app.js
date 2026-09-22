@@ -3234,15 +3234,16 @@ class MobileApp {
             }
         }
 
+        this.setupChordDetailToggle();
         if (Array.isArray(parsedChords)) {
-            this.chords = parsedChords;
+            this.setChordList(parsedChords);
             if (cacheKey) this.setChordCache(cacheKey, parsedChords);
             console.log('[LoadMixer] Loaded', this.chords.length, 'chords');
             this.preloadChordDiagrams();
             this.displayChords();
             this.initGridView2Popup();
         } else if (cacheKey && this.chordDataCache.has(cacheKey)) {
-            this.chords = this.cloneChordArray(this.chordDataCache.get(cacheKey));
+            this.setChordList(this.cloneChordArray(this.chordDataCache.get(cacheKey)));
             console.log('[LoadMixer] Loaded chords from cache:', this.chords.length);
             this.preloadChordDiagrams();
             this.displayChords();
@@ -4377,9 +4378,6 @@ class MobileApp {
             measures.push(measure);
         }
 
-        // Get lyrics if available
-        const lyricsArray = this.lyrics || [];
-
         // Render the linear grid view
         container.innerHTML = '';
         const scroll = document.createElement('div');
@@ -4387,6 +4385,8 @@ class MobileApp {
 
         const track = document.createElement('div');
         track.className = 'chord-linear-track';
+        const measuresRow = document.createElement('div');
+        measuresRow.className = 'chord-linear-measures';
 
         measures.forEach((measure, measureIndex) => {
             const measureEl = document.createElement('div');
@@ -4432,28 +4432,19 @@ class MobileApp {
             });
 
             measureEl.appendChild(chordRow);
-
-            // Lyrics row
-            const lyricsRow = document.createElement('div');
-            lyricsRow.className = 'chord-linear-lyrics-row';
-
-            // Find lyrics that fall in this measure
-            const measureEndTime = measure.startTime + measureSeconds;
-            const measureLyrics = lyricsArray.filter(lyric => {
-                const lyricTime = lyric.start || 0;
-                return lyricTime >= measure.startTime && lyricTime < measureEndTime;
-            });
-
-            if (measureLyrics.length > 0) {
-                const lyricsText = measureLyrics.map(l => l.text || '').join(' ');
-                lyricsRow.textContent = lyricsText;
-            } else {
-                lyricsRow.innerHTML = '&nbsp;';
-            }
-
-            measureEl.appendChild(lyricsRow);
-            track.appendChild(measureEl);
+            measuresRow.appendChild(measureEl);
         });
+        track.appendChild(measuresRow);
+
+        // Lyrics: one lane under the chord cells, each word where it is sung on the
+        // same clock as the beat cells (real time minus the beat offset).
+        const lane = this.buildLyricsLane(this.flattenLyricWords(this.lyrics || []), {
+            className: 'chord-linear-lyrics-lane',
+            timeOf: (t) => t - (this.beatOffset || 0),   // the cells' clock (dataset.beatTime)
+            beatsOf: () => this.beatElements,           // words sit under the REAL cell positions
+            rows: 2,
+        });
+        track.appendChild(lane);
 
         // Add playhead
         this.playheadIndicator = document.createElement('div');
@@ -4471,12 +4462,136 @@ class MobileApp {
         // Block manual horizontal scroll while allowing code-controlled scrollTo()
         this.preventManualHorizontalScroll(scroll);
 
+        this.layoutLyricsLane(lane);
         this.syncChordPlayhead(true);
         const firstSegmentChord = this.chordSegments[0]?.chord || this.chords[0]?.chord || '';
         const thirdSegmentChord = this.chordSegments[2]?.chord || this.chords[2]?.chord || ''; // Anticipate 2 beats ahead
         const initialChordSymbol = this.currentChordSymbol || this.transposeChord(firstSegmentChord, this.currentPitchShift);
         const initialNextSymbol = this.transposeChord(thirdSegmentChord, this.currentPitchShift);
         this.renderChordDiagramCarousel('', initialChordSymbol, initialNextSymbol);
+    }
+
+    // ---- Lyrics lane under the chord timeline (same mechanism as the desktop mixer) ----
+    flattenLyricWords(lyricsArray) {
+        const words = [];
+        (lyricsArray || []).forEach((seg) => {
+            if (Array.isArray(seg.words) && seg.words.length) {
+                seg.words.forEach((w) => {
+                    const txt = String(w.word || w.text || '').trim();
+                    if (txt && w.start != null) words.push({ text: txt, start: +w.start || 0 });
+                });
+                return;
+            }
+            const parts = String(seg.text || '').split(/\s+/).filter(Boolean);
+            if (!parts.length || seg.start == null) return;
+            const st = +seg.start || 0;
+            const span = Math.max(0.5, (+seg.end || st + parts.length * 0.4) - st);
+            const step = span / parts.length;
+            parts.forEach((pp, i) => words.push({ text: pp, start: st + i * step }));
+        });
+        return words.sort((a, b) => a.start - b.start);
+    }
+
+    buildLyricsLane(lyricWords, opts) {
+        const lane = document.createElement('div');
+        lane.className = 'lyrics-lane ' + (opts.className || '');
+        if (opts.width) lane.style.width = opts.width + 'px';
+        lane.dataset.rows = String(opts.rows || 2);
+        if (opts.spill) lane.dataset.spill = String(opts.spill);
+        const words = [];
+        (lyricWords || []).forEach((w) => {
+            const gt = opts.timeOf ? opts.timeOf(w.start) : w.start;
+            if (gt < 0) return;
+            if (opts.from !== undefined && (gt < opts.from || gt >= opts.to)) return;
+            const el = document.createElement('span');
+            el.className = 'lyrics-lane-word';
+            el.textContent = w.text;
+            el.dataset.t = w.start.toFixed(3);
+            el.dataset.gt = gt.toFixed(3);
+            el.addEventListener('click', () => this.seek(w.start));
+            lane.appendChild(el);
+            words.push(el);
+        });
+        lane._words = words;
+        lane._beatsOf = opts.beatsOf;
+        lane._needsLayout = true;
+        return lane;
+    }
+
+    // x (px, lane-relative) of a cell-clock time, interpolated between the on-screen
+    // beat cells, so a word lands under the cell of its beat whatever the cell width.
+    xFromBeats(beatEls, laneLeft) {
+        const lefts = beatEls.map((el) => el.getBoundingClientRect().left - laneLeft);
+        const times = beatEls.map((el) => parseFloat(el.dataset.beatTime));
+        const n = beatEls.length;
+        const cellW = n > 1 ? lefts[1] - lefts[0] : beatEls[0].getBoundingClientRect().width;
+        const bd = n > 1 ? times[1] - times[0] : 1;
+        return (t) => {
+            if (t <= times[0]) return lefts[0] - (times[0] - t) / bd * cellW;
+            let lo = 0, hi = n - 1;
+            while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (times[mid] <= t) lo = mid; else hi = mid; }
+            if (lo >= n - 1) return lefts[n - 1] + (t - times[n - 1]) / bd * cellW;
+            return lefts[lo] + (t - times[lo]) / (times[hi] - times[lo] || bd) * (lefts[hi] - lefts[lo]);
+        };
+    }
+
+    layoutLyricsLane(lane) {
+        if (!lane || !lane._words || !lane._words.length) return;
+        if (!lane.offsetWidth) { lane._needsLayout = true; return; }
+        const beatEls = lane._beatsOf ? (lane._beatsOf() || []).filter((el) => el.offsetParent) : [];
+        if (lane._beatsOf && beatEls.length < 2) { lane._needsLayout = true; return; }
+        if (beatEls.length) {
+            const laneLeft = lane.getBoundingClientRect().left;
+            const xOf = this.xFromBeats(beatEls, laneLeft);
+            lane._words.forEach((el) => { el.style.left = xOf(parseFloat(el.dataset.gt)).toFixed(1) + 'px'; });
+        }
+        const gap = 5;
+        const ROW_PENALTY = 30;
+        const rows = parseInt(lane.dataset.rows || '2', 10);
+        const right = new Array(rows).fill(-Infinity);
+        const laneRect = lane.getBoundingClientRect();
+        const laneW = laneRect.width;
+        // A word ending a bar may run a little past the lane (into the bar's padding)
+        // rather than drop to the second row.
+        const spill = parseFloat(lane.dataset.spill || '1');
+        lane._words.forEach((el) => { el.style.transform = ''; el.dataset.row = '0'; });
+        lane._words.forEach((el) => {
+            const rect = el.getBoundingClientRect();
+            const x = rect.left - laneRect.left;
+            const w = rect.width;
+            let best = null;
+            for (let row = 0; row < rows; row++) {
+                const shift = Math.max(0, right[row] + gap - x);
+                if (x + shift + w > laneW + spill) continue;
+                const cost = shift + row * ROW_PENALTY;
+                if (!best || cost < best.cost) best = { row, shift, cost };
+            }
+            if (!best) {
+                const row = right.indexOf(Math.min(...right));
+                best = { row, shift: Math.min(0, laneW - w - x) };
+            }
+            el.dataset.row = String(best.row);
+            if (best.shift) el.style.transform = `translateX(${best.shift.toFixed(1)}px)`;
+            right[best.row] = x + best.shift + w;
+        });
+        lane._needsLayout = false;
+    }
+
+    syncLyricsLanes(root, time) {
+        if (!root) return;
+        root.querySelectorAll('.lyrics-lane').forEach((lane) => {
+            if (lane._needsLayout) this.layoutLyricsLane(lane);
+            const words = lane._words || [];
+            let active = -1, lo = 0, hi = words.length - 1;
+            while (lo <= hi) {
+                const mid = (lo + hi) >> 1;
+                if (parseFloat(words[mid].dataset.t) <= time) { active = mid; lo = mid + 1; } else hi = mid - 1;
+            }
+            if (lane._active === active) return;
+            if (lane._active >= 0 && words[lane._active]) words[lane._active].classList.remove('active');
+            if (active >= 0) words[active].classList.add('active');
+            lane._active = active;
+        });
     }
 
     // Prevent manual horizontal scroll while allowing programmatic scrollTo()
@@ -4551,6 +4666,7 @@ class MobileApp {
 
         // Find current beat based on actual time (no tempo adjustment needed - timestamps are in original time)
         const currentTime = this.currentTime - (this.beatOffset || 0);
+        this.syncLyricsLanes(this.chordTrackElement, this.currentTime);
         const beatIdx = this.getBeatIndexForTime(currentTime);
         if (beatIdx === -1) return;
 
@@ -5367,6 +5483,48 @@ class MobileApp {
         return Array.isArray(arr) ? arr.map(ch => ({ ...ch })) : [];
     }
 
+    // ---- Chord naming: simple triads or the detailed names (A7, Bm7...) ----
+    // The server stores both names on every segment ({chord, simple}) with the same
+    // boundaries, so switching never changes where chords fall.
+    getChordDetail() {
+        try { return localStorage.getItem('stemtube_chord_detail') === 'detailed' ? 'detailed' : 'simple'; }
+        catch (e) { return 'simple'; }
+    }
+
+    setChordList(list) {
+        this.rawChords = Array.isArray(list) ? list : [];
+        const simple = this.getChordDetail() === 'simple';
+        const out = [];
+        this.rawChords.forEach(entry => {
+            const name = (simple && entry.simple) ? entry.simple : entry.chord;
+            if (out.length && out[out.length - 1].chord === name) return;
+            out.push({ ...entry, chord: name });
+        });
+        this.chords = out;
+    }
+
+    setupChordDetailToggle() {
+        const btn = document.getElementById('mobileChordDetailBtn');
+        if (!btn) return;
+        const refresh = () => {
+            btn.innerHTML = '<i class="fas fa-music"></i> ' + (this.getChordDetail() === 'simple' ? 'Simple' : 'Detailed');
+        };
+        if (!this._chordDetailWired) {
+            this._chordDetailWired = true;
+            btn.addEventListener('click', () => {
+                const next = this.getChordDetail() === 'simple' ? 'detailed' : 'simple';
+                try { localStorage.setItem('stemtube_chord_detail', next); } catch (e) {}
+                refresh();
+                if (this.rawChords && this.rawChords.length) {
+                    this.setChordList(this.rawChords);
+                    this.preloadChordDiagrams();
+                    this.displayChords();
+                }
+            });
+        }
+        refresh();
+    }
+
     parseFrets(fretsString) {
         if (!fretsString) return null;
         const result = [];
@@ -5500,7 +5658,7 @@ class MobileApp {
             if (!Array.isArray(parsed)) {
                 throw new Error('Chord data missing from response');
             }
-            this.chords = parsed;
+            this.setChordList(parsed);
             if (typeof data.beat_offset === 'number') {
                 this.beatOffset = data.beat_offset;
             }
@@ -5962,6 +6120,11 @@ class MobileApp {
     }
 
     displayLyrics() {
+        // The chord timeline carries the lyrics lane: rebuild it when lyrics arrive after
+        // the chords (load order) or change (regeneration).
+        if (this.chords && this.chords.length && this.chordTrackElement) {
+            try { this.displayChords(); } catch (e) { console.warn('[Chords] lane refresh failed:', e); }
+        }
         const container = document.getElementById('mobileLyricsDisplay');
         if (!container) {
             console.warn('[Lyrics] Container not found');
@@ -6255,6 +6418,12 @@ class MobileApp {
 
     scrollLyricsToIndex(index, immediate = false) {
         if (!this.lyricsContainer || index < 0 || !this.lyricLineElements[index]) return;
+        if (window.FollowScroll) {
+            // Manual scrolling pauses the follow until the "Now" button is tapped.
+            FollowScroll.onResume(this.lyricsContainer, () => { if (this.activeLyricIndex >= 0) this.scrollLyricsToIndex(this.activeLyricIndex, true); });
+            if (immediate) FollowScroll.resume(this.lyricsContainer);
+            else if (FollowScroll.isPaused(this.lyricsContainer)) return;
+        }
         if (!immediate && this.isPlaying && this.lyricsUserScrolling) return;
 
         const container = this.lyricsContainer;
@@ -6280,7 +6449,7 @@ class MobileApp {
         if (immediate) {
             this.cancelLyricsScrollAnimation();
             this.lyricsAutoScrolling = true;
-            container.scrollTop = clampedTarget;
+            if (window.FollowScroll) FollowScroll.scroll(container, clampedTarget); else container.scrollTop = clampedTarget;
             this.lyricsAutoScrolling = false;
             return;
         }
@@ -6313,7 +6482,11 @@ class MobileApp {
         const step = (now) => {
             const progress = Math.min(1, (now - startTime) / duration);
             const eased = easeOutCubic(progress);
-            container.scrollTop = start + distance * eased;
+            if (window.FollowScroll) {
+                if (!FollowScroll.scroll(container, start + distance * eased)) { this.lyricsScrollAnimation = null; this.lyricsAutoScrolling = false; return; }
+            } else {
+                container.scrollTop = start + distance * eased;
+            }
 
             if (progress < 1) {
                 this.lyricsScrollAnimation = requestAnimationFrame(step);
@@ -6464,12 +6637,9 @@ class MobileApp {
             clearTimeout(this.lyricsScrollResumeTimer);
         }
 
-        this.lyricsScrollResumeTimer = setTimeout(() => {
-            this.lyricsUserScrolling = false;
-            if (this.activeLyricIndex >= 0) {
-                this.scrollLyricsToIndex(this.activeLyricIndex);
-            }
-        }, delay);
+        // Auto-follow resumes from the "Now" button (FollowScroll), not on a timer:
+        // the timer snapped the view back while the user was still reading.
+        this.lyricsScrollResumeTimer = setTimeout(() => { this.lyricsUserScrolling = false; }, delay);
     }
 
     renderWaveform() {
@@ -6957,6 +7127,10 @@ class MobileApp {
             })
             .sort((a, b) => a.timestamp - b.timestamp);
 
+        // Lyrics: one lane per measure row, words under the cell of their beat.
+        const lyricWords = this.flattenLyricWords(this.lyrics || []);
+        const lanes = [];
+
         // Create ALL measures from start to end
         let lastShownChord = ''; // Track what chord name was shown on previous beat
         let chordIndex = 0;
@@ -7013,8 +7187,21 @@ class MobileApp {
                 measureDiv.appendChild(beatDiv);
             }
 
+            if (lyricWords.length) {
+                const lane = this.buildLyricsLane(lyricWords, {
+                    className: 'gridview2-lyrics',
+            spill: 22,
+                    timeOf: (t) => t - offset,
+                    from: measureStartTime, to: measureStartTime + measureDuration,
+                    beatsOf: () => Array.from(measureDiv.querySelectorAll('.gridview2-beat')),
+                    rows: 2,
+                });
+                measureDiv.appendChild(lane);
+                lanes.push(lane);
+            }
             container.appendChild(measureDiv);
         }
+        lanes.forEach((lane) => this.layoutLyricsLane(lane));
     }
 
     highlightGridView2Beat(beatIndex, immediate = false) {
@@ -7053,9 +7240,14 @@ class MobileApp {
         const measureTop = measureRect.top - contentRect.top;
         const targetScrollTop = measureEl.offsetTop - paddingTop;
 
-        // Scroll to position the measure at the top
+        // Scroll to position the measure at the top (unless the user is browsing)
         if (Math.abs(content.scrollTop - targetScrollTop) > 10) {
-            content.scrollTop = targetScrollTop;
+            if (window.FollowScroll) {
+                FollowScroll.onResume(content, () => this.syncGridView2());
+                FollowScroll.scroll(content, targetScrollTop);
+            } else {
+                content.scrollTop = targetScrollTop;
+            }
         }
     }
 
@@ -7063,6 +7255,7 @@ class MobileApp {
         if (!this.gridView2Open) return;
         if (!this.gridView2Beats || !this.gridView2Beats.length) return;
 
+        this.syncLyricsLanes(document.getElementById('gridview2-content'), this.currentTime);
         const currentTime = this.currentTime - (this.beatOffset || 0);
 
         // Find the correct beat index based on beatTime
@@ -7305,8 +7498,13 @@ class MobileApp {
         const maxScroll = Math.max(0, content.scrollHeight - containerHeight);
         targetTop = Math.max(0, Math.min(targetTop, maxScroll));
 
+        if (window.FollowScroll) {
+            FollowScroll.onResume(content, () => this.scrollToFullscreenLyric(index, true));
+            if (immediate) FollowScroll.resume(content);
+            else if (FollowScroll.isPaused(content)) return;
+        }
         if (immediate) {
-            content.scrollTop = targetTop;
+            if (window.FollowScroll) FollowScroll.scroll(content, targetTop); else content.scrollTop = targetTop;
             this.lastFullscreenScrollTime = Date.now();
             this.lastFullscreenScrollIndex = index;
             return;
@@ -7323,7 +7521,7 @@ class MobileApp {
 
         this.lastFullscreenScrollTime = now;
         this.lastFullscreenScrollIndex = index;
-        content.scrollTop = targetTop; // Use immediate scroll instead of smooth on mobile
+        if (window.FollowScroll) FollowScroll.scroll(content, targetTop); else content.scrollTop = targetTop; // immediate, not smooth, on mobile
     }
 
     highlightFullscreenWords(segmentIndex, currentTime) {
@@ -7830,7 +8028,8 @@ class MobileApp {
                     console.warn('[Jam Guest] Failed to parse chords:', e);
                 }
                 if (Array.isArray(parsedChords)) {
-                    this.chords = parsedChords;
+                    this.setupChordDetailToggle();
+                    this.setChordList(parsedChords);
                     this.beatsPerBar = extractionData.beats_per_bar || 4;
                     this.chordBPM = this.currentBPM;
                     this.displayChords();

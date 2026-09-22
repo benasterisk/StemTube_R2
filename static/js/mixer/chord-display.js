@@ -845,6 +845,8 @@ class ChordDisplay {
 
             const track = document.createElement('div');
             track.className = 'chord-linear-track';
+            const measuresRow = document.createElement('div');
+            measuresRow.className = 'chord-linear-measures';
 
             measures.forEach((measure, measureIndex) => {
                 const measureEl = document.createElement('div');
@@ -890,29 +892,19 @@ class ChordDisplay {
                 });
 
                 measureEl.appendChild(chordRow);
-
-                // Lyrics row
-                const lyricsRow = document.createElement('div');
-                lyricsRow.className = 'chord-linear-lyrics-row';
-
-                // Collect the WORDS sung during this measure, mapped to grid time so
-                // each word lines up under its chord (spread across the bars a line spans).
-                const measureEndTime = measure.startTime + measureSeconds;
-                const measureWords = lyricWords.filter((w) => {
-                    const gStart = realToGridTime(w.start || 0);
-                    return gStart >= measure.startTime && gStart < measureEndTime;
-                });
-
-                if (measureWords.length > 0) {
-                    lyricsRow.textContent = measureWords.map(w => w.text).join(' ');
-                } else {
-
-                    lyricsRow.innerHTML = '&nbsp;';
-                }
-
-                measureEl.appendChild(lyricsRow);
-                track.appendChild(measureEl);
+                measuresRow.appendChild(measureEl);
             });
+            track.appendChild(measuresRow);
+
+            // Lyrics: ONE lane under the whole chord row, on the same synthetic clock as
+            // the beat cells (100 px per beat), words placed where they are sung rather
+            // than dumped into the bar they start in. Not cut by beats or bars.
+            const lane = this._buildLyricsLane(lyricWords, {
+                className: 'chord-linear-lyrics-lane',
+                beatsOf: () => this.beatElements,   // words sit under the REAL cell positions
+                rows: 2,
+            });
+            track.appendChild(lane);
 
             // Add playhead
             this.playheadIndicator = document.createElement('div');
@@ -928,7 +920,12 @@ class ChordDisplay {
             // Block manual horizontal scroll while allowing code-controlled scrollTo()
             this.preventManualHorizontalScroll(scroll);
 
+            this._layoutLyricsLane(lane);
             this.syncChordPlayhead(true);
+            // Songbook chords over the lyrics tab follow the chord list (naming, transposition).
+            if (this.mixer?.karaokeDisplay?.lyricsData && this.mixer.karaokeDisplay.render) {
+                try { this.mixer.karaokeDisplay.render(); this.mixer.karaokeDisplay.sync(this.currentTime || 0); } catch (e) {}
+            }
             const firstSegmentChord = this.chordSegments[0]?.chord || this.chords[0]?.chord || '';
             const thirdSegmentChord = this.chordSegments[2]?.chord || this.chords[2]?.chord || ''; // Anticipate 2 beats ahead
             const initialChordSymbol = this.currentChordSymbol || this.transposeChord(firstSegmentChord, this.currentPitchShift);
@@ -973,6 +970,7 @@ class ChordDisplay {
             // Map the live song time onto the synthetic grid (beat elements carry
             // synthetic beatTime) so the highlight tracks the audio despite tempo drift.
             const currentTime = this._realToGridTime(this.currentTime);
+            this._syncLyricsLanes(this.chordTrackElement, currentTime);
             const beatIdx = this.getBeatIndexForTime(currentTime);
             if (beatIdx === -1) return;
 
@@ -1044,6 +1042,118 @@ class ChordDisplay {
                 }
             });
             return lyricWords;
+        }
+
+        // ---- Lyrics lane: words positioned by time on a chord timeline ----
+        // Shared by the linear timeline and the stage grid. Each word is an absolutely
+        // positioned span at xOf(gridTime); overlaps are resolved after layout by
+        // _layoutLyricsLane (measured widths), pushing a word to the second row, then right.
+        _buildLyricsLane(lyricWords, opts) {
+            const lane = document.createElement('div');
+            lane.className = 'lyrics-lane ' + (opts.className || '');
+            if (opts.width) lane.style.width = opts.width + 'px';
+            lane.dataset.rows = String(opts.rows || 2);
+            if (opts.spill) lane.dataset.spill = String(opts.spill);
+            const words = [];
+            (lyricWords || []).forEach((w) => {
+                const gt = this._realToGridTime(w.start || 0);
+                if (gt < 0) return;
+                if (opts.from !== undefined && (gt < opts.from || gt >= opts.to)) return;
+                const el = document.createElement('span');
+                el.className = 'lyrics-lane-word';
+                el.textContent = w.text;
+                el.dataset.gt = gt.toFixed(3);
+                el.addEventListener('click', () => this.seek(w.start || 0));
+                lane.appendChild(el);
+                words.push(el);
+            });
+            lane._words = words;
+            lane._beatsOf = opts.beatsOf;
+            lane._needsLayout = true;
+            return lane;
+        }
+
+        // Resolve overlaps once the lane is in the DOM (widths are only known then).
+        // A lane rendered while its tab is hidden is laid out again on the next sync.
+        // x (px, lane-relative) of a grid time, interpolated between the on-screen beat
+        // cells (dataset.beatTime): whatever the cell width, gaps and bar borders, a
+        // word lands under the cell of its beat.
+        _xFromBeats(beatEls, laneLeft) {
+            const lefts = beatEls.map((el) => el.getBoundingClientRect().left - laneLeft);
+            const times = beatEls.map((el) => parseFloat(el.dataset.beatTime));
+            const n = beatEls.length;
+            const cellW = n > 1 ? lefts[1] - lefts[0] : beatEls[0].getBoundingClientRect().width;
+            const bd = n > 1 ? times[1] - times[0] : 1;
+            return (t) => {
+                if (t <= times[0]) return lefts[0] - (times[0] - t) / bd * cellW;
+                let lo = 0, hi = n - 1;
+                while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (times[mid] <= t) lo = mid; else hi = mid; }
+                if (lo >= n - 1) return lefts[n - 1] + (t - times[n - 1]) / bd * cellW;
+                return lefts[lo] + (t - times[lo]) / (times[hi] - times[lo] || bd) * (lefts[hi] - lefts[lo]);
+            };
+        }
+
+        _layoutLyricsLane(lane) {
+            if (!lane || !lane._words || !lane._words.length) return;
+            if (!lane.offsetWidth) { lane._needsLayout = true; return; }
+            const beatEls = lane._beatsOf ? (lane._beatsOf() || []).filter((el) => el.offsetParent) : [];
+            if (lane._beatsOf && beatEls.length < 2) { lane._needsLayout = true; return; }
+            if (beatEls.length) {
+                const laneLeft = lane.getBoundingClientRect().left;
+                const xOf = this._xFromBeats(beatEls, laneLeft);
+                lane._words.forEach((el) => { el.style.left = xOf(parseFloat(el.dataset.gt)).toFixed(1) + 'px'; });
+            }
+            const gap = 6;
+            const ROW_PENALTY = 40;   // px of push a word accepts before dropping to the next row
+            const rows = parseInt(lane.dataset.rows || '2', 10);
+            const right = new Array(rows).fill(-Infinity);
+            const laneRect = lane.getBoundingClientRect();
+            const laneW = laneRect.width;
+            // A word ending a bar may run a little past the lane (into the bar's padding)
+            // rather than drop to the second row.
+            const spill = parseFloat(lane.dataset.spill || '1');
+            lane._words.forEach((el) => { el.style.transform = ''; el.dataset.row = '0'; });
+            lane._words.forEach((el) => {
+                const rect = el.getBoundingClientRect();
+                const x = rect.left - laneRect.left;
+                const w = rect.width;
+                // Cheapest placement: little push on the first row beats a jump to the second.
+                let best = null;
+                for (let row = 0; row < rows; row++) {
+                    const shift = Math.max(0, right[row] + gap - x);
+                    if (x + shift + w > laneW + spill) continue;          // would spill out of the lane
+                    const cost = shift + row * ROW_PENALTY;
+                    if (!best || cost < best.cost) best = { row, shift, cost };
+                }
+                if (!best) {
+                    // Nothing fits before the lane's end: right-align on the freest row.
+                    const row = right.indexOf(Math.min(...right));
+                    best = { row, shift: Math.min(0, laneW - w - x) };
+                }
+                el.dataset.row = String(best.row);
+                if (best.shift) el.style.transform = `translateX(${best.shift.toFixed(1)}px)`;
+                right[best.row] = x + best.shift + w;
+            });
+            lane._needsLayout = false;
+        }
+
+        // Highlight the word being sung (all lanes of a container).
+        _syncLyricsLanes(root, gridTime) {
+            if (!root) return;
+            root.querySelectorAll('.lyrics-lane').forEach((lane) => {
+                if (lane._needsLayout) this._layoutLyricsLane(lane);
+                const words = lane._words || [];
+                let active = -1;
+                let lo = 0, hi = words.length - 1;
+                while (lo <= hi) {
+                    const mid = (lo + hi) >> 1;
+                    if (parseFloat(words[mid].dataset.gt) <= gridTime) { active = mid; lo = mid + 1; } else hi = mid - 1;
+                }
+                if (lane._active === active) return;
+                if (lane._active >= 0 && words[lane._active]) words[lane._active].classList.remove('active');
+                if (active >= 0) words[active].classList.add('active');
+                lane._active = active;
+            });
         }
 
         _realToGridTime(t) {
@@ -1221,7 +1331,51 @@ class ChordDisplay {
             return noteNames[nextIdx] + quality;
         }
     
+        // ---- Chord naming: simple triads or the detailed names (A7, Bm7...) ----
+        // The server stores both names on every segment ({chord, simple}) with the same
+        // boundaries, so switching never changes where chords fall.
+        getChordDetail() {
+            try { return localStorage.getItem('stemtube_chord_detail') === 'detailed' ? 'detailed' : 'simple'; }
+            catch (e) { return 'simple'; }
+        }
+
+        applyChordDetail(list) {
+            const simple = this.getChordDetail() === 'simple';
+            const out = [];
+            (list || []).forEach(entry => {
+                const name = (simple && entry.simple) ? entry.simple : entry.chord;
+                if (out.length && out[out.length - 1].chord === name) return;
+                out.push({ ...entry, chord: name });
+            });
+            return out;
+        }
+
+        setChords(list) {
+            this.rawChords = Array.isArray(list) ? list : [];
+            this.chords = this.applyChordDetail(this.rawChords);
+        }
+
+        setupChordDetailToggle() {
+            const buttons = Array.from(document.querySelectorAll('[data-chord-detail]'));
+            const refresh = () => buttons.forEach(b => b.classList.toggle('active', b.dataset.chordDetail === this.getChordDetail()));
+            if (!this._chordDetailWired) {
+                this._chordDetailWired = true;
+                buttons.forEach(btn => btn.addEventListener('click', () => {
+                    try { localStorage.setItem('stemtube_chord_detail', btn.dataset.chordDetail); } catch (e) {}
+                    refresh();
+                    if (this.rawChords && this.rawChords.length) {
+                        this.chords = this.applyChordDetail(this.rawChords);
+                        this.displayChords();
+                    }
+                }));
+                const regenerate = document.getElementById('regenerateChordsBtn');
+                if (regenerate) regenerate.addEventListener('click', () => this.regenerateChords());
+            }
+            refresh();
+        }
+
         setupChordInstrumentToggle() {
+            this.setupChordDetailToggle();
             if (!this.chordDiagramEl) {
                 this.chordDiagramEl = document.getElementById('mobileChordDiagram');
             }
@@ -1892,7 +2046,7 @@ class ChordDisplay {
         this.chordRegenerating = true;
 
         try {
-            // Single call: chords/regenerate runs BTC + Madmom and returns everything
+            // Single call: chords/regenerate re-detects chords and key on the harmonic stems
             const url = `/api/extractions/${targetId}/chords/regenerate`;
             const res = await fetch(url, { method: 'POST' });
             const data = await res.json();
@@ -1907,7 +2061,7 @@ class ChordDisplay {
             if (typeof payload === 'string') parsed = JSON.parse(payload);
 
             if (Array.isArray(parsed)) {
-                this.chords = parsed;
+                this.setChords(parsed);
                 if (window.EXTRACTION_INFO) {
                     window.EXTRACTION_INFO.chords_data = JSON.stringify(parsed);
                 }
@@ -2064,7 +2218,7 @@ class ChordDisplay {
                         parsed = JSON.parse(parsed);
                     }
                 }
-                this.chords = parsed;
+                this.setChords(parsed);
                 if (this.chords?.length) {
                     this.isEnabled = true;
                     this.duration = this.mixer.maxDuration || 300;
@@ -2259,6 +2413,8 @@ class ChordDisplay {
         const popup = document.getElementById('chords-grid-popup');
         if (!popup) return;
 
+        const body = popup.querySelector('.chords-grid-popup-body');
+        if (body && window.FollowScroll) FollowScroll.resume(body);   // a fresh open follows the song
         this.renderChordsGrid();
         popup.setAttribute('aria-hidden', 'false');
         document.body.style.overflow = 'hidden';
@@ -2376,22 +2532,36 @@ class ChordDisplay {
             measures.push(measure);
         }
 
-        // Lyrics per beat slot: map every word onto the synthetic grid once, then
-        // bucket by beat index so each cell shows the words sung ON that beat
-        // (stage chart: chord on top, lyric fragment underneath).
+        // Stage chart: systems of BARS_PER_SYSTEM bars; under each system ONE lyrics
+        // lane where words sit where they are sung (not cut into beat cells).
         const lyricWords = this._flattenLyricWords(this._getLyricsArray());
-        const wordsByBeat = new Map();
-        lyricWords.forEach((w) => {
-            const g = this._realToGridTime(w.start || 0);
-            if (g < 0) return;
-            const slot = Math.floor(g / beatDuration);
-            if (!wordsByBeat.has(slot)) wordsByBeat.set(slot, []);
-            wordsByBeat.get(slot).push(w.text);
-        });
+        const BARS_PER_SYSTEM = 4;
+        const lanes = [];
 
         // Render the grid
         container.innerHTML = '';
+        let systemEl = null, systemBars = null;
         measures.forEach((measure, measureIndex) => {
+            if (measureIndex % BARS_PER_SYSTEM === 0) {
+                systemEl = document.createElement('div');
+                systemEl.className = 'chord-grid-system';
+                systemBars = document.createElement('div');
+                systemBars.className = 'chord-grid-system-bars';
+                systemEl.appendChild(systemBars);
+                const from = measure.startTime;
+                const to = from + BARS_PER_SYSTEM * measureSeconds;
+                const barsEl = systemBars;
+                const lane = this._buildLyricsLane(lyricWords, {
+                    className: 'chord-grid-system-lyrics',
+                spill: 22,
+                    from, to,
+                    beatsOf: () => Array.from(barsEl.querySelectorAll('.chord-grid-beat')),
+                    rows: 2,
+                });
+                systemEl.appendChild(lane);
+                lanes.push(lane);
+                container.appendChild(systemEl);
+            }
             const measureEl = document.createElement('div');
             measureEl.className = 'chord-grid-measure';
 
@@ -2418,11 +2588,8 @@ class ChordDisplay {
                 if (beat.empty) {
                     beatEl.classList.add('empty');
                     beatEl.dataset.currentChord = beat.currentChord || '';
-                    const displayChord = beat.currentChord ? this.transposeChord(beat.currentChord, this.currentPitchShift) : '';
-                    const slotWordsE = wordsByBeat.get(measureIndex * beatsPerBar + beatIndex) || [];
                     beatEl.innerHTML = `
                         <div class="chord-grid-beat-name">—</div>
-                        <div class="chord-grid-beat-lyric">${slotWordsE.join(' ')}</div>
                         <div class="chord-grid-beat-time">${this.formatTime(beatTimestamp)}</div>
                     `;
                 } else {
@@ -2431,10 +2598,8 @@ class ChordDisplay {
                     beatEl.dataset.currentChord = beat.chord;
 
                     const transposedChord = this.transposeChord(beat.chord, this.currentPitchShift);
-                    const slotWords = wordsByBeat.get(measureIndex * beatsPerBar + beatIndex) || [];
                     beatEl.innerHTML = `
                         <div class="chord-grid-beat-name" data-len="${Math.min(7, transposedChord.length)}">${transposedChord}</div>
-                        <div class="chord-grid-beat-lyric">${slotWords.join(' ')}</div>
                         <div class="chord-grid-beat-time">${this.formatTime(beat.timestamp)}</div>
                     `;
                 }
@@ -2452,8 +2617,9 @@ class ChordDisplay {
             });
 
             measureEl.appendChild(beatsContainer);
-            container.appendChild(measureEl);
+            systemBars.appendChild(measureEl);
         });
+        lanes.forEach((lane) => this._layoutLyricsLane(lane));
 
         // Highlight current beat using beatIndex
         if (this.beatElements && this.beatElements.length) {
@@ -2467,6 +2633,7 @@ class ChordDisplay {
 
         const activeBeat = this.gridBeatElements[beatIndex];
         if (!activeBeat) return;
+        if (activeBeat.classList.contains('active')) return;
 
         // Remove active class from all grid beats
         this.gridBeatElements.forEach(el => el.classList.remove('active'));
@@ -2477,7 +2644,7 @@ class ChordDisplay {
         const popup = document.getElementById('chords-grid-popup');
         const popupBody = popup?.querySelector('.chords-grid-popup-body');
         if (popupBody) {
-            const parentMeasure = activeBeat.closest('.chord-grid-measure');
+            const parentMeasure = activeBeat.closest('.chord-grid-system') || activeBeat.closest('.chord-grid-measure');
             if (parentMeasure) {
                 const relativeTop = parentMeasure.offsetTop - popupBody.offsetTop;
 
@@ -2489,6 +2656,12 @@ class ChordDisplay {
                 // Skip scroll if already at target position
                 if (Math.abs(popupBody.scrollTop - targetScroll) < 1) return;
 
+                if (window.FollowScroll) {
+                    // Manual scrolling pauses the follow; the "Now" button resumes it.
+                    FollowScroll.onResume(popupBody, () => { this.gridBeatElements.forEach(el => el.classList.remove('active')); this.syncGridView(); });
+                    FollowScroll.scroll(popupBody, targetScroll);
+                    return;
+                }
                 popupBody.scrollTo({
                     top: targetScroll,
                     behavior: 'auto'
@@ -2503,6 +2676,7 @@ class ChordDisplay {
         if (!this.gridBeatElements || !this.gridBeatElements.length) return;
 
         const currentTime = this._realToGridTime(this.currentTime);
+        this._syncLyricsLanes(document.getElementById('chords-grid-container'), currentTime);
         const beatIdx = this.getBeatIndexForTime(currentTime);
         if (beatIdx !== -1) {
             this.highlightGridBeat(beatIdx);

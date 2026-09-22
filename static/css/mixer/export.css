@@ -180,11 +180,33 @@
    beat, readable from meters away. Fills the 98vw x 98vh dialog instead
    of one thin bar per line. ── */
 .chords-grid-container {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));   /* 4 bars per system */
-    gap: 0.6rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
     padding-bottom: 60vh;                                /* room for the last system to reach the focus line */
 }
+
+/* One system = 4 bars of chord cells + a single lyrics lane underneath, words placed
+   where they are sung across the system's width (not cut per beat). */
+.chord-grid-system { display: flex; flex-direction: column; gap: 0.25rem; }
+.chord-grid-system-bars {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));   /* 4 bars per system */
+    gap: 0.75rem;
+}
+.chords-grid-container { overflow-x: hidden; }
+.chord-grid-system-lyrics {
+    height: 3.6em;
+    margin: 0 0.2rem;
+    overflow: visible;
+    font-size: clamp(0.85rem, 1.4vw, 1.35rem);
+    background: transparent;
+    border-top: none;
+    color: var(--text-secondary);
+}
+.chord-grid-system-lyrics .lyrics-lane-word { top: 0.25em; }
+.chord-grid-system-lyrics .lyrics-lane-word[data-row="1"] { top: 1.7em; }
+.chord-grid-system:has(.chord-grid-beat.active) .chord-grid-system-lyrics { color: var(--text-primary); }
 
 .chord-grid-measure {
     position: relative;
@@ -195,7 +217,7 @@
     background: var(--bg-secondary);
     border-radius: 10px;
     border-left: 4px solid var(--border-color);
-    min-height: 7.2rem;
+    min-height: 6rem;
 }
 
 .chord-grid-measure-label {
@@ -269,21 +291,6 @@
 .chord-grid-beat-name[data-len="6"],
 .chord-grid-beat-name[data-len="7"] { font-size: clamp(0.6rem, 17cqw, 1.8rem); letter-spacing: -0.04em; }
 
-.chord-grid-beat-lyric {
-    margin-top: 0.3rem;
-    min-height: 1.3em;
-    font-size: clamp(0.7rem, 12cqw, 1.2rem);
-    line-height: 1.25;
-    color: var(--text-secondary);
-    /* wrap between words only - never split 'raindrops' into 'raindrop|s';
-       a single word wider than the cell is clipped rather than broken */
-    overflow-wrap: normal;
-    word-break: keep-all;
-    max-height: 2.6em;                             /* two short lines max, then clip */
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.chord-grid-beat.active .chord-grid-beat-lyric { color: var(--text-primary); }
 
 .chord-grid-beat-time {
     margin-top: 0.25rem;

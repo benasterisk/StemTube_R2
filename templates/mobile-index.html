@@ -277,6 +277,9 @@
                         <button id="mobileRegenerateChords" class="mobile-btn mobile-btn-ghost">
                             <i class="fas fa-sync-alt"></i> Reanalyze
                         </button>
+                        <button id="mobileChordDetailBtn" class="mobile-btn mobile-btn-ghost" title="Simple triads or detailed chord names (same chord changes)">
+                            <i class="fas fa-music"></i> Simple
+                        </button>
                         <button id="mobileGridView2Btn" class="mobile-btn mobile-btn-ghost">
                             <i class="fas fa-th"></i> Grid View
                         </button>
@@ -1439,6 +1442,7 @@
     <!-- mobile-app.js split into modular files -->
     <script src="{{ url_for('static', filename='js/theme-generator.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/spectrum-picker.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/follow-scroll.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/mobile-constants.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/mobile-guitar-diagram.js') }}?v={{ cache_buster }}"></script>
     <script src="{{ url_for('static', filename='js/mobile-neumorphic-dial.js') }}?v={{ cache_buster }}"></script>

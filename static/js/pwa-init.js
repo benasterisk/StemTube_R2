@@ -46,6 +46,17 @@
                     console.log('[PWA] Persistent storage:', persistent ? 'granted' : 'denied');
                 }
 
+                // A new service worker taking control means new shell files: reload once
+                // so the open page runs them instead of the scripts it loaded earlier
+                // (an installed PWA is rarely reloaded by hand).
+                const hadController = !!navigator.serviceWorker.controller;
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    // First install (no previous controller): the page already runs the
+                    // current files, nothing to reload.
+                    if (!hadController || window.__swReloading) return;
+                    window.__swReloading = true;
+                    location.reload();
+                });
                 // Check for updates
                 registration.addEventListener('updatefound', () => {
                     const newWorker = registration.installing;

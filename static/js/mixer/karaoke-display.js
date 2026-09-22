@@ -854,53 +854,108 @@ class KaraokeDisplay {
      * Build chord lookup for songbook-style display
      */
     buildChordLookupForLyrics() {
-        // Get chords from ChordDisplay if available
-        const chords = window.chordDisplay?.chords || [];
-        if (!chords.length) return [];
-
+        // The chord list as displayed (naming toggle and refinement already applied).
+        const display = (window.mixer && window.mixer.chordDisplay) || window.chordDisplay;
+        const chords = (display && display.chords) || [];
         const lookup = [];
         let lastChord = null;
-
-        chords.forEach(chord => {
+        chords.forEach((chord) => {
             const chordName = chord.chord || '';
-            const timestamp = chord.timestamp || 0;
-
-            // Only add if it's a new chord (chord change)
             if (chordName && chordName !== lastChord) {
-                lookup.push({
-                    chord: chordName,
-                    timestamp: timestamp,
-                    isChange: true,
-                    used: false
-                });
+                lookup.push({ chord: chordName, timestamp: chord.timestamp || 0 });
                 lastChord = chordName;
             }
         });
-
         return lookup;
     }
 
     /**
-     * Find chord at a specific time
+     * Songbook placement: every chord change goes above the syllable where it happens.
+     * Returns { byLine: Map(lineIndex -> Map(wordIndex -> [chords])),
+     *           instrumental: Map(lineIndex -> [chords]) } where an instrumental block
+     * lists the changes played in a long gap BEFORE that line (or after the last one,
+     * key = lines.length), so the chart stays complete without cluttering the words.
      */
-    findChordAtTime(time, chordLookup) {
-        if (!chordLookup || chordLookup.length === 0) return null;
+    placeChordsOnLyrics(chordLookup) {
+        const LEAD = 1.0;      // a change up to 1 s before a line's first word belongs to it
+        const TAIL = 1.0;      // ... and up to 1 s after its last word
+        const GAP_MIN = 3.0;   // shorter gaps between lines are not shown as instrumental
+        const byLine = new Map();
+        const instrumental = new Map();
+        const lines = this.lyricsData || [];
+        if (!chordLookup.length || !lines.length) return { byLine, instrumental };
 
-        const tolerance = 0.5; // 500ms tolerance
+        const wordsOf = (seg) => (seg.words && seg.words.length)
+            ? seg.words.map((w, i) => ({ start: +w.start || 0, index: i }))
+            : [{ start: +seg.start || 0, index: 0 }];
+        const lineEnd = (seg) => {
+            const words = seg.words || [];
+            const last = words.length ? +words[words.length - 1].end || +words[words.length - 1].start : 0;
+            return Math.max(+seg.end || 0, last);
+        };
 
-        for (let i = chordLookup.length - 1; i >= 0; i--) {
-            const chordInfo = chordLookup[i];
-            const diff = time - chordInfo.timestamp;
-
-            if (diff >= -tolerance && diff <= tolerance) {
-                if (!chordInfo.used) {
-                    chordInfo.used = true;
-                    return chordInfo;
-                }
+        chordLookup.forEach((chord) => {
+            const ts = chord.timestamp;
+            // Last line starting no later than ts + LEAD.
+            let li = -1;
+            for (let i = 0; i < lines.length; i++) {
+                if ((+lines[i].start || 0) <= ts + LEAD) li = i; else break;
             }
-        }
+            const next = li + 1 < lines.length ? +lines[li + 1].start : Infinity;
+            if (li >= 0 && ts <= lineEnd(lines[li]) + TAIL) {
+                const words = wordsOf(lines[li]);
+                let wi = words[0].index;
+                for (const w of words) { if (w.start <= ts) wi = w.index; else break; }
+                if (!byLine.has(li)) byLine.set(li, new Map());
+                const perWord = byLine.get(li);
+                if (!perWord.has(wi)) perWord.set(wi, []);
+                perWord.get(wi).push(chord);
+                return;
+            }
+            // In a gap: before the first line, after the last, or between two lines.
+            const gapStart = li >= 0 ? lineEnd(lines[li]) : 0;
+            const target = li + 1;
+            if (next - gapStart < GAP_MIN && li >= 0 && next !== Infinity) {
+                // Short gap: the change belongs to the start of the next line.
+                if (!byLine.has(target)) byLine.set(target, new Map());
+                const perWord = byLine.get(target);
+                const first = wordsOf(lines[target])[0].index;
+                if (!perWord.has(first)) perWord.set(first, []);
+                perWord.get(first).push(chord);
+                return;
+            }
+            if (!instrumental.has(target)) instrumental.set(target, []);
+            instrumental.get(target).push(chord);
+        });
+        return { byLine, instrumental };
+    }
 
-        return null;
+    renderChordLabels(chords, pitchShift) {
+        const box = document.createElement('span');
+        box.className = 'karaoke-chords';
+        chords.forEach((info) => {
+            const chordLabel = document.createElement('span');
+            chordLabel.className = 'karaoke-chord';
+            chordLabel.dataset.originalChord = info.chord;
+            chordLabel.dataset.chordTime = info.timestamp;
+            chordLabel.textContent = this.transposeChord(info.chord, pitchShift);
+            box.appendChild(chordLabel);
+        });
+        return box;
+    }
+
+    renderInstrumentalRow(chords, pitchShift) {
+        const row = document.createElement('div');
+        row.className = 'karaoke-instrumental';
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'karaoke-time';
+        timeSpan.textContent = this.formatTime(chords[0].timestamp);
+        row.appendChild(timeSpan);
+        const box = this.renderChordLabels(chords, pitchShift);
+        box.classList.add('karaoke-instrumental-chords');
+        row.appendChild(box);
+        row.addEventListener('click', () => this.onLineClick({ start: chords[0].timestamp }));
+        return row;
     }
 
     /**
@@ -956,9 +1011,14 @@ class KaraokeDisplay {
         const chordLookup = this.buildChordLookupForLyrics();
         const hasChordsData = chordLookup.length > 0;
         const pitchShift = this.getCurrentPitchShift();
+        const placed = this.placeChordsOnLyrics(chordLookup);
 
         // Create a line for each segment
         this.lyricsData.forEach((segment, index) => {
+            if (placed.instrumental.has(index)) {
+                this.lyricsContainer.appendChild(this.renderInstrumentalRow(placed.instrumental.get(index), pitchShift));
+            }
+            const lineChords = placed.byLine.get(index) || new Map();
             const lineDiv = document.createElement('div');
             lineDiv.className = 'karaoke-line';
             lineDiv.dataset.index = index;
@@ -982,15 +1042,9 @@ class KaraokeDisplay {
                         const wordWrapper = document.createElement('span');
                         wordWrapper.className = 'karaoke-word-wrapper';
 
-                        // Check if there's a chord change at this word
-                        const chordInfo = this.findChordAtTime(wordData.start, chordLookup);
-                        if (chordInfo && chordInfo.isChange) {
-                            const chordLabel = document.createElement('span');
-                            chordLabel.className = 'karaoke-chord';
-                            chordLabel.dataset.originalChord = chordInfo.chord;
-                            chordLabel.dataset.chordTime = chordInfo.timestamp;
-                            chordLabel.textContent = this.transposeChord(chordInfo.chord, pitchShift);
-                            wordWrapper.appendChild(chordLabel);
+                        // Chord change(s) on this syllable
+                        if (lineChords.has(wordIndex)) {
+                            wordWrapper.appendChild(this.renderChordLabels(lineChords.get(wordIndex), pitchShift));
                         }
 
                         const wordSpan = document.createElement('span');
@@ -1019,16 +1073,12 @@ class KaraokeDisplay {
                     }
                 });
             } else {
-                // Fallback: no word timestamps
-                if (hasChordsData) {
-                    const chordInfo = this.findChordAtTime(segment.start, chordLookup);
-                    if (chordInfo) {
-                        const chordLabel = document.createElement('span');
-                        chordLabel.className = 'karaoke-chord';
-                        chordLabel.dataset.originalChord = chordInfo.chord;
-                        chordLabel.textContent = this.transposeChord(chordInfo.chord, pitchShift);
-                        textContainer.appendChild(chordLabel);
-                    }
+                // Fallback: no word timestamps - every change of the line goes in front
+                if (hasChordsData && lineChords.size) {
+                    const all = [];
+                    lineChords.forEach((list) => all.push(...list));
+                    all.sort((a, b) => a.timestamp - b.timestamp);
+                    textContainer.appendChild(this.renderChordLabels(all, pitchShift));
                 }
                 const textSpan = document.createElement('span');
                 textSpan.textContent = segment.text;
@@ -1044,6 +1094,9 @@ class KaraokeDisplay {
 
             this.lyricsContainer.appendChild(lineDiv);
         });
+        if (placed.instrumental.has(this.lyricsData.length)) {
+            this.lyricsContainer.appendChild(this.renderInstrumentalRow(placed.instrumental.get(this.lyricsData.length), pitchShift));
+        }
 
         console.log('[KaraokeDisplay] Rendered lyrics with word-level timing' + (hasChordsData ? ' and songbook chords' : ''));
     }
@@ -1249,6 +1302,15 @@ class KaraokeDisplay {
         let targetTop = lineTopInContainer - topMargin;
         const maxScroll = Math.max(0, scrollContainer.scrollHeight - containerHeight);
         targetTop = Math.max(0, Math.min(targetTop, maxScroll));
+
+        // Manual scrolling pauses the follow; the "Now" button (FollowScroll) resumes it.
+        if (window.FollowScroll) {
+            FollowScroll.onResume(scrollContainer, () => this.refocusCurrentLine(true));
+            if (immediate) { FollowScroll.resume(scrollContainer); FollowScroll.scroll(scrollContainer, targetTop); return; }
+            if (Math.abs(scrollContainer.scrollTop - targetTop) < 1) return;
+            FollowScroll.scroll(scrollContainer, targetTop, 'smooth');
+            return;
+        }
 
         if (immediate) {
             scrollContainer.scrollTop = targetTop;

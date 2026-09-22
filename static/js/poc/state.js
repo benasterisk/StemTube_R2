@@ -101,6 +101,10 @@ const SessionState = {
     const sb = document.getElementById("scrollModeBtn");
     if(sb){ const L={manual:"✕ Manual",page:"⏭ Page",center:"⊕ Center"};
       sb.textContent=L[view.scrollMode]||L.center; sb.classList.toggle("on", view.scrollMode!=="manual"); }
+    // Row heights follow the restored vertical zoom: the tracks were built before
+    // apply() restored it, so the left blocks would otherwise keep the default
+    // height and drift away from their lanes.
+    if(window.Mixer && Mixer.syncRowHeights) Mixer.syncRowHeights(view);
     // track buttons + volume sliders
     document.querySelectorAll("#left-tracks .lctrl").forEach(lc=>{
       const volEl = lc.querySelector("input.vol"); const n = volEl && volEl.dataset.n; if(!n) return;

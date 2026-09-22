@@ -18,7 +18,7 @@ load_dotenv()
 # Application information
 APP_NAME = "StemTubes"
 # Single source of truth for the version shown in the UI; bump it with each release tag.
-APP_VERSION = "3.0.2"
+APP_VERSION = "3.1.0"
 APP_AUTHOR = "StemTubes Team"
 
 # ============================================================================

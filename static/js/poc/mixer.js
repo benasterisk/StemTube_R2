@@ -39,6 +39,22 @@ const Mixer = {
   },
   _hideBubble(){ const b=document.getElementById("ctrl-bubble"); if(b) b.style.display="none"; },
 
+  // A short row cannot stack name + controls: below this the control block goes to
+  // one line (name truncated, volume and pan beside it) so the volume slider stays
+  // reachable at any vertical zoom instead of being clipped by #leftcol.
+  COMPACT_BELOW_H: 68,
+
+  // Size every left control block to its lane and pick the layout that fits.
+  syncRowHeights(view){
+    document.querySelectorAll("#left-tracks .lctrl").forEach(lc=>{
+      const volEl = lc.querySelector("input.vol"); const nm = volEl && volEl.dataset.n;
+      if(!nm) return;                       // recording rows size themselves
+      const h = view.laneH(nm);
+      lc.style.height = h + "px";
+      lc.classList.toggle("compact", h < this.COMPACT_BELOW_H);
+    });
+  },
+
   build(engine, view){
     const names = this.orderedNames(engine.stems);
     const left = document.getElementById("left-tracks"); left.innerHTML="";
@@ -95,6 +111,7 @@ const Mixer = {
       lane.appendChild(cv); lanes.appendChild(lane);
       view.setCanvas(name, cv);
     });
+    this.syncRowHeights(view);
     // single playhead line spanning timeline + lanes (moved via style.left, no redraw)
     let ph=document.getElementById("playhead-line");
     if(!ph){ ph=document.createElement("div"); ph.id="playhead-line"; }

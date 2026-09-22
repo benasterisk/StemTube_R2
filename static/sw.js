@@ -1,4 +1,4 @@
-// StemTube Service Worker v2.40 - offline playback through the POC mixer routes
+// StemTube Service Worker v2.42 - offline playback through the POC mixer routes
 //
 // Registered only by static/js/pwa-init.js (mobile page), scope "/".
 //
@@ -12,7 +12,7 @@
 //                /poc-mixer/audio/<job>/<stem> (stems + metronome variants) - plus
 //                one manifest per song (/poc-mixer/__offline__/<job>), written LAST,
 //                which marks the save as complete.
-const SHELL_CACHE = 'stemtube-v2.40';
+const SHELL_CACHE = 'stemtube-v2.42';
 const SONGS_CACHE = 'stemtube-songs-v2';   // keep in sync with pwa-init.js
 
 const MANIFEST_PREFIX = '/poc-mixer/__offline__/';
@@ -51,6 +51,7 @@ const PRECACHE_FILES = [
   '/static/js/mobile-metronome.js',
   '/static/js/theme-generator.js',
   '/static/js/spectrum-picker.js',
+  '/static/js/follow-scroll.js',
   '/static/js/mobile-constants.js',
   '/static/js/mobile-guitar-diagram.js',
   '/static/js/mobile-neumorphic-dial.js',

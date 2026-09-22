@@ -267,6 +267,26 @@
 
   /* metronome resolution selector, docked to the right of the name row */
   .lctrl .name .metrores { margin-left:auto; }
+  /* "Back to now" overlay (follow-scroll.js): shown once the user scrolls a lyrics or
+     chord view by hand while the song plays; tapping it resumes the auto-follow. */
+  .follow-scroll-btn { position:absolute; right:18px; bottom:18px; z-index:60; display:inline-flex; align-items:center; gap:6px;
+    padding:8px 14px; border-radius:999px; border:1px solid var(--accent); background:var(--panel); color:var(--accent);
+    font:600 13px/1 var(--font, system-ui); cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,.35); }
+  .follow-scroll-btn:hover { background:var(--accent); color:var(--on-accent, #fff); }
+  .follow-scroll-btn[hidden] { display:none; }
+  /* Chords tab header: naming toggle, instrument toggle and Reanalyze share one row */
+  .chords-panel .mobile-chord-diagram-header { gap:10px; flex-wrap:wrap; }
+  .chords-panel .mobile-chord-diagram-header > span:first-child { margin-right:auto; }
+  /* Short rows (vertical zoom-out): the stacked name + controls no longer fit the
+     lane height and #leftcol clips them, so the block goes to a single line and the
+     volume / pan sliders stay reachable. Toggled by Mixer.syncRowHeights(). */
+  #left-tracks .lctrl.compact { flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px; padding:4px 10px; }
+  .lctrl.compact .name { flex:0 1 auto; min-width:0; max-width:86px; font-size:12px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-height:0; }
+  .lctrl.compact .name .metrores { margin-left:4px; }
+  .lctrl.compact .ctl-row { flex:1 1 130px; min-width:0; gap:6px; }
+  .lctrl.compact .pan .panrange { width:32px; }
+  .lctrl.compact .metroinst-row { flex:1 1 100%; margin-top:0; }
 
   /* the metronome control hosts an extra row → top-align its rows (don't vertical-
      center) and never crush them below the content height. */
@@ -406,6 +426,13 @@
   body[data-tab="chords"]  #chords-view { display:block; }
   body[data-tab="lyrics"]  #editor      { display:none; }
   body[data-tab="lyrics"]  #lyrics-view { display:block; }
+  /* The lyrics tab owns the whole pane: let the scrolling lyrics box use it instead of
+     karaoke.css's 300 px default (meant for the old embedded panel). */
+  #lyrics-view { padding:10px 14px; flex-direction:column; }
+  body[data-tab="lyrics"] #lyrics-view { display:flex; }
+  #lyrics-view .lyrics-panel { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+  #lyrics-view .karaoke-in-content { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+  #lyrics-view .karaoke-lyrics { flex:1 1 auto; min-height:0; max-height:none; }
   /* Mixer-only view controls (zoom / scroll-mode / export) hidden on Chords+Lyrics.
      The Focus button replaces them on those tabs. */
   body:not([data-tab="mixer"]) #viewControls { display:none; }
@@ -439,15 +466,6 @@
   #chords-view { padding:10px 14px; }
   #chords-view .practice-panel { max-width:980px; margin:0 auto; }
 
-  /* Lyric line under the chord grid: shown ONCE in its starting measure, allowed
-     to spill across the following (empty) bars instead of being clipped/ellipsised
-     to one measure or repeated in every bar. */
-  #chords-view .chord-linear-lyrics-row {
-    overflow: visible;
-    text-overflow: clip;
-    position: relative;
-    z-index: 1;
-  }
 
   /* Recording track: control block (left) styled like a stem .lctrl; the lane
      (right) holds a full-width .waveform whose canvas friend's engine draws into. */
@@ -732,10 +750,17 @@
     <div class="mobile-chord-diagram-panel">
       <div class="mobile-chord-diagram-header">
         <span>Chords</span>
+        <div class="mobile-chord-instrument-toggle" title="Simple: major/minor triads. Detailed: sevenths and colours (A7, Bm7...). Same chord changes either way.">
+          <button type="button" class="active" data-chord-detail="simple">Simple</button>
+          <button type="button" data-chord-detail="detailed">Detailed</button>
+        </div>
         <div class="mobile-chord-instrument-toggle">
           <button type="button" class="active" data-chord-instrument="guitar">Guitar</button>
           <button type="button" data-chord-instrument="piano">Piano</button>
         </div>
+        <button type="button" class="chord-mode-toggle" id="regenerateChordsBtn" title="Re-detect chords and key from the stems">
+          <i class="fas fa-sync-alt"></i> <span>Reanalyze</span>
+        </button>
       </div>
       <div class="mobile-chord-diagram-carousel">
         <div class="mobile-chord-diagram mobile-chord-diagram-prev" id="mobileChordDiagramPrev"><p class="mobile-text-muted">—</p></div>
@@ -847,6 +872,7 @@
      that lets them drive off the POC engine. Loaded AFTER main.js so `engine` and
      `View`/`TempoPitch` globals exist; mixer-compat.js instantiates ChordDisplay. -->
 <script src="{{ url_for('static', filename='js/mixer/chord-display.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/follow-scroll.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/mixer/structure-display.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/mixer/karaoke-display.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/mixer/lyrics-popup.js') }}?v={{ cache_buster }}"></script>

@@ -18,7 +18,7 @@
     position: relative;
     display: flex;
     gap: 0;
-    min-height: 100px;
+    min-height: 0;
 }
 
 .chord-linear-measure {
@@ -82,19 +82,27 @@
     font-weight: 400;
 }
 
-.chord-linear-lyrics-row {
-    min-height: 36px;
-    padding: 0.5rem;
+/* Lyrics lane under the chord cells: words placed where they are sung, two rows,
+   overlaps resolved in JS (layoutLyricsLane). */
+.chord-linear-track { flex-direction: column; width: max-content; min-width: 100%; }
+.chord-linear-measures { display: flex; gap: 0; }
+.lyrics-lane {
+    position: relative;
+    height: 3.1em;
     font-size: 0.813rem;
     color: var(--mobile-text-secondary);
     background: var(--mobile-bg-primary);
     border-top: 1px solid var(--mobile-border);
-    display: flex;
-    align-items: center;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
+.lyrics-lane-word {
+    position: absolute;
+    top: 0.3em;
+    white-space: nowrap;
+    line-height: 1.3;
+}
+.lyrics-lane-word[data-row="1"] { top: 1.65em; }
+.lyrics-lane-word.active { color: var(--mobile-primary); font-weight: 700; }
 
 .chord-linear-playhead {
     display: none;
@@ -134,7 +142,7 @@
         font-size: 1.1rem;
     }
 
-    .chord-linear-lyrics-row {
+    .lyrics-lane {
         font-size: 0.875rem;
     }
 }
@@ -1285,6 +1293,21 @@
     line-height: 1.2;
 }
 
+/* Lyrics lane under the 4 cells of a measure (words placed under their beat) */
+.gridview2-lyrics {
+    grid-column: 1 / -1;
+    height: 2.9em;
+    margin-top: 2px;
+    font-size: 0.95rem;
+    background: transparent;
+    border-top: none;
+    color: rgba(255, 255, 255, 0.55);
+    overflow: visible;
+}
+.gridview2-lyrics .lyrics-lane-word { top: 0.15em; }
+.gridview2-lyrics .lyrics-lane-word[data-row="1"] { top: 1.5em; }
+.gridview2-measure:has(.gridview2-beat.active) .gridview2-lyrics { color: rgba(255, 255, 255, 0.85); }
+
 /* Rest/empty beat indicator */
 .gridview2-beat.is-rest,
 .gridview2-beat.is-empty {
@@ -1465,3 +1488,25 @@
     }
 }
 
+
+/* "Back to now" overlay (follow-scroll.js): appears when the user scrolls a lyrics or
+   chord view by hand during playback; tapping it resumes the auto-follow. */
+.follow-scroll-btn {
+    position: absolute;
+    right: 14px;
+    bottom: 14px;
+    z-index: 60;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--mobile-primary);
+    background: var(--mobile-bg-secondary);
+    color: var(--mobile-primary);
+    font-size: 0.9rem;
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+.follow-scroll-btn:active { background: var(--mobile-primary); color: #fff; }
+.follow-scroll-btn[hidden] { display: none; }

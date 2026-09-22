@@ -114,13 +114,31 @@
     margin-bottom: 4px;
 }
 
+.karaoke-chords {
+    display: inline-flex;
+    gap: 0.6em;
+    margin-bottom: 2px;
+    line-height: 1.1;
+}
+
 .karaoke-chord {
     font-size: 0.85em;
     font-weight: 700;
     color: var(--accent-color);
-    margin-bottom: 2px;
     white-space: nowrap;
 }
+
+/* Chord changes played in a long gap between two lines (intro, solo, outro):
+   one row of chords, dimmer than the sung lines, click to seek. */
+.karaoke-instrumental {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding: 0.35rem 1rem;
+    opacity: 0.6;
+    cursor: pointer;
+}
+.karaoke-instrumental .karaoke-instrumental-chords { gap: 1em; font-style: italic; }
 
 /* Popup-specific chord styling */
 .lyrics-popup-content .karaoke-text.songbook-style {

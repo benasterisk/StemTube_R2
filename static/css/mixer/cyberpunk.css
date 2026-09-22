@@ -246,7 +246,7 @@ body.cyberpunk-neon .chord-linear-beat.active {
     text-shadow: 0 0 4px rgba(255,45,149,0.4);
 }
 
-body.cyberpunk-neon .chord-linear-lyrics-row {
+body.cyberpunk-neon .lyrics-lane {
     background: #0a0a0a;
     border-top: 1px solid rgba(255,45,149,0.1);
 }
