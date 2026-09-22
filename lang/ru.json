@@ -120,5 +120,11 @@
     "news.lyrics.p2": "Whisper's credit hallucinations over instrumental passages are dropped.",
     "news.structure.tag": "Fix",
     "news.structure.title": "Structure detection works again",
-    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity."
+    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity.",
+    "news.chords31.tag": "Версия 3.1.0",
+    "news.chords31.title": "Аккорды и тексты",
+    "news.chords31.p1": "Распознавание аккордов переработано : анализ по гармоническим дорожкам (без вокала и ударных) после извлечения, аккорды привязаны к сетке долей, больше никаких паразитных смен короче одной доли ; простые или подробные названия на выбор ; тональность пересчитана по аккордам.",
+    "news.chords31.p2": "Синхронизированный текст под аккордами, слово за словом, во всех видах аккордов (десктоп, Stage View, мобильный).",
+    "news.chords31.p3": "Аккорды над текстом в видах Lyrics (как в песеннике).",
+    "news.chords31.p4": "Свободная прокрутка во время воспроизведения, с кнопкой « Now » для возврата к текущему аккорду или слову."
 }

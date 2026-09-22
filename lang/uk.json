@@ -120,5 +120,11 @@
     "news.lyrics.p2": "Whisper's credit hallucinations over instrumental passages are dropped.",
     "news.structure.tag": "Fix",
     "news.structure.title": "Structure detection works again",
-    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity."
+    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity.",
+    "news.chords31.tag": "Версія 3.1.0",
+    "news.chords31.title": "Акорди та тексти",
+    "news.chords31.p1": "Розпізнавання акордів перероблено : аналіз на гармонічних доріжках (без вокалу та ударних) після вилучення, акорди прив'язані до сітки долей, більше жодних паразитних змін коротших за одну долю ; прості або детальні назви на вибір ; тональність перераховано за акордами.",
+    "news.chords31.p2": "Синхронізований текст під акордами, слово за словом, у всіх видах акордів (десктоп, Stage View, мобільний).",
+    "news.chords31.p3": "Акорди над текстом у видах Lyrics (як у пісеннику).",
+    "news.chords31.p4": "Вільне прокручування під час відтворення, з кнопкою « Now » для повернення до поточного акорду або слова."
 }

@@ -120,5 +120,11 @@
     "news.lyrics.p2": "Whisper's credit hallucinations over instrumental passages are dropped.",
     "news.structure.tag": "Fix",
     "news.structure.title": "Structure detection works again",
-    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity."
+    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity.",
+    "news.chords31.tag": "バージョン 3.1.0",
+    "news.chords31.title": "コードと歌詞",
+    "news.chords31.p1": "コード検出を刷新 : 抽出後にハーモニックステム（ボーカルとドラムを除く）で解析、コードをビートグリッドに揃え、1拍未満の不要な変化をなくしました ; シンプル表記と詳細表記を選択可能 ; キーはコードから再計算。",
+    "news.chords31.p2": "すべてのコード表示（デスクトップ、Stage View、モバイル）で、コードの下に同期歌詞を単語ごとに表示。",
+    "news.chords31.p3": "Lyrics 表示では歌詞の上にコードを表示（ソングブック形式）。",
+    "news.chords31.p4": "再生中も自由にスクロールでき、« Now » ボタンで現在のコードや歌詞に戻れます。"
 }

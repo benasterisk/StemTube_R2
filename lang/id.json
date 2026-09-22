@@ -120,5 +120,11 @@
     "news.lyrics.p2": "Whisper's credit hallucinations over instrumental passages are dropped.",
     "news.structure.tag": "Fix",
     "news.structure.title": "Structure detection works again",
-    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity."
+    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity.",
+    "news.chords31.tag": "Versi 3.1.0",
+    "news.chords31.title": "Akor dan lirik",
+    "news.chords31.p1": "Deteksi akor dibangun ulang : analisis pada stem harmonik (tanpa vokal dan drum) setelah ekstraksi, akor diselaraskan ke grid ketukan, tidak ada lagi perubahan liar yang lebih pendek dari satu ketukan ; nama sederhana atau rinci sesuai pilihan ; nada dasar dihitung ulang dari akor.",
+    "news.chords31.p2": "Lirik tersinkron di bawah akor, kata demi kata, di semua tampilan akor (desktop, Stage View, seluler).",
+    "news.chords31.p3": "Akor di atas lirik pada tampilan Lyrics (gaya buku lagu).",
+    "news.chords31.p4": "Gulir bebas selama pemutaran, dengan tombol « Now » untuk kembali ke akor atau lirik yang sedang berjalan."
 }

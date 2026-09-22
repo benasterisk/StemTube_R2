@@ -120,5 +120,11 @@
   "news.lyrics.p2": "Whisper's credit hallucinations over instrumental passages are dropped.",
   "news.structure.tag": "Fix",
   "news.structure.title": "Structure detection works again",
-  "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C\u2026 by similarity."
+  "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C\u2026 by similarity.",
+  "news.chords31.tag": "Phi\u00ean b\u1ea3n 3.1.0",
+  "news.chords31.title": "H\u1ee3p \u00e2m v\u00e0 l\u1eddi b\u00e0i h\u00e1t",
+  "news.chords31.p1": "L\u00e0m l\u1ea1i nh\u1eadn di\u1ec7n h\u1ee3p \u00e2m : ph\u00e2n t\u00edch tr\u00ean c\u00e1c stem h\u00f2a \u00e2m (kh\u00f4ng gi\u1ecdng h\u00e1t, kh\u00f4ng tr\u1ed1ng) sau khi t\u00e1ch, h\u1ee3p \u00e2m c\u0103n theo l\u01b0\u1edbi nh\u1ecbp, kh\u00f4ng c\u00f2n nh\u1eefng thay \u0111\u1ed5i nhi\u1ec5u ng\u1eafn h\u01a1n m\u1ed9t nh\u1ecbp ; t\u00ean \u0111\u01a1n gi\u1ea3n ho\u1eb7c chi ti\u1ebft t\u00f9y ch\u1ecdn ; t\u00f4ng \u0111\u01b0\u1ee3c t\u00ednh l\u1ea1i t\u1eeb c\u00e1c h\u1ee3p \u00e2m.",
+  "news.chords31.p2": "L\u1eddi b\u00e0i h\u00e1t \u0111\u1ed3ng b\u1ed9 d\u01b0\u1edbi h\u1ee3p \u00e2m, t\u1eebng t\u1eeb m\u1ed9t, trong m\u1ecdi ch\u1ebf \u0111\u1ed9 xem h\u1ee3p \u00e2m (m\u00e1y t\u00ednh, Stage View, di \u0111\u1ed9ng).",
+  "news.chords31.p3": "H\u1ee3p \u00e2m ph\u00eda tr\u00ean l\u1eddi trong c\u00e1c ch\u1ebf \u0111\u1ed9 xem Lyrics (ki\u1ec3u s\u1ed5 tay b\u00e0i h\u00e1t).",
+  "news.chords31.p4": "Cu\u1ed9n t\u1ef1 do trong khi ph\u00e1t, v\u1edbi n\u00fat \u00ab Now \u00bb \u0111\u1ec3 quay l\u1ea1i h\u1ee3p \u00e2m ho\u1eb7c l\u1eddi \u0111ang ph\u00e1t."
 }

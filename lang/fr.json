@@ -120,5 +120,11 @@
     "news.lyrics.p2": "Les hallucinations de générique produites par Whisper sur les passages instrumentaux sont supprimées.",
     "news.structure.tag": "Correctif",
     "news.structure.title": "La détection de structure fonctionne de nouveau",
-    "news.structure.desc": "MSAF ne s'importait plus avec les versions récentes de SciPy : les sections des morceaux n'étaient donc jamais détectées. Elles sont maintenant étiquetées A, B, C… par similarité."
+    "news.structure.desc": "MSAF ne s'importait plus avec les versions récentes de SciPy : les sections des morceaux n'étaient donc jamais détectées. Elles sont maintenant étiquetées A, B, C… par similarité.",
+    "news.chords31.tag": "Version 3.1.0",
+    "news.chords31.title": "Accords et paroles",
+    "news.chords31.p1": "Détection d'accords refaite : analyse sur les pistes harmoniques (sans voix ni batterie) après extraction, accords calés sur la grille des temps, fini les changements parasites de moins d'un temps ; noms simples ou détaillés au choix ; tonalité recalculée à partir des accords.",
+    "news.chords31.p2": "Paroles synchronisées sous les accords, mot par mot, dans toutes les vues accords (bureau, Stage View, mobile).",
+    "news.chords31.p3": "Accords au-dessus des paroles dans les vues Lyrics (façon carnet de chant).",
+    "news.chords31.p4": "Défilement libre pendant la lecture, avec un bouton « Now » pour revenir à l'accord ou à la parole en cours."
 }

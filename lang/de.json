@@ -120,5 +120,11 @@
     "news.lyrics.p2": "Whispers Halluzinationen von Abspann-Texten über instrumentalen Passagen werden verworfen.",
     "news.structure.tag": "Fehlerbehebung",
     "news.structure.title": "Die Strukturerkennung funktioniert wieder",
-    "news.structure.desc": "MSAF ließ sich mit modernen SciPy-Versionen nicht mehr importieren, sodass Songabschnitte nie erkannt wurden. Die Abschnitte werden jetzt nach Ähnlichkeit mit A, B, C… beschriftet."
+    "news.structure.desc": "MSAF ließ sich mit modernen SciPy-Versionen nicht mehr importieren, sodass Songabschnitte nie erkannt wurden. Die Abschnitte werden jetzt nach Ähnlichkeit mit A, B, C… beschriftet.",
+    "news.chords31.tag": "Version 3.1.0",
+    "news.chords31.title": "Akkorde und Songtexte",
+    "news.chords31.p1": "Akkorderkennung neu aufgebaut : Analyse auf den harmonischen Stems (ohne Gesang und Schlagzeug) nach der Extraktion, Akkorde am Beat-Raster ausgerichtet, keine störenden Wechsel unter einem Schlag mehr ; einfache oder detaillierte Namen nach Wahl ; Tonart aus den Akkorden neu berechnet.",
+    "news.chords31.p2": "Synchronisierte Songtexte unter den Akkorden, Wort für Wort, in allen Akkordansichten (Desktop, Stage View, Mobil).",
+    "news.chords31.p3": "Akkorde über dem Text in den Lyrics-Ansichten (wie im Songbook).",
+    "news.chords31.p4": "Freies Scrollen während der Wiedergabe, mit einer « Now »-Schaltfläche, um zum aktuellen Akkord oder Wort zurückzukehren."
 }

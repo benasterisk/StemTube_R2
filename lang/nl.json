@@ -120,5 +120,11 @@
     "news.lyrics.p2": "Whispers hallucinaties van aftitelingsteksten bij instrumentale passages worden weggelaten.",
     "news.structure.tag": "Opgelost",
     "news.structure.title": "Structuurdetectie werkt weer",
-    "news.structure.desc": "MSAF kon niet meer worden geïmporteerd met moderne SciPy-versies, waardoor songsecties nooit werden gedetecteerd. Ze krijgen nu op basis van gelijkenis het label A, B, C…"
+    "news.structure.desc": "MSAF kon niet meer worden geïmporteerd met moderne SciPy-versies, waardoor songsecties nooit werden gedetecteerd. Ze krijgen nu op basis van gelijkenis het label A, B, C…",
+    "news.chords31.tag": "Versie 3.1.0",
+    "news.chords31.title": "Akkoorden en songteksten",
+    "news.chords31.p1": "Akkoorddetectie opnieuw opgebouwd : analyse op de harmonische stems (zonder zang en drums) na de extractie, akkoorden uitgelijnd op het beatraster, geen storende wisselingen korter dan één tel meer ; eenvoudige of gedetailleerde namen naar keuze ; toonsoort opnieuw berekend uit de akkoorden.",
+    "news.chords31.p2": "Gesynchroniseerde songteksten onder de akkoorden, woord voor woord, in alle akkoordweergaven (desktop, Stage View, mobiel).",
+    "news.chords31.p3": "Akkoorden boven de tekst in de Lyrics-weergaven (zoals in een songbook).",
+    "news.chords31.p4": "Vrij scrollen tijdens het afspelen, met een « Now »-knop om terug te keren naar het huidige akkoord of woord."
 }

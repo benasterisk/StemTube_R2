@@ -120,5 +120,11 @@
     "news.lyrics.p2": "Whisper's credit hallucinations over instrumental passages are dropped.",
     "news.structure.tag": "Fix",
     "news.structure.title": "Structure detection works again",
-    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity."
+    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity.",
+    "news.chords31.tag": "الإصدار 3.1.0",
+    "news.chords31.title": "الأوتار وكلمات الأغاني",
+    "news.chords31.p1": "إعادة بناء اكتشاف الأوتار : تحليل على المسارات التوافقية (بدون غناء ولا طبول) بعد الاستخراج، أوتار مثبّتة على شبكة النبضات، لا مزيد من التغييرات الطفيلية الأقصر من نبضة واحدة ; أسماء بسيطة أو مفصّلة حسب الاختيار ; المقام محسوب من جديد انطلاقًا من الأوتار.",
+    "news.chords31.p2": "كلمات متزامنة تحت الأوتار، كلمة بكلمة، في جميع عروض الأوتار (سطح المكتب، Stage View، الهاتف).",
+    "news.chords31.p3": "أوتار فوق الكلمات في عروض Lyrics (على طريقة كتاب الأغاني).",
+    "news.chords31.p4": "تمرير حر أثناء التشغيل، مع زر « Now » للعودة إلى الوتر أو الكلمة الحالية."
 }

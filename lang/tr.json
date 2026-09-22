@@ -120,5 +120,11 @@
     "news.lyrics.p2": "Whisper's credit hallucinations over instrumental passages are dropped.",
     "news.structure.tag": "Fix",
     "news.structure.title": "Structure detection works again",
-    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity."
+    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity.",
+    "news.chords31.tag": "Sürüm 3.1.0",
+    "news.chords31.title": "Akorlar ve sözler",
+    "news.chords31.p1": "Akor algılama yeniden yapıldı : ayrıştırmadan sonra armonik kanallar (vokal ve davul olmadan) üzerinde analiz, akorlar vuruş ızgarasına hizalandı, bir vuruştan kısa parazit değişimlere son ; isteğe göre basit veya ayrıntılı adlar ; tonalite akorlardan yeniden hesaplanıyor.",
+    "news.chords31.p2": "Tüm akor görünümlerinde (masaüstü, Stage View, mobil) akorların altında kelime kelime senkronize sözler.",
+    "news.chords31.p3": "Lyrics görünümlerinde sözlerin üzerinde akorlar (şarkı defteri tarzı).",
+    "news.chords31.p4": "Çalma sırasında serbest kaydırma, geçerli akora veya söze dönmek için « Now » düğmesi."
 }

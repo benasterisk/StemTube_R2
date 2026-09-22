@@ -120,5 +120,11 @@
     "news.lyrics.p2": "Se descartan las alucinaciones de créditos que Whisper generaba en los pasajes instrumentales.",
     "news.structure.tag": "Corrección",
     "news.structure.title": "La detección de estructura vuelve a funcionar",
-    "news.structure.desc": "MSAF no se podía importar con las versiones modernas de SciPy, así que las secciones de las canciones nunca se detectaban. Ahora se etiquetan A, B, C… por similitud."
+    "news.structure.desc": "MSAF no se podía importar con las versiones modernas de SciPy, así que las secciones de las canciones nunca se detectaban. Ahora se etiquetan A, B, C… por similitud.",
+    "news.chords31.tag": "Versión 3.1.0",
+    "news.chords31.title": "Acordes y letras",
+    "news.chords31.p1": "Detección de acordes rehecha : análisis sobre las pistas armónicas (sin voz ni batería) tras la extracción, acordes ajustados a la rejilla de tiempos, se acabaron los cambios parásitos de menos de un tiempo ; nombres simples o detallados a elegir ; tonalidad recalculada a partir de los acordes.",
+    "news.chords31.p2": "Letras sincronizadas bajo los acordes, palabra por palabra, en todas las vistas de acordes (escritorio, Stage View, móvil).",
+    "news.chords31.p3": "Acordes sobre las letras en las vistas Lyrics (estilo cancionero).",
+    "news.chords31.p4": "Desplazamiento libre durante la reproducción, con un botón « Now » para volver al acorde o a la letra en curso."
 }

@@ -120,5 +120,11 @@
     "news.lyrics.p2": "Whisper's credit hallucinations over instrumental passages are dropped.",
     "news.structure.tag": "Fix",
     "news.structure.title": "Structure detection works again",
-    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity."
+    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity.",
+    "news.chords31.tag": "版本 3.1.0",
+    "news.chords31.title": "和弦与歌词",
+    "news.chords31.p1": "和弦检测全面重做 : 提取后在和声音轨（无人声、无鼓）上分析，和弦对齐到节拍网格，不再出现短于一拍的杂乱变化 ; 可选简单或详细的和弦名称 ; 调性根据和弦重新计算。",
+    "news.chords31.p2": "所有和弦视图（桌面、Stage View、移动端）中，同步歌词逐词显示在和弦下方。",
+    "news.chords31.p3": "Lyrics 视图中和弦显示在歌词上方（歌本样式）。",
+    "news.chords31.p4": "播放时可自由滚动，通过 « Now » 按钮返回当前和弦或歌词。"
 }

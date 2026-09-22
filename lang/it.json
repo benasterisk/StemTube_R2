@@ -120,5 +120,11 @@
     "news.lyrics.p2": "Le allucinazioni dei titoli di coda prodotte da Whisper sui passaggi strumentali vengono scartate.",
     "news.structure.tag": "Correzione",
     "news.structure.title": "Il rilevamento della struttura funziona di nuovo",
-    "news.structure.desc": "MSAF non si importava con le versioni recenti di SciPy, quindi le sezioni dei brani non venivano mai rilevate. Ora sono etichettate A, B, C… per somiglianza."
+    "news.structure.desc": "MSAF non si importava con le versioni recenti di SciPy, quindi le sezioni dei brani non venivano mai rilevate. Ora sono etichettate A, B, C… per somiglianza.",
+    "news.chords31.tag": "Versione 3.1.0",
+    "news.chords31.title": "Accordi e testi",
+    "news.chords31.p1": "Rilevamento degli accordi rifatto : analisi sulle tracce armoniche (senza voce né batteria) dopo l'estrazione, accordi allineati alla griglia dei battiti, basta cambi spuri più brevi di un battito ; nomi semplici o dettagliati a scelta ; tonalità ricalcolata a partire dagli accordi.",
+    "news.chords31.p2": "Testi sincronizzati sotto gli accordi, parola per parola, in tutte le viste accordi (desktop, Stage View, mobile).",
+    "news.chords31.p3": "Accordi sopra il testo nelle viste Lyrics (stile canzoniere).",
+    "news.chords31.p4": "Scorrimento libero durante la riproduzione, con un pulsante « Now » per tornare all'accordo o alla parola in corso."
 }

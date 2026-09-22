@@ -120,5 +120,11 @@
     "news.lyrics.p2": "Whisper's credit hallucinations over instrumental passages are dropped.",
     "news.structure.tag": "Fix",
     "news.structure.title": "Structure detection works again",
-    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity."
+    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity.",
+    "news.chords31.tag": "เวอร์ชัน 3.1.0",
+    "news.chords31.title": "คอร์ดและเนื้อเพลง",
+    "news.chords31.p1": "ปรับปรุงการตรวจจับคอร์ดใหม่ทั้งหมด : วิเคราะห์จากแทร็กฮาร์โมนิก (ไม่มีเสียงร้องและกลอง) หลังการแยกเสียง คอร์ดจัดตรงกับกริดจังหวะ ไม่มีการเปลี่ยนคอร์ดรบกวนที่สั้นกว่าหนึ่งจังหวะอีกต่อไป ; เลือกชื่อคอร์ดแบบง่ายหรือแบบละเอียดได้ ; คีย์คำนวณใหม่จากคอร์ด",
+    "news.chords31.p2": "เนื้อเพลงซิงก์ใต้คอร์ดทีละคำ ในทุกมุมมองคอร์ด (เดสก์ท็อป, Stage View, มือถือ)",
+    "news.chords31.p3": "คอร์ดอยู่เหนือเนื้อเพลงในมุมมอง Lyrics (แบบสมุดเพลง)",
+    "news.chords31.p4": "เลื่อนดูได้อย่างอิสระระหว่างเล่น พร้อมปุ่ม « Now » เพื่อกลับไปยังคอร์ดหรือเนื้อเพลงปัจจุบัน"
 }

@@ -120,5 +120,11 @@
     "news.lyrics.p2": "Whisper's credit hallucinations over instrumental passages are dropped.",
     "news.structure.tag": "Fix",
     "news.structure.title": "Structure detection works again",
-    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity."
+    "news.structure.desc": "MSAF failed to import on modern SciPy, so song sections were never detected. Sections are now labelled A, B, C… by similarity.",
+    "news.chords31.tag": "Version 3.1.0",
+    "news.chords31.title": "Ackord och sångtexter",
+    "news.chords31.p1": "Ackordigenkänningen ombyggd : analys på de harmoniska stämmorna (utan sång och trummor) efter extraktionen, ackord låsta till taktrutnätet, inga störande byten kortare än ett slag längre ; enkla eller detaljerade namn efter val ; tonart omräknad från ackorden.",
+    "news.chords31.p2": "Synkroniserade sångtexter under ackorden, ord för ord, i alla ackordvyer (dator, Stage View, mobil).",
+    "news.chords31.p3": "Ackord ovanför texten i Lyrics-vyerna (som i en sångbok).",
+    "news.chords31.p4": "Fri rullning under uppspelning, med en « Now »-knapp för att återgå till aktuellt ackord eller ord."
 }
