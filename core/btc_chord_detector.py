@@ -252,6 +252,28 @@ def analyze_audio_file(audio_file_path: str, bpm: Optional[float] = None) -> Tup
         return None, 0.0, []
 
 
+_shared_detector = None
+
+
+def detect_segments(audio_file_path: str) -> List[Tuple[float, float, str]]:
+    """
+    Raw BTC segments as (start, end, label) with display labels ("Dm7") and "N" kept for
+    no-chord passages - the input of core/chord_refiner.py. [] on failure.
+    """
+    global _shared_detector
+    if not BTC_AVAILABLE or not os.path.exists(audio_file_path):
+        return []
+    try:
+        if _shared_detector is None:
+            _shared_detector = BTCChordDetector()
+        raw = _shared_detector.detector.detect(audio_file_path, return_format='tuples')
+        return [(float(start), float(end), 'N' if label == 'N' else _shared_detector._convert_chord_label(label))
+                for start, end, label in raw or []]
+    except Exception as e:
+        print(f"[BTC] Segment detection failed: {e}")
+        return []
+
+
 def is_available() -> bool:
     """Check if BTC is available for use."""
     return BTC_AVAILABLE

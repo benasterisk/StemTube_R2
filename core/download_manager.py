@@ -328,30 +328,26 @@ class DownloadManager:
             # === KEY DETECTION ===
             print("   🎹 [DOWNLOAD] Key Detection...")
 
-            # Compute chroma from STFT (same as chord detector)
-            chroma = self._compute_chroma_from_stft(magnitude, f, sr)
+            # Long window for the key: the tempo STFT above has 21.5 Hz bins at 44.1 kHz,
+            # wider than a semitone below 370 Hz and all multiples of a low F, so every
+            # bass note landed on F, A or C and every song came out as "F major".
+            key_f, _, key_Zxx = signal.stft(y, fs=sr, nperseg=16384, noverlap=8192)
+            chroma = self._compute_chroma_from_stft(np.abs(key_Zxx), key_f, sr)
 
             # Average chroma over time
             chroma_mean = np.mean(chroma, axis=1)
 
-            # Find dominant note (index with highest energy)
-            dominant_note_idx = int(np.argmax(chroma_mean))
-
-            # Note names (C=0, C#=1, D=2, etc.)
-            note_names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-            dominant_note = note_names[dominant_note_idx]
-
-            # Major/minor detection based on chord patterns
-            # Intervals for major and minor chords
-            major_intervals = [0, 4, 7]  # Root, major third, perfect fifth
-            minor_intervals = [0, 3, 7]  # Root, minor third, perfect fifth
-
-            # Calculate strength for major vs minor
-            major_strength = sum(chroma_mean[(dominant_note_idx + interval) % 12] for interval in major_intervals)
-            minor_strength = sum(chroma_mean[(dominant_note_idx + interval) % 12] for interval in minor_intervals)
-
-            mode = "major" if major_strength > minor_strength else "minor"
-            confidence = float(max(major_strength, minor_strength) / np.sum(chroma_mean))
+            # Krumhansl-Kessler profile correlation. (Taking the loudest pitch class as
+            # the tonic called almost every song "F major".) This is the provisional key:
+            # after stem extraction it is re-estimated from the chords (core/chord_refiner.py).
+            from .chord_refiner import NOTES as note_names, _KS_MAJOR, _KS_MINOR
+            best_score, dominant_note, mode = -2.0, 'C', 'major'
+            for tonic in range(12):
+                for profile, profile_mode in ((_KS_MAJOR, 'major'), (_KS_MINOR, 'minor')):
+                    score = float(np.corrcoef(np.roll(profile, tonic), chroma_mean)[0, 1])
+                    if score > best_score:
+                        best_score, dominant_note, mode = score, note_names[tonic], profile_mode
+            confidence = max(0.0, best_score)
 
             detected_key = f"{dominant_note} {mode}"
 
@@ -380,8 +376,9 @@ class DownloadManager:
 
         A4_freq = 440.0
 
+        # Musical range only (C2-C7): sub-bass bins carry rumble and span several semitones.
         for i, freq in enumerate(frequencies):
-            if freq > 0:
+            if 65.0 <= freq <= 2100.0:
                 midi_note = 69 + 12 * np.log2(freq / A4_freq)
                 pitch_class = int(round(midi_note)) % 12
                 chroma[pitch_class, :] += magnitude[i, :]
@@ -684,36 +681,13 @@ class DownloadManager:
                         except Exception as e:
                             print(f"⚠️ [DOWNLOAD] Music start detection error: {e}")
 
-                        # Detect chords (pass BPM for beat grid alignment)
+                        # Chords and the final key are detected after stem extraction, on the
+                        # harmonic stems and the beat grid (core/chord_refiner.py): the mixer,
+                        # the only place that shows them, needs the stems anyway.
                         chords_data = None
-                        beat_offset = 0.0
+                        beat_offset = None
                         beat_times = []
                         beat_positions = []
-                        try:
-                            from .chord_detector import analyze_audio_file
-                            print(f"🎸 [DOWNLOAD] Starting chord detection for: {item.title} (BPM: {item.detected_bpm}, Key: {item.detected_key})")
-                            # Pass detected BPM and key to chord analyzer for better accuracy
-                            result = analyze_audio_file(
-                                item.file_path,
-                                bpm=item.detected_bpm
-                            )
-                            if len(result) == 4:
-                                chords_data, beat_offset, beat_times, beat_positions = result
-                            else:
-                                chords_data, beat_offset, beat_times = result
-                                beat_positions = []
-                            if chords_data:
-                                print(f"🎸 [DOWNLOAD] Chord detection complete (beat offset: {beat_offset:.3f}s, {len(beat_times)} beats, {len(beat_positions)} positions)")
-                            else:
-                                print(f"⚠️ [DOWNLOAD] No chords detected")
-                        except Exception as e:
-                            print(f"⚠️ [DOWNLOAD] Error chord detection: {e}")
-                            # Fallback if analyze_audio_file returns old format
-                            if isinstance(e, ValueError):
-                                chords_data = None
-                                beat_offset = 0.0
-                                beat_times = []
-                                beat_positions = []
 
                         # Detect song structure using simple MSAF segmentation
                         structure_data = None

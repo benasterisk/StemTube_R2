@@ -690,6 +690,24 @@ class UserSessionManager:
                         'message': 'Beat detection skipped', 'video_id': video_id
                     }, room=_room)
 
+                # CHORDS AND KEY, on the harmonic stems (no vocals, no drums) and decoded on the
+                # beat grid detected just above - which is why they run here and not at download.
+                try:
+                    socketio.emit('extraction_progress', {
+                        'extraction_id': item_id, 'progress': 97,
+                        'message': 'Detecting chords...', 'video_id': video_id
+                    }, room=_room)
+                    from core.chord_refiner import update_song_chords
+                    chords_result = update_song_chords(
+                        video_id, stems_paths=item.output_paths,
+                        fallback_audio=getattr(item, 'audio_path', None))
+                    if chords_result:
+                        logger.info(f"[CHORDS] {len(chords_result['chords'])} chords, key {chords_result['key']}")
+                    else:
+                        logger.warning("[CHORDS] No chords detected")
+                except Exception as chords_error:
+                    logger.warning(f"[CHORDS] Chord detection error (non-fatal): {chords_error}")
+
                 # PRE-BUILD THE MIXER ARTIFACTS (metronome WAVs, waveform peaks, meta.json)
                 # so the first mixer open is a cache hit instead of a ~1 min wait. Runs last
                 # on purpose: it reuses the beats detected just above instead of re-running
