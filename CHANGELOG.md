@@ -60,6 +60,12 @@ the commits that carry the change.
   415, 422, 504.
 
 ### Changed
+- **Mobile library rows**: one look for every action (Play, Mix, Offline, Files,
+  Re-extract, Remove: same square icon buttons with a label, the action row under the
+  thumbnail), the duplicated "Ready" label removed, and a **Re-extract** button on every
+  extracted song to run another model (the extraction dialog says which stems are
+  there and that they will be replaced). It used to appear only right after an
+  extraction finished in the same session.
 - **Manual scrolling in the lyrics and chord views during playback** (desktop Lyrics
   tab, both Stage Views, mobile Lyrics tab, mobile Grid View and fullscreen lyrics):
   scrolling by hand now pauses the auto-follow instead of being snapped back within a

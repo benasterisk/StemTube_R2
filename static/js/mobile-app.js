@@ -1344,11 +1344,11 @@ class MobileApp {
             const isCached = await window.StemCache.isSongCached(songId);
             if (isCached) {
                 btn.classList.add('cached');
-                btn.innerHTML = '<i class="fas fa-check"></i>';
+                btn.innerHTML = '<i class="fas fa-check"></i><span>Offline</span>';
                 btn.title = 'Saved offline';
             } else {
                 btn.classList.remove('cached');
-                btn.innerHTML = '<i class="fas fa-cloud-download-alt"></i>';
+                btn.innerHTML = '<i class="fas fa-cloud-download-alt"></i><span>Offline</span>';
                 btn.title = 'Save for offline';
             }
         } catch (err) {
@@ -1382,18 +1382,18 @@ class MobileApp {
             // Ask to remove from cache
             if (confirm(`Remove "${title}" from offline cache?`)) {
                 btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Offline</span>';
 
                 try {
                     await window.StemCache.removeSong(songId);
                     this.removeOfflineSongMetadata(songId);
                     this.showToast('Removed from offline cache', 'success');
                     btn.classList.remove('cached');
-                    btn.innerHTML = '<i class="fas fa-cloud-download-alt"></i>';
+                    btn.innerHTML = '<i class="fas fa-cloud-download-alt"></i><span>Offline</span>';
                     btn.title = 'Save for offline';
                 } catch (err) {
                     this.showToast('Failed to remove from cache', 'error');
-                    btn.innerHTML = '<i class="fas fa-check"></i>';
+                    btn.innerHTML = '<i class="fas fa-check"></i><span>Offline</span>';
                 } finally {
                     btn.disabled = false;
                 }
@@ -1401,19 +1401,19 @@ class MobileApp {
         } else {
             // Save to cache
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Offline</span>';
 
             try {
                 const success = await this.cacheSongForOffline(songId, title, item);
                 if (success) {
                     btn.classList.add('cached');
-                    btn.innerHTML = '<i class="fas fa-check"></i>';
+                    btn.innerHTML = '<i class="fas fa-check"></i><span>Offline</span>';
                     btn.title = 'Saved offline';
                 } else {
-                    btn.innerHTML = '<i class="fas fa-cloud-download-alt"></i>';
+                    btn.innerHTML = '<i class="fas fa-cloud-download-alt"></i><span>Offline</span>';
                 }
             } catch (err) {
-                btn.innerHTML = '<i class="fas fa-cloud-download-alt"></i>';
+                btn.innerHTML = '<i class="fas fa-cloud-download-alt"></i><span>Offline</span>';
             } finally {
                 btn.disabled = false;
             }
@@ -1549,8 +1549,14 @@ class MobileApp {
             this.extractionTitleEl.textContent = item.title || 'Untitled track';
         }
         if (this.extractionPathEl) {
-            this.extractionPathEl.textContent = item.file_path;
+            // Re-extraction: say what is there now and that it gets replaced, rather than the file path
+            const current = item.force_reextract && (item.current_model || item.model_name);
+            this.extractionPathEl.textContent = item.force_reextract
+                ? `Current stems: ${current || 'unknown model'} - they will be replaced by the new extraction.`
+                : item.file_path;
         }
+        const heading = this.extractionModal.querySelector('h2');
+        if (heading) heading.textContent = item.force_reextract ? 'Extract Again' : 'Extraction Options';
 
         if (this.extractionModelSelect) {
             // MVSep Mega needs a CUDA GPU: hide it when the server cannot run it
@@ -2213,39 +2219,23 @@ class MobileApp {
 
             // Play button (available whenever the file exists)
             const canPlay = item.file_path || (item.has_download && item.file_path);
-            const playBtn = canPlay ? '<button class="play-btn" title="Play"><i class="fas fa-play"></i></button>' : '';
+            const playBtn = canPlay ? this.libraryButton('play-btn', 'fa-play', 'Play') : '';
 
             let actions = '';
             if (isOffline) {
                 // Offline mode: only show Mix button for cached songs
                 actions = '<div class="mobile-library-extracted"><i class="fas fa-cloud"></i> Cached</div>' +
-                          '<button class="mobile-btn mobile-btn-primary mix-btn">Mix</button>';
+                          this.libraryButton('mix-btn', 'fa-sliders-h', 'Open in the mixer', 'Mix', true);
             } else if (isGlobal) {
                 if (alreadyInLibrary) {
                     actions = playBtn + '<div class="mobile-library-status"><i class="fas fa-check"></i> In Library</div>';
                 } else if (hasStems) {
-                    actions = playBtn + '<button class="mobile-btn mobile-btn-small add-btn">Add</button>';
+                    actions = playBtn + this.libraryButton('add-btn', 'fa-plus', 'Add to my library', 'Add', true);
                 } else {
                     actions = playBtn + '<div class="mobile-library-status">Not extracted</div>';
                 }
             } else {
-                // Don't show Extract button during extraction (extracting, queued, processing)
-                const isExtractionInProgress = ['extracting', 'queued', 'processing'].includes(statusInfo.statusKey);
-                // Remove button always available for My Library items
-                const removeBtn = '<button class="remove-btn" title="Remove from library"><i class="fas fa-trash-alt"></i></button>';
-                if (hasStems) {
-                    actions = '<div class="mobile-library-extracted"><i class="fas fa-check-circle"></i> Ready</div>' +
-                              playBtn +
-                              '<button class="mobile-btn mobile-btn-primary mix-btn">Mix</button>' +
-                              '<button class="save-offline-btn" title="Save for offline"><i class="fas fa-cloud-download-alt"></i></button>' +
-                              '<button class="download-btn" title="Download"><i class="fas fa-download"></i></button>' +
-                              removeBtn;
-                } else if (isExtractionInProgress) {
-                    // Show remove button even during extraction
-                    actions = removeBtn;
-                } else {
-                    actions = playBtn + '<button class="mobile-btn mobile-btn-small extract-btn">Extract</button>' + removeBtn;
-                }
+                actions = this.libraryActionsHtml(item, statusInfo.statusKey, hasStems);
             }
 
             const actionsHtml = '<div class="mobile-library-actions">' + (actions || '') + '</div>';
@@ -2271,8 +2261,8 @@ class MobileApp {
                             <span class="mobile-progress-extra">${progressMeta}</span>
                         </div>
                     </div>
-                    ${actionsHtml}
                 </div>
+                ${actionsHtml}
             `;
             div.__libraryItem = item;
             
@@ -2284,25 +2274,7 @@ class MobileApp {
                 const btn = div.querySelector('.add-btn');
                 if (btn) btn.addEventListener('click', e => { e.stopPropagation(); this.addToMyLibrary(item); });
             } else {
-                const extract = div.querySelector('.extract-btn');
-                const mix = div.querySelector('.mix-btn');
-                const download = div.querySelector('.download-btn');
-                const remove = div.querySelector('.remove-btn');
-                if (extract) extract.addEventListener('click', e => { e.stopPropagation(); this.extractStems(item); });
-                if (mix) mix.addEventListener('click', e => { e.stopPropagation(); this.openMixer(item); });
-                if (download) download.addEventListener('click', e => { e.stopPropagation(); this.openDownloadSheet(item); });
-                if (remove) remove.addEventListener('click', e => { e.stopPropagation(); this.confirmRemoveFromLibrary(item); });
-
-                // Save offline button
-                const saveOffline = div.querySelector('.save-offline-btn');
-                if (saveOffline) {
-                    // Check if already cached and update button state
-                    this.updateSaveOfflineButton(saveOffline, item);
-                    saveOffline.addEventListener('click', e => {
-                        e.stopPropagation();
-                        this.handleSaveOffline(saveOffline, item);
-                    });
-                }
+                this.bindLibraryActions(div, item);
             }
 
             container.appendChild(div);
@@ -2477,6 +2449,45 @@ class MobileApp {
         return promise;
     }
 
+    // ---- My Library action row: one look for every button (44 px squares, icon + tiny label) ----
+    libraryButton(cls, icon, title, label = '', primary = false) {
+        const text = label || title.split(' ')[0];
+        return `<button class="lib-btn ${cls}${primary ? ' lib-btn-primary' : ''}" title="${this.escapeHtml(title)}" aria-label="${this.escapeHtml(title)}">` +
+               `<i class="fas ${icon}"></i><span>${this.escapeHtml(text)}</span></button>`;
+    }
+
+    libraryActionsHtml(item, statusKey, hasStems) {
+        const canPlay = item.file_path || (item.has_download && item.file_path);
+        const play = canPlay ? this.libraryButton('play-btn', 'fa-play', 'Play') : '';
+        const remove = this.libraryButton('remove-btn', 'fa-trash-alt', 'Remove from library', 'Remove');
+        if (['extracting', 'queued', 'processing'].includes(statusKey)) return remove;
+        if (hasStems) {
+            return play +
+                this.libraryButton('mix-btn', 'fa-sliders-h', 'Open in the mixer', 'Mix', true) +
+                this.libraryButton('save-offline-btn', 'fa-cloud-download-alt', 'Save for offline', 'Offline') +
+                this.libraryButton('download-btn', 'fa-download', 'Download stems', 'Files') +
+                this.libraryButton('reextract-btn', 'fa-redo', 'Extract again with another model', 'Re-extract') +
+                remove;
+        }
+        return play + this.libraryButton('extract-btn', 'fa-magic', 'Extract stems', 'Extract', true) + remove;
+    }
+
+    bindLibraryActions(element, item) {
+        const on = (sel, fn) => { const el = element.querySelector(sel); if (el) el.addEventListener('click', e => { e.stopPropagation(); fn(el); }); };
+        on('.play-btn', () => this.openMediaPlayer(item));
+        on('.extract-btn', () => this.extractStems(item));
+        on('.mix-btn', () => this.openMixer(item));
+        on('.download-btn', () => this.openDownloadSheet(item));
+        on('.remove-btn', () => this.confirmRemoveFromLibrary(item));
+        // Re-extract: same modal as a first extraction, the current stems are replaced when it completes
+        on('.reextract-btn', () => this.openExtractionModal({ ...item, current_model: item.extraction_model || item.model_name, extraction_model: null, force_reextract: true }));
+        const saveOffline = element.querySelector('.save-offline-btn');
+        if (saveOffline) {
+            this.updateSaveOfflineButton(saveOffline, item);
+            saveOffline.addEventListener('click', e => { e.stopPropagation(); this.handleSaveOffline(saveOffline, item); });
+        }
+    }
+
     markItemReady(element, item, status) {
         const record = element.__libraryItem || item || {};
         element.__libraryItem = record;
@@ -2495,32 +2506,8 @@ class MobileApp {
 
         const actions = element.querySelector('.mobile-library-actions') || element.appendChild(document.createElement('div'));
         actions.classList.add('mobile-library-actions');
-        actions.innerHTML = '';
-
-        const readyLabel = document.createElement('div');
-        readyLabel.className = 'mobile-library-extracted';
-        readyLabel.innerHTML = '<i class="fas fa-check-circle"></i> Ready';
-        const mixBtn = document.createElement('button');
-        mixBtn.className = 'mobile-btn mobile-btn-primary mix-btn';
-        mixBtn.textContent = 'Mix';
-        mixBtn.addEventListener('click', e => {
-            e.stopPropagation();
-            this.openMixer(record);
-        });
-
-        // Re-extract with another model (replaces the current stems when done)
-        const reextractBtn = document.createElement('button');
-        reextractBtn.className = 'mobile-btn mobile-btn-small reextract-btn';
-        reextractBtn.title = 'Re-extract with another model';
-        reextractBtn.innerHTML = '<i class="fas fa-redo"></i>';
-        reextractBtn.addEventListener('click', e => {
-            e.stopPropagation();
-            this.openExtractionModal({ ...record, extraction_model: null, force_reextract: true });
-        });
-
-        actions.appendChild(readyLabel);
-        actions.appendChild(mixBtn);
-        actions.appendChild(reextractBtn);
+        actions.innerHTML = this.libraryActionsHtml(record, 'ready', true);
+        this.bindLibraryActions(element, record);
 
         if (status?.extraction_id) element.dataset.extractionId = status.extraction_id;
         if (record) {

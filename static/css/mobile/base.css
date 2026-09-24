@@ -416,6 +416,9 @@ body.cyberpunk-neon.mobile-body {
     align-items: flex-start;
     overflow: hidden; /* Prevent progress bar from overflowing card */
 }
+/* The action row sits under thumbnail + info, full width, so six buttons fit one line */
+.mobile-library-item { flex-wrap: wrap; }
+.mobile-library-item > .mobile-library-actions { flex: 1 1 100%; margin-top: 2px; }
 
 .mobile-library-thumbnail {
     width: 60px;
