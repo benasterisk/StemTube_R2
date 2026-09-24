@@ -148,7 +148,8 @@ def render_pdf(chart: Dict, bars_per_row: int = 4) -> bytes:
     if summary.get('parts'):
         c.setFont(bold, 11)
         c.drawString(margin_x, y, 'Form')
-        form_txt = '  ·  '.join(f"{f['label']}" + (f" ×{f['count']}" if f['count'] > 1 else '') + f"  ({f['bars']} bars)"
+        form_txt = '  ·  '.join(f"{f['label']}" + (f" ×{f['count']}" if f['count'] > 1 else '')
+                                + (f" +{f['extra']}" if f.get('extra') else '') + f"  ({f['bars']} bars)"
                                 for f in summary['form'])
         c.setFont(regular, 9.5)
         # wrap the form line

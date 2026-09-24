@@ -168,69 +168,74 @@ def _similarity(seq: List[Dict], ref: List[Dict]) -> float:
 
 
 SAME_PART_MIN = 0.6     # a free run this close to an earlier part (shifted) is that part again
-PHRASE_BARS = 4         # musicians count in 4-bar phrases
-MAX_UNIT_PHRASES = 4    # longest loop looked for, in phrases (16 bars)
+MAX_UNIT_BARS = 16      # longest loop looked for
+MIN_LOOP_BARS = 8       # a 1- or 2-bar loop must cover this many bars to count as a part
+SHORT_RUN_BARS = 2      # runs this short are a tail of the previous part, not a part
 
 
-def _phrases_match(a: List[Dict], b: List[Dict]) -> bool:
-    """Two phrases are the same when at least 3 bars out of 4 match."""
-    n = max(len(a), len(b))
-    hits = sum(1 for x, y in zip(a, b) if _bars_match(x, y))
-    return n > 0 and hits / n >= 0.75
+def _repeats_from(bars: List[Dict], i: int, p: int) -> Tuple[int, int]:
+    """(repeats, exact bar matches) of the p-bar unit at i; a repeat may differ by one
+    bar in four (a fill, a turnaround), short units must match fully."""
+    n = len(bars)
+    unit = bars[i:i + p]
+    reps, exact = 1, 0
+    while i + (reps + 1) * p <= n:
+        hits = sum(1 for k in range(p) if _bars_match(bars[i + reps * p + k], unit[k]))
+        if hits < p if p < 4 else hits / p < 0.75:
+            break
+        reps += 1
+        exact += hits
+    return reps, exact
 
 
-def _phrase_types(phrases: List[List[Dict]]) -> List[int]:
-    """Cluster phrases into types (index of the first phrase each one matches)."""
-    reps: List[List[Dict]] = []
-    types = []
-    for ph in phrases:
-        t = next((k for k, rep in enumerate(reps) if _phrases_match(ph, rep)), None)
-        if t is None:
-            reps.append(ph)
-            t = len(reps) - 1
-        types.append(t)
-    return types
+def _loop_at(bars: List[Dict], i: int):
+    """(start, period, repeats) of the loop found at bar i, or None. Most bars covered
+    wins; on a tie, 4/8/16-bar periods, then the longer one. The start may move up to
+    p-1 bars later when the loop repeats more exactly from there (a pickup bar before
+    the real top of the progression)."""
+    n = len(bars)
+    best = None
+    for p in range(1, min(MAX_UNIT_BARS, (n - i) // 2) + 1):
+        reps, _ = _repeats_from(bars, i, p)
+        if reps < 2 or (p <= 2 and p * reps < MIN_LOOP_BARS):
+            continue
+        key = (p * reps, p % 4 == 0, p)
+        if best is None or key > best[0]:
+            best = (key, p, reps)
+    if best is None:
+        return None
+    _, p, reps = best
+    start, best_exact = i, _repeats_from(bars, i, p)[1]
+    for d in range(1, p):
+        r2, exact = _repeats_from(bars, i + d, p)
+        if r2 >= 2 and r2 * p >= (reps - 1) * p and exact > best_exact:
+            start, reps, best_exact = i + d, r2, exact
+    return start, p, reps
 
 
-def _loops_in(types: List[int]) -> List[Tuple[int, int, int]]:
-    """Greedy cut of a type sequence into (start, period, repeats); repeats 1 = free run."""
-    out = []
-    i, n = 0, len(types)
-    run_start = None
-    while i < n:
-        best = None
-        for p in range(1, min(MAX_UNIT_PHRASES, (n - i) // 2) + 1):
-            reps = 1
-            while i + (reps + 1) * p <= n and types[i + reps * p:i + (reps + 1) * p] == types[i:i + p]:
-                reps += 1
-            if reps >= 2 and (best is None or p * reps > best[0] * best[1]):
-                best = (p, reps)
-        if best:
-            if run_start is not None:
-                out.append((run_start, i - run_start, 1))
-                run_start = None
-            out.append((i, best[0], best[1]))
-            i += best[0] * best[1]
-        else:
-            if run_start is None:
-                run_start = i
-            i += 1
-    if run_start is not None:
-        out.append((run_start, n - run_start, 1))
-    return out
+def _same_loop(unit: List[Dict], ref: List[Dict]) -> bool:
+    """Same loop up to a rotation (entering the cycle at another bar)."""
+    if len(unit) != len(ref):
+        return False
+    n = len(unit)
+    for r in range(n):
+        hits = sum(1 for k in range(n) if _bars_match(unit[k], ref[(k + r) % n]))
+        if hits / n >= 0.75:
+            return True
+    return False
 
 
 def summarize_parts(bars: List[Dict], lines: List[Dict]) -> Dict:
     """
-    Musician's summary from the chords themselves. Bars are grouped in 4-bar phrases;
-    phrases that play the same chords are one phrase type; loops in the sequence of
-    types ([X Y] x7) become parts, the stretches in between are parts played once, and a
-    stretch that mostly repeats an earlier part is that part again. Parts are lettered
-    in order of appearance; one with no sung words is marked instrumental. The phrase
-    grid offset (0-3 bars) is the one that finds the most repetition.
+    Musician's summary from the chords themselves. Scanning the bars, a stretch where a
+    unit of bars repeats ([Dm Gm A Dm] x2) becomes a part played N times, the stretches
+    in between become parts played once; a stretch that repeats an earlier part (same
+    loop entered at another bar, or mostly the same bars shifted by up to 3) reuses its
+    letter. Parts are lettered in order of appearance; one with no sung words is marked
+    instrumental. A run of 1-2 bars is a tail of the previous part, not a part.
 
-    Returns {'form': [{'label', 'count', 'bars'}...],
-             'parts': [{'label', 'unit', 'repeat', 'remainder', 'bars_total', 'instrumental', 'occurrences'}]}.
+    Returns {'form': [{'label', 'count', 'bars', 'extra'}...],
+             'parts': [{'label', 'unit', 'repeat', 'remainder', 'bars_total', 'instrumental', 'occurrences', 'start'}]}.
     """
     if not bars:
         return {'form': [], 'parts': []}
@@ -241,46 +246,65 @@ def summarize_parts(bars: List[Dict], lines: List[Dict]) -> Dict:
             if b['start'] < en and b['end'] > st:
                 sung.add(i)
 
-    best_cut = None
-    for offset in range(min(PHRASE_BARS, len(bars))):
-        phrases = ([bars[:offset]] if offset else []) + [bars[k:k + PHRASE_BARS] for k in range(offset, len(bars), PHRASE_BARS)]
-        types = _phrase_types(phrases)
-        loops = _loops_in(types)
-        covered = sum(p * reps for _, p, reps in loops if reps >= 2)
-        # Same coverage: prefer loops that start on a chord change (the natural top of
-        # the progression rather than a rotation of it).
-        on_change = sum(1 for start, _, reps in loops if reps >= 2 and phrases[start] and phrases[start][0]['cells'][0].get('change'))
-        score = (covered, on_change)
-        if best_cut is None or score > best_cut[0]:
-            best_cut = (score, phrases, loops)
-    _, phrases, loops = best_cut
+    # 1. Segments: loops and the free runs between them.
+    segments = []
+    run_first = None
+    i, n = 0, len(bars)
+    while i < n:
+        loop = _loop_at(bars, i)
+        if loop:
+            start, p, reps = loop
+            if start > i and run_first is None:
+                run_first = i
+            if run_first is not None:
+                segments.append({'first': run_first, 'bars': bars[run_first:start], 'unit': bars[run_first:start], 'repeat': 1})
+                run_first = None
+            segments.append({'first': start, 'bars': bars[start:start + p * reps], 'unit': bars[start:start + p], 'repeat': reps})
+            i = start + p * reps
+        else:
+            if run_first is None:
+                run_first = i
+            i += 1
+    if run_first is not None:
+        segments.append({'first': run_first, 'bars': bars[run_first:], 'unit': bars[run_first:], 'repeat': 1})
 
+    # 2. Parts and form.
     parts: List[Dict] = []
     form: List[Dict] = []
-    for start, period, reps in loops:
-        unit_bars = [b for ph in phrases[start:start + period] for b in ph]
-        all_bars = [b for ph in phrases[start:start + period * reps] for b in ph]
-        idx = {id(b) for b in all_bars}
-        has_words = any(k in sung for k, b in enumerate(bars) if id(b) in idx)
+    for seg in segments:
+        first, last = seg['first'], seg['first'] + len(seg['bars'])
+        has_words = any(k in sung for k in range(first, last))
+        if len(seg['bars']) <= SHORT_RUN_BARS and seg['repeat'] == 1 and form:
+            form[-1]['extra'] += len(seg['bars'])
+            form[-1]['bars'] += len(seg['bars'])
+            continue
         best, best_sim = None, 0.0
         for pt in parts:
-            sim = _similarity(unit_bars, pt['_unit'])
+            # Same loop (up to rotation), or a unit made of several turns of the part's loop.
+            u, ref = seg['unit'], pt['_unit']
+            if seg['repeat'] > 1 and pt['_repeat'] > 1 and len(u) % len(ref) == 0 and \
+                    all(_same_loop(u[k:k + len(ref)], ref) for k in range(0, len(u), len(ref))):
+                seg['repeat'] *= len(u) // len(ref)
+                seg['unit'] = u[:len(ref)]
+                best, best_sim = pt, 2.0
+                break
+            sim = _similarity(seg['unit'], pt['_unit'])
             if sim >= SAME_PART_MIN and sim > best_sim:
                 best, best_sim = pt, sim
         if best is None:
             label = chr(ord('A') + len(parts)) if len(parts) < 26 else f"P{len(parts) + 1}"
-            best = {'label': label, '_unit': unit_bars, '_repeat': reps, 'instrumental': not has_words,
-                    'occurrences': 0, 'start': all_bars[0]['start']}
+            best = {'label': label, '_unit': seg['unit'], '_repeat': seg['repeat'], 'instrumental': not has_words,
+                    'occurrences': 0, 'start': seg['bars'][0]['start']}
             parts.append(best)
-        elif len(unit_bars) > len(best['_unit']):
-            best['_unit'], best['_repeat'] = unit_bars, reps
+        elif len(seg['unit']) > len(best['_unit']):
+            best['_unit'], best['_repeat'] = seg['unit'], seg['repeat']
         best['instrumental'] = best['instrumental'] and not has_words
         best['occurrences'] += 1
-        if form and form[-1]['label'] == best['label']:
-            form[-1]['count'] += reps
-            form[-1]['bars'] += len(all_bars)
+        if form and form[-1]['label'] == best['label'] and not form[-1]['extra']:
+            form[-1]['count'] += seg['repeat']
+            form[-1]['bars'] += len(seg['bars'])
         else:
-            form.append({'label': best['label'], 'count': reps, 'bars': len(all_bars)})
+            form.append({'label': best['label'], 'count': seg['repeat'], 'bars': len(seg['bars']), 'extra': 0})
 
     for pt in parts:
         unit, repeat = pt.pop('_unit'), pt.pop('_repeat')
