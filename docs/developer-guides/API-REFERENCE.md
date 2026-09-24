@@ -751,6 +751,19 @@ Get lyrics for extraction.
 
 ---
 
+### GET /api/extractions/<extraction_id>/chart.pdf
+
+Chord chart for paper (`core/chord_chart.py` + `core/chord_chart_pdf.py`): every lyric
+line followed by the bars sung during it, one cell per beat, the chord printed in the cell
+where it is played (bold on a change; a bar's chord is always named in its first cell).
+Long gaps between lines appear as `instrumental` rows of bars. The first page summarises the song for musicians: the form (order of the parts with play counts) and each part's repeated chord loop, derived from the chord sequence in 4-bar phrases (`summarize_parts`). Bars come from the stored
+beat grid (`beat_times` / `beat_positions`, extended to the song's end), or a steady grid
+from the BPM when there is none.
+
+Query: `detail=simple|detailed` (chord names, default simple), `transpose=<semitones>`
+(-12..12, also transposes the key in the header). Response: `application/pdf`, inline,
+`Cache-Control: no-store`. Errors: 404 (extraction not found / no chords yet), 500.
+
 ### POST /api/extractions/<extraction_id>/chords/regenerate
 
 Regenerate the chords and the key of an extracted song (`update_song_chords()` in

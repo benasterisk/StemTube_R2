@@ -15,6 +15,15 @@ the commits that carry the change.
 ## [Unreleased]
 
 ### Added
+- **Chord chart PDF for paper** (`GET /api/extractions/<id>/chart.pdf?detail=simple|detailed&transpose=N`,
+  "PDF" button in the Chords tab on desktop and mobile): each lyric line followed by the
+  bars sung during it, one cell per beat, the chord printed where it is played (bold on a
+  change, the bar's chord always named in its first cell), instrumental passages as rows
+  of bars with their timestamp. Built from the stored beat grid, chords and lyrics
+  (`core/chord_chart.py`), drawn with reportlab (`core/chord_chart_pdf.py`, new dependency).
+  The first page is a musician's summary: the song's form (A · B ×5 · C · B ×6 …) and,
+  for each part, the chord loop it repeats with its count — parts found from the chords
+  themselves (4-bar phrases, repeated phrase sequences), not from the MSAF sections.
 - **Fine-stem extraction model `mvsep_mega_fine`** (CUDA only) — a three-stage
   pipeline in `core/msst/separate.py`: `htdemucs_6s` coarse split → **DrumSep**
   (inagoy, HDemucs, MIT) on the drums stem → **MVSep Mega 53-stem BS-Roformer**

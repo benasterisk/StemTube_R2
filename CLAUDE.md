@@ -91,6 +91,7 @@ Central anti-circular-dependency hub — all blueprints import from here. Contai
 | `cookie_broker.py` | One shared YouTube cookie jar for every yt-dlp session (`youtube_dl(opts)` context manager — never pass `cookiefile`): atomic throttled writes, reload on external change, keep-alive while idle, bot-check rescue (`rescue_botcheck()`), bookmarklet merge (`merge_cookie_header`). Ported from DeezpotHiFi |
 | `media_metadata.py` | yt-dlp metadata (`from_ytdlp_info`, lazy `load_media_metadata` for older YouTube songs) and `resolve_artist_track()`: override > YouTube artist+track > "Artist - Track" title > ID3 (uploads) > "(Musical Artist)" tag > YouTube artist > uploader |
 | `msaf_structure_detector.py` | MSAF structure analysis — sections labelled A, B, C… by similarity cluster; patches the two SciPy names msaf needs before import (`structure_detector.py` and `llm_structure_analyzer.py` are dead code) |
+| `chord_chart.py` / `chord_chart_pdf.py` | Paper chord chart: bars (one cell per beat) under each lyric line, from the stored grid/chords/lyrics; rendered to PDF with reportlab (`GET /api/extractions/<id>/chart.pdf`) |
 | `config.py` | Configuration management, `get_setting()` / `update_setting()` |
 | `auth_db.py` | User authentication, `create_user()`, `authenticate_user()` |
 
