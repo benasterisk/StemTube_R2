@@ -523,6 +523,44 @@ def regenerate_extraction_lyrics(extraction_id):
 
 
 # ------------------------------------------------------------------
+# Chord chart PDF (paper: chords per bar under each lyric line)
+# ------------------------------------------------------------------
+
+@media_bp.route('/api/extractions/<extraction_id>/chart.pdf', methods=['GET'])
+@api_login_required
+def chord_chart_pdf(extraction_id):
+    """
+    Chord chart for paper: every lyric line followed by the bars sung during it,
+    one cell per beat, the chord written where it is played (core/chord_chart.py).
+    Query: detail=simple|detailed (chord names), transpose=<semitones>.
+    """
+    from flask import Response
+    from core.chord_chart import build_chart
+    from core.chord_chart_pdf import render_pdf
+
+    download = _find_download_for(extraction_id) or db_find_any_global_extraction(extraction_id)
+    if not download:
+        return jsonify({'error': 'Extraction not found'}), 404
+    if not download.get('chords_data'):
+        return jsonify({'error': 'No chords for this song yet'}), 404
+    detail = 'detailed' if request.args.get('detail') == 'detailed' else 'simple'
+    try:
+        transpose = int(request.args.get('transpose') or 0)
+    except ValueError:
+        transpose = 0
+    try:
+        pdf = render_pdf(build_chart(download, detail=detail, transpose=max(-12, min(12, transpose))))
+    except Exception as e:
+        logger.error(f"Chord chart failed for {extraction_id}: {e}", exc_info=True)
+        return jsonify({'error': 'Chart rendering failed'}), 500
+    safe_title = ''.join(ch if ch.isalnum() or ch in ' -_' else '_' for ch in (download.get('title') or 'chords'))[:80].strip() or 'chords'
+    resp = Response(pdf, mimetype='application/pdf')
+    resp.headers['Content-Disposition'] = f'inline; filename="{safe_title} - chords.pdf"'
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+# ------------------------------------------------------------------
 # Lyrics search (LRCLIB)
 # ------------------------------------------------------------------
 

@@ -1355,6 +1355,15 @@ class ChordDisplay {
             this.chords = this.applyChordDetail(this.rawChords);
         }
 
+        // Paper chart (PDF) with the current naming and transposition, in a new tab.
+        openChordChartPdf() {
+            const id = this.mixer && this.mixer.extractionId;
+            if (!id) { alert('Load a track first.'); return; }
+            const transpose = (window.simplePitchTempo && window.simplePitchTempo.currentPitchShift) || this.currentPitchShift || 0;
+            const url = `/api/extractions/${encodeURIComponent(id)}/chart.pdf?detail=${this.getChordDetail()}&transpose=${Math.round(transpose)}`;
+            window.open(url, '_blank', 'noopener');
+        }
+
         setupChordDetailToggle() {
             const buttons = Array.from(document.querySelectorAll('[data-chord-detail]'));
             const refresh = () => buttons.forEach(b => b.classList.toggle('active', b.dataset.chordDetail === this.getChordDetail()));
@@ -1370,6 +1379,8 @@ class ChordDisplay {
                 }));
                 const regenerate = document.getElementById('regenerateChordsBtn');
                 if (regenerate) regenerate.addEventListener('click', () => this.regenerateChords());
+                const pdf = document.getElementById('chordChartPdfBtn');
+                if (pdf) pdf.addEventListener('click', () => this.openChordChartPdf());
             }
             refresh();
         }

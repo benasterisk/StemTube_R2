@@ -330,6 +330,7 @@ def install_requirements(venv_python):
         "faster-whisper",       # Speech recognition (GPU)
         "msaf",                 # Music structure analysis
         "pychord",              # Chord notation
+        "reportlab",            # Chord chart PDF export
     ]
 
     # Determine which packages still need installing

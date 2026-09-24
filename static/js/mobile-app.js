@@ -3402,6 +3402,13 @@ class MobileApp {
 
         const regenerateChordsBtn = document.getElementById('mobileRegenerateChords');
         if (regenerateChordsBtn) regenerateChordsBtn.addEventListener('click', () => this.regenerateChords());
+        const chartPdfBtn = document.getElementById('mobileChordChartPdfBtn');
+        if (chartPdfBtn) chartPdfBtn.addEventListener('click', () => {
+            const id = this.currentExtractionId || (this.currentExtractionData && this.currentExtractionData.extraction_id);
+            if (!id) { this.showToast && this.showToast('Load a track first'); return; }
+            const url = `/api/extractions/${encodeURIComponent(id)}/chart.pdf?detail=${this.getChordDetail()}&transpose=${Math.round(this.currentPitchShift || 0)}`;
+            window.open(url, '_blank', 'noopener');
+        });
 
         // Ensure initial button state matches playback flag
         this.updatePlayPauseButtons();
