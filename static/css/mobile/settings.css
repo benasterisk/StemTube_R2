@@ -1193,5 +1193,5 @@
 .mobile-library-actions .lib-btn-primary:active { filter: brightness(0.9); color: #fff; }
 .mobile-library-actions .lib-btn.remove-btn { color: #ff6b6b; border-color: rgba(220, 53, 69, 0.35); }
 .mobile-library-actions .lib-btn.remove-btn:active { background: rgba(220, 53, 69, 0.2); color: #dc3545; }
-.mobile-library-actions .lib-btn.save-offline-btn.cached { color: var(--mobile-primary); border-color: var(--mobile-primary); }
+.mobile-library-actions .lib-btn.save-offline-btn.cached { background: rgba(29, 185, 84, 0.18); color: var(--mobile-primary); border-color: var(--mobile-primary); }
 .mobile-library-actions .lib-btn:disabled { opacity: 0.6; cursor: not-allowed; }

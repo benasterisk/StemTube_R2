@@ -1339,6 +1339,13 @@ class MobileApp {
         // Use same ID format as openMixer for stems API
         const songId = item.extraction_id || (item.download_id ? `download_${item.download_id}` : null) || item.video_id;
         if (!songId) return;
+        // A save in progress survives a list rebuild (extraction progress redraws the rows):
+        // the fresh button shows the spinner and gets its final state when the save ends.
+        if (this._offlineBusy && this._offlineBusy.has(songId)) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Offline</span>';
+            return;
+        }
 
         try {
             const isCached = await window.StemCache.isSongCached(songId);
@@ -1377,6 +1384,9 @@ class MobileApp {
 
         // Check if already cached
         const isCached = await window.StemCache.isSongCached(songId);
+        this._offlineBusy = this._offlineBusy || new Set();
+        this._offlineBusy.add(songId);
+        try {
 
         if (isCached) {
             // Ask to remove from cache
@@ -1417,6 +1427,17 @@ class MobileApp {
             } finally {
                 btn.disabled = false;
             }
+        }
+        } finally {
+            this._offlineBusy.delete(songId);
+            // The row may have been rebuilt meanwhile: update every button that stands for this song now.
+            document.querySelectorAll('.mobile-library-item').forEach((row) => {
+                const it = row.__libraryItem;
+                if (!it) return;
+                const id = it.extraction_id || (it.download_id ? `download_${it.download_id}` : null) || it.video_id;
+                const b = row.querySelector('.save-offline-btn');
+                if (id === songId && b) { b.disabled = false; this.updateSaveOfflineButton(b, it); }
+            });
         }
     }
 
