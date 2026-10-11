@@ -501,10 +501,10 @@
     border-radius:5px; font-size:11px; padding:3px 8px; cursor:pointer; }
   .rec-lctrl .rec-delete-btn:hover { border-color:var(--stop); }
   .rec-lctrl.recording-track.empty-track .track-name::after { content:" (vide)"; color:var(--muted); font-weight:400; }
-  /* lane waveform fills the lane; canvas is full-width (not viewport-pinned) */
+  /* lane .waveform spans the full song width (scrollbar); its canvas is viewport-sized */
   #lanes .rec-lane { overflow:hidden; }
   #lanes .rec-lane .waveform { position:relative; height:100%; }
-  #lanes .rec-lane .waveform canvas { position:absolute; left:0; top:0; width:100%; height:100%; }
+  #lanes .rec-lane .waveform canvas { position:absolute; left:0; top:0; }  /* sized in px + pinned at scrollX by recording-ui.js, like a stem canvas */
   #lanes .rec-lane.is-recording { box-shadow:inset 0 0 0 1px var(--rec); }
 
   /* The transport bar, while relocated into a Focus popup, drops its bottom border

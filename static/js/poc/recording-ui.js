@@ -5,13 +5,20 @@
 //
 // friend's engine draws every recording waveform (live and final) into
 //   document.getElementById('rec-track-<id>').querySelector('.waveform')  →  <canvas>
-// and positions it as ratios of that container's FULL width (full-song width × zoom).
 // So we build, per recording:
 //   • a control block in #left-tracks  (id rec-ctrl-<id>, POC .lctrl look)
 //   • a lane in #lanes  (id rec-track-<id>) holding a <div class="waveform"> sized to
-//     the full song width, with a <canvas> filling it — the element friend targets.
-// mixer.waveform.{renderRecordingWaveform,drawGrid} reproduce friend's full-width
-// algorithm so the live and final renders agree.
+//     the full song width, with a <canvas> inside — the element friend targets.
+//
+// COORDINATES: the canvas is drawn exactly like a stem lane (timeline.js drawWave):
+// viewport-sized, pinned at left = scrollX, song time t at View.timeToX(t) - scrollX.
+// That is what keeps a take aligned with the stems — friend's own full-width,
+// ratio-of-container model ignored the lead-in pad (count-in) and the min
+// window-width of a lane, so the waveform landed a few hundred px off while the
+// audio itself played at the right place; and a full-width canvas × DPR blew the
+// ~65536 px canvas cap at high zoom, which blanked the grid entirely.
+// The engine's _renderLiveWaveforms (same ratio model) is replaced below for the
+// same reason, so the live and final renders agree with the stems.
 //
 // Loaded AFTER mixer-compat.js (needs window.mixer + engine + View).
 (function () {
@@ -24,16 +31,18 @@
   function g2s(g) { g = g == null ? 1 : g; return g <= 1 ? g * 0.75 : 0.75 + (g - 1) * 0.5; }
   function s2g(s) { return s <= 0.75 ? s / 0.75 : 1 + (s - 0.75); }
 
-  var DPR = window.devicePixelRatio || 1;
+  // timeline.js declares `const View` — a global LEXICAL binding, reachable as
+  // `View` but NOT as `window.View`. Every `window.View` check here used to be
+  // undefined, which silently disabled the grid and the zoom/scroll redraw hooks.
+  function getView() { return window.View || (typeof View !== "undefined" ? View : null); }
 
   // full song width in px (the lane/.waveform width), like a POC lane.
   function fullWidth() {
-    var V = window.View;
-    var dur = (V && V.meta && V.meta.duration) || (engine.duration) || 0;
-    var pps = (V && V.pxPerSec) || 80;
-    return Math.max(window.innerWidth, dur * pps);
+    var V = getView();
+    if (V && V.laneWidth) return V.laneWidth();     // song + lead pad, min viewport
+    return Math.max(window.innerWidth, (engine.duration || 0) * 80);
   }
-  function trackHeight() { var V = window.View; return (V && V.trackH) ? V.trackH() : 80; }
+  function trackHeight() { var V = getView(); return (V && V.trackH) ? V.trackH() : 80; }
 
   function waveContainerFor(recId) {
     var lane = document.getElementById("rec-track-" + recId);
@@ -57,18 +66,40 @@
   // mixer.waveform — full-width render (matches friend's _renderLiveWaveforms /
   // waveform.js renderRecordingWaveform coordinate model).
   // ─────────────────────────────────────────────────────────────────────────
+  // Size a recording canvas like a stem canvas: viewport-wide, pinned to the
+  // visible edge. Returns {g, w, h, sx} or null when the View is not ready.
+  function beginLaneDraw(canvas) {
+    var V = getView(); if (!V || !V.meta || !V.sizeCanvas) return null;
+    var w = V.visW(), h = trackHeight(), sx = V.scrollX();
+    var g = V.sizeCanvas(canvas, w, h);
+    canvas.style.left = sx + "px";
+    g.clearRect(0, 0, w, h);
+    // center line, as drawWave
+    g.strokeStyle = "rgba(255,255,255,.06)"; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
+    return { g: g, w: w, h: h, sx: sx };
+  }
+
+  // visible column px -> song time (seconds), the inverse of View.timeToX
+  function colToSongT(px, sx) {
+    var V = getView();
+    return (sx + px) / V.pxPerSec - (V.leadPad || 0);
+  }
+
   mixer.waveform = {
-    drawGrid: function (ctx, width, height) {
-      var V = window.View; if (!V || !V.meta) return;
+    // Beat grid for the visible slice — same lines, same alphas as the stems
+    // (timeline.js drawWave), so a recording lane reads like any other lane.
+    drawGrid: function (g, w, h, sx) {
+      var V = getView(); if (!V || !V.meta) return;
+      if (sx == null) sx = V.scrollX();
       var beats = V.meta.beats || [], pos = V.meta.positions || [];
-      var pps = (V.pxPerSec || 80) * DPR;          // canvas is full-width × DPR
       for (var i = 0; i < beats.length; i++) {
-        var x = beats[i] * pps;
-        if (x > width) break;
+        var x = V.timeToX(beats[i]) - sx;
+        if (x < 0) continue; if (x > w) break;
         var down = pos[i] === 1;
-        ctx.strokeStyle = down ? "rgba(255,255,255,.16)" : "rgba(255,255,255,.06)";
-        ctx.lineWidth = down ? 1.5 : 1;
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+        g.strokeStyle = down ? "rgba(255,255,255,.45)" : "rgba(255,255,255,.10)";
+        g.lineWidth = down ? 1.5 : 1;
+        g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke();
       }
     },
 
@@ -79,48 +110,43 @@
         ? waveContainer : waveContainerFor(rec.id);
       if (!wc) return;
       var canvas = wc.querySelector("canvas") || wc.appendChild(document.createElement("canvas"));
-
-      var w = (wc.offsetWidth || fullWidth()) * DPR;
-      var h = (wc.offsetHeight || trackHeight()) * DPR;
-      canvas.width = w; canvas.height = h; canvas.style.width = "100%"; canvas.style.height = "100%";
-      var ctx = canvas.getContext("2d");
-      var centerY = h / 2;
-      ctx.clearRect(0, 0, w, h);
-      this.drawGrid(ctx, w, h);
-
-      var V = window.View;
-      var pps = (V && V.pxPerSec || 80) * DPR;
-      var buf = rec.audioBuffer;
-      var raw = buf.getChannelData(0);
-      var startX = (rec.startOffset || 0) * pps;       // clip start in full-width px
-      var waveW = buf.duration * pps;
-      var samples = Math.max(1, Math.floor(waveW));
-      var vz = (window.mixer.zoomLevels && window.mixer.zoomLevels.vertical) || 1;
-
+      var d = beginLaneDraw(canvas); if (!d) return;
+      var g = d.g, w = d.w, h = d.h, sx = d.sx, V = getView();
+      var mid = h / 2, amp = h * 0.46;
+      var buf = rec.audioBuffer, data = buf.getChannelData(0), N = data.length, sr = buf.sampleRate;
+      var start = rec.startOffset || 0;
       var color = rec.saved ? "#2ecc71" : "#ff5d5d";   // green if saved, red otherwise
-      // dim spacer before the clip start
-      if (startX > 0) { ctx.fillStyle = rec.saved ? "rgba(46,204,113,.05)" : "rgba(255,93,93,.06)"; ctx.fillRect(0, 0, Math.min(startX, w), h); }
 
-      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1 * DPR;
-      var samplesPerPx = raw.length / samples;
-      for (var px = 0; px < samples; px++) {
-        var x = startX + px; if (x > w) break; if (x < 0) continue;
-        var i0 = Math.floor(px * samplesPerPx);
-        var i1 = Math.min(raw.length, i0 + Math.ceil(samplesPerPx));
-        var mn = 1, mx = -1;
-        for (var i = i0; i < i1; i++) { var v = raw[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
-        if (i1 <= i0) { mn = mx = 0; }
-        ctx.moveTo(x, centerY - mx * vz * (h * 0.45));
-        ctx.lineTo(x, centerY - mn * vz * (h * 0.45));
+      // dim spacer before the clip start (visible part only)
+      var startX = V.timeToX(start) - sx;
+      if (startX > 0) { g.fillStyle = rec.saved ? "rgba(46,204,113,.05)" : "rgba(255,93,93,.06)"; g.fillRect(0, 0, Math.min(startX, w), h); }
+
+      // one column per visible pixel: column px <-> song time, like drawWave
+      g.strokeStyle = color; g.lineWidth = 1; g.beginPath();
+      for (var px = 0; px < w; px++) {
+        var bt = colToSongT(px, sx) - start;              // seconds into the take
+        if (bt < 0) continue;
+        var a0 = Math.floor(bt * sr), a1 = Math.min(N, Math.floor((bt + 1 / V.pxPerSec) * sr));
+        if (a0 >= N) break; if (a1 <= a0) a1 = a0 + 1;
+        var mn = 1, mx = -1, stride = Math.max(1, Math.floor((a1 - a0) / 512));
+        for (var j = a0; j < a1; j += stride) { var v = data[j]; if (v < mn) mn = v; if (v > mx) mx = v; }
+        var top = mid - mx * amp, bot = mid - mn * amp; if (bot - top < 1) bot = top + 1;
+        g.moveTo(px + 0.5, top); g.lineTo(px + 0.5, bot);
       }
-      ctx.stroke();
+      g.stroke();
+      this.drawGrid(g, w, h, sx);
     },
 
     redrawAllRecordings: function () {
       var re = window.mixer && window.mixer.recordingEngine; if (!re || !re.recordings) return;
       var self = this;
       re.recordings.forEach(function (r) {
-        if (!r.audioBuffer) return;
+        if (!r.audioBuffer) {
+          // empty lane: still show the grid so the row reads like the others
+          var wc = waveContainerFor(r.id), cv = wc && wc.querySelector("canvas");
+          if (cv) { var d = beginLaneDraw(cv); if (d) self.drawGrid(d.g, d.w, d.h, d.sx); }
+          return;
+        }
         self.renderRecordingWaveform(r, waveContainerFor(r.id));
         // the engine clears 'empty-track' on the lane (#rec-track-*); our "(vide)"
         // label lives on the control block — clear it here once the take exists
@@ -133,7 +159,7 @@
     syncLanes: function () {
       var w = fullWidth() + "px", h = trackHeight() + "px";
       document.querySelectorAll("#lanes .rec-lane").forEach(function (lane) {
-        lane.style.minHeight = h;
+        lane.style.width = w; lane.style.height = h; lane.style.minHeight = h;
         var wave = lane.querySelector(".waveform");
         if (wave) { wave.style.width = w; wave.style.height = h; }
       });
@@ -141,15 +167,58 @@
     },
   };
 
+  // Live render during a take, in the stems' coordinate model (replaces friend's
+  // ratio-of-container version — see the header). Same data: liveWaveformData
+  // holds one level per analyser tick, spread evenly over the elapsed time.
+  if (typeof RecordingEngine !== "undefined" && !RecordingEngine.prototype.__pocLive) {
+    RecordingEngine.prototype.__pocLive = true;
+    RecordingEngine.prototype._renderLiveWaveforms = function () {
+      var V = getView(); if (!V || !V.meta) return;
+      var now = this.mixer.currentTime || 0, start = this.recordingStartOffset || 0;
+      var elapsed = Math.max(0, now - start);
+      for (var k = 0; k < this.recordingTrackIds.length; k++) {
+        var trackId = this.recordingTrackIds[k];
+        var data = this.liveWaveformData.get(trackId);
+        var wc = waveContainerFor(trackId); if (!wc) continue;
+        var canvas = wc.querySelector("canvas") || wc.appendChild(document.createElement("canvas"));
+        var d = beginLaneDraw(canvas); if (!d) continue;
+        var g = d.g, w = d.w, h = d.h, sx = d.sx, mid = h / 2;
+        var startX = V.timeToX(start) - sx;
+        if (startX > 0) { g.fillStyle = "rgba(255,93,93,.06)"; g.fillRect(0, 0, Math.min(startX, w), h); }
+        if (data && data.length) {
+          g.strokeStyle = "#ff5d5d"; g.lineWidth = 1; g.beginPath();
+          var n = data.length;
+          for (var i = 0; i < n; i++) {
+            var x = V.timeToX(start + elapsed * i / n) - sx;
+            if (x < 0) continue; if (x > w) break;
+            var amp = data[i] * h * 0.8;
+            g.moveTo(x, mid - amp / 2); g.lineTo(x, mid + amp / 2);
+          }
+          g.stroke();
+        }
+        mixer.waveform.drawGrid(g, w, h, sx);
+      }
+    };
+  }
+
   // Zoom / resize redraws go through View.redrawAll — extend it so the recording
   // lanes resize with the stems and their takes re-render at the new scale.
-  if (window.View && typeof View.redrawAll === "function" && !View.__recUiPatched) {
+  if (getView() && typeof View.redrawAll === "function" && !View.__recUiPatched) {
     View.__recUiPatched = true;
     var _redrawAll = View.redrawAll.bind(View);
     View.redrawAll = function () {
       _redrawAll();
       try { mixer.waveform.syncLanes(); mixer.waveform.redrawAllRecordings(); } catch (e) {}
     };
+    // viewport rendering: the visible slice must be redrawn on every scroll, like
+    // the stems (otherwise the pinned canvas scrolls away with stale content)
+    if (typeof View.redrawVisible === "function") {
+      var _redrawVisible = View.redrawVisible.bind(View);
+      View.redrawVisible = function () {
+        _redrawVisible();
+        try { mixer.waveform.redrawAllRecordings(); } catch (e) {}
+      };
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -219,7 +288,8 @@
       var lane = document.createElement("div");
       lane.className = "lane rec-lane";
       lane.id = "rec-track-" + recording.id;
-      lane.style.minHeight = h + "px";
+      lane.style.width = fullWidth() + "px";
+      lane.style.height = h + "px"; lane.style.minHeight = h + "px";
       var wave = document.createElement("div");
       wave.className = "waveform";
       wave.style.width = fullWidth() + "px";
@@ -318,6 +388,7 @@
       nameEl.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); nameEl.blur(); } });
 
       if (recording.audioBuffer) mixer.waveform.renderRecordingWaveform(recording, wave);
+      else { var d0 = beginLaneDraw(wave.querySelector("canvas")); if (d0) mixer.waveform.drawGrid(d0.g, d0.w, d0.h, d0.sx); }
     },
   };
 })();
