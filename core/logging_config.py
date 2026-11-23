@@ -3,10 +3,12 @@ Comprehensive logging configuration for StemTube Web application.
 Provides structured logging with file output, rotation, and multiple loggers.
 """
 
+import contextvars
 import logging
 import logging.handlers
 import os
 import sys
+import threading
 from pathlib import Path
 from datetime import datetime
 import json
@@ -219,26 +221,62 @@ def get_processing_logger():
     """Get the processing logger for downloads/extractions."""
     return logging.getLogger('processing')
 
+# Extra fields (request id, user id, ...) attached to the records logged from the
+# current thread, or asyncio task. They live in a context variable, and ONE
+# record factory, installed once, reads it.
+#
+# The factory used to be swapped on enter and put back on exit. It is global to
+# the process, so two requests overlapping in two threads put back each other's
+# wrapper: one more layer stayed installed each time, every record carried the
+# fields of a request long gone, and after about a thousand layers every log
+# call raised RecursionError - which turns every request into a 500.
+_log_context = contextvars.ContextVar("log_context", default=None)
+_base_record_factory = None
+_factory_lock = threading.Lock()
+
+
+def _install_context_factory():
+    """Install, once per process, the record factory that reads the context."""
+    global _base_record_factory
+    if _base_record_factory is not None:
+        return
+    with _factory_lock:
+        if _base_record_factory is not None:
+            return
+        base = logging.getLogRecordFactory()
+
+        def record_factory(*args, **kwargs):
+            record = base(*args, **kwargs)
+            extra = _log_context.get()
+            if extra:
+                for key, value in extra.items():
+                    setattr(record, key, value)
+            return record
+
+        logging.setLogRecordFactory(record_factory)
+        _base_record_factory = base
+
+
 class LogContext:
     """Context manager for adding extra fields to log records."""
-    
+
     def __init__(self, logger, **kwargs):
         self.logger = logger
-        self.old_factory = logging.getLogRecordFactory()
         self.extra = kwargs
-    
+        self._token = None
+
     def __enter__(self):
-        def record_factory(*args, **factory_kwargs):
-            record = self.old_factory(*args, **factory_kwargs)
-            for key, value in self.extra.items():
-                setattr(record, key, value)
-            return record
-        
-        logging.setLogRecordFactory(record_factory)
+        _install_context_factory()
+        current = _log_context.get() or {}
+        self._token = _log_context.set({**current, **self.extra})
         return self.logger
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
-        logging.setLogRecordFactory(self.old_factory)
+        try:
+            _log_context.reset(self._token)
+        except ValueError:
+            # Left from another context than the one it was entered in.
+            _log_context.set(None)
 
 def log_with_context(logger, **context):
     """Create a context manager that adds extra fields to log records."""
