@@ -8,8 +8,13 @@ const Mixer = {
   // Known stems in STEM_ORDER first, then any other stem the server sent — never drop one.
   orderedNames(stems){
     const present = Object.keys(stems || {}).filter(n => stems[n]);
+    const isMidi = n => /_midi$/.test(n);
     const known = this.STEM_ORDER.filter(n => present.includes(n));
-    return known.concat(present.filter(n => !this.STEM_ORDER.includes(n)).sort());
+    const base = known.concat(present.filter(n => !this.STEM_ORDER.includes(n) && !isMidi(n)).sort());
+    // a MIDI companion track sits right under the stem it doubles
+    const out = [];
+    base.forEach(n => { out.push(n); if(present.includes(n + "_midi")) out.push(n + "_midi"); });
+    return out.concat(present.filter(n => isMidi(n) && !out.includes(n)).sort());
   },
 
   // ── value formatting ──
@@ -56,6 +61,7 @@ const Mixer = {
   },
 
   build(engine, view){
+    if(window.MidiTracks){ MidiTracks.engine = engine; MidiTracks.view = view; }   // stemColor reads roles from it
     const names = this.orderedNames(engine.stems);
     const left = document.getElementById("left-tracks"); left.innerHTML="";
     const lanes = document.getElementById("lanes"); lanes.innerHTML="";
@@ -66,7 +72,7 @@ const Mixer = {
       // left control — name dot uses the stem's colour
       const col = (typeof stemColor==="function") ? stemColor(name) : "#8a93a0";
       const lc=document.createElement("div");
-      lc.className = "lctrl" + (name==="metronome" ? " metro" : "");
+      lc.className = "lctrl" + (name==="metronome" ? " metro" : "") + (/_midi$/.test(name) ? " midi" : "");
       lc.style.height=h+"px";
       // Metronome gets a click-resolution selector (½ / 1 / 2), docked to the
       // right of its name row; the instrument dropdown gets its own row below.
@@ -87,10 +93,19 @@ const Mixer = {
       // dropdown for the recording params (mic source, monitoring, effects) that
       // already exist in StemTube — hence the title hint. The metronome track
       // can't be recorded, so it has no Rec button.
-      const recBtn = (name==="metronome") ? "" :
+      // MIDI companion track: shown as "<stem> MIDI" with a settings button (mode,
+      // instrument) handled by midi.js. It is not a recording target.
+      const isMidi = /_midi$/.test(name);
+      // once its sound was chosen, a MIDI track goes by the name of its instrument
+      const midiInfo = isMidi && view.meta && view.meta.midi && view.meta.midi[name];
+      const midiTitle = (midiInfo && midiInfo.title) || name.replace(/_midi$/,"");
+      const shown = isMidi
+        ? `<span class="midi-name" data-midi-name="${name}" title="${midiTitle} — MIDI track of ${name.replace(/_midi$/,"")}">${midiTitle}</span><span class="midi-tag">MIDI</span><button class="midi-swap" data-midi="${name}" title="Play this MIDI track instead of the audio track (and back)">⇄</button><button class="midi-set" data-midi="${name}" title="MIDI track: mode, instrument, note editing">♪</button>`
+        : name;
+      const recBtn = (name==="metronome" || isMidi) ? "" :
         `<button class="rec" data-act="rec" data-n="${name}" title="Record this track (coming soon: mic source, monitoring & effects)"><span class="dot"></span></button>`;
       lc.innerHTML=`
-        <div class="name"><span class="dot" style="background:${col}"></span>${name}${resRow}</div>
+        <div class="name"><span class="dot" style="background:${col}"></span>${shown}${resRow}</div>
         <div class="ctl-row">
           <span class="btns">
             <button data-act="mute" data-n="${name}" title="Mute">M</button>
@@ -112,6 +127,8 @@ const Mixer = {
       view.setCanvas(name, cv);
     });
     this.syncRowHeights(view);
+    if(window.MidiTracks) MidiTracks.wire(engine, view);
+    if(window.PreMix) PreMix.wire(engine, view);
     // single playhead line spanning timeline + lanes (moved via style.left, no redraw)
     let ph=document.getElementById("playhead-line");
     if(!ph){ ph=document.createElement("div"); ph.id="playhead-line"; }

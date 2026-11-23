@@ -131,8 +131,10 @@ def render_mix(stems_map, tracks, out_path,
             return False
         return bool(t.get("solo")) if any_solo else True
 
+    # Every stem of the map counts: the fine split (kick, snare, organ...) and the
+    # MIDI companion tracks are stems like the six classic ones.
     active = [(n, p) for n, p in stems_map.items()
-              if n in _REAL_STEMS and os.path.exists(p) and audible(n)]
+              if n != "metronome" and os.path.exists(p) and audible(n)]
     if not active and not metro_wav:
         raise ValueError("nothing to export: no audible stems and no metronome")
 

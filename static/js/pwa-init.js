@@ -112,7 +112,9 @@
 
     // The audio ids the engine fetches for this meta (setStems + PreCount.load).
     function audioIdsForMeta(meta) {
-        const stems = Object.keys(meta.stems || {}).filter((n) => meta.stems[n]);
+        // MIDI companion tracks ("<stem>_midi") are a desktop mixer feature: the mobile
+        // engine does not load them (mobile-poc-engine.js), so they are not stored either.
+        const stems = Object.keys(meta.stems || {}).filter((n) => meta.stems[n] && !/_midi$/.test(n));
         const required = stems.slice();
         const optional = [];
         // audio.js only loads metronome variants when the metronome stem exists

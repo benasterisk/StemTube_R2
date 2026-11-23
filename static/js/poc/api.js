@@ -37,6 +37,63 @@ const API = {
       { method: "POST", headers: { "Content-Type": "application/json" },
         credentials: "same-origin", body: JSON.stringify({ instrument }) })).json();
   },
+  // MIDI companion tracks. setMidiTrack renders one track again with another mode
+  // and/or instrument and returns { name, track, tag }; throws with the server message.
+  async setMidiTrack(job, body){
+    const r = await fetch("/api/midi/" + encodeURIComponent(job) + "/track",
+      { method: "POST", headers: { "Content-Type": "application/json" },
+        credentials: "same-origin", body: JSON.stringify(body || {}) });
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok || j.error) throw new Error(j.error || ("HTTP " + r.status));
+    return j;
+  },
+  async midiTracks(job){
+    return (await fetch("/api/midi/" + encodeURIComponent(job) + "/tracks",
+      { credentials: "same-origin" })).json();
+  },
+  // keep=true: measure and render the tracks again but keep their notes, modes and sounds.
+  async generateMidi(job, keep){
+    return this._post("/api/midi/" + encodeURIComponent(job) + "/generate", { keep: !!keep });
+  },
+  // Notes a MIDI track currently plays: { mode, drums, rev, notes:[[start,end,pitch,vel]] }.
+  async midiNotes(job, name){
+    const r = await fetch("/api/midi/" + encodeURIComponent(job) + "/notes/" + encodeURIComponent(name),
+      { credentials: "same-origin", cache: "no-store" });
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok || j.error) throw new Error(j.error || ("HTTP " + r.status));
+    return j;
+  },
+  // Replace the notes of a MIDI track (editor); the server renders it again.
+  async saveMidiNotes(job, name, notes){
+    return this._post("/api/midi/" + encodeURIComponent(job) + "/notes", { stem: name, notes });
+  },
+  // Straighten the song into a copy (regular grid, quantized MIDI, warped audio).
+  async retime(job, body){
+    return this._post("/api/retime/" + encodeURIComponent(job), body || {});
+  },
+  async retimeStatus(job){
+    return (await fetch("/api/retime/" + encodeURIComponent(job) + "/status",
+      { credentials: "same-origin", cache: "no-store" })).json();
+  },
+  // Pre-mix: the tracks that currently play, cleaned and balanced in a style, as a
+  // new song with independent stems. tracks = { name: { muted, solo } }.
+  async automixStyles(){
+    return (await fetch("/api/automix/styles", { credentials: "same-origin" })).json();
+  },
+  async premix(job, body){
+    return this._post("/api/automix/premix/" + encodeURIComponent(job), body || {});
+  },
+  async premixStatus(job){
+    return (await fetch("/api/automix/premix/" + encodeURIComponent(job) + "/status",
+      { credentials: "same-origin", cache: "no-store" })).json();
+  },
+  async _post(url, body){
+    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
+      credentials: "same-origin", body: JSON.stringify(body || {}) });
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok || j.error) throw new Error(j.error || ("HTTP " + r.status));
+    return j;
+  },
   // Export the current mix server-side. The server renders the file, drops a copy
   // in the user's Downloads folder, and returns {download_url, filename, saved_to}.
   // The caller triggers the actual browser download by navigating to download_url

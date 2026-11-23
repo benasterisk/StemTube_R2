@@ -125,6 +125,9 @@ Central anti-circular-dependency hub — all blueprints import from here. Contai
 | `logging_bp` | `routes/logging_routes.py` | Browser log collection, log viewing |
 | `jam_bp` | `routes/jam.py` | Jam HTTP routes + SocketIO events |
 | `recordings_bp` | `routes/recordings.py` | Recording CRUD (upload, list, rename, delete) |
+| `automix_bp` | `routes/automix.py` | Auto remix and pre-mix jobs |
+| `midi_bp` | `routes/midi.py` | MIDI companion tracks (settings, notes, generation, `.mid` files) |
+| `retime_bp` | `routes/retime.py` | Quantize: retimed copy of a song |
 | `mobile_bp` | `mobile_routes.py` (project root) | Mobile API config/toggle |
 
 ## Key Frontend Modules (`static/js/`)
@@ -157,6 +160,44 @@ Lyrics in the chord views are a `.lyrics-lane` (words absolutely positioned by t
 Still loaded from the older `static/js/mixer/`: `stage-window.js`, `chord-display.js` (Simple / Detailed chord names: `setChords` / `applyChordDetail`, per-browser `localStorage` key `stemtube_chord_detail`, default simple; the Chords tab header also has the `#regenerateChordsBtn` Reanalyze button; mobile equivalent `#mobileChordDetailBtn` + `setChordList` in `mobile-app.js`; the stage window mirrors chord-display), `structure-display.js` (shows the sections from `EXTRACTION_INFO.structure_data`), `karaoke-display.js`, `lyrics-popup.js`, `recording-effects.js`, `recording-engine.js`. The other ~20 files there (`core.js`, `audio-engine.js`, `waveform.js`, `timeline.js`, `track-controls.js`, `soundtouch-engine.js`, the `mobile-*-fix.js` series…) are **orphaned** — loaded by no template.
 
 **Jam session:** `jam-bridge.js` (host transport wrapper on the POC engine), `jam-client.js` (shared WebSocket client), `jam-tab.js` (desktop UI). `jam-metronome.js` is orphaned (loaded by no template): guests use the POC engine instead.
+
+## Auto remix, MIDI companion tracks, quantize
+
+Ported from the desktop edition; desktop library and desktop mixer only (the mobile UI
+does not offer them).
+
+| Path | Purpose |
+|------|---------|
+| `core/automix/engine.py` | `remix(stem_paths, out_dir, style, dereverb=None, ...)`: cleaning, per-stem tone and dynamics, style balance, stereo, master; writes stems that sum to the mix. `dsp.py` holds the numpy/scipy blocks, `styles.py` the eight styles and the stem-name to family map, `neutral_reference.json` the target spectra |
+| `core/automix/job.py` | Duplicates a library song for ONE user: new `video_id` (`autoremix_...`), so a new `global_downloads` row plus the `user_downloads` row of the user who asked; folder named after the new title, analysis columns copied (`analysis_select()`: shared value first, the user's own `metronome_offset_ms` first), the source's `drums_full` copied so the mixer's beat snapping matches, MIDI tracks carried over |
+| `core/automix/gate.py` | `heavy_job()`: one auto remix / pre-mix / retime / MIDI generation at a time server-wide |
+| `core/automix/dereverb.py` | Optional vocal de-reverb (anvuew `dereverb_room`, GPL-3.0 weights downloaded to `core/models/dereverb/`), reuses `core.msst` |
+| `routes/automix.py`, `static/js/app-automix.js` | `/api/automix` (+ `/styles`, `/status/<id>`, `/premix/<extraction_id>`), Socket.IO `automix_progress/complete/error`, `premix_complete`, wand button and dialog in the library; job states keyed by user |
+| `core/midi/transcribe.py` | Stem to notes: `basic_pitch.py` (ONNX port of Spotify Basic Pitch) for pitched stems, attack detection for drums |
+| `core/midi/simplify.py` | "Simplified" mode: block chords from the song's `chords_data` and beat grid |
+| `core/midi/synths.py` | numba synth engines: analog, fm, wavetable, pluck, organ, drum machine. `soundfont.py` plays GeneralUser GS through tinysoundfont (bank downloaded to `core/models/soundfonts/`). `instruments.py` is the per-stem catalogue (English labels; `slug()` turns a label into the stem name of a pre-mix) |
+| `core/midi/tracks.py` | The sidecar `<stems_dir>/midi/` (`tracks.json`, `<stem>.mid`, `<stem>.simple.mid`, `<stem>.mp3`, `song.mid`): `build` (`keep_notes=True` renders again without transcribing), `build_for_video`, `update`, `notes_of`, `set_notes`, `describe`, `carry_over` |
+| `core/midi/seat.py` | Seats a render in the mix: `bleed_shares`, `targets` (level from a mix model, not from the stem), `process` (family EQ + room), `finish` (level, limiter), `even_velocities` |
+| `routes/midi.py`, `static/js/poc/midi.js`, `midi-editor.js` | `/api/midi/<extraction_id>/tracks|track|notes|generate|file/<name>`; lanes as piano rolls, per-track popover, swap button, presets, piano-roll editor |
+| `static/js/poc/premix.js` | Pre-mix dialog of the mixer toolbar (`/api/automix/premix/<extraction_id>`) |
+| `core/retime/warp.py` | `beat_map` (recording time to a regular grid), `splice_plan` + `warp` (WSOLA, same splice points for every stem), `map_notes`, `map_times` |
+| `core/retime/job.py`, `routes/retime.py` | `/api/retime/<extraction_id>`: the "(Retimed)" copy of a song (warped stems, pre-rendered `metronome_*.wav` next to the stems so the mixer does not snap the grid back on the drums, MIDI carried over through `carry_over(notes_map=...)`, timed analysis columns moved) |
+
+MIDI tracks are named `<stem>_midi` in the mixer only: they are added to the meta
+payload on every request (`routes/poc_mixer.py: _overlay_song_extras`, called by
+`meta`), never to `stems_paths`, never to the cached `meta.json` and never to the mixer
+cache signature. Anything iterating `stems_paths` therefore never sees them.
+
+Multi-user rules of this feature set:
+- The sidecar sits next to the stems, so it is shared by every user of the song, like
+  the stems, the chords and the lyrics: an instrument change or a note edit by one user
+  is what all of them get. Access goes through `_resolve_context(user_id, extraction_id)`
+  like every mixer route.
+- A remix, pre-mix or retimed copy is a new song owned by the user who asked (it then
+  shows in the shared library like any other song).
+- The mobile mixer, the offline download (`pwa-init.js`) and jam guests do not load the
+  `<stem>_midi` tracks: `mobile-poc-engine.js` and `pwa-init.js` filter the names, and
+  jam guests read the host's cached `meta.json`, which never contains them.
 
 ## Configuration
 

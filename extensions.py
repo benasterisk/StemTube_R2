@@ -708,6 +708,21 @@ class UserSessionManager:
                 except Exception as chords_error:
                     logger.warning(f"[CHORDS] Chord detection error (non-fatal): {chords_error}")
 
+                # MIDI companion tracks: every stem transcribed to notes and rendered by
+                # a synth, next to the stems (non-fatal, can be switched off in the config).
+                try:
+                    if get_setting("enable_midi_tracks", True):
+                        socketio.emit('extraction_progress', {
+                            'extraction_id': item_id, 'progress': 97,
+                            'message': 'Creating MIDI tracks...', 'video_id': video_id
+                        }, room=_room)
+                        from core.midi import tracks as midi_tracks
+                        midi_state = midi_tracks.build_for_video(video_id, item.output_paths)
+                        if midi_state:
+                            logger.info(f"[MIDI] {len(midi_state['tracks'])} companion tracks created")
+                except Exception as midi_error:
+                    logger.warning(f"[MIDI] MIDI tracks skipped (non-fatal): {midi_error}")
+
                 # PRE-BUILD THE MIXER ARTIFACTS (metronome WAVs, waveform peaks, meta.json)
                 # so the first mixer open is a cache hit instead of a ~1 min wait. Runs last
                 # on purpose: it reuses the beats detected just above instead of re-running

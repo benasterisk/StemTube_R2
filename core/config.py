@@ -84,6 +84,9 @@ DEFAULT_SETTINGS = {
     "auto_check_updates": True,
     "extraction_timeout_minutes": 30,
     "extraction_progress_timeout_minutes": 5,
+    # MIDI companion tracks: every stem transcribed and rendered by an instrument
+    # at the end of an extraction (core/midi)
+    "enable_midi_tracks": True,
     # Silent stem detection settings
     "enable_silent_stem_detection": True,  # Enable intelligent filtering of silent/empty stems
     "silent_stem_threshold_db": -40.0,     # dB threshold for silence detection

@@ -18,6 +18,9 @@ from .logging_routes import logging_bp
 from .jam import jam_bp, register_jam_socketio_events
 from .recordings import recordings_bp
 from .poc_mixer import poc_mixer_bp
+from .automix import automix_bp
+from .midi import midi_bp
+from .retime import retime_bp
 
 ALL_BLUEPRINTS = [
     auth_bp,
@@ -34,6 +37,9 @@ ALL_BLUEPRINTS = [
     jam_bp,
     recordings_bp,
     poc_mixer_bp,
+    automix_bp,
+    midi_bp,
+    retime_bp,
 ]
 
 

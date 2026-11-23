@@ -1013,6 +1013,8 @@ function addReextractButton(mixerButton) {
         if (currentExtractionItem) currentExtractionItem.force_reextract = true;
     });
     mixerButton.insertAdjacentElement('afterend', btn);
+    // Auto remix button (app-automix.js), right after the re-extract one.
+    if (typeof addAutoRemixButton === 'function') addAutoRemixButton(mixerButton);
 }
 
 // Update extract button based on extraction status

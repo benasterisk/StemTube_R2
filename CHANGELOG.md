@@ -58,6 +58,95 @@ the commits that carry the change.
   (mostly iOS; WebM/Opus, MP4/AAC, Ogg) to 16-bit PCM WAV with ffmpeg, the fallback
   `recording-utils.js` already called. Errors: 400, 413 (64 MB upload / 512 MB WAV),
   415, 422, 504.
+- **Auto remix** (`core/automix/`, wand button next to "Open Mixer" on the desktop UI;
+  ported from the desktop edition). Turns the stems of a song — typically a rehearsal
+  recorded on a phone — into a new library entry with cleaned, balanced stems in a chosen
+  mixing style (pop, rock, metal, soul/funk, jazz, acoustic/folk, reggae, blues). The
+  source song is left untouched; the copy inherits its tempo, key, beat grid, chords and
+  lyrics, and its stems add up to the finished mix at unity gain, so the mixer opens on
+  the style and every fader, the tempo and the pitch still work on top.
+  Chain: empty stems dropped, bleed pushed down where another stem owns the sound,
+  misfiled sparse harmonic passages given back to the main instrument, corrective EQ
+  toward a neutral instrument spectrum (`neutral_reference.json`, medians measured on
+  studio recordings), style tone and balance, compression or drum attack lift, stereo
+  image, reverb, then a master stage (tonal balance, glue, -14 LUFS, limiter) applied to
+  every stem. numpy/scipy only. Optional: the lead vocal can be dried of its room with
+  anvuew's `dereverb_room` BS-Roformer model (GPL-3.0, ~118 MB, downloaded on first use
+  into `core/models/dereverb/`, never shipped).
+  The copy is a song of its own (`video_id` `autoremix_...`) added to the library of the
+  user who asked for it, and of that user only. `POST /api/automix`,
+  `GET /api/automix/styles`, `GET /api/automix/status/<download_id>`, Socket.IO
+  `automix_progress` / `automix_complete` / `automix_error` in the user's room.
+- **MIDI companion tracks** (`core/midi/`, desktop mixer). After the chords, the
+  extraction transcribes every stem to notes and renders a companion track with an
+  instrument: it shows in the mixer right under its stem as "<stem> MIDI", muted by default.
+  - Transcription: Spotify's Basic Pitch model (Apache-2.0) through onnxruntime, ported in
+    `core/midi/basic_pitch.py` with its 230 KB model file — no TensorFlow. Drum pieces are
+    read from their attacks (kick, snare, three tom sizes, closed/open hat, crash); a
+    whole kit is split by frequency band.
+  - Two modes on the stems that play chords or arpeggios: **Normal** (every note) and
+    **Simplified** (one block chord per chord change and per bar, from the chords already
+    detected for the song, only where the instrument plays).
+  - Sound chosen per track from the ♪ button: sampled General MIDI instruments and drum
+    kits (TinySoundFont + GeneralUser GS, ~31 MB, downloaded on first use into
+    `core/models/soundfonts/`) and six built-in synth engines compiled with numba —
+    virtual analog (band-limited oscillators, resonant ladder filter), FM, wavetable,
+    plucked string physical model (with an amp stage for the overdriven guitar),
+    tonewheel organ, and an analog drum machine (808/909 voices). Changing a setting
+    renders that one track again and reloads only its audio.
+  - `.mid` files per stem and for the whole song (toolbar ♪ button), carrying the song
+    tempo. The same button creates the tracks of a song extracted earlier.
+  - The tracks live in a sidecar folder (`<stems>/midi/`), not in the database, and are
+    added to `GET /poc-mixer/meta/<id>` on every request (`stems["<stem>_midi"]`, `midi`).
+    Like the stems, the chords and the lyrics they belong to the song: every user who has
+    the song gets the same tracks, and an instrument change or a note edit is seen by all
+    of them. They take part in the mix-down export and follow their stem into an auto
+    remix copy (same notes, mode and sound, levelled on the remixed stem).
+  - `enable_midi_tracks` in the config switches the extraction step off.
+  - **Seated in the mix** (`core/midi/seat.py`). A track is not levelled on the stem it
+    doubles, which is wrong whenever that stem is not clean (on a rehearsal the toms stem
+    read louder than the snare). Kit pieces follow the standard kit balance of the auto
+    remix, anchored on the recorded drums as a whole; a pitched track takes the level of
+    its stem minus the share of that stem that is bleed. Each render then gets a
+    corrective EQ toward the neutral spectrum of its instrument family, the tone of the
+    style when the song is a remix, a room, and a limiter; velocities are evened out on
+    the notes.
+  - **Notes shown and editable.** The lane of a MIDI track is a piano roll. A docked
+    editor (`static/js/poc/midi-editor.js`, double-click the lane or the track's menu)
+    moves, stretches, draws, deletes and quantizes notes on the song's own beat grid,
+    with velocity and undo; an edit is rendered about a second after the last change and
+    only that track is reloaded.
+  - **Presets and swap.** The toolbar menu sets which tracks play as audio and which as
+    MIDI (audio only, MIDI + vocals, MIDI drums + audio, vocals + MIDI on the stems that
+    are mostly bleed, audio doubled by MIDI); the swap button of a track plays its MIDI
+    instead of its audio.
+  - **A MIDI track goes by the name of its instrument** once its sound was chosen (mixer
+    row, popover, editor), instead of the name of the stem it doubles.
+  - Routes: `/api/midi/<extraction_id>/tracks`, `/track`, `/notes`, `/notes/<stem>`,
+    `/generate`, `/file/<name>` (`routes/midi.py`).
+  - Mobile: the mobile mixer, the offline download and jam guests ignore the MIDI tracks
+    (`mobile-poc-engine.js` and `pwa-init.js` skip the `<stem>_midi` names).
+- **Pre-mix from the mixer** (toolbar button, `static/js/poc/premix.js`,
+  `POST /api/automix/premix/<extraction_id>`). Redoes the mix of the tracks that
+  currently play (mute, solo, a MIDI track standing in for its audio stem) in a chosen
+  style, as a new song with independent stems: same cleaning, shaping, balance and
+  placement as the auto remix, without the master stage (one plain gain to -18 LUFS for
+  every stem). A MIDI track standing in for its silent stem with its default sound takes
+  the name of that stem; one whose sound was chosen, or that plays next to its audio
+  stem, stays a separate stem named after its instrument (`string_ensemble`), mixed as
+  the stem it plays the part of and given its own MIDI track (`role` in the sidecar).
+- **Quantize the song** (`core/retime/`, MIDI menu of the mixer,
+  `POST /api/retime/<extraction_id>`). Creates a "(Retimed)" copy on a regular beat grid
+  at the average tempo of the song: every audio stem is time-warped along the same map
+  (WSOLA with shared splice points, so the stems stay aligned and the voice follows), the
+  MIDI notes are moved with it and pulled onto the chosen grid, and beats, chords, lyrics
+  and structure are moved too. "Every beat" puts each beat of the drummer on the grid,
+  "tempo only" keeps the feel inside the bar. Measured on a rehearsal: kick hits from
+  64 ms to 10 ms median distance to the grid. A source that has no MIDI tracks yet gets
+  them first; MIDI tracks created later on a retimed copy are pulled onto its grid as well.
+- **One heavy job at a time** (`core/automix/gate.py`): auto remix, pre-mix, quantize and
+  the (re)creation of MIDI tracks from the mixer are queued server-wide, whoever asked;
+  a waiting job reports "Waiting for another job to finish". Job states are kept per user.
 
 ### Changed
 - **Mobile library rows**: one look for every action (Play, Mix, Offline, Files,
@@ -140,6 +229,17 @@ the commits that carry the change.
 - The metronome track starts muted.
 
 ### Fixed
+- **Faint but real stems were dropped from the mixer.** The silent-stem test compared
+  each stem with a fixed -40 dB level: on a dull recording the cymbals stem, which held
+  nearly all the treble at -46 dBFS, was judged empty. Stems left out by that test now
+  get a second opinion relative to the song (`_rescue_quiet_stems` in
+  `core/stems_extractor.py`): they come back when their level is within 30 dB of the
+  song, or when they carry at least a quarter of one octave band.
+- **Mix-down export left out the fine stems.** `core/poc/export_mix.py` only mixed the
+  six classic stem names, so kick, snare, organ... of a 17-stem song were silently
+  missing from exports. Every stem of the song is mixed now.
+- **The audio context is started by the first click or key press** in the mixer
+  (`AudioEngine._wake()`), not only by Play; loading never waits for it.
 - **"F major" on almost every song**: the download-time key chroma was built from the tempo STFT
   (2048-point window at 44.1 kHz = 21.5 Hz bins, all multiples of a low F and wider than a
   semitone below 370 Hz) and the key was "loudest pitch class + compare triads". It now uses a

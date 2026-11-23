@@ -1,0 +1,10 @@
+Third-party material in this folder
+
+basic_pitch_nmp.onnx and the note-creation algorithm ported in basic_pitch.py
+come from Basic Pitch, https://github.com/spotify/basic-pitch
+Copyright 2022 Spotify AB. Licensed under the Apache License, Version 2.0
+(http://www.apache.org/licenses/LICENSE-2.0).
+
+Not shipped, downloaded on first use:
+- GeneralUser GS SoundFont by S. Christian Collins,
+  https://github.com/mrbumpy409/GeneralUser-GS (see its documentation/LICENSE.txt)

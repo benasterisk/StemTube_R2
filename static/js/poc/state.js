@@ -120,5 +120,7 @@ const SessionState = {
     document.querySelectorAll("#left-tracks .metrores button[data-res]").forEach(b=>{
       b.classList.toggle("on", b.dataset.res===cur);
     });
+    // the "MIDI instead of audio" buttons are derived from the mutes just restored
+    if(window.MidiTracks && MidiTracks.engine) MidiTracks.refreshSwapButtons();
   },
 };

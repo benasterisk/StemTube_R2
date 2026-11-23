@@ -59,8 +59,11 @@
         'bass', 'vocals', 'backing_vocals', 'other', 'guitar', 'electric_guitar',
         'acoustic_guitar', 'piano', 'organ', 'synth', 'brass', 'winds', 'strings'];
     // Known stems first, then any other stem the server sent — never drop one.
+    // Except the MIDI companion tracks ("<stem>_midi") of the desktop mixer: the mobile
+    // UI has no controls for them, and loading them would double the download and the
+    // decoded audio held in memory.
     const orderedNames = (stems) => {
-        const present = Object.keys(stems || {}).filter(n => stems[n]);
+        const present = Object.keys(stems || {}).filter(n => stems[n] && !/_midi$/.test(n));
         return STEM_ORDER.filter(n => present.includes(n))
             .concat(present.filter(n => !STEM_ORDER.includes(n)).sort());
     };

@@ -42,6 +42,11 @@ static/js/datas/
 core/models/msst/
 utils/testing/mvsep_mega_out/
 
+# SoundFont bank of the MIDI companion tracks and vocal de-reverb weights of the auto
+# remix, both downloaded on first use
+core/models/soundfonts/
+core/models/dereverb/
+
 # OS files
 .DS_Store
 Thumbs.db

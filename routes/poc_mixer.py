@@ -774,11 +774,37 @@ def progress(extraction_id):
         return jsonify({"stage": "unknown", "pct": 0, "done": False, "error": None})
 
 
+def _overlay_song_extras(payload, stems_dir, extraction_id):
+    """Add what lives next to the stems and is not part of the cached meta.json.
+
+    MIDI companion tracks live in a sidecar next to the stems (shared by every user
+    of the song, like the stems themselves) and are not part of the cache signature:
+    they are added on every request, so a track rendered again (other sound, other
+    mode) shows up at once. They appear as extra stems named "<stem>_midi" and are
+    described under "midi". "mix_style" is the mixing style of an auto remix /
+    pre-mix copy (default of the pre-mix dialog). Never raises.
+    """
+    try:
+        from core.midi import tracks as midi_tracks
+        files = midi_tracks.track_files(stems_dir)
+        info = {n: i for n, i in midi_tracks.describe(stems_dir).items() if n in files}
+        for name in info:
+            payload.setdefault("stems", {})[name] = f"stems/{name}"
+        payload["midi"] = info
+    except Exception as e:
+        logger.warning(f"[poc-mixer] MIDI tracks unavailable for {extraction_id}: {e}")
+    try:
+        with open(os.path.join(os.path.dirname(stems_dir), "auto_remix.json"), encoding="utf-8") as f:
+            payload["mix_style"] = json.load(f).get("style")
+    except (OSError, ValueError, AttributeError):
+        pass
+
+
 @poc_mixer_bp.route('/poc-mixer/meta/<path:extraction_id>', methods=['GET'])
 @api_login_required
 def meta(extraction_id):
     try:
-        row, _stems_map, _stems_dir = _resolve_context(current_user.id, extraction_id)
+        row, _stems_map, stems_dir = _resolve_context(current_user.id, extraction_id)
     except ValueError as e:
         return jsonify({"error": str(e)}), 404
     cache = _user_cache_dir(current_user.id, row['id'])
@@ -796,6 +822,7 @@ def meta(extraction_id):
         key, key_tonic, key_mode = _db_key(row)
         cached.update(chords=_db_chords(row), key=key, key_tonic=key_tonic, key_mode=key_mode,
                       key_confidence=row.get('analysis_confidence') or 0.0)
+        _overlay_song_extras(cached, stems_dir, extraction_id)
         payload = json.dumps(cached)
     except (json.JSONDecodeError, TypeError):
         pass
@@ -877,6 +904,12 @@ def _resolve_stem_file(user_id, extraction_id, stem):
         cpath = os.path.join(cache, "stems", cfn)
         return cpath if os.path.exists(cpath) else None
 
+    # a MIDI companion track ("<stem>_midi"), rendered in the sidecar folder
+    if stem.endswith("_midi"):
+        from core.midi import tracks as midi_tracks
+        p = midi_tracks.track_files(stems_dir).get(stem)
+        return p if p and _is_path_allowed(os.path.abspath(p)) else None
+
     # a real stem
     p = stems_map.get(stem)
     if p and os.path.exists(p) and _is_path_allowed(os.path.abspath(p)):
@@ -909,6 +942,10 @@ def audio(extraction_id, stem):
     #    pulled ~60 MB of mostly silence through the tunnel again.
     # conditional=True already sends ETag/Last-Modified, so unchanged files cost one 304.
     resp.headers['Cache-Control'] = 'no-cache'
+    # A MIDI companion track is rendered again under the same URL whenever its sound,
+    # mode or notes change: never stored (the mixer refetches it with a cache-buster).
+    if stem.endswith("_midi"):
+        resp.headers['Cache-Control'] = 'no-store'
     return resp
 
 
@@ -1088,7 +1125,7 @@ def export(extraction_id):
     from core.poc import export_mix as M_export
     from core.poc import precount as M_precount
     try:
-        row, stems_map, _stems_dir = _resolve_context(current_user.id, extraction_id)
+        row, stems_map, stems_dir = _resolve_context(current_user.id, extraction_id)
     except ValueError as e:
         return jsonify({"error": str(e)}), 404
 
@@ -1126,9 +1163,19 @@ def export(extraction_id):
     start_time = _opt_float(body.get("start_time"))
     fmt = "wav" if str(body.get("format")).lower() == "wav" else "mp3"
 
-    # sanitize tracks: keep only this song's real stems with numeric controls
-    tracks = {}
-    for name in _real_stem_names(stems_map):
+    # sanitize tracks: keep only this song's real stems with numeric controls.
+    # MIDI companion tracks take part in the mix-down like any stem; one the
+    # client did not mention stays out (they are muted by default).
+    midi_files = {}
+    try:
+        from core.midi import tracks as midi_tracks
+        midi_files = {n: p for n, p in midi_tracks.track_files(stems_dir).items()
+                      if _is_path_allowed(os.path.abspath(p))}
+    except Exception as e:
+        logger.warning(f"[poc-mixer] MIDI tracks left out of the export: {e}")
+    export_map = dict(stems_map, **midi_files)
+    tracks = {n: {"vol": 1.0, "pan": 0.0, "muted": True, "solo": False} for n in midi_files}
+    for name in _real_stem_names(stems_map) + list(midi_files):
         t = raw_tracks.get(name)
         if not isinstance(t, dict):
             continue
@@ -1205,7 +1252,7 @@ def export(extraction_id):
                 "metronome" if res == "1" else f"metronome_{res}")
 
         written = M_export.render_mix(
-            stems_map, tracks, out_base,
+            export_map, tracks, out_base,
             metro_wav=metro_wav, lead_silence=lead_silence, first_offset=first_offset,
             metro_gain=metro_gain, lead_pad=lead_pad,
             sr=int(meta.get("sr") or 44100), fmt=fmt,

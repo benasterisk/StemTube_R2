@@ -332,6 +332,67 @@
     font-weight:600; white-space:nowrap; transform:translate(-50%,-115%);
     box-shadow:0 3px 12px rgba(0,0,0,.5); }
   /* metronome click-resolution selector (½ / 1 / 2) — compact, inline on the name row */
+  /* MIDI companion tracks */
+  .lctrl.midi { background:linear-gradient(90deg, rgba(127,127,127,.10), transparent 70%); }
+  .lctrl .name .midi-tag { font-size:9px; font-weight:700; letter-spacing:.5px; padding:1px 5px; border-radius:8px;
+    border:1px solid var(--line); color:var(--muted, #9aa3ad); text-transform:none; }
+  .lctrl .name .midi-set, .lctrl .name .midi-swap { padding:0 7px; height:18px; font-size:12px; line-height:1;
+    border:1px solid var(--line); border-radius:4px; background:transparent; color:var(--text); cursor:pointer; }
+  /* a long stem name gives way (ellipsis) so the two buttons always stay in the column */
+  .lctrl .name .midi-name { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lctrl .name .midi-tag, .lctrl .name .midi-set, .lctrl .name .midi-swap { flex:0 0 auto; }
+  .lctrl.midi .name { gap:5px; min-width:0; }
+  .lctrl .name .midi-swap { margin-left:auto; }
+  .lctrl .name .midi-set { margin-left:0; }
+  .lctrl .name .midi-set:hover, .lctrl .name .midi-swap:hover { border-color:var(--accent); }
+  .lctrl .name .midi-swap.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .midi-pop { position:fixed; z-index:80; min-width:250px; max-width:320px; display:flex; flex-direction:column; gap:6px;
+    padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--panel, var(--bg));
+    color:var(--text); box-shadow:0 8px 24px rgba(0,0,0,.35); font-size:12px; }
+  .midi-pop-title { font-size:12px; font-weight:700; text-transform:capitalize; }
+  .midi-pop-lab { font-size:11px; opacity:.75; }
+  .midi-pop-modes { display:flex; gap:4px; }
+  .midi-pop-modes button, .midi-pop-gen { flex:1; padding:4px 8px; font-size:12px; border:1px solid var(--line);
+    border-radius:4px; background:transparent; color:var(--text); cursor:pointer; }
+  .midi-pop-modes button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .midi-pop select { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:4px;
+    padding:4px 6px; font-size:12px; }
+  .midi-pop-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .midi-pop-dl { color:var(--accent); text-decoration:none; font-size:11px; }
+  .midi-pop-dl:hover { text-decoration:underline; }
+  .midi-pop-status { font-size:11px; opacity:.8; }
+  .midi-pop-row { display:flex; gap:4px; }
+  .midi-pop-row button { flex:1; padding:4px 6px; font-size:12px; border:1px solid var(--line); border-radius:4px;
+    background:transparent; color:var(--text); cursor:pointer; }
+  .midi-pop-row button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .midi-menu { max-width:360px; max-height:calc(100vh - 20px); overflow:auto; }
+  .midi-presets { display:flex; flex-direction:column; gap:4px; }
+  .midi-presets button { text-align:left; padding:5px 8px; font-size:12px; border:1px solid var(--line);
+    border-radius:4px; background:transparent; color:var(--text); cursor:pointer; }
+  .midi-presets button:hover { border-color:var(--accent); }
+  .midi-pop-sep { height:1px; background:var(--line); margin:4px 0; }
+  .midi-q { display:flex; flex-direction:column; gap:4px; }
+  .midi-q label { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:11px; }
+  .midi-q select { max-width:200px; }
+  /* piano-roll editor */
+  #midiEditor { position:fixed; left:0; right:0; bottom:0; height:44vh; display:none; flex-direction:column; z-index:75;
+    background:var(--panel, var(--bg)); border-top:2px solid var(--accent); outline:none;
+    box-shadow:0 -8px 24px rgba(0,0,0,.35); }
+  #midiEditor.big { height:78vh; }
+  .me-bar { display:flex; align-items:center; gap:6px; padding:5px 10px; border-bottom:1px solid var(--line);
+    flex-wrap:wrap; font-size:12px; }
+  .me-bar button { padding:3px 8px; font-size:12px; }
+  .me-bar button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .me-bar select { padding:3px 6px; font-size:12px; }
+  .me-bar label { display:inline-flex; align-items:center; gap:4px; }
+  .me-bar .me-vel { width:90px; }
+  .me-bar .me-title { text-transform:capitalize; }
+  .me-bar .me-sep { width:1px; height:18px; background:var(--line); }
+  .me-bar .me-status { margin-left:auto; opacity:.8; font-size:11px; }
+  .me-body { position:relative; flex:1; min-height:0; overflow:hidden; }
+  .me-body canvas { position:absolute; left:0; top:0; width:100%; height:100%; }
+  .me-playhead { position:absolute; top:0; bottom:0; width:1px; background:#fff; pointer-events:none; display:none; }
+  body.midi-editing #rightpane, body.midi-editing #leftcol { padding-bottom:44vh; }
   .metrores { display:inline-flex; gap:3px; }
   .metrores button { padding:1px 6px; height:18px; font-size:10px; font-weight:600; line-height:1;
     font-variant-numeric:tabular-nums; border-radius:5px; background:var(--bg-tertiary);
@@ -722,6 +783,8 @@
     <span class="sep"></span>
 
     <!-- Export (placeholder, wired later) -->
+    <button id="premixBtn" disabled title="Pre-mix: mixes the tracks that are playing (mute, solo, MIDI instead of audio) again, into a copy with independent tracks"><span class="ico">🎚</span></button>
+    <button id="midiBtn" disabled title="MIDI tracks: download the MIDI of the song, create or rebuild the tracks"><span class="ico">♪</span></button>
     <button id="exportBtn" disabled title="Export mix (tracks + metronome with count-in / start / stop)"><span class="ico">⤓</span></button>
   </div>
 </div>
@@ -860,6 +923,9 @@
 <script src="{{ url_for('static', filename='js/poc/audio.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/poc/state.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/poc/timeline.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/poc/midi.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/poc/midi-editor.js') }}?v={{ cache_buster }}"></script>
+<script src="{{ url_for('static', filename='js/poc/premix.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/poc/mixer.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/poc/tempo.js') }}?v={{ cache_buster }}"></script>
 <script src="{{ url_for('static', filename='js/poc/precount.js') }}?v={{ cache_buster }}"></script>

@@ -25,7 +25,16 @@ const STEM_COLORS = {
   winds:           "#a3e635",
   strings:         "#60a5fa",
 };
-function stemColor(name){ return STEM_COLORS[name] || "#8a93a0"; }
+// A MIDI companion track ("<stem>_midi") takes the colour of the stem it doubles.
+// A stem named after an instrument (a MIDI track written out by a pre-mix) takes the
+// colour of the stem it plays the part of, which its own MIDI track remembers.
+function stemColor(name){
+  const base = String(name).replace(/_midi$/, "");
+  if(STEM_COLORS[name] || STEM_COLORS[base]) return STEM_COLORS[name] || STEM_COLORS[base];
+  const midi = window.MidiTracks && MidiTracks.view && MidiTracks.view.meta && MidiTracks.view.meta.midi;
+  const role = midi && midi[base + "_midi"] && midi[base + "_midi"].role;
+  return (role && STEM_COLORS[role]) || "#8a93a0";
+}
 
 const View = {
   pxPerSec: 80,
@@ -141,6 +150,8 @@ const View = {
   // Draw one stem's visible slice straight from the audio buffer (crisp, no cache).
   drawWave(name){
     const s=this.engine.stems[name]; const c=this.canvases[name]; if(!s||!c) return;
+    // a MIDI companion track shows its notes (piano roll) once they are loaded
+    if(window.MidiTracks && MidiTracks.isMidi(name) && MidiTracks.drawLane(this, name, c)) return;
     if(!s.buffer){
       const peaks=this.meta && this.meta.waveforms && this.meta.waveforms[name];
       if(peaks && peaks.min && peaks.min.length) this.drawWaveFromPeaks(name, peaks, c);

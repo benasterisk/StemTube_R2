@@ -166,6 +166,93 @@ class StemsExtractor:
             # If analysis fails, assume content is meaningful to be safe
             return True
     
+    def _rescue_quiet_stems(self, output_dir: str, stems: List[str], kept: Dict[str, str],
+                            floor_lu: float = -30.0, min_active: float = 0.02,
+                            band_share: float = 0.25) -> Dict[str, str]:
+        """Second opinion on the stems the absolute silence test left out.
+
+        That test compares each stem with a fixed level. A stem can sit under it and
+        still be real content: the cymbals of a rehearsal taped on a phone hold nearly
+        all of its treble at -46 dBFS. Here each left-out stem is judged against the
+        song itself. It comes back when it sounds during more than ``min_active`` of
+        the song and either
+        - its gated level is within ``floor_lu`` of the sum of all stems, or
+        - it holds at least ``band_share`` of the song's energy in one octave band
+          that matters (a band within 45 dB of the whole song): however faint, a
+          stem that carries a region of the spectrum is part of the music.
+        Truly empty stems (a brass stem on a song without brass) stay out.
+
+        Returns {stem: path} for the stems to put back in the mixer.
+        """
+        try:
+            files = {}
+            for stem in stems:
+                for ext in ('mp3', 'wav'):
+                    path = os.path.join(output_dir, f"{stem}.{ext}")
+                    if os.path.exists(path):
+                        files[stem] = path
+                        break
+            if not any(stem not in kept for stem in files):
+                return {}
+
+            sr = 22050
+            win, hop = int(0.4 * sr), int(0.1 * sr)
+
+            def blocks(y):
+                """Mean square of 400 ms blocks, 100 ms apart."""
+                cs = np.concatenate([[0.0], np.cumsum(y.astype(np.float64) ** 2)])
+                starts = np.arange(0, max(1, len(y) - win), hop)
+                return (cs[np.minimum(starts + win, len(y))] - cs[starts]) / win
+
+            def gated(ms):
+                """Level (dB) of the blocks that count, and their share of the song."""
+                db = 10 * np.log10(ms + 1e-12)
+                keep = db > -70
+                if not keep.any():
+                    return -120.0, 0.0
+                keep &= db > 10 * np.log10(ms[keep].mean()) - 10
+                if not keep.any():
+                    return -120.0, 0.0
+                return float(10 * np.log10(ms[keep].mean())), float(keep.mean())
+
+            from scipy.signal import welch
+            edges = np.array([45, 90, 180, 355, 710, 1400, 2800, 5600, 11000], dtype=float)
+
+            def octaves(y):
+                """Energy per octave band."""
+                f, p = welch(y, sr, nperseg=4096)
+                return np.array([p[(f >= lo) & (f < hi)].sum() for lo, hi in zip(edges[:-1], edges[1:])])
+
+            mix = None
+            levels, bands = {}, {}
+            for stem, path in files.items():
+                y, _ = librosa.load(path, sr=sr, mono=True)
+                if mix is None:
+                    mix = np.zeros(len(y), dtype=np.float32)
+                n = min(len(mix), len(y))
+                mix[:n] += y[:n]
+                bands[stem] = octaves(y)
+                if stem not in kept:
+                    levels[stem] = gated(blocks(y))
+            mix_level, _ = gated(blocks(mix))
+            song = sum(bands.values()) + 1e-20
+            matters = song > song.sum() * 10 ** -4.5
+
+            rescued = {}
+            for stem, (level, active) in levels.items():
+                if active <= min_active:
+                    continue
+                share = float((bands[stem] / song)[matters].max()) if matters.any() else 0.0
+                if level - mix_level > floor_lu or share >= band_share:
+                    rescued[stem] = files[stem]
+                    print(f"[+] Stem '{stem}' added to mixer after all: {level - mix_level:.1f} dB "
+                          f"under the song, active {active:.2f}, up to {share:.0%} of an octave band "
+                          f"(faint but real)")
+            return rescued
+        except Exception as e:
+            print(f"Quiet stem check failed, keeping the first verdict: {e}")
+            return {}
+
     def add_extraction(self, item: ExtractionItem) -> str:
         """Add an extraction to the queue.
         
@@ -810,6 +897,13 @@ class StemsExtractor:
                                 # Keep the file on disk for debugging but don't include in mixer
                                 print(f"✗ Stem '{stem}' excluded from mixer (mostly silent/empty)")
                 
+                # Stems the absolute silence test left out get a second opinion, relative
+                # to the song: faint but real content (dull or quiet recordings) comes back.
+                if get_setting("enable_silent_stem_detection", True):
+                    wanted = [st for st in stems_to_process
+                              if not item.selected_stems or st in item.selected_stems]
+                    stem_files.update(self._rescue_quiet_stems(item.output_dir, wanted, stem_files))
+
                 # Split drum kits also ship the full kit: the mixer's beat detection needs
                 # it, but it is not a mixer track so it stays out of stem_files.
                 drums_full = os.path.join(track_dir, "drums_full.mp3")

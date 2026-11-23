@@ -84,6 +84,23 @@ class AudioEngine {
     }
   }
 
+  // Try to start a suspended context, but never wait for it. Browsers keep resume()
+  // pending until the user has clicked or typed in the page (autoplay policy): loading
+  // must not depend on it, or a reloaded page would never fetch a stem. Decoding works
+  // on a suspended context, so loading goes on; the context is started by the first
+  // gesture (see below) or by play().
+  async _wake(){
+    if(!this.ctx || this.ctx.state !== "suspended") return;
+    if(!this._wakeHooked){
+      this._wakeHooked = true;
+      const go = () => { if(this.ctx && this.ctx.state === "suspended") this.ctx.resume().catch(()=>{}); };
+      ["pointerdown","keydown","touchstart"].forEach(ev => window.addEventListener(ev, go, true));
+    }
+    try{
+      await Promise.race([this.ctx.resume(), new Promise(res => setTimeout(res, 200))]);
+    }catch(e){}
+  }
+
   // names: stem names to load. metroResolutions: optional {"0.5":path,"1":path,"2":path}
   // — when present, the metronome stem holds all 3 buffers and can switch live.
   // onReserved() fires once the (empty) tracks exist, so the UI can show the lanes and
@@ -92,13 +109,16 @@ class AudioEngine {
   async setStems(job, names, metroResolutions, onProgress, onReserved){
     this.unload();
     this.ensureCtx();
+    this._wake();
     // Tracks first, audio later: with 17 stems on a remote server the download is minutes,
     // and the mixer used to show nothing at all until the last byte arrived.
     names.forEach(name => {
       this.stems[name] = { name, buffer:null, source:null, soundTouch:null, gain:null,
                            // the click track starts muted; a saved session state (applied
                            // right after loading) still wins if the user unmuted it
-                           panNode:null, muted:(name === "metronome"), solo:false, vol:1, pan:0 };
+                           // MIDI companion tracks ("<stem>_midi") start muted too
+                           panNode:null, muted:(name === "metronome" || /_midi$/.test(name)),
+                           solo:false, vol:1, pan:0 };
     });
     if (onReserved) onReserved();
 
@@ -203,6 +223,22 @@ class AudioEngine {
     const active = this._metroBufFor(sel) || next[sel];
     if(active) m.buffer = active;
     if(this.playing) this._restartMetro();
+  }
+
+  // Reload the audio of ONE stem (a MIDI companion track rendered again with another
+  // sound or mode) and, when playing, restart only that source at the current position.
+  async reloadStem(job, name, tag){
+    const s=this.stems[name]; if(!s) return;
+    const bust = tag ? ("?v="+encodeURIComponent(tag)) : "";
+    const buf = await API.audioBuffer(job, name + bust);
+    s.buffer = await this.ctx.decodeAudioData(buf);
+    if(this.playing){
+      const pos=this.pos();
+      try{ s.source&&s.source.stop(); }catch(e){}
+      try{ s.soundTouch&&s.soundTouch.disconnect(); }catch(e){}
+      s.source=null; s.soundTouch=null;
+      this._startOneSource(s, this.ctx.currentTime+0.03, pos);
+    }
   }
 
   // ── Precount (baked count-in) metronome ──
