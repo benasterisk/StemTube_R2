@@ -2,9 +2,17 @@
 
 The bank is GeneralUser GS by S. Christian Collins (about 31 MB, free to use and
 redistribute, see its licence in the repository below). It is not shipped: it is
-downloaded on first use next to the other model files.
+downloaded on first use next to the other model files (``core.config.MODELS_DIR``,
+which is not tracked by git, so it survives an update of the code).
+
+The player itself (tinysoundfont, a small binary wheel) is installed on first
+need too, without its dependencies: it declares PyAudio, which it only needs to
+play live and which has no Linux wheel, so a plain install fails there.
 """
+import importlib
 import os
+import subprocess
+import sys
 import threading
 import urllib.request
 
@@ -12,10 +20,18 @@ import numpy as np
 
 SR = 44100
 SF_URL = "https://raw.githubusercontent.com/mrbumpy409/GeneralUser-GS/main/GeneralUser-GS.sf2"
-SF_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "soundfonts")
-SF_PATH = os.path.join(SF_DIR, "GeneralUser-GS.sf2")
 SF_MIN_BYTES = 20_000_000
 _lock = threading.Lock()
+_install_tried = False
+
+
+def _sf_path():
+    try:
+        from core.config import MODELS_DIR
+        base = MODELS_DIR
+    except Exception:           # used outside the app (tests, command line)
+        base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
+    return os.path.join(base, "soundfonts", "GeneralUser-GS.sf2")
 
 
 def available():
@@ -27,11 +43,32 @@ def available():
         return False
 
 
+def ensure_player():
+    """available(), after one attempt to install the player when it is missing."""
+    global _install_tried
+    if available():
+        return True
+    with _lock:
+        if _install_tried:
+            return available()
+        _install_tried = True
+        try:
+            kwargs = {"creationflags": 0x08000000} if os.name == "nt" else {}
+            subprocess.run([sys.executable, "-m", "pip", "install", "--no-input", "--no-deps",
+                            "--disable-pip-version-check", "tinysoundfont"],
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300, **kwargs)
+            importlib.invalidate_caches()
+        except Exception:
+            return False
+    return available()
+
+
 def ensure_soundfont():
     with _lock:
+        SF_PATH = _sf_path()
         if os.path.exists(SF_PATH) and os.path.getsize(SF_PATH) > SF_MIN_BYTES:
             return SF_PATH
-        os.makedirs(SF_DIR, exist_ok=True)
+        os.makedirs(os.path.dirname(SF_PATH), exist_ok=True)
         tmp = SF_PATH + ".part"
         req = urllib.request.Request(SF_URL, headers={"User-Agent": "stemtube"})
         with urllib.request.urlopen(req, timeout=60) as r, open(tmp, "wb") as f:
@@ -49,6 +86,8 @@ def ensure_soundfont():
 
 def render(notes, length_s, program=0, drums=False):
     """notes: [(start_s, end_s, pitch, velocity)] -> (2, n) float32."""
+    if not ensure_player():
+        raise RuntimeError("The sampled instruments are not available (tinysoundfont could not be installed)")
     import tinysoundfont
     synth = tinysoundfont.Synth(samplerate=SR, gain=-6)
     sfid = synth.sfload(ensure_soundfont())

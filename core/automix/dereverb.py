@@ -14,8 +14,11 @@ import numpy as np
 REPO_URL = "https://huggingface.co/anvuew/dereverb_room/resolve/main"
 CONFIG_NAME = "dereverb_room_anvuew.yaml"
 CKPT_NAME = "dereverb_room_anvuew_sdr_13.7432.ckpt"
-MODEL_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                         "models", "dereverb")
+try:                                # models directory: not tracked, survives a code update
+    from core.config import MODELS_DIR as _MODELS
+except Exception:                   # used outside the app
+    _MODELS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
+MODEL_DIR = os.path.join(_MODELS, "dereverb")
 
 
 def _download(url, dest):

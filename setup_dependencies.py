@@ -331,7 +331,6 @@ def install_requirements(venv_python):
         "msaf",                 # Music structure analysis
         "pychord",              # Chord notation
         "reportlab",            # Chord chart PDF export
-        "tinysoundfont",        # SoundFont player for the MIDI companion tracks
     ]
 
     # Determine which packages still need installing

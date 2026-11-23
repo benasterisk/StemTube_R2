@@ -191,7 +191,7 @@ def build(stems_paths, chords=None, beat_times=None, beat_positions=None, bpm=No
     with _lock(stems_dir):
         previous = existing if keep_notes else {}
         os.makedirs(side, exist_ok=True)
-        has_sf = soundfont.available()
+        has_sf = soundfont.ensure_player()
         if has_sf:
             try:
                 soundfont.ensure_soundfont()

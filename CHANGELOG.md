@@ -89,7 +89,9 @@ the commits that carry the change.
     detected for the song, only where the instrument plays).
   - Sound chosen per track from the ♪ button: sampled General MIDI instruments and drum
     kits (TinySoundFont + GeneralUser GS, ~31 MB, downloaded on first use into
-    `core/models/soundfonts/`) and six built-in synth engines compiled with numba —
+    `core/models/soundfonts/`; the `tinysoundfont` package is installed by the app itself
+    with `pip --no-deps` the first time MIDI tracks are built, because it declares
+    PyAudio, which has no Linux wheel) and six built-in synth engines compiled with numba —
     virtual analog (band-limited oscillators, resonant ladder filter), FM, wavetable,
     plucked string physical model (with an amp stage for the overdriven guitar),
     tonewheel organ, and an analog drum machine (808/909 voices). Changing a setting
